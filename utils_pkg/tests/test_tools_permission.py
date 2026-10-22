@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from klea_utils.mcp.path_detect import (
     MAX_PATH_DISPLAY_CHARS,
     MAX_RAW_DISPLAY_CHARS,
     detect_path_requests,
+    split_shell_tokens,
     truncate_middle,
 )
 from klea_utils.mcp.schemas import ToolInfo
@@ -144,8 +146,8 @@ def test_detect_keeps_bare_root_guess(tmp_path):
     )
 
     assert len(requests) == 1
-    assert requests[0].path == "/"
-    assert requests[0].directory == "/"
+    assert requests[0].path == os.path.abspath(os.sep)
+    assert requests[0].directory == os.path.abspath(os.sep)
     assert requests[0].confidence == "guess"
     assert requests[0].source == "value:command"
 
@@ -153,7 +155,7 @@ def test_detect_keeps_bare_root_guess(tmp_path):
 def test_detect_long_guess_has_bounded_display_context(tmp_path):
     """A long guessed string keeps full values but bounded display previews."""
     root, outside = _root_and_outside(tmp_path)
-    token = f"{outside}/{'a' * 1000}"
+    token = str(outside / ("a" * 240))
     requests = detect_path_requests(
         "run_command", {"command": f"echo {token}"}, None, project_root=root
     )
@@ -271,6 +273,91 @@ def test_detect_shell_redirection_assignment_and_flags(tmp_path):
     assert {request.directory for request in requests} == {str(outside)}
 
 
+def test_detect_strips_trailing_shell_separator(tmp_path):
+    """A ``;`` attached to the final token is not part of the path."""
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    command = f"tee {outside}/log.txt; echo done"
+    requests = detect_path_requests(
+        "run_command", {"command": command}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].raw == str(outside / "log.txt")
+    assert requests[0].path == str(outside / "log.txt")
+
+
+def test_detect_unwraps_command_substitution_with_separator(tmp_path):
+    """A path inside ``$(...);`` is detected without the shell wrapper."""
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    command = f'echo "lines: $(wc -l < {outside}/log.txt);"'
+    requests = detect_path_requests(
+        "run_command", {"command": command}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].raw == str(outside / "log.txt")
+    assert requests[0].path == str(outside / "log.txt")
+
+
+def test_detect_keeps_and_or_paths_separate(tmp_path):
+    """``&&`` / ``||`` are operators, not path suffixes."""
+    root, _ = _root_and_outside(tmp_path)
+    first = tmp_path / "first"
+    second = tmp_path / "second"
+    first.mkdir()
+    second.mkdir()
+    command = f"cat {first}/a && cat {second}/b || echo done"
+    requests = detect_path_requests(
+        "run_command", {"command": command}, None, project_root=root
+    )
+
+    assert {request.raw for request in requests} == {
+        str(first / "a"),
+        str(second / "b"),
+    }
+
+
+def test_split_shell_tokens_separates_operators_and_keeps_quotes():
+    """Operators are separate tokens; quoted values stay one token."""
+    tokens = split_shell_tokens('tee /tmp/x > /dev/null; echo "a b"')
+
+    assert ";" in tokens
+    assert "/dev/null" in tokens
+    assert "a b" in tokens
+
+
+def test_split_shell_tokens_keeps_hash_literal():
+    """``#`` is not treated as a comment marker (shlex.split behaviour)."""
+    assert split_shell_tokens("cat /tmp/foo#bar") == ["cat", "/tmp/foo#bar"]
+
+
+def test_detect_keeps_hash_in_unquoted_path(tmp_path):
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    path = outside / "a#b.txt"
+    requests = detect_path_requests(
+        "run_command", {"command": f"cat {path}"}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].raw == str(path)
+
+
+def test_detect_preserves_quoted_semicolon_path(tmp_path):
+    """A quoted ``;`` is part of the filename, not an operator."""
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    path = outside / "a;b.txt"
+    requests = detect_path_requests(
+        "run_command", {"command": f'cat "{path}"'}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].raw == str(path)
+
+
 def test_detect_quoted_backslash_path_stays_one_token(tmp_path, monkeypatch):
     """A quoted Windows-style path is one token: its space does not split it.
 
@@ -291,7 +378,7 @@ def test_detect_quoted_backslash_path_stays_one_token(tmp_path, monkeypatch):
     # A backslash is a literal character on POSIX, so the single token resolves
     # to a name directly under *tmp_path* (the root's parent), not to a token
     # truncated at the space.
-    assert requests[0].directory == str(tmp_path)
+    assert requests[0].directory == str(Path(token).parent)
 
 
 @pytest.mark.skipif(

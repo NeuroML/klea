@@ -257,13 +257,21 @@ def _looks_pathlike(token: str) -> bool:
 
 
 def _normalize_token(token: str) -> str:
-    """Strip redirections and ``name=value`` assignments from a token."""
+    """Strip redirections, assignments and shell operators from a token."""
     # ``2>/tmp/x`` / ``>/tmp/x``: keep the part after the redirection.
     if ">" in token:
         token = token.rsplit(">", 1)[1]
     if "<" in token:
         token = token.rsplit("<", 1)[1]
+    token = token.strip()
+    # Unquoted shell operators are separate tokens (see split_shell_tokens),
+    # but a quoted command substitution such as ``"$(wc -l < /tmp/x);"``
+    # still carries its closing ``)`` and a trailing literal ``;``.
+    token = token.removeprefix("$(")
     token = token.strip("(){}")
+    while token and token[-1] in ";|&)":
+        token = token[:-1]
+    token = token.strip()
     if "=" in token:
         left, right = token.split("=", 1)
         # ``FOO=/etc`` env assignment or ``--out=/etc`` long option value.
@@ -312,11 +320,48 @@ def split_arguments(text: str, *, windows: bool | None = None) -> list[str]:
     return stripped
 
 
+def split_shell_tokens(text: str, *, windows: bool | None = None) -> list[str]:
+    """Split a shell command into tokens, separating control operators.
+
+    Unlike :func:`split_arguments` (used for ``/command`` arguments, where a
+    ``;`` may be part of a value), this uses :mod:`shlex`'s punctuation mode so
+    ``;``, ``|``, ``&``, ``<`` and ``>`` are separate tokens instead of
+    clinging to a path.  Quotes still group a token, so a quoted path with
+    spaces or shell characters stays intact.  Comments are disabled (as in
+    :func:`shlex.split`): ``#`` is a literal character, not a comment marker.
+    ``whitespace_split`` is enabled so ``=``, ``:`` and ``#`` do not split a
+    token; only whitespace and the punctuation characters do.
+
+    :param text: The shell command string.
+    :param windows: Force Windows (``True``) or POSIX (``False``) rules;
+        defaults to :func:`platform_is_windows`.
+    :returns: The argument and operator tokens.
+    """
+    if windows is None:
+        windows = platform_is_windows()
+    lexer = shlex.shlex(
+        text,
+        posix=not windows,
+        punctuation_chars="();<>|&",
+    )
+    lexer.whitespace_split = True
+    lexer.commenters = ""
+    tokens = list(lexer)
+    if windows:
+        stripped: list[str] = []
+        for token in tokens:
+            if len(token) >= 2 and token[0] == token[-1] and token[0] in "\"'":
+                token = token[1:-1]
+            stripped.append(token)
+        return stripped
+    return tokens
+
+
 def _tokens_for_value(value: str) -> list[str]:
     """Split a string value into candidate tokens.
 
     A whitespace-containing value is treated as a shell command string and
-    split with :func:`split_arguments` (falling back to ``str.split`` on a
+    split with :func:`split_shell_tokens` (falling back to ``str.split`` on a
     quoting error); a single-token value (a plain path) is returned as-is.
     Windows quoting keeps backslash separators literal.
     """
@@ -326,7 +371,7 @@ def _tokens_for_value(value: str) -> list[str]:
     if not any(ch.isspace() for ch in text):
         return [text]
     try:
-        return split_arguments(text)
+        return split_shell_tokens(text)
     except ValueError:
         logger.debug("Could not split value; falling back to whitespace")
         return text.split()
