@@ -449,6 +449,7 @@ async def read_file(
     Document formats (PDF, office files) are converted to Markdown first.
 
     Use when:
+
     - You need to see the contents of a file in the project.
     - You want to page through a large file by line numbers.
     - You need the end of a large file, such as the tail of a build log: use a
@@ -458,10 +459,12 @@ async def read_file(
     region you need first, then read around it with ``offset``/``limit``.
 
     Do not use for:
+
     - Listing a directory (use the list files tool instead).
     - Fetching remote content (use the web fetch tool instead).
 
     Examples:
+
     - ``read_file(path="README.md", offset=1, limit=100)``
     - ``read_file(path="build.log", offset=-100)``
 
@@ -535,10 +538,12 @@ async def write_file(
     The write is atomic and an existing file's mode is preserved.
 
     Use when:
+
     - Creating a new file.
     - Replacing the whole content of a small file.
 
     Do not use for:
+
     - Reading a file (use the read file tool instead).
     - Listing a directory (use the list files tool instead).
     - Making a small change to an existing file (use the edit file tool instead).
