@@ -512,7 +512,7 @@ def test_slice_segments_tail_clamped_with_limit():
 def test_locate_tail_start_last_line_with_trailing_newline(tmp_path):
     """Trailing newlines are stripped before counting the tail."""
     f = tmp_path / "t.txt"
-    f.write_text("a\nb\nc\n")
+    f.write_text("a\nb\nc\n", encoding="utf-8", newline="\n")
 
     start = _locate_tail_start(f, 1, max_bytes=10_000)
 
