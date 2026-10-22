@@ -24,6 +24,7 @@ from klea_utils.ui.state import TurnStatus, chats, missing_credentials
 from klea_utils.ui.web.nicegui.components.chat_bubble import ChatBubble
 from klea_utils.ui.web.nicegui.components.choice import choice_buttons
 from klea_utils.ui.web.nicegui.components.context import PageContext
+from klea_utils.ui.web.nicegui.components.state_edit import render_state_edit
 
 logger = logging.getLogger(__name__)
 
@@ -123,7 +124,8 @@ def _render_interrupt_form(ctx: PageContext) -> None:
     A ``review`` ask gets Approve / Request changes / Cancel; an ``input``
     ask gets one text field per question plus Answer / Cancel; a
     ``permission`` ask (ADR-0007) gets one allow-once / allow-session / deny
-    choice per requested path.  Submitting calls
+    choice per requested path; a ``state_edit`` ask renders the generic
+    session-state editor.  Submitting calls
     :attr:`PageContext.submit_interrupt` (registered by the input area).
     """
     ask = _interrupt_ask(ctx)
@@ -131,6 +133,9 @@ def _render_interrupt_form(ctx: PageContext) -> None:
     interrupt_id = ask.get("interrupt_id")
     if kind == "permission":
         _render_permission_form(ctx, ask, interrupt_id)
+        return
+    if kind == "state_edit":
+        render_state_edit(ctx, ask, interrupt_id)
         return
     heading = "Plan review" if kind == "review" else "User input"
     with ui.column().classes("w-full gap-2 p-3 border border-primary rounded"):

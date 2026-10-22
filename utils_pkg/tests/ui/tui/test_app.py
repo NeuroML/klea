@@ -32,6 +32,7 @@ from klea_utils.ui.tui.components.sessions import (
     SessionPicker,
     SessionRename,
 )
+from klea_utils.ui.tui.components.state_edit import StateEditPanel
 from klea_utils.ui.tui.components.transcript import MessageBlock, Transcript
 from textual.containers import Horizontal, VerticalScroll
 from textual.selection import Selection
@@ -403,6 +404,64 @@ async def test_permission_panel_uses_bounded_path_preview(fake_backend, make_app
         assert any("chars omitted" in text for text in texts)
         app.screen.query_one("#perm-submit", Button).press()
         await _settle(pilot, app)
+
+
+async def test_state_edit_panel_saves_edited_values(fake_backend, make_app):
+    """The generic state editor edits path lists and text fields."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "state_edit",
+                    "title": "Manage paths",
+                    "description": "Session only",
+                    "fields": [
+                        {
+                            "key": "allowed_dirs",
+                            "label": "Allowed directories",
+                            "kind": "path_list",
+                            "value": ["/tmp/a", "/tmp/b"],
+                            "addable": True,
+                            "removable": True,
+                        },
+                        {
+                            "key": "note",
+                            "label": "Note",
+                            "kind": "text",
+                            "value": "old",
+                        },
+                    ],
+                    "interrupt_id": "s1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        panel = app.screen.query_one(StateEditPanel)
+        texts = [str(widget.render()) for widget in panel.query(SelectableStatic)]
+        labels = [str(widget.render()) for widget in panel.query(Label)]
+        assert any("Manage paths" in text for text in texts)
+        assert any("Allowed directories" in text for text in texts)
+        assert any("/tmp/a" in text for text in labels)
+
+        panel.query_one("#add-allowed_dirs", Input).value = "/tmp/c"
+        panel.query_one("#addbtn-allowed_dirs", Button).press()
+        await _settle(pilot, app)
+        panel.query_one("#state-allowed_dirs", ListView).index = 0
+        panel.query_one("#rmbtn-allowed_dirs", Button).press()
+        await _settle(pilot, app)
+        panel.query_one("#state-save", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["interrupt_response"] == {
+        "action": "save",
+        "values": {"allowed_dirs": ["/tmp/b", "/tmp/c"], "note": "old"},
+    }
 
 
 async def test_permission_panel_with_many_requests_scrolls(fake_backend, make_app):

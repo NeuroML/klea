@@ -341,6 +341,59 @@ async def test_permission_coverage_lists_all_paths(fake_backend, agent_user):
     await agent_user.should_see("/tmp/b")
 
 
+async def test_state_edit_interrupt_renders_and_saves(fake_backend, agent_user):
+    """A generic state-edit ask renders its fields and submits their values."""
+    fake_backend.stream_events = [
+        {
+            "type": "interrupt",
+            "node": "Running command",
+            "data": {
+                "kind": "state_edit",
+                "title": "Manage paths",
+                "description": "Session only",
+                "fields": [
+                    {
+                        "key": "allowed_dirs",
+                        "label": "Allowed directories",
+                        "kind": "path_list",
+                        "value": ["/tmp/a", "/tmp/b"],
+                        "addable": True,
+                        "removable": True,
+                    },
+                    {
+                        "key": "note",
+                        "label": "Note",
+                        "kind": "text",
+                        "value": "old",
+                    },
+                ],
+                "interrupt_id": "s1",
+            },
+        }
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Manage paths", retries=50)
+    await agent_user.should_see("Allowed directories")
+    await agent_user.should_see("/tmp/a")
+    await agent_user.should_see("/tmp/b")
+
+    fake_backend.stream_events = [
+        {"type": "complete", "message_for_user": "Updated paths."}
+    ]
+    agent_user.find("Save").click()
+    await agent_user.should_see("Updated paths.", retries=50)
+
+    body = next(
+        body for body in fake_backend.stream_bodies() if "interrupt_response" in body
+    )
+    assert body["interrupt_response"] == {
+        "action": "save",
+        "values": {"allowed_dirs": ["/tmp/a", "/tmp/b"], "note": "old"},
+    }
+
+
 async def test_permission_guess_offers_not_a_path(fake_backend, agent_user):
     """A guessed path value offers a "Not a path" dismissal that submits."""
     fake_backend.stream_events = [

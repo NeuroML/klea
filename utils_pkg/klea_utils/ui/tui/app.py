@@ -64,6 +64,7 @@ from klea_utils.ui.tui.components.inspector import Inspector
 from klea_utils.ui.tui.components.model_dialog import ModelDialog, ModelResult
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 from klea_utils.ui.tui.components.sessions import SessionAction, SessionPicker
+from klea_utils.ui.tui.components.state_edit import StateEditPanel
 from klea_utils.ui.tui.components.status_panel import StatusPanel
 from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
@@ -955,7 +956,8 @@ class KleaTuiApp(App[None]):
         await create_chat_on_server(self.ctx.server_url, self.ctx.user_id, chat_id)
 
     def _open_hitl(self, ask: dict[str, Any]) -> None:
-        """Mount the inline HITL panel for *ask* (review / input / permission).
+        """Mount the inline HITL panel for *ask* (review / input / permission /
+        state_edit).
 
         The panel is a sibling of the transcript in the chat panel, not a modal,
         so the chat stays scrollable while the ask is open (ADR-0046).
@@ -968,9 +970,12 @@ class KleaTuiApp(App[None]):
             return
         if self._hitl_panel is not None:
             self._hitl_panel.remove()
-        panel: HitlDecisionPanel = (
-            PermissionPanel(ask) if ask.get("kind") == "permission" else HitlPanel(ask)
-        )
+        if ask.get("kind") == "permission":
+            panel: HitlDecisionPanel = PermissionPanel(ask)
+        elif ask.get("kind") == "state_edit":
+            panel = StateEditPanel(ask)
+        else:
+            panel = HitlPanel(ask)
         self._hitl_panel = panel
         screen.mount(panel, before=screen.query_one("#query-input-frame"))
         # The ask replaces the composer while it is active, so the two never
