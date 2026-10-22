@@ -6,6 +6,7 @@
 
 ### Added
 
+- `read_file` can read from the end with a negative `offset` (tail): `-1` is the last line and `-N` the Nth from the end. Tail pages keep signed line numbers and `next_offset`, reach EOF without a full scan, and report `total_lines` when the backward scan reaches the start; converted documents use exact totals.
 - Agent cross-run continuity: `RouteDecision` recognises explicit "implement/continue" requests, and a bounded continuation evidence record plus the new `ResetState` task boundary let the Planner re-plan from prior work across graph runs; new tasks still start from a fresh goal and plan. See ADR-0054.
 - Agent task planning: the Planner is shown the last 9 abandoned plan versions with the reason each failed, and the guidance HITL ask displays them so the user can see what was tried. The Planner is told not to repeat an abandoned approach; there is no deterministic semantic repeat detector.
 - Agent step execution: an Evaluator `step_incomplete` reason is passed to the tool binder and reasoning node as `step_feedback`, so a re-run can address the specific gap instead of repeating the same call or conclusion.

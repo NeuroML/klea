@@ -46,7 +46,8 @@ These only read; they are available at every access level.
      - ``local``, ``files``
    * - ``read_file``
      - Read a file as text (documents such as PDF are converted to Markdown);
-       large files are read a page at a time.
+       large files are read a page at a time, or from the end with a negative
+       ``offset``.
      - ``local``, ``files``
    * - ``grep``
      - Search the contents of the project's files with a regular expression,

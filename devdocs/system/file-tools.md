@@ -47,8 +47,10 @@ originally written without an enumerated edge-case contract, which let
 
 * `offset` (1-indexed line), `limit` (lines; default 500),
   `char_offset` (0-indexed character within the start line, default 0).
-  `limit=None` removes only the line cap; the server character budget still
-  applies, so a `None` read can still be truncated with `next_offset`.
+  A negative `offset` counts from the end (`-1` is the last line), see
+  "Reading from the end" below.  `limit=None` removes only the line cap; the
+  server character budget still applies, so a `None` read can still be
+  truncated with `next_offset`.
 * The character budget is **server-owned** (`_MAX_CHARS`, ~20k), not an input
   to the tool, so a large file is read by paging rather than in one call.  The
   effective value is reported as `char_budget`.
@@ -73,10 +75,40 @@ originally written without an enumerated edge-case contract, which let
   file-size gate -- files larger than `max_bytes` are paged like any other,
   and a page that cannot be completed within the cap is returned truncated
   with a note.
-* `total_lines` is exact only when the read reaches EOF; a streamed page that
-  stops early does not scan the rest of the file, so the field is `null`.
+* `total_lines` is exact when the read reaches the relevant end: EOF for a
+  forward read, or the file start for a tail read.  A streamed page that stops
+  early does not scan the rest of the file, so the field is `null`.
 * A **large-file truncation** carries a `note` recommending `grep` to locate
-  the region and then reading it with `offset`/`limit`.
+  the region and then reading it with `offset`/`limit`; a forward page also
+  suggests a negative offset for reading the end directly.
+
+### Reading from the end (tail)
+
+* A negative `offset` addresses lines from EOF: `offset=-1` is the last line,
+  `offset=-N` the Nth from the end.  `limit` then counts forward from that
+  start; `None` runs to EOF.
+* Tail reads use **negative line numbers** in `line_start`, `line_end` and
+  `next_offset` (`-1` is the last line).  A page that reaches EOF is
+  `truncated: false` with `next_offset: null` and `line_end: -1`.
+* Plain text is located by a chunked **backward scan** (`_locate_tail_start`):
+  LF and lone-CR terminators are counted (CRLF is one), one trailing line
+  ending is ignored so it does not add an empty line, and a terminator split
+  across chunk boundaries is handled.  I/O is O(tail bytes) and memory is
+  O(chunk); the page is then read forward from the located byte offset.
+* The backward locator and the forward page read are each bounded by
+  `max_bytes`.  If the locator cannot reach the requested line within the cap,
+  the result is an empty, truncated page (`truncation_reason: scan_cap`) with a
+  note; use grep or a smaller tail.
+* When the backward scan reaches byte 0 it reports the exact `total_lines`.
+  A partial tail does not scan to the start, so `total_lines` stays `null`.
+  A tail offset beyond the start clamps to the first line (reported as
+  `-total_lines`) and carries a note.
+* HTML/anydoc pages are already in memory, so they are sliced from the end
+  directly and always report the exact `total_lines`.
+* A tail read validates only the returned tail region.  Binary content or
+  invalid UTF-8 earlier in the file is not seen unless the tail reaches it.
+* An empty file has no tail line: the result is empty, `total_lines: 0`, with
+  a "past the start" note.
 
 ## `grep` context contract
 
@@ -120,6 +152,12 @@ originally written without an enumerated edge-case contract, which let
 | `limit=None` with more content than the budget | Character-capped page; `truncation_reason: char_budget`; continue with `next_offset`. |
 | Empty file | `total_lines: 0`, empty content. |
 | `offset` past EOF | Empty content + a "past the end" `note`. |
+| Negative `offset` | Tail read; `-1` is the last line, line numbers and `next_offset` are negative. |
+| Tail reaches EOF | `truncated: false`, `next_offset: null`, `line_end: -1`. |
+| Tail reaches byte 0 | Exact `total_lines` reported; the start is `-total_lines` (the first line). |
+| Tail beyond the start | Clamped to the first line + a "before the start" `note`. |
+| Tail locator hits `max_bytes` | Empty, truncated page; `truncation_reason: scan_cap`; a `note` suggests grep or a smaller tail. |
+| Negative `offset`, empty file | Empty content + a "past the start (0 lines)" `note`. |
 | Non-positive `limit` | Coerced to one line (never reads the whole file). |
 | Binary (NUL) | Refused (error). |
 | Invalid UTF-8 | Refused (error). |
@@ -130,7 +168,7 @@ originally written without an enumerated edge-case contract, which let
 | File > `max_bytes` | Paged; not refused.  A page needing more than the scan cap is truncated with a note. |
 | Large file, page near the start | Readable; only the page's bytes are scanned. |
 | Large file, page far in | Truncated + `grep` hint (Phase 1); byte-offset seek is the Phase 2 follow-up. |
-| Page does not reach EOF | `total_lines: null` (streamed read). |
+| Page does not reach EOF | Forward read: `total_lines: null`.  Tail read: `line_end: -1` means EOF; `total_lines` stays null unless the scan reached byte 0. |
 | File grows mid-read | Bounded by the page plus the `max_bytes` scan cap; never unbounded. |
 | Symlink loop / unresolvable | Not a file (error). |
 | Symlink / `..` outside root | Handled by the client-side gate (deny/ask), not the tool. |
@@ -149,6 +187,16 @@ originally written without an enumerated edge-case contract, which let
   memory), but reaching a line `offset` still counts newlines from byte 0, so a
   late page costs O(offset) I/O.  Byte-offset region reads (grep emits match
   offsets; `read_file` seeks) are the Phase 2 follow-up (`devdocs/backlog.md`).
+* **Tail scans are linear in the tail.**  The backward locator reads up to
+  `max_bytes` from EOF to find the requested line, so a very negative offset on
+  a large file costs that much I/O.  A partial tail does not learn the total,
+  and a last line longer than `max_bytes` cannot be located.  Tail reads
+  validate only the returned region; binary content or invalid UTF-8 earlier
+  in the file is not seen.
+* **Truncated forward reads do not compute a total.**  The exact total is
+  available when the read reaches EOF (forward) or byte 0 (tail).  A huge
+  negative offset can force the latter within `max_bytes`; otherwise the agent
+  should tail, grep, or use `run_command`.
 * **Conversions are whole-document.**  HTML (BeautifulSoup) and anydoc convert
   the whole file before paging, so those paths cannot stream; the converted
   text is cached so re-paging does not re-convert.
