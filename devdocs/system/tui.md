@@ -240,6 +240,13 @@ that must run a query posts a shared `SubmitQuery` message
   is shown verbatim (no Markdown decoration) so literal underscores, `#`,
   line breaks and pasted code are preserved; only agent/system messages render
   as Markdown.
+* **Selection/copy**: free-standing text widgets use `SelectableStatic`
+  (`components/selectable.py`).  It keeps the Rich Markdown/Syntax/Group
+  renderables instead of switching to Textual's native `Markdown` widget: one
+  MIME-aware render path, a pure `render_message`, and no fenced-code or
+  tool-header rewrite.  The subclass adds the two pieces the generic Rich path
+  lacks (`render_line` cell offsets and `get_selection` extraction); see its
+  class docstring for the full decision record.
 * **Non-goals / known divergence**: no inline media (text fallback, ADR-0040);
   HTML tables/alerts degrade to plain renderables; no live token typing
   (`token` stays unconsumed, streams.md); no always-visible session sidebar.
