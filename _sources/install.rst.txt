@@ -227,7 +227,7 @@ Set these in your shell (``~/.bashrc``, ``~/.zshrc``, or inline on the
 command line) or in the env file.  Setting them inline is the easiest way
 to try a model without editing any files::
 
-   KLEA_AGENT_CHAT_MODEL=ollama:qwen3:0.6b klea cli
+   KLEA_AGENT_CHAT_MODEL=ollama:qwen3:0.6b klea
 
 If a required model is not set, the server still starts but logs a warning
 listing every model environment variable and its current state.  Queries
@@ -251,7 +251,7 @@ keys**); they are masked in responses and expire after a period unused.  See
 Example invocation::
 
    klea-rag-serve --profile my-config
-   KLEA_RAG_ENV_FILE=rag.env klea-rag cli --profile my-config
+   KLEA_RAG_ENV_FILE=rag.env klea-rag tui --profile my-config
 
 Choosing models
 ~~~~~~~~~~~~~~~
@@ -428,22 +428,22 @@ it.  The rotating file always captures DEBUG.  Each CLI uses its own
      - Log file name
    * - ``klea-rag`` (RAG server / graph)
      - ``klea-rag/klea-rag.log``
-   * - ``klea-rag`` terminal clients (``cli`` / ``tui``)
+   * - ``klea-rag`` terminal client (``tui``)
      - ``klea-rag-tui/klea-rag-tui.log``
    * - ``klea-rag`` web client
      - ``klea-rag-web/klea-rag-web.log``
    * - ``klea-agent`` (Agent server / graph)
      - ``klea-agent/klea-agent.log``
-   * - ``klea`` terminal clients (``cli`` / ``tui``)
+   * - ``klea`` terminal client (``tui``)
      - ``klea-agent-tui/klea-agent-tui.log``
    * - ``klea`` web client
      - ``klea-agent-web/klea-agent-web.log``
    * - ``nml-mcp`` (MCP server)
      - ``nml_mcp/nml_mcp.log``
 
-The ``cli`` subcommand's terminal client is a lightweight REPL for quick
-testing; the full terminal interface is ``tui`` (see :doc:`components/tui`).
-Both share the ``-tui`` process identity and log file.
+The ``tui`` subcommand is the full terminal interface (see
+:doc:`components/tui`); bare ``klea`` / ``klea-rag`` launches it.  The web
+client is ``web``.
 
 ``klea-stores-create`` logs to the console only.
 

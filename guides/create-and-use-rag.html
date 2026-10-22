@@ -644,21 +644,18 @@ If no server is running there, they start one on the local machine for
 the session and stop it when they exit; if a server is already running
 (for example from Step 4) they reuse it.  Pointing <code class="docutils literal notranslate"><span class="pre">--server</span></code> at a
 remote host connects without starting anything.</p>
-<p>Single-query mode is the quickest way to test:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>klea-rag<span class="w"> </span>cli<span class="w"> </span>--single-query<span class="w"> </span><span class="s2">"What does my collection of documents cover?"</span>
+<p>For an interactive terminal session:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>klea-rag
 </pre></div>
 </div>
-<p>For an interactive session:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>klea-rag<span class="w"> </span>cli
-</pre></div>
-</div>
-<p>Type your questions at the prompt.  Use <code class="docutils literal notranslate"><span class="pre">quit</span></code> to exit.</p>
+<p>This launches the Textual TUI (also available explicitly as <code class="docutils literal notranslate"><span class="pre">klea-rag</span> <span class="pre">tui</span></code>).
+Type your questions in the input box; <code class="docutils literal notranslate"><span class="pre">Ctrl+Q</span></code> exits.  The TUI requires the
+<code class="docutils literal notranslate"><span class="pre">[tui]</span></code> extra (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">klea-rag[tui]</span></code>).</p>
 <p>For a graphical interface, launch the NiceGUI web UI:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>klea-rag<span class="w"> </span>web
 </pre></div>
 </div>
-<p>The web UI uses NiceGUI and requires the <code class="docutils literal notranslate"><span class="pre">[nicegui]</span></code> extra, while the
-CLI mode has no extra dependencies.</p>
+<p>The web UI uses NiceGUI and requires the <code class="docutils literal notranslate"><span class="pre">[nicegui]</span></code> extra.</p>
 <p>The interface has a <strong>chat</strong> tab and an <strong>inspect</strong> tab.  The inspect tab
 is the transparency view: it shows the pipeline steps taken for each
 answer, with their timings and structured details.  See

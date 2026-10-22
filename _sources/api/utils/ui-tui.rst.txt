@@ -1,10 +1,9 @@
 UI - terminal client
 ====================
 
-The ``cli`` subcommand's terminal client is a lightweight REPL for quick
-testing.  The full Textual terminal TUI is the ``tui`` subcommand (see
-:doc:`../../components/tui`); both share the ``klea_utils.ui`` helpers
-(:doc:`ui-nicegui`).
+The Textual terminal TUI is the ``tui`` subcommand (see
+:doc:`../../components/tui`); it shares the ``klea_utils.ui`` helpers
+(:doc:`ui-nicegui`).  Bare ``klea`` / ``klea-rag`` also launches it.
 
 The Textual application
 -----------------------
@@ -65,12 +64,5 @@ Components
    :show-inheritance:
 
 .. automodule:: klea_utils.ui.tui.components.turn_status
-   :members:
-   :show-inheritance:
-
-The lightweight REPL
---------------------
-
-.. automodule:: klea_utils.ui.tui.repl
    :members:
    :show-inheritance:

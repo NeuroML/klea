@@ -169,8 +169,8 @@ MCP server or remove the line entirely.
 
 .. note::
 
-   ``klea-rag web`` (and ``klea-rag cli``) auto-start a server on the
-   local machine when none is running.  In this container the backend
+   ``klea-rag web`` (and the terminal TUI, ``klea-rag``) auto-start a server on
+   the local machine when none is running.  In this container the backend
    is started explicitly with ``klea-rag-serve`` above, so the
    frontend's readiness probe simply reuses it.
 

@@ -581,13 +581,21 @@
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_normalize_token</span><span class="p">(</span><span class="n">token</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">"""Strip redirections and ``name=value`` assignments from a token."""</span>
+<span class="w">    </span><span class="sd">"""Strip redirections, assignments and shell operators from a token."""</span>
     <span class="c1"># ``2&gt;/tmp/x`` / ``&gt;/tmp/x``: keep the part after the redirection.</span>
     <span class="k">if</span> <span class="s2">"&gt;"</span> <span class="ow">in</span> <span class="n">token</span><span class="p">:</span>
         <span class="n">token</span> <span class="o">=</span> <span class="n">token</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">"&gt;"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
     <span class="k">if</span> <span class="s2">"&lt;"</span> <span class="ow">in</span> <span class="n">token</span><span class="p">:</span>
         <span class="n">token</span> <span class="o">=</span> <span class="n">token</span><span class="o">.</span><span class="n">rsplit</span><span class="p">(</span><span class="s2">"&lt;"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">token</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="c1"># Unquoted shell operators are separate tokens (see split_shell_tokens),</span>
+    <span class="c1"># but a quoted command substitution such as ``"$(wc -l &lt; /tmp/x);"``</span>
+    <span class="c1"># still carries its closing ``)`` and a trailing literal ``;``.</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">token</span><span class="o">.</span><span class="n">removeprefix</span><span class="p">(</span><span class="s2">"$("</span><span class="p">)</span>
     <span class="n">token</span> <span class="o">=</span> <span class="n">token</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s2">"()</span><span class="si">{}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">while</span> <span class="n">token</span> <span class="ow">and</span> <span class="n">token</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">in</span> <span class="s2">";|&amp;)"</span><span class="p">:</span>
+        <span class="n">token</span> <span class="o">=</span> <span class="n">token</span><span class="p">[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="n">token</span> <span class="o">=</span> <span class="n">token</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
     <span class="k">if</span> <span class="s2">"="</span> <span class="ow">in</span> <span class="n">token</span><span class="p">:</span>
         <span class="n">left</span><span class="p">,</span> <span class="n">right</span> <span class="o">=</span> <span class="n">token</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"="</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
         <span class="c1"># ``FOO=/etc`` env assignment or ``--out=/etc`` long option value.</span>
@@ -642,11 +650,51 @@
 
 
 
+<div class="viewcode-block" id="split_shell_tokens">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.path_detect.split_shell_tokens">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_shell_tokens</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">windows</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Split a shell command into tokens, separating control operators.</span>
+
+<span class="sd">    Unlike :func:`split_arguments` (used for ``/command`` arguments, where a</span>
+<span class="sd">    ``;`` may be part of a value), this uses :mod:`shlex`'s punctuation mode so</span>
+<span class="sd">    ``;``, ``|``, ``&amp;``, ``&lt;`` and ``&gt;`` are separate tokens instead of</span>
+<span class="sd">    clinging to a path.  Quotes still group a token, so a quoted path with</span>
+<span class="sd">    spaces or shell characters stays intact.  Comments are disabled (as in</span>
+<span class="sd">    :func:`shlex.split`): ``#`` is a literal character, not a comment marker.</span>
+<span class="sd">    ``whitespace_split`` is enabled so ``=``, ``:`` and ``#`` do not split a</span>
+<span class="sd">    token; only whitespace and the punctuation characters do.</span>
+
+<span class="sd">    :param text: The shell command string.</span>
+<span class="sd">    :param windows: Force Windows (``True``) or POSIX (``False``) rules;</span>
+<span class="sd">        defaults to :func:`platform_is_windows`.</span>
+<span class="sd">    :returns: The argument and operator tokens.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">windows</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">windows</span> <span class="o">=</span> <span class="n">platform_is_windows</span><span class="p">()</span>
+    <span class="n">lexer</span> <span class="o">=</span> <span class="n">shlex</span><span class="o">.</span><span class="n">shlex</span><span class="p">(</span>
+        <span class="n">text</span><span class="p">,</span>
+        <span class="n">posix</span><span class="o">=</span><span class="ow">not</span> <span class="n">windows</span><span class="p">,</span>
+        <span class="n">punctuation_chars</span><span class="o">=</span><span class="s2">"();&lt;&gt;|&amp;"</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">lexer</span><span class="o">.</span><span class="n">whitespace_split</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">lexer</span><span class="o">.</span><span class="n">commenters</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="n">tokens</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">lexer</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">windows</span><span class="p">:</span>
+        <span class="n">stripped</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">tokens</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">token</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">token</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">token</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> <span class="n">token</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="s2">"</span><span class="se">\"</span><span class="s2">'"</span><span class="p">:</span>
+                <span class="n">token</span> <span class="o">=</span> <span class="n">token</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+            <span class="n">stripped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">stripped</span>
+    <span class="k">return</span> <span class="n">tokens</span></div>
+
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_tokens_for_value</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Split a string value into candidate tokens.</span>
 
 <span class="sd">    A whitespace-containing value is treated as a shell command string and</span>
-<span class="sd">    split with :func:`split_arguments` (falling back to ``str.split`` on a</span>
+<span class="sd">    split with :func:`split_shell_tokens` (falling back to ``str.split`` on a</span>
 <span class="sd">    quoting error); a single-token value (a plain path) is returned as-is.</span>
 <span class="sd">    Windows quoting keeps backslash separators literal.</span>
 <span class="sd">    """</span>
@@ -656,7 +704,7 @@
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">ch</span><span class="o">.</span><span class="n">isspace</span><span class="p">()</span> <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">text</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">text</span><span class="p">]</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">split_arguments</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">split_shell_tokens</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Could not split value; falling back to whitespace"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">text</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>

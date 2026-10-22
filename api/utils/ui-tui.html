@@ -316,10 +316,9 @@
         <article role="main" id="furo-main-content">
           <section id="ui-terminal-client">
 <h1>UI - terminal client<a class="headerlink" href="#ui-terminal-client" title="Link to this heading">¶</a></h1>
-<p>The <code class="docutils literal notranslate"><span class="pre">cli</span></code> subcommand’s terminal client is a lightweight REPL for quick
-testing.  The full Textual terminal TUI is the <code class="docutils literal notranslate"><span class="pre">tui</span></code> subcommand (see
-<a class="reference internal" href="../../components/tui.html"><span class="doc">Terminal interface</span></a>); both share the <code class="docutils literal notranslate"><span class="pre">klea_utils.ui</span></code> helpers
-(<a class="reference internal" href="ui-nicegui.html"><span class="doc">UI — NiceGUI</span></a>).</p>
+<p>The Textual terminal TUI is the <code class="docutils literal notranslate"><span class="pre">tui</span></code> subcommand (see
+<a class="reference internal" href="../../components/tui.html"><span class="doc">Terminal interface</span></a>); it shares the <code class="docutils literal notranslate"><span class="pre">klea_utils.ui</span></code> helpers
+(<a class="reference internal" href="ui-nicegui.html"><span class="doc">UI — NiceGUI</span></a>).  Bare <code class="docutils literal notranslate"><span class="pre">klea</span></code> / <code class="docutils literal notranslate"><span class="pre">klea-rag</span></code> also launches it.</p>
 <section id="module-klea_utils.ui.tui.app">
 <span id="the-textual-application"></span><h2>The Textual application<a class="headerlink" href="#module-klea_utils.ui.tui.app" title="Link to this heading">¶</a></h2>
 <p>Shared Textual terminal client.</p>
@@ -2048,39 +2047,6 @@ Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
 </dd></dl>
 
 </section>
-<section id="module-klea_utils.ui.tui.repl">
-<span id="the-lightweight-repl"></span><h2>The lightweight REPL<a class="headerlink" href="#module-klea_utils.ui.tui.repl" title="Link to this heading">¶</a></h2>
-<p>Lightweight async REPL for Klea terminal clients.</p>
-<p>This is a minimal <code class="docutils literal notranslate"><span class="pre">input()</span></code>-based REPL for quick testing with simple
-queries, <strong>not</strong> the TUI.  It is temporary and will be dropped once the full
-Textual TUI (shared components in this package, composed per app) exists; see
-<code class="docutils literal notranslate"><span class="pre">devdocs/backlog.md</span></code>.</p>
-<p>File: klea_utils/ui/tui/repl.py</p>
-<p>Copyright 2026 Ankur Sinha
-Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
-<dl class="py function">
-<dt class="sig sig-object py" id="klea_utils.ui.tui.repl.run_repl">
-<span class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.ui.tui.repl.</span></span><span class="sig-name descname"><span class="pre">run_repl</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">url</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">single_query</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">''</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">app_prefix</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'klea'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">app_name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'klea-agent-tui'</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/ui/tui/repl.html#run_repl"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.ui.tui.repl.run_repl" title="Link to this definition">¶</a></dt>
-<dd><p>Run an interactive or single-query chat REPL.</p>
-<p>Connects to the API server’s SSE <code class="docutils literal notranslate"><span class="pre">/query/stream</span></code> endpoint and
-displays progress labels and the final answer.</p>
-<p>In interactive mode each query is sent as the user types it;
-the REPL does not batch queries.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>url</strong> – Base URL of the API server (e.g. <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:8005</span></code>)</p></li>
-<li><p><strong>title</strong> – Application title displayed on start</p></li>
-<li><p><strong>single_query</strong> – If set, run one query and exit instead of REPL loop</p></li>
-<li><p><strong>app_prefix</strong> – Prefix for user/assistant labels (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;klea&quot;</span></code>)</p></li>
-<li><p><strong>app_name</strong> – Log identity for this frontend, used as the log file
-name so each process keeps its own logs (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;klea-rag-tui&quot;</span></code>)</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-</section>
 </section>
 
         </article>
@@ -2372,10 +2338,6 @@ name so each process keeps its own logs (e.g. <code class="docutils literal notr
 <li><a class="reference internal" href="#klea_utils.ui.tui.components.turn_status.TurnStatus.show_stopped"><code class="docutils literal notranslate"><span class="pre">TurnStatus.show_stopped()</span></code></a></li>
 </ul>
 </li>
-</ul>
-</li>
-<li><a class="reference internal" href="#module-klea_utils.ui.tui.repl">The lightweight REPL</a><ul>
-<li><a class="reference internal" href="#klea_utils.ui.tui.repl.run_repl"><code class="docutils literal notranslate"><span class="pre">run_repl()</span></code></a></li>
 </ul>
 </li>
 </ul>

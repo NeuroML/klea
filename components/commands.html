@@ -332,13 +332,10 @@ the chat.</p>
 menu); more are planned in both groups.</p>
 <div class="admonition note">
 <p class="admonition-title">Note</p>
-<p>Client commands are shared by the web UI and the TUI.  The lightweight
-<code class="docutils literal notranslate"><span class="pre">klea</span> <span class="pre">cli</span></code> REPL has no client-command handling, so only server commands
-work there.  The TUI offers <code class="docutils literal notranslate"><span class="pre">/help</span></code>, <code class="docutils literal notranslate"><span class="pre">/new</span></code>, <code class="docutils literal notranslate"><span class="pre">/sessions</span></code>, <code class="docutils literal notranslate"><span class="pre">/model</span></code>
-and <code class="docutils literal notranslate"><span class="pre">/exit</span></code>; the web UI also offers <code class="docutils literal notranslate"><span class="pre">/rename</span></code>, <code class="docutils literal notranslate"><span class="pre">/export</span></code> and the
-<code class="docutils literal notranslate"><span class="pre">/sessions</span></code> verbs.  Server commands depend on the app’s graph: the
-agent registers <code class="docutils literal notranslate"><span class="pre">/mode</span></code>, <code class="docutils literal notranslate"><span class="pre">/access</span></code>, <code class="docutils literal notranslate"><span class="pre">/cwd</span></code>, <code class="docutils literal notranslate"><span class="pre">/init</span></code> and
-<code class="docutils literal notranslate"><span class="pre">/compact</span></code>, while the RAG graphs register none yet.</p>
+<p>Client commands are shared by the web UI and the TUI.  Server commands
+depend on the app’s graph: the agent registers <code class="docutils literal notranslate"><span class="pre">/mode</span></code>, <code class="docutils literal notranslate"><span class="pre">/access</span></code>,
+<code class="docutils literal notranslate"><span class="pre">/cwd</span></code>, <code class="docutils literal notranslate"><span class="pre">/init</span></code> and <code class="docutils literal notranslate"><span class="pre">/compact</span></code>, while the RAG graphs register none
+yet.</p>
 </div>
 <section id="ui-commands-client">
 <h2>UI commands (client)<a class="headerlink" href="#ui-commands-client" title="Link to this heading">¶</a></h2>
