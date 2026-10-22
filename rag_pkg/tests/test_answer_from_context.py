@@ -32,6 +32,36 @@ def test_default_error_result_is_retry_message():
     assert result == AnswerSchema(answer=EMPTY_RESULT_FALLBACK, references=[])
 
 
+def test_prose_reply_is_recovered_as_the_answer():
+    """A prose reply that fails JSON parsing is used as the answer."""
+    result = _node()._process_output(
+        LLMNodeContext(
+            output=AIMessage(content="The context says X."),
+            output_schema=AnswerSchema,
+        )
+    )
+    assert result == AnswerSchema(answer="The context says X.", references=[])
+
+
+def test_prose_recovery_strips_thought_prefix():
+    """Only the text after ``</think>`` becomes the recovered answer."""
+    result = _node()._process_output(
+        LLMNodeContext(
+            output=AIMessage(content="internal thought</think>The result."),
+            output_schema=AnswerSchema,
+        )
+    )
+    assert result == AnswerSchema(answer="The result.", references=[])
+
+
+def test_broken_json_keeps_the_retry_message():
+    """Broken JSON-looking output keeps the generic retry fallback."""
+    result = _node()._get_default_error_result(
+        LLMNodeContext(output=AIMessage(content='{"answer": '))
+    )
+    assert result == AnswerSchema(answer=EMPTY_RESULT_FALLBACK, references=[])
+
+
 def test_process_output_empty_returns_retry_message():
     """An empty structured parse is replaced by the retry message."""
     node = _node()

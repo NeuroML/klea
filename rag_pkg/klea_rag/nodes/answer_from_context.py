@@ -172,5 +172,20 @@ class AnswerFromContext(BaseLLMNode[RAGState, AnswerSchema]):
 
     @override
     def _get_default_error_result(self, ctx: Any) -> Any:
-        """Return the fallback answer when processing produced nothing."""
+        """Recover raw prose, or return the retry message when nothing is usable.
+
+        The parser can reject a valid prose reply when the model ignores the
+        requested JSON envelope.  The ``answer`` field is free text, so the raw
+        text is usable; recover it rather than discarding it.  Blank output and
+        broken JSON are not recovered and keep the user-facing retry message.
+        """
+        if ctx.output is not None:
+            text = extract_llm_output_content(ctx.output).strip()
+            if "</think>" in text:
+                text = text.split("</think>", 1)[1].strip()
+            if text and not text.lstrip().startswith(("{", "[")):
+                self.logger.warning(
+                    "Structured output could not be parsed; recovering raw prose"
+                )
+                return AnswerSchema(answer=text, references=[])
         return AnswerSchema(answer=EMPTY_RESULT_FALLBACK, references=[])
