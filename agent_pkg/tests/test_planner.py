@@ -325,6 +325,7 @@ class TestPlannerState(unittest.TestCase):
         )
         self.assertIsNotNone(errors)
         self.assertIn("no pending work after it", errors or "")
+        self.assertIn("present it as the answer", errors or "")
 
     def test_review_step_with_work_after_is_accepted(self):
         """A review that gates a pending step is valid."""

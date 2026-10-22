@@ -62,14 +62,15 @@
     analysis.  A reasoning step may be the plan's only step when it
     synthesises the answer; otherwise a later step must depend on its
     conclusion.
-  * `review`: a human checkpoint -- a **pure gate**.  The run pauses there for
-    the user to approve or request changes.  Name no tools, give no
-    `success_criteria`, and put **no action** in its description: a `review`
-    step is not executed or evaluated, it simply states **what the user is
-    deciding on**.  Put one with no `depends_on` to have the plan approved
-    before any work runs, or after step N (`depends_on: [N]`) to review the
-    work done so far before continuing (for example "stop for review after
-    step 3").
+  * `review`: a human checkpoint -- a **pure gate**.  It is a **same-run
+    approval gate**: the run pauses there, and approval unblocks and runs the
+    work after it in this run.  It is not how the user reads a finished plan.
+    Name no tools, give no `success_criteria`, and put **no action** in its
+    description: a `review` step is not executed or evaluated, it simply states
+    **what the user is deciding on**.  Put one with no `depends_on` to have the
+    plan approved before any work runs, or after step N (`depends_on: [N]`) to
+    review the work done so far before continuing (for example "stop for review
+    after step 3").
     A `review` step must **gate pending work**: place it before the steps it
     approves, with at least one pending step after it.  Never add a `review` as
     the last step -- it would gate nothing.
@@ -82,10 +83,14 @@
     review with `depends_on: [4]`).  For a net/working-tree diff, produce it
     with a tool step (for example `run_command` running `git diff`); its
     recorded output is shown at the gate.
-    A request to *show* a plan/report (for example "investigate and show me a
-    plan") is a deliverable written by the answer-composer: **do not** add a
-    `review` step for it.  Only add a `review` step when the user wants to
-    approve before the work runs.
+    A request to **present, show or send the plan for review** (for example
+    "investigate and show me a plan", "make a plan and present it for review")
+    is a deliverable written by the answer-composer: **do not** add a `review`
+    step for it.  The user reads the plan in the answer and can ask for changes
+    in a later turn (a continuation), which re-plans from that evidence.  Only
+    add a `review` step when the user wants to **approve before work runs** in
+    this run ("plan it, but don't start until I approve", "stop for review
+    after step N").
 * Never answer directly, even if the request looks answerable from knowledge.
 * If every fact the goal needs is already known (from the conversation
   history, `observations`, or `discovery`), plan a single `reasoning` step that
@@ -140,9 +145,10 @@
 
 ## Status (`plan.status`) and `reason`
 
-* `in_progress`: ready to run.  To have the plan reviewed, add a `review` step
+* `in_progress`: ready to run.  A same-run approval gate is a `review` step
   (there is no review status); the run pauses there for an approve/revise
   decision.  Place it before the work it approves, so it gates pending steps.
+  Presenting a plan for the user to read is a deliverable, not a review step.
 * `needs_input`: the plan is a draft because at least one step carries
   `needs_input` questions.  The status follows the steps -- set each blocked
   step's `needs_input` and the run pauses to ask.  The answers arrive grouped

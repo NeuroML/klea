@@ -137,7 +137,7 @@ The Planner (task path only) emits ``PlannerOutput {goal, plan, reason}``;
 | ``needs_input`` | a step carries ``needs_input`` questions, or the replan budget is exhausted and the Planner appends a guidance step: a draft the Planner re-authors after the answers | ``AwaitHuman`` (input) |
 | ``chat`` | the entry router misclassified a conversational request as ``task``; return no steps and no goal | ``RouteDecision`` (forced chat) -> ``AnswerUser`` |
 | ``unplannable`` | no viable plan; the last authored steps are preserved for the status pane | ``AnswerFromResults`` (failure) |
-| ``in_progress`` | ready; dispatch the next step by ``kind``: a ``review`` step pauses for human review, ``tool``/``reasoning`` execute | ``ReviewProgress`` -> ``AwaitHuman`` (review) or batch entry |
+| ``in_progress`` | ready; dispatch the next step by ``kind``: a ``review`` step is a same-run approval gate that pauses for review, ``tool``/``reasoning`` execute | ``ReviewProgress`` -> ``AwaitHuman`` (review) or batch entry |
 
 ``Planner._update_state``: any step with ``needs_input`` questions forces
 ``needs_input`` (a draft; the status is derived from the steps); steps ->
@@ -233,8 +233,10 @@ replanning and lets the gate fire, so a readiness issue never fails the run.
 
 * ``AwaitHuman`` **review** pauses at a ``review`` step (ADR-0051): human
   evaluation of the plan or the progress so far, symmetric to the Evaluator's
-  judgement of steps, with **no LLM call**.  It captures an explicit decision
-  (``ReviewResponse``: approve / revise / cancel).  A ``review`` step is a
+  judgement of steps, with **no LLM call**.  A ``review`` step is a **same-run
+  approval gate** for work that runs after it; presenting a plan for the user
+  to read is an answer deliverable, not a gate (2026-10-22).  It captures an
+  explicit decision (``ReviewResponse``: approve / revise / cancel).  It is a
   **pure gate**: it names no tools and carries no action, so any evidence the
   user needs (a diff, a test run, a rendered report) is a separate ``tool``
   step immediately before the gate (see above).  A ``review`` step with no

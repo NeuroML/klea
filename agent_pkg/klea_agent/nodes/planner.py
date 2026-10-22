@@ -38,8 +38,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     It writes the immutable goal and creates or revises the evolvable plan.
     ``plan.status`` carries the routing outcome (``in_progress`` |
     ``needs_input`` | ``chat`` | ``unplannable``); there is no separate route
-    flag.  A plan is reviewed by placing a ``review`` step (ADR-0051), not by a
-    status.  ``chat`` is the exception to the task path: it signals that the
+    flag.  A same-run approval gate is a ``review`` step (ADR-0051); presenting
+    a plan for the user to read is a deliverable, not a review step.  ``chat``
+    is the exception to the task path: it signals that the
     entry router misclassified a conversational request, and routes back to
     ``RouteDecision`` (which has conversation memory) instead of answering from
     the results.  There is no zero-step "no plan required" bypass: a goal whose
@@ -255,8 +256,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
           tool step is invalid when the catalogue is empty (no tools are
           available to bind or dispatch) or when it names a tool that is
           unknown or filtered out by ``read_only``;
-        * a ``review`` step must gate pending work: it must have at least one
-          pending non-review step after it (a trailing review gates nothing);
+        * a ``review`` step must gate pending work in this run: it must have at
+          least one pending non-review step after it (a trailing review gates
+          nothing, and a plan shown for display is not a review);
         * ``needs_input`` status must be accompanied by at least one blocked
           step (a question to ask);
         * an ``in_progress`` plan must have at least one step (there is no
@@ -327,8 +329,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                         errors.append(
                             f"step {step.step_number} is a review step with no "
                             "pending work after it; a review only approves the "
-                            "steps that run after it - remove it, or add the "
-                            "work it should gate"
+                            "steps that run after it in this run - remove it, or "
+                            "add the work it should gate.  If the user only "
+                            "asked to see the plan, present it as the answer "
+                            "with no review step"
                         )
                     continue
                 if step.kind == "tool":

@@ -546,7 +546,7 @@ goal/plan.
 
 ### 5.17 `Awaiting review`
 
-**Purpose.** Collect a human decision for a planned review step. This is a distinct graph instance from `Awaiting input`, although both use `await_human.py`.
+**Purpose.** Collect a human decision for a planned review step -- a **same-run approval gate** for the work that runs after it. Presenting a plan for the user to read is a deliverable, not a review. This is a distinct graph instance from `Awaiting input`, although both use `await_human.py`.
 
 #### Inputs
 

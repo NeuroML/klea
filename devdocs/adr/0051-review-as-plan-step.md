@@ -100,6 +100,14 @@ requested capability unimplemented.
   the number of `needs_input` rounds: the Planner asks as often as it needs,
   because proceeding on a non-concrete plan is worse than asking again.
 
+(2026-10-22 update: whole-plan *display* is no longer a review use case.  With
+`continue` as the default entry route (ADR-0054), "make a plan and show it /
+present it for review" is a deliverable written by the answer-composer; the
+user then asks for changes in a later turn, which re-plans from the retained
+evidence.  A `review` step is reserved for a **same-run approval gate** that
+unblocks work after it ("approve before the work runs", "review after step N").
+`needs_input` remains facts-only and is not a substitute for approval.)
+
 ### Consequences
 
 * Good, because mid-plan review ("stop for review after step N") is
