@@ -836,6 +836,118 @@ def _read_streamed_page(
     )
 
 
+@dataclass(frozen=True)
+class _TailPage:
+    """One tail page plus the locator metadata needed by ``read_file``."""
+
+    segments: list[str]
+    line_number: int | None
+    total_lines: int | None
+    reached_eof: bool
+    scan_capped: bool
+    had_bom: bool
+    stop_reason: str
+    locator_truncated: bool
+
+
+def _read_tail_page(
+    path: Path,
+    *,
+    offset: int,
+    limit: int | None,
+    char_offset: int,
+    max_chars: int,
+    max_bytes: int,
+) -> _TailPage:
+    """Collect one page starting the given number of lines from the end.
+
+    The backward locator finds the byte offset of line ``offset`` (negative,
+    relative to EOF); the page is then read forward from there with the same
+    collector the forward reader uses.  The locator scan and the page read are
+    each bounded by ``max_bytes``.
+
+    :param path: Text file to read.
+    :param offset: Negative line number to start from (``-1`` is the last
+        line).
+    :param limit: Maximum number of lines, or ``None`` for no line limit.
+    :param char_offset: 0-indexed character within the start line.
+    :param max_chars: Character budget for the page (bounds the scan too).
+    :param max_bytes: Per-call scan cap in bytes, for the locator and the page.
+    :returns: A :class:`_TailPage`.  ``locator_truncated`` is set when the
+        backward scan could not reach the requested line within ``max_bytes``;
+        the other fields then describe an empty page.
+    """
+    n = max(1, -offset)
+    start = _locate_tail_start(path, n, max_bytes)
+    if start.truncated:
+        return _TailPage(
+            segments=[],
+            line_number=None,
+            total_lines=None,
+            reached_eof=False,
+            scan_capped=True,
+            had_bom=False,
+            stop_reason="cap",
+            locator_truncated=True,
+        )
+    if start.total_lines == 0:
+        # The caller reports the empty-file / past-the-start case.
+        return _TailPage(
+            segments=[],
+            line_number=None,
+            total_lines=0,
+            reached_eof=True,
+            scan_capped=False,
+            had_bom=False,
+            stop_reason="eof",
+            locator_truncated=False,
+        )
+
+    byte_offset = start.byte_offset
+    line_number = start.line_number
+    if byte_offset is None or line_number is None:
+        return _TailPage(
+            segments=[],
+            line_number=None,
+            total_lines=None,
+            reached_eof=False,
+            scan_capped=True,
+            had_bom=False,
+            stop_reason="cap",
+            locator_truncated=True,
+        )
+
+    with path.open("rb") as handle:
+        handle.seek(byte_offset)
+        (
+            segments,
+            _last_line_no,
+            reached_eof,
+            scan_capped,
+            had_bom,
+            stop_reason,
+        ) = _collect_page(
+            handle,
+            first_line_no=line_number,
+            skip_lines=0,
+            limit=limit,
+            char_offset=char_offset,
+            max_chars=max_chars,
+            max_bytes=max_bytes,
+            strip_bom=byte_offset == 0,
+        )
+    return _TailPage(
+        segments=segments,
+        line_number=line_number,
+        total_lines=start.total_lines,
+        reached_eof=reached_eof,
+        scan_capped=scan_capped,
+        had_bom=had_bom,
+        stop_reason=stop_reason,
+        locator_truncated=False,
+    )
+
+
 def _iter_capped_lines(
     handle: BinaryIO,
     state: _StreamState,

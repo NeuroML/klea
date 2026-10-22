@@ -18,6 +18,7 @@ import os
 import pytest
 from klea_utils.mcp.tool_impls.read_file import (
     _locate_tail_start,
+    _read_tail_page,
     _slice_segments,
     read_file,
 )
@@ -663,6 +664,191 @@ def test_locate_tail_start_scan_cap(tmp_path):
     assert start.line_number is None
     assert start.total_lines is None
     assert start.truncated is True
+
+
+def test_read_tail_page_last_line(tmp_path):
+    """A tail page starts at the located line with a signed line number."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc\n")
+
+    page = _read_tail_page(
+        f, offset=-1, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+
+    assert page.segments == ["c"]
+    assert page.line_number == -1
+    assert page.total_lines is None
+    assert page.reached_eof is True
+    assert page.stop_reason == "eof"
+    assert page.locator_truncated is False
+
+
+def test_read_tail_page_last_two_lines(tmp_path):
+    """A tail page includes the lines forward from the located start."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc\n")
+
+    page = _read_tail_page(
+        f, offset=-2, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+
+    assert page.segments == ["b", "c"]
+    assert page.line_number == -2
+    assert page.reached_eof is True
+
+
+def test_read_tail_page_limit_stops_before_eof(tmp_path):
+    """A tail page honours the line limit and reports a continuation."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc\n")
+
+    page = _read_tail_page(
+        f, offset=-3, limit=2, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+
+    assert page.segments == ["a", "b"]
+    assert page.line_number == -3
+    assert page.total_lines == 3
+    assert page.reached_eof is False
+    assert page.stop_reason == "limit"
+
+
+def test_read_tail_page_clamps_to_the_file_start(tmp_path):
+    """A tail request past the start reports the exact total."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc\n")
+
+    page = _read_tail_page(
+        f, offset=-10, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+
+    assert page.segments == ["a", "b", "c"]
+    assert page.line_number == -3
+    assert page.total_lines == 3
+    assert page.reached_eof is True
+
+
+def test_read_tail_page_empty_file(tmp_path):
+    """An empty file produces an empty page with a zero total."""
+    f = tmp_path / "t.txt"
+    f.write_text("")
+
+    page = _read_tail_page(
+        f, offset=-1, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+
+    assert page.segments == []
+    assert page.line_number is None
+    assert page.total_lines == 0
+    assert page.reached_eof is True
+    assert page.locator_truncated is False
+
+
+def test_read_tail_page_only_a_newline(tmp_path):
+    """A file with just a newline has one empty tail line."""
+    f = tmp_path / "t.txt"
+    f.write_bytes(b"\n")
+
+    page = _read_tail_page(
+        f, offset=-1, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+
+    assert page.segments == [""]
+    assert page.line_number == -1
+    assert page.total_lines == 1
+    assert page.reached_eof is True
+
+
+def test_read_tail_page_applies_char_offset(tmp_path):
+    """char_offset resumes inside the tail start line."""
+    f = tmp_path / "t.txt"
+    f.write_text("abc\nxyz")
+
+    page = _read_tail_page(
+        f, offset=-1, limit=None, char_offset=1, max_chars=10_000, max_bytes=10_000
+    )
+
+    assert page.segments == ["yz"]
+    assert page.line_number == -1
+
+
+def test_read_tail_page_strips_a_bom_at_the_file_start(tmp_path):
+    """A tail page that reaches byte 0 strips a UTF-8 BOM."""
+    f = tmp_path / "t.txt"
+    f.write_bytes(b"\xef\xbb\xbfx\n")
+
+    page = _read_tail_page(
+        f, offset=-1, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+
+    assert page.segments == ["x"]
+    assert page.had_bom is True
+    assert page.total_lines == 1
+
+
+def test_read_tail_page_preserves_a_mid_file_bom(tmp_path):
+    """A U+FEFF at a mid-file tail line is content, not a BOM."""
+    f = tmp_path / "t.txt"
+    f.write_text("x\n\ufeffy\n")
+
+    page = _read_tail_page(
+        f, offset=-1, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+
+    assert page.segments == ["\ufeffy"]
+    assert page.had_bom is False
+
+
+def test_read_tail_page_crlf_and_lone_cr(tmp_path):
+    """CRLF and lone-CR files both page by logical line."""
+    crlf = tmp_path / "crlf.txt"
+    crlf.write_bytes(b"a\r\nb\r\nc\r\n")
+    page = _read_tail_page(
+        crlf, offset=-1, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+    assert page.segments == ["c"]
+    assert page.line_number == -1
+
+    cr = tmp_path / "cr.txt"
+    cr.write_bytes(b"a\rb\rc\r")
+    page = _read_tail_page(
+        cr, offset=-1, limit=None, char_offset=0, max_chars=10_000, max_bytes=10_000
+    )
+    assert page.segments == ["c"]
+    assert page.line_number == -1
+
+
+def test_read_tail_page_locator_scan_cap(tmp_path):
+    """The locator cap produces an empty, truncated tail page."""
+    f = tmp_path / "t.txt"
+    f.write_text("a\nb\nc\nd\n")
+
+    page = _read_tail_page(
+        f, offset=-3, limit=None, char_offset=0, max_chars=10_000, max_bytes=2
+    )
+
+    assert page.segments == []
+    assert page.line_number is None
+    assert page.total_lines is None
+    assert page.scan_capped is True
+    assert page.stop_reason == "cap"
+    assert page.locator_truncated is True
+
+
+def test_read_tail_page_reports_a_char_stop(tmp_path):
+    """A long tail line stops the collector on the character budget."""
+    f = tmp_path / "t.txt"
+    f.write_text("ok\n" + "x" * 200)
+
+    page = _read_tail_page(
+        f, offset=-1, limit=None, char_offset=0, max_chars=5, max_bytes=10_000
+    )
+
+    assert page.line_number == -1
+    assert page.stop_reason == "chars"
+    assert page.reached_eof is True
+    assert page.segments
+    assert len(page.segments[0]) > 5
 
 
 def test_scan_cap_before_offset_gives_grep_hint(tmp_path):
