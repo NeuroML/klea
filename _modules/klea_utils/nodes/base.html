@@ -367,6 +367,13 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="n">AbstractLLMNode</span><span class="p">,</span> <span class="n">NodeStreamData</span><span class="p">,</span> <span class="n">NodeStreamEvent</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">LLMNodeContext</span>
 
+<span class="c1">#: Product name reported to the model by user-facing nodes.</span>
+<span class="n">KLEA_AGENT_NAME</span> <span class="o">=</span> <span class="s2">"Klea"</span>
+
+<span class="c1">#: Constant identity line prepended to user-facing system prompts.  Keeping it</span>
+<span class="c1">#: identical across nodes makes it part of the cacheable prompt prefix.</span>
+<span class="n">_AGENT_IDENTITY</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Agent: </span><span class="si">{</span><span class="n">KLEA_AGENT_NAME</span><span class="si">}</span><span class="s2">"</span>
+
 <span class="c1">#: Max times to retry an invoke that overflowed the context window, each</span>
 <span class="c1">#: time shrinking the reserved output window to free headroom.</span>
 <span class="n">MAX_CONTEXT_OVERFLOW_RETRIES</span> <span class="o">=</span> <span class="mi">3</span>
@@ -572,10 +579,13 @@
 <span class="sd">    are not appropriate.</span>
 <span class="sd">    """</span>
 
-    <span class="c1">#: Append the effective model identity to the system prompt.  Opt in on</span>
-    <span class="c1">#: nodes that compose a user-facing reply, so the model can answer "which</span>
-    <span class="c1">#: model are you running" with the model that actually produced the reply.</span>
-    <span class="c1">#: Off by default: most nodes never need it and it costs prompt tokens.</span>
+    <span class="c1">#: Report the agent and effective model identity in the system prompt.</span>
+    <span class="c1">#: Opt in on nodes that compose a user-facing reply, so the model can</span>
+    <span class="c1">#: answer "which agent/model are you running" with the values that</span>
+    <span class="c1">#: actually produced the reply.  The constant agent line is prepended</span>
+    <span class="c1">#: (cacheable prefix); the per-run model line is appended after the</span>
+    <span class="c1">#: stable prompt sections.  Off by default: most nodes never need it and</span>
+    <span class="c1">#: it costs prompt tokens.</span>
     <span class="n">include_model_identity</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">bool</span><span class="p">]</span> <span class="o">=</span> <span class="kc">False</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
@@ -1468,6 +1478,11 @@
 <span class="sd">            message objects when memory is enabled.</span>
 <span class="sd">        """</span>
         <span class="n">system_prompt</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_load_prompt_file</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">prompt_prefix</span><span class="si">}</span><span class="s2">_system"</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">include_model_identity</span><span class="p">:</span>
+            <span class="c1"># Constant prefix: identical across nodes, so it stays in the</span>
+            <span class="c1"># cacheable part of the system prompt.</span>
+            <span class="n">system_prompt</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">_AGENT_IDENTITY</span><span class="si">}</span><span class="se">\n\n</span><span class="si">{</span><span class="n">system_prompt</span><span class="si">}</span><span class="s2">"</span>
 
         <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span><span class="p">:</span>
             <span class="n">system_prompt</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_format_output_schema_prompt</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">output_schema</span><span class="p">)</span>

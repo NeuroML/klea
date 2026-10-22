@@ -31,7 +31,9 @@ for the agent's reply, syntax-highlighted diffs and code blocks for file
 changes and tool output, and a plain-text fallback for anything that cannot
 be rendered (there is no inline media in a terminal).  A long message is
 collapsed to a few lines; click it, or focus it and press :kbd:`Enter`, to
-expand or collapse.
+expand or collapse.  Drag over text to select it; :kbd:`Ctrl+C` copies the
+selection.  Text in the status/inspector panes, dialogs and prompts is
+selectable too, and a drag in a message does not toggle it.
 
 A failed run that can be recovered shows a **Retry** action; :kbd:`Ctrl+R`
 resumes it from its checkpoint, re-running only the failed step.  If the
@@ -90,7 +92,10 @@ Keys
    * - :kbd:`Shift+Enter`
      - Insert a newline too, on terminals that report the shifted key
    * - :kbd:`Ctrl+C`
-     - Stop the running query
+     - Copy selected text
+   * - :kbd:`Ctrl+Shift+C`
+     - Stop the running query (:kbd:`F12` is the fallback where the terminal
+       intercepts the shortcut)
    * - :kbd:`Ctrl+R`
      - Retry the last failed run (when recoverable)
    * - :kbd:`Ctrl+I`
@@ -101,6 +106,13 @@ Keys
      - Open the model dialog
    * - :kbd:`Ctrl+Q`
      - Quit (asks to confirm first)
+
+Copying uses the terminal's OSC 52 clipboard and also tries a platform
+clipboard tool when one is available (``wl-copy``/``xclip``/``xsel`` on
+Linux, ``pbcopy`` on macOS, ``clip`` on Windows), so terminals that ignore
+OSC 52 can still paste into another application.  A brief notification
+confirms the copy.  In a remote/SSH session only OSC 52 or the terminal's
+own selection modifier (often :kbd:`Shift`) can reach your local clipboard.
 
 Sessions
 --------

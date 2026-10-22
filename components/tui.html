@@ -341,7 +341,9 @@ for the agent’s reply, syntax-highlighted diffs and code blocks for file
 changes and tool output, and a plain-text fallback for anything that cannot
 be rendered (there is no inline media in a terminal).  A long message is
 collapsed to a few lines; click it, or focus it and press <kbd class="kbd docutils literal notranslate">Enter</kbd>, to
-expand or collapse.</p>
+expand or collapse.  Drag over text to select it; <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">C</kbd> copies the
+selection.  Text in the status/inspector panes, dialogs and prompts is
+selectable too, and a drag in a message does not toggle it.</p>
 <p>A failed run that can be recovered shows a <strong>Retry</strong> action; <kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">R</kbd>
 resumes it from its checkpoint, re-running only the failed step.  If the
 agent pauses for your input, the ask replaces the composer below the
@@ -402,26 +404,36 @@ raw structured details), grouped per query.</p>
 <td><p>Insert a newline too, on terminals that report the shifted key</p></td>
 </tr>
 <tr class="row-odd"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">C</kbd></p></td>
-<td><p>Stop the running query</p></td>
+<td><p>Copy selected text</p></td>
 </tr>
-<tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">R</kbd></p></td>
+<tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Shift</kbd>+<kbd class="kbd docutils literal notranslate">C</kbd></p></td>
+<td><p>Stop the running query (<kbd class="kbd docutils literal notranslate">F12</kbd> is the fallback where the terminal
+intercepts the shortcut)</p></td>
+</tr>
+<tr class="row-odd"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">R</kbd></p></td>
 <td><p>Retry the last failed run (when recoverable)</p></td>
 </tr>
-<tr class="row-odd"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">I</kbd></p></td>
+<tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">I</kbd></p></td>
 <td><p>Toggle the transcript / inspector view (<kbd class="kbd docutils literal notranslate">Tab</kbd> is equivalent, as a terminal sends Ctrl+I as Tab)</p></td>
 </tr>
-<tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">S</kbd></p></td>
+<tr class="row-odd"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">S</kbd></p></td>
 <td><p>Open the session picker</p></td>
 </tr>
-<tr class="row-odd"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">M</kbd></p></td>
+<tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">M</kbd></p></td>
 <td><p>Open the model dialog</p></td>
 </tr>
-<tr class="row-even"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Q</kbd></p></td>
+<tr class="row-odd"><td><p><kbd class="kbd docutils literal notranslate">Ctrl</kbd>+<kbd class="kbd docutils literal notranslate">Q</kbd></p></td>
 <td><p>Quit (asks to confirm first)</p></td>
 </tr>
 </tbody>
 </table>
 </div>
+<p>Copying uses the terminal’s OSC 52 clipboard and also tries a platform
+clipboard tool when one is available (<code class="docutils literal notranslate"><span class="pre">wl-copy</span></code>/<code class="docutils literal notranslate"><span class="pre">xclip</span></code>/<code class="docutils literal notranslate"><span class="pre">xsel</span></code> on
+Linux, <code class="docutils literal notranslate"><span class="pre">pbcopy</span></code> on macOS, <code class="docutils literal notranslate"><span class="pre">clip</span></code> on Windows), so terminals that ignore
+OSC 52 can still paste into another application.  A brief notification
+confirms the copy.  In a remote/SSH session only OSC 52 or the terminal’s
+own selection modifier (often <kbd class="kbd docutils literal notranslate">Shift</kbd>) can reach your local clipboard.</p>
 </section>
 <section id="sessions">
 <h2>Sessions<a class="headerlink" href="#sessions" title="Link to this heading">¶</a></h2>

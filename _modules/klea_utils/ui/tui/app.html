@@ -339,7 +339,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.binding</span><span class="w"> </span><span class="kn">import</span> <span class="n">Binding</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.containers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Horizontal</span><span class="p">,</span> <span class="n">Vertical</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.screen</span><span class="w"> </span><span class="kn">import</span> <span class="n">Screen</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Static</span><span class="p">,</span> <span class="n">TextArea</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextArea</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.worker</span><span class="w"> </span><span class="kn">import</span> <span class="n">Worker</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.commands.common</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
@@ -347,6 +347,7 @@
     <span class="n">CommandResult</span><span class="p">,</span>
     <span class="n">unescape_command</span><span class="p">,</span>
 <span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.clipboard</span><span class="w"> </span><span class="kn">import</span> <span class="n">copy_to_system_clipboard</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.commands</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
     <span class="n">EXIT_APP_SERVICE</span><span class="p">,</span>
     <span class="n">NEW_CHAT_SERVICE</span><span class="p">,</span>
@@ -367,6 +368,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.input</span><span class="w"> </span><span class="kn">import</span> <span class="n">QueryInput</span><span class="p">,</span> <span class="n">QueryTextArea</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.inspector</span><span class="w"> </span><span class="kn">import</span> <span class="n">Inspector</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.model_dialog</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelDialog</span><span class="p">,</span> <span class="n">ModelResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.selectable</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectableStatic</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.sessions</span><span class="w"> </span><span class="kn">import</span> <span class="n">SessionAction</span><span class="p">,</span> <span class="n">SessionPicker</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.status_panel</span><span class="w"> </span><span class="kn">import</span> <span class="n">StatusPanel</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.transcript</span><span class="w"> </span><span class="kn">import</span> <span class="n">Transcript</span>
@@ -383,6 +385,12 @@
 <span class="c1">#: separate full-width header/footer; the title and key hints live inside the</span>
 <span class="c1">#: chat panel (``devdocs/system/tui.md``).</span>
 <span class="n">_CSS</span> <span class="o">=</span> <span class="s2">"""</span>
+<span class="s2">/* Keep selected text readable; Textual's default selection foreground is</span>
+<span class="s2"> * transparent, which resolves to the same colour as the selection background</span>
+<span class="s2"> * for plain Content visuals. */</span>
+<span class="s2">Screen &gt; .screen--selection {</span>
+<span class="s2">    color: $text;</span>
+<span class="s2">}</span>
 <span class="s2">#root {</span>
 <span class="s2">    height: 100%;</span>
 <span class="s2">}</span>
@@ -438,8 +446,8 @@
 <span class="c1">#: Default key-hints line, shown whenever no HITL ask is active.</span>
 <span class="n">_KEY_HINTS_DEFAULT</span> <span class="o">=</span> <span class="p">(</span>
     <span class="s2">"Enter send | Ctrl+J newline | / commands | "</span>
-    <span class="s2">"Ctrl+C stop | Ctrl+R retry | Ctrl+I inspector | "</span>
-    <span class="s2">"Ctrl+Q quit"</span>
+    <span class="s2">"Ctrl+C copy | Ctrl+Shift+C stop | Ctrl+R retry | "</span>
+    <span class="s2">"Ctrl+I inspector | Ctrl+Q quit"</span>
 <span class="p">)</span>
 
 <span class="c1">#: Key-hints line per HITL ask kind, shown while its panel is active.</span>
@@ -513,20 +521,22 @@
 <span class="w">        </span><span class="sd">"""Compose the two-panel layout."""</span>
         <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"root"</span><span class="p">):</span>
             <span class="k">with</span> <span class="n">Vertical</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"chat-panel"</span><span class="p">):</span>
-                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="n">_view_toggle_text</span><span class="p">(</span><span class="s2">"transcript"</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"view-toggle"</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
+                    <span class="n">_view_toggle_text</span><span class="p">(</span><span class="s2">"transcript"</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"view-toggle"</span>
+                <span class="p">)</span>
                 <span class="k">yield</span> <span class="n">Transcript</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"transcript"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">Inspector</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"inspector"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">TurnStatus</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"turn-status"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">CommandSuggestions</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"command-suggestions"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">QueryInput</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"query-input-frame"</span><span class="p">)</span>
-                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="n">_KEY_HINTS_DEFAULT</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"key-hints"</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="n">_KEY_HINTS_DEFAULT</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"key-hints"</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">Vertical</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"status-panel"</span><span class="p">):</span>
-                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span>
+                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
                     <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">title</span><span class="si">}</span><span class="s2"> | </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">server_url</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
                     <span class="nb">id</span><span class="o">=</span><span class="s2">"chat-title"</span><span class="p">,</span>
                     <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                 <span class="p">)</span>
-                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"chat-name"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"chat-name"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">StatusPanel</span><span class="p">(</span><span class="n">ctx</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"status"</span><span class="p">)</span></div>
 
 
@@ -623,7 +633,7 @@
         <span class="n">name</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"name"</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
         <span class="n">chat_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ctx</span><span class="o">.</span><span class="n">chat_id</span>
         <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">chat_id</span><span class="si">}</span><span class="s2">)"</span> <span class="k">if</span> <span class="n">name</span> <span class="ow">and</span> <span class="n">name</span> <span class="o">!=</span> <span class="n">chat_id</span> <span class="k">else</span> <span class="n">chat_id</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#chat-name"</span><span class="p">,</span> <span class="n">Static</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Chat: </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#chat-name"</span><span class="p">,</span> <span class="n">SelectableStatic</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Chat: </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span></div>
 
 
     <span class="nd">@property</span>
@@ -727,7 +737,7 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_view</span> <span class="o">=</span> <span class="n">view</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">transcript</span><span class="o">.</span><span class="n">display</span> <span class="o">=</span> <span class="n">view</span> <span class="o">==</span> <span class="s2">"transcript"</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">inspector</span><span class="o">.</span><span class="n">display</span> <span class="o">=</span> <span class="n">view</span> <span class="o">==</span> <span class="s2">"inspector"</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#view-toggle"</span><span class="p">,</span> <span class="n">Static</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">_view_toggle_text</span><span class="p">(</span><span class="n">view</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#view-toggle"</span><span class="p">,</span> <span class="n">SelectableStatic</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">_view_toggle_text</span><span class="p">(</span><span class="n">view</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">view</span> <span class="o">==</span> <span class="s2">"inspector"</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_inspector_dirty</span><span class="p">:</span>
             <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">inspector</span><span class="o">.</span><span class="n">set_entries</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_inspector_entries</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_inspector_dirty</span> <span class="o">=</span> <span class="kc">False</span></div>
@@ -757,7 +767,7 @@
 
 <span class="sd">        :param text: The hint text to show.</span>
 <span class="sd">        """</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#key-hints"</span><span class="p">,</span> <span class="n">Static</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">text</span><span class="p">)</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#key-hints"</span><span class="p">,</span> <span class="n">SelectableStatic</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">text</span><span class="p">)</span></div>
 
 
     <span class="nd">@property</span>
@@ -792,7 +802,14 @@
 
     <span class="n">CSS</span> <span class="o">=</span> <span class="n">_CSS</span>
     <span class="n">BINDINGS</span><span class="p">:</span> <span class="n">ClassVar</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="n">Binding</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[</span>
-        <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+c"</span><span class="p">,</span> <span class="s2">"stop"</span><span class="p">,</span> <span class="s2">"Stop"</span><span class="p">),</span>
+        <span class="c1"># Ctrl+C copies a selection (the Screen action runs first).  This</span>
+        <span class="c1"># app-level binding only runs when there is nothing to copy and stops</span>
+        <span class="c1"># the base App's help/quit binding from firing.</span>
+        <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+c"</span><span class="p">,</span> <span class="s2">"copy_selection"</span><span class="p">,</span> <span class="s2">"Copy"</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+        <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+shift+c"</span><span class="p">,</span> <span class="s2">"stop"</span><span class="p">,</span> <span class="s2">"Stop"</span><span class="p">),</span>
+        <span class="c1"># F12 is the fallback: Ctrl+Shift+C is not reported by every terminal,</span>
+        <span class="c1"># and Ctrl+X is TextArea's cut binding.</span>
+        <span class="n">Binding</span><span class="p">(</span><span class="s2">"f12"</span><span class="p">,</span> <span class="s2">"stop"</span><span class="p">,</span> <span class="s2">"Stop"</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
         <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+r"</span><span class="p">,</span> <span class="s2">"retry"</span><span class="p">,</span> <span class="s2">"Retry"</span><span class="p">),</span>
         <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+i"</span><span class="p">,</span> <span class="s2">"toggle_view"</span><span class="p">,</span> <span class="s2">"Inspector"</span><span class="p">),</span>
         <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+s"</span><span class="p">,</span> <span class="s2">"open_sessions"</span><span class="p">,</span> <span class="s2">"Sessions"</span><span class="p">),</span>
@@ -1122,6 +1139,38 @@
             <span class="n">interrupt_id</span><span class="o">=</span><span class="n">interrupt_id</span><span class="p">,</span>
             <span class="n">interrupt_cancel</span><span class="o">=</span><span class="n">interrupt_cancel</span><span class="p">,</span>
         <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="KleaTuiApp.copy_to_clipboard">
+<a class="viewcode-back" href="../../../../api/utils/ui-tui.html#klea_utils.ui.tui.app.KleaTuiApp.copy_to_clipboard">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">copy_to_clipboard</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Copy *text* to the app clipboard and, if possible, the OS clipboard.</span>
+
+<span class="sd">        Textual writes OSC 52 and keeps an internal copy.  Some terminals do</span>
+<span class="sd">        not support OSC 52, so also try a platform clipboard tool; the app</span>
+<span class="sd">        still works when no tool is available.</span>
+
+<span class="sd">        :param text: Text to copy.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">copy_to_clipboard</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="n">copied</span> <span class="o">=</span> <span class="n">copy_to_system_clipboard</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">copied</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"No system clipboard backend available; OSC 52 only"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Copied </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="si">}</span><span class="s2"> characters"</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="KleaTuiApp.action_copy_selection">
+<a class="viewcode-back" href="../../../../api/utils/ui-tui.html#klea_utils.ui.tui.app.KleaTuiApp.action_copy_selection">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">action_copy_selection</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Handle Ctrl+C when no text is selected.</span>
+
+<span class="sd">        The Screen copies the current selection before this app-level binding</span>
+<span class="sd">        runs.  With nothing to copy, this action stops the base App's</span>
+<span class="sd">        help/quit binding from firing; Ctrl+Shift+C or F12 stops a run.</span>
+<span class="sd">        """</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">notify</span><span class="p">(</span><span class="s2">"No text selected"</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="KleaTuiApp.action_stop">

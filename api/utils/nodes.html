@@ -504,10 +504,13 @@ are not appropriate.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="klea_utils.nodes.base.BaseLLMNode.include_model_identity">
 <span class="sig-name descname"><span class="pre">include_model_identity</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.ClassVar" title="(in Python v3.15)"><span class="pre">ClassVar</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#bool" title="(in Python v3.15)"><span class="pre">bool</span></a><span class="p"><span class="pre">]</span></span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">False</span></span><a class="headerlink" href="#klea_utils.nodes.base.BaseLLMNode.include_model_identity" title="Link to this definition">¶</a></dt>
-<dd><p>Append the effective model identity to the system prompt.  Opt in on
-nodes that compose a user-facing reply, so the model can answer “which
-model are you running” with the model that actually produced the reply.
-Off by default: most nodes never need it and it costs prompt tokens.</p>
+<dd><p>Report the agent and effective model identity in the system prompt.
+Opt in on nodes that compose a user-facing reply, so the model can
+answer “which agent/model are you running” with the values that
+actually produced the reply.  The constant agent line is prepended
+(cacheable prefix); the per-run model line is appended after the
+stable prompt sections.  Off by default: most nodes never need it and
+it costs prompt tokens.</p>
 </dd></dl>
 
 <dl class="py property">
@@ -552,6 +555,12 @@ memory-enabled node prompts.  Older history is represented by
 <span class="sig-prename descclassname"><span class="pre">klea_utils.nodes.base.</span></span><span class="sig-name descname"><span class="pre">EMPTY_RESULT_FALLBACK</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Something</span> <span class="pre">went</span> <span class="pre">wrong.</span> <span class="pre">Please</span> <span class="pre">retry.'</span></span><a class="headerlink" href="#klea_utils.nodes.base.EMPTY_RESULT_FALLBACK" title="Link to this definition">¶</a></dt>
 <dd><p>User-facing fallback when an LLM produced no usable answer and the node
 has no more specific fallback of its own.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.nodes.base.KLEA_AGENT_NAME">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.nodes.base.</span></span><span class="sig-name descname"><span class="pre">KLEA_AGENT_NAME</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'Klea'</span></span><a class="headerlink" href="#klea_utils.nodes.base.KLEA_AGENT_NAME" title="Link to this definition">¶</a></dt>
+<dd><p>Product name reported to the model by user-facing nodes.</p>
 </dd></dl>
 
 <dl class="py data">
@@ -1193,6 +1202,7 @@ a command’s actual effect, not for rejections.</p>
 </li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.DEFAULT_RECENT_MEMORY_CHARS"><code class="docutils literal notranslate"><span class="pre">DEFAULT_RECENT_MEMORY_CHARS</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.EMPTY_RESULT_FALLBACK"><code class="docutils literal notranslate"><span class="pre">EMPTY_RESULT_FALLBACK</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.nodes.base.KLEA_AGENT_NAME"><code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_NAME</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.MAX_CONTEXT_OVERFLOW_RETRIES"><code class="docutils literal notranslate"><span class="pre">MAX_CONTEXT_OVERFLOW_RETRIES</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.MAX_EMPTY_OUTPUT_RETRIES"><code class="docutils literal notranslate"><span class="pre">MAX_EMPTY_OUTPUT_RETRIES</span></code></a></li>
 <li><a class="reference internal" href="#klea_utils.nodes.base.MAX_OUTPUT_TOKENS_CEILING"><code class="docutils literal notranslate"><span class="pre">MAX_OUTPUT_TOKENS_CEILING</span></code></a></li>

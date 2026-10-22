@@ -324,7 +324,6 @@
 <span class="sd">"""</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">shlex</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Mapping</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span><span class="p">,</span> <span class="n">replace</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
@@ -434,9 +433,17 @@
 <span class="sd">    command with no name, or with malformed quoting, is returned with</span>
 <span class="sd">    :attr:`ParsedCommand.error` set rather than raising.</span>
 
+<span class="sd">    Arguments are split with the shared, platform-aware</span>
+<span class="sd">    :func:`klea_utils.mcp.path_detect.split_arguments`, so a Windows path such</span>
+<span class="sd">    as ``C:\\Users\\me\\a.txt`` is one argument with its backslashes intact.</span>
+
 <span class="sd">    :param text: The user input.</span>
 <span class="sd">    :returns: A :class:`ParsedCommand`, or ``None`` when *text* is not a command.</span>
 <span class="sd">    """</span>
+    <span class="c1"># Imported at call time: the commands framework stays free of a</span>
+    <span class="c1"># module-level dependency on the tool-permission package.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.path_detect</span><span class="w"> </span><span class="kn">import</span> <span class="n">split_arguments</span>
+
     <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"/"</span><span class="p">)</span> <span class="ow">or</span> <span class="n">text</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"//"</span><span class="p">):</span>
         <span class="k">return</span> <span class="kc">None</span>
     <span class="n">body</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
@@ -446,7 +453,7 @@
     <span class="n">name</span> <span class="o">=</span> <span class="n">tokens</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
     <span class="n">raw_args</span> <span class="o">=</span> <span class="n">tokens</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tokens</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="s2">""</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="n">args</span> <span class="o">=</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">raw_args</span><span class="p">)</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="n">split_arguments</span><span class="p">(</span><span class="n">raw_args</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Malformed command arguments: </span><span class="si">{</span><span class="n">raw_args</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">ParsedCommand</span><span class="p">(</span>

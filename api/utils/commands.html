@@ -640,6 +640,9 @@ whitespace).  A leading <code class="docutils literal notranslate"><span class="
 command (use <a class="reference internal" href="#klea_utils.commands.common.unescape_command" title="klea_utils.commands.common.unescape_command"><code class="xref py py-func docutils literal notranslate"><span class="pre">unescape_command()</span></code></a> to recover the literal text).  A
 command with no name, or with malformed quoting, is returned with
 <code class="xref py py-attr docutils literal notranslate"><span class="pre">ParsedCommand.error</span></code> set rather than raising.</p>
+<p>Arguments are split with the shared, platform-aware
+<a class="reference internal" href="mcp.html#klea_utils.mcp.path_detect.split_arguments" title="klea_utils.mcp.path_detect.split_arguments"><code class="xref py py-func docutils literal notranslate"><span class="pre">klea_utils.mcp.path_detect.split_arguments()</span></code></a>, so a Windows path such
+as <code class="docutils literal notranslate"><span class="pre">C:\Users\me\a.txt</span></code> is one argument with its backslashes intact.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><p><strong>text</strong> – The user input.</p>

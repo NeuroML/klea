@@ -319,6 +319,7 @@
 <span class="kn">import</span><span class="w"> </span><span class="nn">threading</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">OrderedDict</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterator</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">BinaryIO</span>
 
@@ -441,15 +442,21 @@
 <span class="sd">    :param path: File path to read.  Defaults to the current directory</span>
 <span class="sd">        (``"."``), which is not a file, so a missing path yields the</span>
 <span class="sd">        nearby-entries fallback.</span>
-<span class="sd">    :param offset: 1-indexed line to start reading from.</span>
+<span class="sd">    :param offset: 1-indexed line to start reading from.  A negative value</span>
+<span class="sd">        counts from the end: ``-1`` is the last line, ``-N`` the Nth from the</span>
+<span class="sd">        end.  Returned line numbers are then negative relative to EOF, and a</span>
+<span class="sd">        tail request that reaches past the start clamps to the first line.</span>
 <span class="sd">    :param char_offset: 0-indexed character position within *offset*'s line to</span>
 <span class="sd">        start from (default 0).  Only needed to continue inside a single line</span>
 <span class="sd">        longer than ``max_chars``: the returned ``next_char_offset`` gives the</span>
 <span class="sd">        resume position.</span>
-<span class="sd">    :param limit: Maximum number of lines to return.  ``None`` reads to the</span>
-<span class="sd">        end of the file.</span>
+<span class="sd">    :param limit: Maximum number of lines to return.  ``None`` removes only</span>
+<span class="sd">        the line limit; the server-owned ``max_chars`` budget still applies, so</span>
+<span class="sd">        the result can still be truncated (with ``next_offset``).  For a</span>
+<span class="sd">        negative *offset*, this counts forward from the tail start.</span>
 <span class="sd">    :param max_chars: Character budget for the response (server-owned backstop;</span>
-<span class="sd">        not exposed to the model), applied after the line slice.</span>
+<span class="sd">        not exposed to the model), applied after the line slice.  The effective</span>
+<span class="sd">        value is reported as ``char_budget``.</span>
 <span class="sd">    :param max_bytes: Per-call scan cap in bytes (server-owned).  Plain text is</span>
 <span class="sd">        streamed, so the scan stops after this many bytes and the page is</span>
 <span class="sd">        returned truncated with a hint; HTML/office/PDF conversions and a</span>
@@ -461,14 +468,21 @@
 <span class="sd">        target is missing; the boundary itself is enforced by the client-side</span>
 <span class="sd">        gate (ADR-0007 update 2026-10-08).</span>
 <span class="sd">    :returns: dict with path, content, line_start, line_end, total_lines,</span>
-<span class="sd">        truncated, next_offset, error, note (plus ``nearby`` on a missing-file</span>
+<span class="sd">        truncated, truncation_reason, char_budget, next_offset,</span>
+<span class="sd">        next_char_offset, error, note (plus ``nearby`` on a missing-file</span>
 <span class="sd">        error).  A truncated result is a success (``error`` empty) that carries</span>
 <span class="sd">        the line range actually returned and ``next_offset`` for continuing;</span>
 <span class="sd">        ``nearby``/``note`` are populated on a missing/not-a-file error so the</span>
-<span class="sd">        caller can see what exists instead.  ``total_lines`` is exact only when</span>
-<span class="sd">        the streamed read reached EOF; a page that stops early reports it as</span>
-<span class="sd">        ``None``.  A truncated page of a large file also carries a note</span>
-<span class="sd">        suggesting ``grep`` to locate the region.</span>
+<span class="sd">        caller can see what exists instead.  ``total_lines`` is exact when the</span>
+<span class="sd">        read reaches the relevant end (EOF for a forward read, the file start</span>
+<span class="sd">        for a tail read); a page that stops early reports it as ``None``.</span>
+<span class="sd">        ``line_start``/``line_end`` (and ``next_offset``) are negative for a</span>
+<span class="sd">        tail read, with ``-1`` as the last line.  ``char_budget`` is the</span>
+<span class="sd">        effective server character cap, and ``truncation_reason`` is</span>
+<span class="sd">        ``"char_budget"``, ``"line_limit"`` or ``"scan_cap"`` when truncated</span>
+<span class="sd">        (empty otherwise), so a ``limit=None`` read that still reports</span>
+<span class="sd">        ``truncated`` shows why.  A truncated page of a large file also carries</span>
+<span class="sd">        a note suggesting ``grep`` to locate the region.</span>
 <span class="sd">    """</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"Reading file</span><span class="se">\n</span><span class="s2">"</span>
@@ -504,9 +518,10 @@
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not stat </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="n">size</span> <span class="o">=</span> <span class="kc">None</span>
 
-    <span class="k">if</span> <span class="n">offset</span> <span class="o">&lt;</span> <span class="mi">1</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">offset</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid offset </span><span class="si">{</span><span class="n">offset</span><span class="si">}</span><span class="s2">; starting from line 1"</span><span class="p">)</span>
         <span class="n">offset</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">requested_offset</span> <span class="o">=</span> <span class="n">offset</span>
     <span class="k">if</span> <span class="n">char_offset</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Invalid char_offset </span><span class="si">{</span><span class="n">char_offset</span><span class="si">}</span><span class="s2">; starting at 0"</span><span class="p">)</span>
         <span class="n">char_offset</span> <span class="o">=</span> <span class="mi">0</span>
@@ -520,13 +535,12 @@
         <span class="n">max_chars</span> <span class="o">=</span> <span class="mi">1</span>
 
     <span class="n">suffix</span> <span class="o">=</span> <span class="n">the_path</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
-    <span class="n">start</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">-</span> <span class="mi">1</span>
-    <span class="n">line_start</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>
     <span class="n">had_bom</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">delimited_raw</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">streamed</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">reached_eof</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">scan_capped</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">stop_reason</span> <span class="o">=</span> <span class="s2">""</span>
     <span class="n">total_lines</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="n">segments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">try</span><span class="p">:</span>
@@ -537,7 +551,7 @@
             <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">_too_large_result</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">max_bytes</span><span class="p">)</span>
             <span class="n">html</span><span class="p">,</span> <span class="n">had_bom</span> <span class="o">=</span> <span class="n">split_bom</span><span class="p">(</span><span class="n">data</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">,</span> <span class="n">errors</span><span class="o">=</span><span class="s2">"replace"</span><span class="p">))</span>
-            <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span> <span class="o">=</span> <span class="n">_slice_segments</span><span class="p">(</span>
+            <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span><span class="p">,</span> <span class="n">offset</span> <span class="o">=</span> <span class="n">_slice_segments</span><span class="p">(</span>
                 <span class="n">_html_to_text</span><span class="p">(</span><span class="n">html</span><span class="p">),</span> <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span> <span class="n">char_offset</span>
             <span class="p">)</span>
         <span class="k">elif</span> <span class="n">_should_convert</span><span class="p">(</span><span class="n">suffix</span><span class="p">):</span>
@@ -545,7 +559,7 @@
             <span class="c1"># guard: a huge document is refused rather than pulled into memory.</span>
             <span class="k">if</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="n">max_bytes</span><span class="p">:</span>
                 <span class="k">return</span> <span class="n">_too_large_result</span><span class="p">(</span><span class="n">the_path</span><span class="p">,</span> <span class="n">max_bytes</span><span class="p">)</span>
-            <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span> <span class="o">=</span> <span class="n">_slice_segments</span><span class="p">(</span>
+            <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span><span class="p">,</span> <span class="n">offset</span> <span class="o">=</span> <span class="n">_slice_segments</span><span class="p">(</span>
                 <span class="n">_converted_text</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span> <span class="n">offset</span><span class="p">,</span> <span class="n">limit</span><span class="p">,</span> <span class="n">char_offset</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
@@ -554,20 +568,63 @@
             <span class="c1"># bytes scanned in one call rather than refusing the file).</span>
             <span class="n">delimited_raw</span> <span class="o">=</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">".csv"</span><span class="p">,</span> <span class="s2">".tsv"</span><span class="p">}</span>
             <span class="n">streamed</span> <span class="o">=</span> <span class="kc">True</span>
-            <span class="p">(</span>
-                <span class="n">segments</span><span class="p">,</span>
-                <span class="n">total_lines</span><span class="p">,</span>
-                <span class="n">reached_eof</span><span class="p">,</span>
-                <span class="n">scan_capped</span><span class="p">,</span>
-                <span class="n">had_bom</span><span class="p">,</span>
-            <span class="p">)</span> <span class="o">=</span> <span class="n">_read_streamed_page</span><span class="p">(</span>
-                <span class="n">the_path</span><span class="p">,</span>
-                <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span>
-                <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
-                <span class="n">char_offset</span><span class="o">=</span><span class="n">char_offset</span><span class="p">,</span>
-                <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
-                <span class="n">max_bytes</span><span class="o">=</span><span class="n">max_bytes</span><span class="p">,</span>
-            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">offset</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">page</span> <span class="o">=</span> <span class="n">_read_tail_page</span><span class="p">(</span>
+                    <span class="n">the_path</span><span class="p">,</span>
+                    <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span>
+                    <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+                    <span class="n">char_offset</span><span class="o">=</span><span class="n">char_offset</span><span class="p">,</span>
+                    <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
+                    <span class="n">max_bytes</span><span class="o">=</span><span class="n">max_bytes</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">page</span><span class="o">.</span><span class="n">locator_truncated</span><span class="p">:</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">"Could not locate tail offset </span><span class="si">{</span><span class="n">requested_offset</span><span class="si">}</span><span class="s2"> "</span>
+                        <span class="sa">f</span><span class="s2">"within </span><span class="si">{</span><span class="n">max_bytes</span><span class="si">}</span><span class="s2"> bytes: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span>
+                    <span class="p">)</span>
+                    <span class="k">return</span> <span class="p">{</span>
+                        <span class="s2">"path"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">the_path</span><span class="p">),</span>
+                        <span class="s2">"content"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+                        <span class="s2">"line_start"</span><span class="p">:</span> <span class="n">requested_offset</span><span class="p">,</span>
+                        <span class="s2">"line_end"</span><span class="p">:</span> <span class="n">requested_offset</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+                        <span class="s2">"total_lines"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+                        <span class="s2">"truncated"</span><span class="p">:</span> <span class="kc">True</span><span class="p">,</span>
+                        <span class="s2">"truncation_reason"</span><span class="p">:</span> <span class="s2">"scan_cap"</span><span class="p">,</span>
+                        <span class="s2">"char_budget"</span><span class="p">:</span> <span class="n">max_chars</span><span class="p">,</span>
+                        <span class="s2">"next_offset"</span><span class="p">:</span> <span class="kc">None</span><span class="p">,</span>
+                        <span class="s2">"next_char_offset"</span><span class="p">:</span> <span class="mi">0</span><span class="p">,</span>
+                        <span class="s2">"error"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+                        <span class="s2">"note"</span><span class="p">:</span> <span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">"Could not locate line </span><span class="si">{</span><span class="n">requested_offset</span><span class="si">}</span><span class="s2"> within the "</span>
+                            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">max_bytes</span><span class="si">}</span><span class="s2">-byte tail scan cap. Use grep to find the "</span>
+                            <span class="s2">"region, then read around it, or request a tail closer "</span>
+                            <span class="s2">"to the end."</span>
+                        <span class="p">),</span>
+                    <span class="p">}</span>
+                <span class="n">segments</span> <span class="o">=</span> <span class="n">page</span><span class="o">.</span><span class="n">segments</span>
+                <span class="n">total_lines</span> <span class="o">=</span> <span class="n">page</span><span class="o">.</span><span class="n">total_lines</span>
+                <span class="n">reached_eof</span> <span class="o">=</span> <span class="n">page</span><span class="o">.</span><span class="n">reached_eof</span>
+                <span class="n">scan_capped</span> <span class="o">=</span> <span class="n">page</span><span class="o">.</span><span class="n">scan_capped</span>
+                <span class="n">had_bom</span> <span class="o">=</span> <span class="n">page</span><span class="o">.</span><span class="n">had_bom</span>
+                <span class="n">stop_reason</span> <span class="o">=</span> <span class="n">page</span><span class="o">.</span><span class="n">stop_reason</span>
+                <span class="k">if</span> <span class="n">page</span><span class="o">.</span><span class="n">line_number</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">offset</span> <span class="o">=</span> <span class="n">page</span><span class="o">.</span><span class="n">line_number</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="p">(</span>
+                    <span class="n">segments</span><span class="p">,</span>
+                    <span class="n">total_lines</span><span class="p">,</span>
+                    <span class="n">reached_eof</span><span class="p">,</span>
+                    <span class="n">scan_capped</span><span class="p">,</span>
+                    <span class="n">had_bom</span><span class="p">,</span>
+                    <span class="n">stop_reason</span><span class="p">,</span>
+                <span class="p">)</span> <span class="o">=</span> <span class="n">_read_streamed_page</span><span class="p">(</span>
+                    <span class="n">the_path</span><span class="p">,</span>
+                    <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span>
+                    <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+                    <span class="n">char_offset</span><span class="o">=</span><span class="n">char_offset</span><span class="p">,</span>
+                    <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
+                    <span class="n">max_bytes</span><span class="o">=</span><span class="n">max_bytes</span><span class="p">,</span>
+                <span class="p">)</span>
     <span class="k">except</span> <span class="ne">UnicodeDecodeError</span><span class="p">:</span>
         <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Not valid UTF-8 text: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">return</span> <span class="p">{</span>
@@ -624,6 +681,10 @@
             <span class="s2">"error"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">),</span>
         <span class="p">}</span>
 
+    <span class="n">start</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">line_start</span> <span class="o">=</span> <span class="n">start</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="n">from_end</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">&lt;</span> <span class="mi">0</span>
+
     <span class="k">if</span> <span class="n">line_numbers</span><span class="p">:</span>
         <span class="n">rendered</span> <span class="o">=</span> <span class="p">[</span>
             <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">line_no</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">segment</span><span class="si">}</span><span class="s2">"</span>
@@ -653,6 +714,9 @@
     <span class="k">if</span> <span class="n">streamed</span><span class="p">:</span>
         <span class="c1"># A streamed page knows the total only when it reaches EOF.</span>
         <span class="n">truncated</span> <span class="o">=</span> <span class="n">char_limited</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">reached_eof</span>
+    <span class="k">elif</span> <span class="n">from_end</span><span class="p">:</span>
+        <span class="c1"># For a tail read, EOF is line -1; an empty file has no line to reach.</span>
+        <span class="n">truncated</span> <span class="o">=</span> <span class="n">char_limited</span> <span class="ow">or</span> <span class="p">(</span><span class="nb">bool</span><span class="p">(</span><span class="n">total_lines</span><span class="p">)</span> <span class="ow">and</span> <span class="n">line_end</span> <span class="o">!=</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span>
         <span class="n">truncated</span> <span class="o">=</span> <span class="n">char_limited</span> <span class="ow">or</span> <span class="p">(</span><span class="n">total_lines</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">line_end</span> <span class="o">&lt;</span> <span class="n">total_lines</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="n">next_offset</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">kept</span><span class="p">:</span>
@@ -660,22 +724,41 @@
         <span class="n">next_offset</span> <span class="o">=</span> <span class="n">line_end</span> <span class="o">+</span> <span class="mi">1</span>
         <span class="n">next_char_offset</span> <span class="o">=</span> <span class="mi">0</span>
 
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">truncated</span><span class="p">:</span>
+        <span class="n">truncation_reason</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="k">elif</span> <span class="n">char_limited</span> <span class="ow">or</span> <span class="n">stop_reason</span> <span class="o">==</span> <span class="s2">"chars"</span><span class="p">:</span>
+        <span class="c1"># Also covers a page that filled the budget exactly and has a</span>
+        <span class="c1"># continuation: ``_cap_segments`` did not trim it, but the budget is</span>
+        <span class="c1"># still what stopped the read.</span>
+        <span class="n">truncation_reason</span> <span class="o">=</span> <span class="s2">"char_budget"</span>
+    <span class="k">elif</span> <span class="n">scan_capped</span> <span class="ow">or</span> <span class="n">stop_reason</span> <span class="o">==</span> <span class="s2">"cap"</span><span class="p">:</span>
+        <span class="n">truncation_reason</span> <span class="o">=</span> <span class="s2">"scan_cap"</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">truncation_reason</span> <span class="o">=</span> <span class="s2">"line_limit"</span>
+
     <span class="n">content</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">kept</span><span class="p">)</span>
 
     <span class="n">total_suffix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">" of </span><span class="si">{</span><span class="n">total_lines</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">total_lines</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="n">budget_note</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">" by the server character budget (</span><span class="si">{</span><span class="n">max_chars</span><span class="si">}</span><span class="s2"> chars)"</span> <span class="k">if</span> <span class="n">char_limited</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="p">)</span>
+    <span class="n">line_range</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">line_start</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">line_end</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">line_start</span> <span class="o">&gt;=</span> <span class="mi">0</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">line_start</span><span class="si">}</span><span class="s2"> to </span><span class="si">{</span><span class="n">line_end</span><span class="si">}</span><span class="s2">"</span>
+    <span class="p">)</span>
     <span class="n">note</span> <span class="o">=</span> <span class="s2">""</span>
     <span class="k">if</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="n">next_offset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">next_char_offset</span><span class="p">:</span>
             <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"Output truncated mid-line: showing line </span><span class="si">{</span><span class="n">line_start</span><span class="si">}</span><span class="s2"> from "</span>
-                <span class="sa">f</span><span class="s2">"char </span><span class="si">{</span><span class="n">char_offset</span><span class="si">}</span><span class="s2"> to line </span><span class="si">{</span><span class="n">line_end</span><span class="si">}</span><span class="s2"> char </span><span class="si">{</span><span class="n">next_char_offset</span><span class="si">}</span><span class="s2">"</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">total_suffix</span><span class="si">}</span><span class="s2">. Continue with offset=</span><span class="si">{</span><span class="n">next_offset</span><span class="si">}</span><span class="s2">, "</span>
-                <span class="sa">f</span><span class="s2">"char_offset=</span><span class="si">{</span><span class="n">next_char_offset</span><span class="si">}</span><span class="s2">."</span>
+                <span class="sa">f</span><span class="s2">"Output truncated mid-line</span><span class="si">{</span><span class="n">budget_note</span><span class="si">}</span><span class="s2">: showing line "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">line_start</span><span class="si">}</span><span class="s2"> from char </span><span class="si">{</span><span class="n">char_offset</span><span class="si">}</span><span class="s2"> to line </span><span class="si">{</span><span class="n">line_end</span><span class="si">}</span><span class="s2"> char "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">next_char_offset</span><span class="si">}{</span><span class="n">total_suffix</span><span class="si">}</span><span class="s2">. Continue with "</span>
+                <span class="sa">f</span><span class="s2">"offset=</span><span class="si">{</span><span class="n">next_offset</span><span class="si">}</span><span class="s2">, char_offset=</span><span class="si">{</span><span class="n">next_char_offset</span><span class="si">}</span><span class="s2">."</span>
             <span class="p">)</span>
         <span class="k">else</span><span class="p">:</span>
             <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
-                <span class="sa">f</span><span class="s2">"Output truncated: showing lines </span><span class="si">{</span><span class="n">line_start</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">line_end</span><span class="si">}</span><span class="s2">"</span>
-                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">total_suffix</span><span class="si">}</span><span class="s2">. Continue with offset=</span><span class="si">{</span><span class="n">next_offset</span><span class="si">}</span><span class="s2">."</span>
+                <span class="sa">f</span><span class="s2">"Output truncated</span><span class="si">{</span><span class="n">budget_note</span><span class="si">}</span><span class="s2">: showing lines "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">line_range</span><span class="si">}{</span><span class="n">total_suffix</span><span class="si">}</span><span class="s2">. Continue with "</span>
+                <span class="sa">f</span><span class="s2">"offset=</span><span class="si">{</span><span class="n">next_offset</span><span class="si">}</span><span class="s2">."</span>
             <span class="p">)</span>
     <span class="k">elif</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">reached_eof</span><span class="p">:</span>
         <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
@@ -685,17 +768,48 @@
         <span class="p">)</span>
     <span class="k">elif</span> <span class="ow">not</span> <span class="n">segments</span> <span class="ow">and</span> <span class="n">total_lines</span><span class="p">:</span>
         <span class="n">note</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"offset </span><span class="si">{</span><span class="n">offset</span><span class="si">}</span><span class="s2"> is past the end of the file (</span><span class="si">{</span><span class="n">total_lines</span><span class="si">}</span><span class="s2"> lines)."</span>
-    <span class="k">elif</span> <span class="n">had_bom</span><span class="p">:</span>
-        <span class="n">note</span> <span class="o">=</span> <span class="s2">"Stripped a UTF-8 BOM."</span>
-    <span class="k">elif</span> <span class="n">delimited_raw</span><span class="p">:</span>
-        <span class="n">note</span> <span class="o">=</span> <span class="s2">"Delimited file read as physical lines; quoted fields may span lines."</span>
 
-    <span class="k">if</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="n">_LARGE_FILE_HINT_BYTES</span><span class="p">:</span>
+    <span class="n">tail_note</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="k">if</span> <span class="n">from_end</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">total_lines</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">tail_note</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"offset </span><span class="si">{</span><span class="n">requested_offset</span><span class="si">}</span><span class="s2"> is past the start of the file (0 lines)."</span>
+            <span class="p">)</span>
+        <span class="k">elif</span> <span class="n">total_lines</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">requested_offset</span> <span class="o">&lt;</span> <span class="o">-</span><span class="n">total_lines</span><span class="p">:</span>
+            <span class="n">tail_note</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"offset </span><span class="si">{</span><span class="n">requested_offset</span><span class="si">}</span><span class="s2"> is before the start of the file "</span>
+                <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">total_lines</span><span class="si">}</span><span class="s2"> lines)."</span>
+            <span class="p">)</span>
+    <span class="k">if</span> <span class="n">tail_note</span><span class="p">:</span>
+        <span class="n">note</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tail_note</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2">"</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">had_bom</span><span class="p">:</span>
+        <span class="n">note</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2"> Stripped a UTF-8 BOM."</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">delimited_raw</span><span class="p">:</span>
         <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
-            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2"> Large file: prefer grep to find the region you need, then "</span>
-            <span class="s2">"read around it with offset/limit."</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2"> Delimited file read as physical lines; quoted fields may "</span>
+            <span class="s2">"span lines."</span>
         <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
 
+    <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">char_limited</span><span class="p">:</span>
+        <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2"> limit=None removes only the line limit, not the server "</span>
+            <span class="s2">"character budget."</span>
+        <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">truncated</span> <span class="ow">and</span> <span class="n">size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="n">_LARGE_FILE_HINT_BYTES</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">from_end</span><span class="p">:</span>
+            <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2"> Large file: use a smaller tail or grep to locate the region."</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">note</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">note</span><span class="si">}</span><span class="s2"> Large file: prefer grep to find the region you need, then "</span>
+                <span class="s2">"read around it with offset/limit, or use a negative offset to "</span>
+                <span class="s2">"read from the end."</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+
+    <span class="n">char_budget</span> <span class="o">=</span> <span class="n">max_chars</span>
     <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
         <span class="sa">f</span><span class="s2">"Read file</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">path</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
@@ -704,6 +818,8 @@
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">total_lines</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">content</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">truncated</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">truncation_reason</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">char_budget</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">next_offset</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">next_char_offset</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
         <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">streamed</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
@@ -716,6 +832,8 @@
         <span class="s2">"line_end"</span><span class="p">:</span> <span class="n">line_end</span><span class="p">,</span>
         <span class="s2">"total_lines"</span><span class="p">:</span> <span class="n">total_lines</span><span class="p">,</span>
         <span class="s2">"truncated"</span><span class="p">:</span> <span class="n">truncated</span><span class="p">,</span>
+        <span class="s2">"truncation_reason"</span><span class="p">:</span> <span class="n">truncation_reason</span><span class="p">,</span>
+        <span class="s2">"char_budget"</span><span class="p">:</span> <span class="n">char_budget</span><span class="p">,</span>
         <span class="s2">"next_offset"</span><span class="p">:</span> <span class="n">next_offset</span><span class="p">,</span>
         <span class="s2">"next_char_offset"</span><span class="p">:</span> <span class="n">next_char_offset</span><span class="p">,</span>
         <span class="s2">"error"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
@@ -808,28 +926,135 @@
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_slice_segments</span><span class="p">(</span>
     <span class="n">content</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="n">char_offset</span><span class="p">:</span> <span class="nb">int</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">int</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">"""Return the raw page lines of *content* and its total line count.</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the raw page lines of *content*, its total, and the effective offset.</span>
 
-<span class="sd">    The first segment may be a suffix of ``offset``'s line when continuing</span>
-<span class="sd">    inside an over-long line (``char_offset`` &gt; 0); the rest are whole lines.</span>
+<span class="sd">    The first segment may be a suffix of the start line when continuing inside</span>
+<span class="sd">    an over-long line (``char_offset`` &gt; 0); the rest are whole lines.</span>
+
+<span class="sd">    A negative *offset* counts from the end (``-1`` is the last line).  The</span>
+<span class="sd">    returned effective offset is then negative relative to EOF and clamped to</span>
+<span class="sd">    the first line when the request reaches past the start.</span>
 
 <span class="sd">    :param content: Decoded/converted file text.</span>
-<span class="sd">    :param offset: 1-indexed line to start from.</span>
-<span class="sd">    :param limit: Maximum number of lines, or ``None`` for "to the end".</span>
-<span class="sd">    :param char_offset: 0-indexed character within ``offset``'s line.</span>
-<span class="sd">    :returns: ``(segments, total_lines)``.</span>
+<span class="sd">    :param offset: 1-indexed line to start from; negative counts from the end.</span>
+<span class="sd">    :param limit: Maximum number of lines, or ``None`` for no line limit.</span>
+<span class="sd">    :param char_offset: 0-indexed character within the start line.</span>
+<span class="sd">    :returns: ``(segments, total_lines, effective_offset)``.  For a forward</span>
+<span class="sd">        read ``effective_offset`` equals *offset*; for a tail read it is the</span>
+<span class="sd">        clamped signed line number (``-total_lines`` at the earliest).</span>
 <span class="sd">    """</span>
     <span class="n">lines</span> <span class="o">=</span> <span class="n">split_lines</span><span class="p">(</span><span class="n">content</span><span class="p">)</span>
     <span class="n">total_lines</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
-    <span class="n">start</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="k">if</span> <span class="n">offset</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">total_lines</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[],</span> <span class="mi">0</span><span class="p">,</span> <span class="n">offset</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">total_lines</span> <span class="o">+</span> <span class="n">offset</span><span class="p">)</span>
+        <span class="n">effective_offset</span> <span class="o">=</span> <span class="n">start</span> <span class="o">-</span> <span class="n">total_lines</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="n">effective_offset</span> <span class="o">=</span> <span class="n">offset</span>
     <span class="n">end</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">start</span> <span class="o">+</span> <span class="n">limit</span>
     <span class="n">sliced</span> <span class="o">=</span> <span class="n">lines</span><span class="p">[</span><span class="n">start</span><span class="p">:</span><span class="n">end</span><span class="p">]</span>
     <span class="n">segments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">sliced</span><span class="p">:</span>
         <span class="n">first</span> <span class="o">=</span> <span class="n">sliced</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="n">char_offset</span><span class="p">:]</span> <span class="k">if</span> <span class="n">char_offset</span> <span class="k">else</span> <span class="n">sliced</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">segments</span> <span class="o">=</span> <span class="p">[</span><span class="n">first</span><span class="p">,</span> <span class="o">*</span><span class="n">sliced</span><span class="p">[</span><span class="mi">1</span><span class="p">:]]</span>
-    <span class="k">return</span> <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span>
+    <span class="k">return</span> <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span><span class="p">,</span> <span class="n">effective_offset</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_TailStart</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Result of locating the start of a tail line."""</span>
+
+    <span class="c1">#: Byte offset of the first byte of the start line (``None`` on scan cap).</span>
+    <span class="n">byte_offset</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="c1">#: Signed line number of the start line (``None`` on scan cap/empty file).</span>
+    <span class="n">line_number</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="c1">#: Exact total line count when the scan reached byte 0, else ``None``.</span>
+    <span class="n">total_lines</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="c1">#: Whether ``max_bytes`` was hit before the requested line was found.</span>
+    <span class="n">truncated</span><span class="p">:</span> <span class="nb">bool</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_locate_tail_start</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">_STREAM_CHUNK_BYTES</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_TailStart</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Locate the byte offset of the *n*th line from the end of *path*.</span>
+
+<span class="sd">    Scans backwards in chunks, counting ``\\n`` and lone ``\\r`` terminators</span>
+<span class="sd">    (a CRLF is one terminator) and mirroring :func:`file_ops.split_lines`</span>
+<span class="sd">    semantics: a single trailing line ending does not add an empty line.  The</span>
+<span class="sd">    scan stops as soon as the requested line is found or when *max_bytes* have</span>
+<span class="sd">    been read, so it is O(tail) I/O and O(chunk) memory.</span>
+
+<span class="sd">    :param path: Text file to inspect.</span>
+<span class="sd">    :param n: Number of lines from the end (``1`` is the last line).</span>
+<span class="sd">    :param max_bytes: Per-call scan cap, counted backwards from EOF.</span>
+<span class="sd">    :param chunk_size: Read granularity in bytes.</span>
+<span class="sd">    :returns: A :class:`_TailStart`.  Reaching byte 0 also reports the exact</span>
+<span class="sd">        ``total_lines``; hitting the cap first sets ``truncated`` and leaves</span>
+<span class="sd">        the byte/line fields ``None``.</span>
+<span class="sd">    """</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">n</span><span class="p">)</span>
+    <span class="n">chunk_size</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">chunk_size</span><span class="p">)</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span><span class="o">.</span><span class="n">st_size</span>
+    <span class="k">if</span> <span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_TailStart</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+        <span class="c1"># Strip one trailing line ending so it does not count as an extra line.</span>
+        <span class="n">handle</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">size</span> <span class="o">-</span> <span class="mi">2</span><span class="p">))</span>
+        <span class="n">tail</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">tail</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="sa">b</span><span class="s2">"</span><span class="se">\r\n</span><span class="s2">"</span><span class="p">):</span>
+            <span class="n">effective_end</span> <span class="o">=</span> <span class="n">size</span> <span class="o">-</span> <span class="mi">2</span>
+        <span class="k">elif</span> <span class="n">tail</span><span class="o">.</span><span class="n">endswith</span><span class="p">((</span><span class="sa">b</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="sa">b</span><span class="s2">"</span><span class="se">\r</span><span class="s2">"</span><span class="p">)):</span>
+            <span class="n">effective_end</span> <span class="o">=</span> <span class="n">size</span> <span class="o">-</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">effective_end</span> <span class="o">=</span> <span class="n">size</span>
+        <span class="k">if</span> <span class="n">effective_end</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># The file is a single line ending, i.e. one empty line.</span>
+            <span class="k">return</span> <span class="n">_TailStart</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+
+        <span class="n">pos</span> <span class="o">=</span> <span class="n">effective_end</span>
+        <span class="n">terminators</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">bytes_scanned</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="c1"># The line-ending bytes stripped above are not counted against the</span>
+        <span class="c1"># scan budget; the overage is at most two bytes.</span>
+        <span class="n">right_byte</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">while</span> <span class="n">pos</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">remaining</span> <span class="o">=</span> <span class="n">max_bytes</span> <span class="o">-</span> <span class="n">bytes_scanned</span>
+            <span class="k">if</span> <span class="n">remaining</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">_TailStart</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+            <span class="n">read_len</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">chunk_size</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">remaining</span><span class="p">)</span>
+            <span class="n">read_start</span> <span class="o">=</span> <span class="n">pos</span> <span class="o">-</span> <span class="n">read_len</span>
+            <span class="n">handle</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">read_start</span><span class="p">)</span>
+            <span class="n">chunk</span> <span class="o">=</span> <span class="n">handle</span><span class="o">.</span><span class="n">read</span><span class="p">(</span><span class="n">read_len</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">chunk</span><span class="p">)</span> <span class="o">!=</span> <span class="n">read_len</span><span class="p">:</span>
+                <span class="c1"># The file shrank under us; the region is no longer complete.</span>
+                <span class="k">return</span> <span class="n">_TailStart</span><span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+            <span class="n">bytes_scanned</span> <span class="o">+=</span> <span class="n">read_len</span>
+            <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">read_len</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">):</span>
+                <span class="n">byte</span> <span class="o">=</span> <span class="n">chunk</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">byte</span> <span class="o">==</span> <span class="mh">0x0A</span><span class="p">:</span>  <span class="c1"># final byte of an LF or CRLF terminator</span>
+                    <span class="n">terminators</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">terminators</span> <span class="o">==</span> <span class="n">n</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">_TailStart</span><span class="p">(</span><span class="n">read_start</span> <span class="o">+</span> <span class="n">index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="n">n</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="n">byte</span> <span class="o">==</span> <span class="mh">0x0D</span><span class="p">:</span>  <span class="c1"># lone CR unless followed by LF</span>
+                    <span class="n">next_byte</span> <span class="o">=</span> <span class="n">chunk</span><span class="p">[</span><span class="n">index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">]</span> <span class="k">if</span> <span class="n">index</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;</span> <span class="n">read_len</span> <span class="k">else</span> <span class="n">right_byte</span>
+                    <span class="k">if</span> <span class="n">next_byte</span> <span class="o">==</span> <span class="mh">0x0A</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="n">terminators</span> <span class="o">+=</span> <span class="mi">1</span>
+                    <span class="k">if</span> <span class="n">terminators</span> <span class="o">==</span> <span class="n">n</span><span class="p">:</span>
+                        <span class="k">return</span> <span class="n">_TailStart</span><span class="p">(</span><span class="n">read_start</span> <span class="o">+</span> <span class="n">index</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="n">n</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
+            <span class="n">right_byte</span> <span class="o">=</span> <span class="n">chunk</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">pos</span> <span class="o">=</span> <span class="n">read_start</span>
+
+    <span class="n">total_lines</span> <span class="o">=</span> <span class="n">terminators</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="n">_TailStart</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="o">-</span><span class="n">total_lines</span><span class="p">,</span> <span class="n">total_lines</span><span class="p">,</span> <span class="kc">False</span><span class="p">)</span>
 
 
 <span class="k">class</span><span class="w"> </span><span class="nc">_BinaryFileError</span><span class="p">(</span><span class="ne">Exception</span><span class="p">):</span>
@@ -848,6 +1073,101 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">had_bom</span> <span class="o">=</span> <span class="kc">False</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_peek_for_eof</span><span class="p">(</span><span class="n">lines</span><span class="p">:</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Consume one line so the reader can set ``state.exhausted`` at EOF.</span>
+
+<span class="sd">    The page collector breaks as soon as it is full (line limit or character</span>
+<span class="sd">    budget).  Without this peek, a page that ended exactly at EOF would still</span>
+<span class="sd">    report ``reached_eof=False`` and be mislabelled as truncated.</span>
+
+<span class="sd">    :param lines: The line iterator being collected from.</span>
+<span class="sd">    """</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="nb">next</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
+        <span class="k">pass</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_collect_page</span><span class="p">(</span>
+    <span class="n">handle</span><span class="p">:</span> <span class="n">BinaryIO</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">first_line_no</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">skip_lines</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">char_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">strip_bom</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Collect one page of lines from an already-positioned *handle*.</span>
+
+<span class="sd">    Lines are produced lazily by :func:`_iter_capped_lines`; the scan stops once</span>
+<span class="sd">    the page is satisfied (``limit`` lines or the ``max_chars`` budget) or the</span>
+<span class="sd">    ``max_bytes`` scan cap is hit, so only the page's bytes are held in memory.</span>
+<span class="sd">    Both the forward and tail readers use this so their cap and EOF behaviour</span>
+<span class="sd">    cannot diverge.</span>
+
+<span class="sd">    :param handle: Open binary handle positioned at the first byte to read.</span>
+<span class="sd">    :param first_line_no: Line number assigned to the first line yielded.</span>
+<span class="sd">        Positive for a forward read, negative (relative to EOF) for a tail.</span>
+<span class="sd">    :param skip_lines: Lines to discard before collecting (used by a forward</span>
+<span class="sd">        read to reach ``offset``).</span>
+<span class="sd">    :param limit: Maximum number of lines to collect, or ``None`` for no line</span>
+<span class="sd">        limit.</span>
+<span class="sd">    :param char_offset: 0-indexed character within the first collected line.</span>
+<span class="sd">    :param max_chars: Character budget for the page (bounds the scan too).</span>
+<span class="sd">    :param max_bytes: Per-call scan cap in bytes.</span>
+<span class="sd">    :param strip_bom: Strip a leading BOM (only when reading from byte 0).</span>
+<span class="sd">    :returns: ``(segments, last_line_no, reached_eof, scan_capped, had_bom,</span>
+<span class="sd">        stop_reason)``, where ``stop_reason`` is ``"eof"``, ``"limit"``,</span>
+<span class="sd">        ``"chars"`` or ``"cap"``.  It says which bound stopped the page, so the</span>
+<span class="sd">        caller can report an accurate truncation reason even when the rendered</span>
+<span class="sd">        text happens to fit the character budget exactly.</span>
+<span class="sd">    """</span>
+    <span class="n">state</span> <span class="o">=</span> <span class="n">_StreamState</span><span class="p">()</span>
+    <span class="n">max_line_chars</span> <span class="o">=</span> <span class="n">char_offset</span> <span class="o">+</span> <span class="n">max_chars</span> <span class="o">+</span> <span class="n">_PREFIX_ALLOWANCE</span>
+    <span class="n">segments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">line_no</span> <span class="o">=</span> <span class="n">first_line_no</span> <span class="o">-</span> <span class="mi">1</span>
+    <span class="n">skipped</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">collected</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">accumulated</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">stop_reason</span> <span class="o">=</span> <span class="s2">"eof"</span>
+    <span class="n">lines</span> <span class="o">=</span> <span class="n">_iter_capped_lines</span><span class="p">(</span>
+        <span class="n">handle</span><span class="p">,</span>
+        <span class="n">state</span><span class="p">,</span>
+        <span class="n">max_line_chars</span><span class="o">=</span><span class="n">max_line_chars</span><span class="p">,</span>
+        <span class="n">max_bytes</span><span class="o">=</span><span class="n">max_bytes</span><span class="p">,</span>
+        <span class="n">strip_bom</span><span class="o">=</span><span class="n">strip_bom</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">for</span> <span class="n">text</span><span class="p">,</span> <span class="n">_truncated</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
+        <span class="n">line_no</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">if</span> <span class="n">skipped</span> <span class="o">&lt;</span> <span class="n">skip_lines</span><span class="p">:</span>
+            <span class="n">skipped</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">continue</span>
+        <span class="n">segment</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="n">char_offset</span><span class="p">:]</span> <span class="k">if</span> <span class="n">collected</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">char_offset</span> <span class="k">else</span> <span class="n">text</span>
+        <span class="n">segments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span>
+        <span class="n">collected</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">accumulated</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">collected</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">collected</span> <span class="o">&gt;=</span> <span class="n">limit</span><span class="p">:</span>
+            <span class="n">stop_reason</span> <span class="o">=</span> <span class="s2">"limit"</span>
+            <span class="n">_peek_for_eof</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+            <span class="k">break</span>
+        <span class="k">if</span> <span class="n">accumulated</span> <span class="o">&gt;=</span> <span class="n">max_chars</span><span class="p">:</span>
+            <span class="n">stop_reason</span> <span class="o">=</span> <span class="s2">"chars"</span>
+            <span class="n">_peek_for_eof</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+            <span class="k">break</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">stop_reason</span> <span class="o">=</span> <span class="s2">"eof"</span> <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">exhausted</span> <span class="k">else</span> <span class="s2">"cap"</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">segments</span><span class="p">,</span>
+        <span class="n">line_no</span><span class="p">,</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">exhausted</span><span class="p">,</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">capped</span><span class="p">,</span>
+        <span class="n">state</span><span class="o">.</span><span class="n">had_bom</span><span class="p">,</span>
+        <span class="n">stop_reason</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_read_streamed_page</span><span class="p">(</span>
     <span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
@@ -856,54 +1176,174 @@
     <span class="n">char_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]:</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">bool</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Collect one page of lines from *path* without loading the whole file.</span>
 
-<span class="sd">    Lines are produced lazily by :func:`_iter_capped_lines`; the scan stops once</span>
-<span class="sd">    the page is satisfied (``limit`` lines or the ``max_chars`` budget) or the</span>
-<span class="sd">    ``max_bytes`` scan cap is hit, so only the page's bytes are held in memory.</span>
+<span class="sd">    This is the forward-read wrapper around :func:`_collect_page`; it opens the</span>
+<span class="sd">    file at byte 0, skips to ``offset`` and reports the absolute total only when</span>
+<span class="sd">    the scan reached EOF.</span>
 
 <span class="sd">    :param path: Text file to read.</span>
 <span class="sd">    :param offset: 1-indexed line to start from.</span>
-<span class="sd">    :param limit: Maximum number of lines, or ``None`` for "to the end".</span>
+<span class="sd">    :param limit: Maximum number of lines, or ``None`` for no line limit.</span>
 <span class="sd">    :param char_offset: 0-indexed character within ``offset``'s line.</span>
 <span class="sd">    :param max_chars: Character budget for the page (bounds the scan too).</span>
 <span class="sd">    :param max_bytes: Per-call scan cap in bytes.</span>
-<span class="sd">    :returns: ``(segments, total_lines, reached_eof, scan_capped, had_bom)``.</span>
-<span class="sd">        ``total_lines`` is ``None`` unless the scan reached EOF.</span>
+<span class="sd">    :returns: ``(segments, total_lines, reached_eof, scan_capped, had_bom,</span>
+<span class="sd">        stop_reason)``.  ``total_lines`` is ``None`` unless the scan reached</span>
+<span class="sd">        EOF.</span>
 <span class="sd">    """</span>
-    <span class="n">state</span> <span class="o">=</span> <span class="n">_StreamState</span><span class="p">()</span>
-    <span class="n">max_line_chars</span> <span class="o">=</span> <span class="n">char_offset</span> <span class="o">+</span> <span class="n">max_chars</span> <span class="o">+</span> <span class="n">_PREFIX_ALLOWANCE</span>
-    <span class="n">segments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="n">line_no</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">collected</span> <span class="o">=</span> <span class="mi">0</span>
-    <span class="n">accumulated</span> <span class="o">=</span> <span class="mi">0</span>
     <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
-        <span class="n">lines</span> <span class="o">=</span> <span class="n">_iter_capped_lines</span><span class="p">(</span>
+        <span class="p">(</span>
+            <span class="n">segments</span><span class="p">,</span>
+            <span class="n">line_no</span><span class="p">,</span>
+            <span class="n">reached_eof</span><span class="p">,</span>
+            <span class="n">scan_capped</span><span class="p">,</span>
+            <span class="n">had_bom</span><span class="p">,</span>
+            <span class="n">stop_reason</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">=</span> <span class="n">_collect_page</span><span class="p">(</span>
             <span class="n">handle</span><span class="p">,</span>
-            <span class="n">state</span><span class="p">,</span>
-            <span class="n">max_line_chars</span><span class="o">=</span><span class="n">max_line_chars</span><span class="p">,</span>
+            <span class="n">first_line_no</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">skip_lines</span><span class="o">=</span><span class="n">offset</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+            <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+            <span class="n">char_offset</span><span class="o">=</span><span class="n">char_offset</span><span class="p">,</span>
+            <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
             <span class="n">max_bytes</span><span class="o">=</span><span class="n">max_bytes</span><span class="p">,</span>
+            <span class="n">strip_bom</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="k">for</span> <span class="n">text</span><span class="p">,</span> <span class="n">_truncated</span> <span class="ow">in</span> <span class="n">lines</span><span class="p">:</span>
-            <span class="n">line_no</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="k">if</span> <span class="n">line_no</span> <span class="o">&lt;</span> <span class="n">offset</span><span class="p">:</span>
-                <span class="k">continue</span>
-            <span class="n">segment</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="n">char_offset</span><span class="p">:]</span> <span class="k">if</span> <span class="n">line_no</span> <span class="o">==</span> <span class="n">offset</span> <span class="ow">and</span> <span class="n">char_offset</span> <span class="k">else</span> <span class="n">text</span>
-            <span class="n">segments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span>
-            <span class="n">collected</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="n">accumulated</span> <span class="o">+=</span> <span class="nb">len</span><span class="p">(</span><span class="n">segment</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="k">if</span> <span class="n">collected</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="mi">0</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">limit</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">collected</span> <span class="o">&gt;=</span> <span class="n">limit</span><span class="p">:</span>
-                <span class="c1"># Peek once to tell EOF from a real continuation.</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="nb">next</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">StopIteration</span><span class="p">:</span>
-                    <span class="k">pass</span>
-                <span class="k">break</span>
-            <span class="k">if</span> <span class="n">accumulated</span> <span class="o">&gt;=</span> <span class="n">max_chars</span><span class="p">:</span>
-                <span class="k">break</span>
-    <span class="n">total_lines</span> <span class="o">=</span> <span class="n">line_no</span> <span class="k">if</span> <span class="n">state</span><span class="o">.</span><span class="n">exhausted</span> <span class="k">else</span> <span class="kc">None</span>
-    <span class="k">return</span> <span class="n">segments</span><span class="p">,</span> <span class="n">total_lines</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">exhausted</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">capped</span><span class="p">,</span> <span class="n">state</span><span class="o">.</span><span class="n">had_bom</span>
+    <span class="n">total_lines</span> <span class="o">=</span> <span class="n">line_no</span> <span class="k">if</span> <span class="n">reached_eof</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">segments</span><span class="p">,</span>
+        <span class="n">total_lines</span><span class="p">,</span>
+        <span class="n">reached_eof</span><span class="p">,</span>
+        <span class="n">scan_capped</span><span class="p">,</span>
+        <span class="n">had_bom</span><span class="p">,</span>
+        <span class="n">stop_reason</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_TailPage</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""One tail page plus the locator metadata needed by ``read_file``."""</span>
+
+    <span class="n">segments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+    <span class="n">line_number</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">total_lines</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">reached_eof</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">scan_capped</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">had_bom</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">stop_reason</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">locator_truncated</span><span class="p">:</span> <span class="nb">bool</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_read_tail_page</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">char_offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_TailPage</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Collect one page starting the given number of lines from the end.</span>
+
+<span class="sd">    The backward locator finds the byte offset of line ``offset`` (negative,</span>
+<span class="sd">    relative to EOF); the page is then read forward from there with the same</span>
+<span class="sd">    collector the forward reader uses.  The locator scan and the page read are</span>
+<span class="sd">    each bounded by ``max_bytes``.</span>
+
+<span class="sd">    :param path: Text file to read.</span>
+<span class="sd">    :param offset: Negative line number to start from (``-1`` is the last</span>
+<span class="sd">        line).</span>
+<span class="sd">    :param limit: Maximum number of lines, or ``None`` for no line limit.</span>
+<span class="sd">    :param char_offset: 0-indexed character within the start line.</span>
+<span class="sd">    :param max_chars: Character budget for the page (bounds the scan too).</span>
+<span class="sd">    :param max_bytes: Per-call scan cap in bytes, for the locator and the page.</span>
+<span class="sd">    :returns: A :class:`_TailPage`.  ``locator_truncated`` is set when the</span>
+<span class="sd">        backward scan could not reach the requested line within ``max_bytes``;</span>
+<span class="sd">        the other fields then describe an empty page.</span>
+<span class="sd">    """</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="n">offset</span><span class="p">)</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">_locate_tail_start</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">max_bytes</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">start</span><span class="o">.</span><span class="n">truncated</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_TailPage</span><span class="p">(</span>
+            <span class="n">segments</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">line_number</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">total_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">reached_eof</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">scan_capped</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">had_bom</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">stop_reason</span><span class="o">=</span><span class="s2">"cap"</span><span class="p">,</span>
+            <span class="n">locator_truncated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">start</span><span class="o">.</span><span class="n">total_lines</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="c1"># The caller reports the empty-file / past-the-start case.</span>
+        <span class="k">return</span> <span class="n">_TailPage</span><span class="p">(</span>
+            <span class="n">segments</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">line_number</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">total_lines</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">reached_eof</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">scan_capped</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">had_bom</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">stop_reason</span><span class="o">=</span><span class="s2">"eof"</span><span class="p">,</span>
+            <span class="n">locator_truncated</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">byte_offset</span> <span class="o">=</span> <span class="n">start</span><span class="o">.</span><span class="n">byte_offset</span>
+    <span class="n">line_number</span> <span class="o">=</span> <span class="n">start</span><span class="o">.</span><span class="n">line_number</span>
+    <span class="k">if</span> <span class="n">byte_offset</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">line_number</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_TailPage</span><span class="p">(</span>
+            <span class="n">segments</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">line_number</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">total_lines</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">reached_eof</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">scan_capped</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">had_bom</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">stop_reason</span><span class="o">=</span><span class="s2">"cap"</span><span class="p">,</span>
+            <span class="n">locator_truncated</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">with</span> <span class="n">path</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="s2">"rb"</span><span class="p">)</span> <span class="k">as</span> <span class="n">handle</span><span class="p">:</span>
+        <span class="n">handle</span><span class="o">.</span><span class="n">seek</span><span class="p">(</span><span class="n">byte_offset</span><span class="p">)</span>
+        <span class="p">(</span>
+            <span class="n">segments</span><span class="p">,</span>
+            <span class="n">_last_line_no</span><span class="p">,</span>
+            <span class="n">reached_eof</span><span class="p">,</span>
+            <span class="n">scan_capped</span><span class="p">,</span>
+            <span class="n">had_bom</span><span class="p">,</span>
+            <span class="n">stop_reason</span><span class="p">,</span>
+        <span class="p">)</span> <span class="o">=</span> <span class="n">_collect_page</span><span class="p">(</span>
+            <span class="n">handle</span><span class="p">,</span>
+            <span class="n">first_line_no</span><span class="o">=</span><span class="n">line_number</span><span class="p">,</span>
+            <span class="n">skip_lines</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+            <span class="n">char_offset</span><span class="o">=</span><span class="n">char_offset</span><span class="p">,</span>
+            <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
+            <span class="n">max_bytes</span><span class="o">=</span><span class="n">max_bytes</span><span class="p">,</span>
+            <span class="n">strip_bom</span><span class="o">=</span><span class="n">byte_offset</span> <span class="o">==</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">byte_offset</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">had_bom</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">segments</span> <span class="ow">and</span> <span class="n">start</span><span class="o">.</span><span class="n">total_lines</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="c1"># A file containing only a BOM has no lines once it is stripped.</span>
+        <span class="k">return</span> <span class="n">_TailPage</span><span class="p">(</span>
+            <span class="n">segments</span><span class="o">=</span><span class="p">[],</span>
+            <span class="n">line_number</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="n">total_lines</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">reached_eof</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">scan_capped</span><span class="o">=</span><span class="n">scan_capped</span><span class="p">,</span>
+            <span class="n">had_bom</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">stop_reason</span><span class="o">=</span><span class="s2">"eof"</span><span class="p">,</span>
+            <span class="n">locator_truncated</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">_TailPage</span><span class="p">(</span>
+        <span class="n">segments</span><span class="o">=</span><span class="n">segments</span><span class="p">,</span>
+        <span class="n">line_number</span><span class="o">=</span><span class="n">line_number</span><span class="p">,</span>
+        <span class="n">total_lines</span><span class="o">=</span><span class="n">start</span><span class="o">.</span><span class="n">total_lines</span><span class="p">,</span>
+        <span class="n">reached_eof</span><span class="o">=</span><span class="n">reached_eof</span><span class="p">,</span>
+        <span class="n">scan_capped</span><span class="o">=</span><span class="n">scan_capped</span><span class="p">,</span>
+        <span class="n">had_bom</span><span class="o">=</span><span class="n">had_bom</span><span class="p">,</span>
+        <span class="n">stop_reason</span><span class="o">=</span><span class="n">stop_reason</span><span class="p">,</span>
+        <span class="n">locator_truncated</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_iter_capped_lines</span><span class="p">(</span>
@@ -913,6 +1353,7 @@
     <span class="n">max_line_chars</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">max_bytes</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="n">chunk_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">_STREAM_CHUNK_BYTES</span><span class="p">,</span>
+    <span class="n">strip_bom</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Iterator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">"""Yield ``(line, truncated)`` pairs read lazily from a binary *handle*.</span>
 
@@ -928,6 +1369,9 @@
 <span class="sd">    :param max_line_chars: Maximum characters kept per line.</span>
 <span class="sd">    :param max_bytes: Per-call scan cap in bytes.</span>
 <span class="sd">    :param chunk_size: Read granularity in bytes.</span>
+<span class="sd">    :param strip_bom: Strip a leading UTF-8 BOM from the first decoded chunk.</span>
+<span class="sd">        Set ``False`` when reading from a mid-file seek, where a leading</span>
+<span class="sd">        U+FEFF is real content rather than a BOM.</span>
 <span class="sd">    :yields: ``(line_text, truncated)`` for each line, without its newline.</span>
 <span class="sd">    """</span>
     <span class="n">decoder</span> <span class="o">=</span> <span class="n">codecs</span><span class="o">.</span><span class="n">getincrementaldecoder</span><span class="p">(</span><span class="s2">"utf-8"</span><span class="p">)()</span>
@@ -955,7 +1399,7 @@
                 <span class="n">pending_cr</span> <span class="o">=</span> <span class="kc">False</span>
         <span class="k">if</span> <span class="n">first</span> <span class="ow">and</span> <span class="n">text</span><span class="p">:</span>
             <span class="n">first</span> <span class="o">=</span> <span class="kc">False</span>
-            <span class="k">if</span> <span class="n">text</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"</span><span class="se">\ufeff</span><span class="s2">"</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">strip_bom</span> <span class="ow">and</span> <span class="n">text</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"</span><span class="se">\ufeff</span><span class="s2">"</span><span class="p">):</span>
                 <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
                 <span class="n">state</span><span class="o">.</span><span class="n">had_bom</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">if</span> <span class="n">pending_cr</span><span class="p">:</span>

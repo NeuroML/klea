@@ -327,9 +327,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.binding</span><span class="w"> </span><span class="kn">import</span> <span class="n">Binding</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.containers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Horizontal</span><span class="p">,</span> <span class="n">Vertical</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.screen</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModalScreen</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Button</span><span class="p">,</span> <span class="n">Static</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Button</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.exit_confirm</span><span class="w"> </span><span class="kn">import</span> <span class="n">EXIT_CONFIRM_MESSAGE</span><span class="p">,</span> <span class="n">EXIT_CONFIRM_TITLE</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.selectable</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectableStatic</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -367,8 +368,8 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">compose</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose the prompt and Cancel / Exit."""</span>
         <span class="k">with</span> <span class="n">Vertical</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"exit-dialog"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="n">EXIT_CONFIRM_TITLE</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"exit-title"</span><span class="p">)</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span>
+            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="n">EXIT_CONFIRM_TITLE</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"exit-title"</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
                 <span class="n">EXIT_CONFIRM_MESSAGE</span><span class="p">,</span>
                 <span class="nb">id</span><span class="o">=</span><span class="s2">"exit-body"</span><span class="p">,</span>
                 <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>

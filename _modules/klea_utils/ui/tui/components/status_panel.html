@@ -331,12 +331,13 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual</span><span class="w"> </span><span class="kn">import</span> <span class="n">on</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">ComposeResult</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.containers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Vertical</span><span class="p">,</span> <span class="n">VerticalScroll</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Collapsible</span><span class="p">,</span> <span class="n">Static</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Collapsible</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.llm</span><span class="w"> </span><span class="kn">import</span> <span class="n">missing_required_roles</span><span class="p">,</span> <span class="n">parse_model_name</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.inspect_format</span><span class="w"> </span><span class="kn">import</span> <span class="n">format_details</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.model_config</span><span class="w"> </span><span class="kn">import</span> <span class="n">role_label</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">format_token_usage</span><span class="p">,</span> <span class="n">missing_credentials</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.selectable</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectableStatic</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">TuiContext</span>
@@ -376,20 +377,22 @@
 <span class="sd">    :param collapsed: Whether the group starts collapsed.</span>
 <span class="sd">    :returns: The models group widget.</span>
 <span class="sd">    """</span>
-    <span class="n">widgets</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Static</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">widgets</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SelectableStatic</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">cfg</span> <span class="ow">in</span> <span class="n">model_info</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
         <span class="n">raw</span> <span class="o">=</span> <span class="nb">str</span><span class="p">((</span><span class="n">cfg</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"model"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
         <span class="n">provider</span> <span class="o">=</span> <span class="nb">str</span><span class="p">((</span><span class="n">cfg</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"provider"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">provider</span> <span class="ow">and</span> <span class="n">raw</span><span class="p">:</span>
             <span class="n">provider</span> <span class="o">=</span> <span class="n">parse_model_name</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">provider</span> <span class="ow">or</span> <span class="s2">""</span>
         <span class="n">widgets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-            <span class="n">Static</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- </span><span class="si">{</span><span class="n">role_label</span><span class="p">(</span><span class="n">role</span><span class="p">)</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">provider</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'(unknown)'</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="n">SelectableStatic</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"- </span><span class="si">{</span><span class="n">role_label</span><span class="p">(</span><span class="n">role</span><span class="p">)</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">provider</span><span class="w"> </span><span class="ow">or</span><span class="w"> </span><span class="s1">'(unknown)'</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span>
+            <span class="p">)</span>
         <span class="p">)</span>
-        <span class="n">widgets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Static</span><span class="p">(</span><span class="sa">f</span><span class="s2">"    </span><span class="si">{</span><span class="n">_model_name</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+        <span class="n">widgets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SelectableStatic</span><span class="p">(</span><span class="sa">f</span><span class="s2">"    </span><span class="si">{</span><span class="n">_model_name</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
     <span class="n">missing</span> <span class="o">=</span> <span class="n">missing_required_roles</span><span class="p">(</span><span class="n">model_info</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
         <span class="n">widgets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-            <span class="n">Static</span><span class="p">(</span>
+            <span class="n">SelectableStatic</span><span class="p">(</span>
                 <span class="s2">"Select a model to start: "</span>
                 <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">role_label</span><span class="p">(</span><span class="n">role</span><span class="p">)</span> <span class="k">for</span> <span class="n">role</span> <span class="ow">in</span> <span class="n">missing</span><span class="p">),</span>
                 <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
@@ -406,7 +409,7 @@
         <span class="p">)</span>
         <span class="k">if</span> <span class="n">missing_providers</span><span class="p">:</span>
             <span class="n">widgets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
-                <span class="n">Static</span><span class="p">(</span>
+                <span class="n">SelectableStatic</span><span class="p">(</span>
                     <span class="s2">"Add an API key for: "</span> <span class="o">+</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing_providers</span><span class="p">),</span>
                     <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                     <span class="n">classes</span><span class="o">=</span><span class="s2">"status-missing"</span><span class="p">,</span>
@@ -428,22 +431,22 @@
     <span class="n">display</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
     <span class="n">summary</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"summary"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
     <span class="n">details</span> <span class="o">=</span> <span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"details"</span><span class="p">,</span> <span class="p">{})</span>
-    <span class="n">body</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Static</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">body</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SelectableStatic</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">display</span><span class="p">:</span>
         <span class="k">if</span> <span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preformatted"</span><span class="p">):</span>
             <span class="c1"># Aligned/literal content (e.g. the plan): render as-is so columns</span>
             <span class="c1"># line up and markup-like characters are not interpreted.</span>
-            <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Static</span><span class="p">(</span><span class="n">display</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+            <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SelectableStatic</span><span class="p">(</span><span class="n">display</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
         <span class="k">else</span><span class="p">:</span>
-            <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Static</span><span class="p">(</span><span class="n">Markdown</span><span class="p">(</span><span class="n">display</span><span class="p">)))</span>
+            <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SelectableStatic</span><span class="p">(</span><span class="n">Markdown</span><span class="p">(</span><span class="n">display</span><span class="p">)))</span>
     <span class="k">elif</span> <span class="n">summary</span><span class="p">:</span>
-        <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Static</span><span class="p">(</span><span class="n">summary</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+        <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SelectableStatic</span><span class="p">(</span><span class="n">summary</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">details</span><span class="p">:</span>
         <span class="c1"># ``format_details`` is arbitrary JSON (arrays/objects); disable markup</span>
         <span class="c1"># so brackets are not parsed as Rich tags.</span>
-        <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Static</span><span class="p">(</span><span class="n">format_details</span><span class="p">(</span><span class="n">details</span><span class="p">),</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+        <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SelectableStatic</span><span class="p">(</span><span class="n">format_details</span><span class="p">(</span><span class="n">details</span><span class="p">),</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">body</span><span class="p">:</span>
-        <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Static</span><span class="p">(</span><span class="s2">"(no content)"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
+        <span class="n">body</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"(no content)"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
     <span class="k">return</span> <span class="n">Collapsible</span><span class="p">(</span><span class="o">*</span><span class="n">body</span><span class="p">,</span> <span class="n">title</span><span class="o">=</span><span class="n">heading</span><span class="p">,</span> <span class="n">collapsed</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
 
@@ -580,13 +583,15 @@
                 <span class="p">)</span>
             <span class="n">usage</span> <span class="o">=</span> <span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"token_usage"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
             <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">usage</span><span class="o">.</span><span class="n">values</span><span class="p">()):</span>
-                <span class="n">fixed_widgets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Static</span><span class="p">(</span><span class="n">_usage_line</span><span class="p">(</span><span class="n">usage</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"status-usage"</span><span class="p">))</span>
+                <span class="n">fixed_widgets</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">SelectableStatic</span><span class="p">(</span><span class="n">_usage_line</span><span class="p">(</span><span class="n">usage</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"status-usage"</span><span class="p">)</span>
+                <span class="p">)</span>
             <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">section</span> <span class="ow">in</span> <span class="p">(</span><span class="n">chat</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"state_sections"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
                 <span class="n">sections</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_section_widget</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">section</span><span class="p">))</span>
         <span class="k">if</span> <span class="n">fixed_widgets</span><span class="p">:</span>
             <span class="k">await</span> <span class="n">fixed</span><span class="o">.</span><span class="n">mount_all</span><span class="p">(</span><span class="n">fixed_widgets</span><span class="p">)</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">sections</span><span class="p">:</span>
-            <span class="n">sections</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Static</span><span class="p">(</span><span class="s2">"State updates will appear here."</span><span class="p">))</span>
+            <span class="n">sections</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"State updates will appear here."</span><span class="p">))</span>
         <span class="k">await</span> <span class="n">scroll</span><span class="o">.</span><span class="n">mount_all</span><span class="p">(</span><span class="n">sections</span><span class="p">)</span>
         <span class="n">scroll</span><span class="o">.</span><span class="n">scroll_end</span><span class="p">(</span><span class="n">animate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
 

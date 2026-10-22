@@ -335,6 +335,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.containers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Vertical</span><span class="p">,</span> <span class="n">VerticalScroll</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Static</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.selectable</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectableStatic</span>
+
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">MessageData</span>
 
@@ -408,8 +410,9 @@
 <span class="sd">    Long messages are clipped to :data:`COLLAPSED_LINES` rendered rows (so the</span>
 <span class="sd">    clip is width-aware, like the web UI's ``max-height`` clamp); a muted hint</span>
 <span class="sd">    appears when there is more, and clicking the block or pressing Enter (when</span>
-<span class="sd">    it has focus) toggles between the clipped preview and the full text.  Short</span>
-<span class="sd">    messages are not focusable and show no hint.</span>
+<span class="sd">    it has focus) toggles between the clipped preview and the full text.  A</span>
+<span class="sd">    drag selects text instead of toggling.  Short messages are not focusable</span>
+<span class="sd">    and show no hint.</span>
 <span class="sd">    """</span>
 
     <span class="c1">#: Rows shown while collapsed.</span>
@@ -463,8 +466,13 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">compose</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose the clipped body and the expand hint."""</span>
         <span class="k">with</span> <span class="n">VerticalScroll</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"message-scroll"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="n">render_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_message</span><span class="p">,</span> <span class="n">error_style</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_error_style</span><span class="p">))</span>
-        <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="s2">"message-more"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+            <span class="c1"># SelectableStatic adds Textual's selection protocol to the</span>
+            <span class="c1"># MIME-aware Rich renderable; see its class docstring for why we</span>
+            <span class="c1"># keep Rich rendering instead of the native Markdown widget.</span>
+            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
+                <span class="n">render_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_message</span><span class="p">,</span> <span class="n">error_style</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_error_style</span><span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="s2">"message-more"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">on_mount</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Decide, after layout, whether the hint is needed."""</span>
@@ -479,7 +487,7 @@
         <span class="n">more</span><span class="o">.</span><span class="n">display</span> <span class="o">=</span> <span class="n">overflowing</span>
         <span class="k">if</span> <span class="n">overflowing</span><span class="p">:</span>
             <span class="n">action</span> <span class="o">=</span> <span class="s2">"collapse"</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expanded</span> <span class="k">else</span> <span class="s2">"expand"</span>
-            <span class="n">more</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">f</span><span class="s2">"… Enter/click to </span><span class="si">{</span><span class="n">action</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">more</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">f</span><span class="s2">"… Enter/click to </span><span class="si">{</span><span class="n">action</span><span class="si">}</span><span class="s2"> | drag to select"</span><span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_expanded</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
@@ -495,10 +503,16 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_refresh_more</span><span class="p">()</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">on_click</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">event</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Toggle on click.</span>
+<span class="w">        </span><span class="sd">"""Toggle on click, unless the click finished a text selection.</span>
+
+<span class="sd">        Textual keeps the selection after a drag but clears it before a plain</span>
+<span class="sd">        click, so an active selection means the user selected text rather than</span>
+<span class="sd">        asking to expand or collapse the block.</span>
 
 <span class="sd">        :param event: The click event.</span>
 <span class="sd">        """</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">screen</span><span class="o">.</span><span class="n">selections</span><span class="p">:</span>
+            <span class="k">return</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">action_toggle_expand</span><span class="p">()</span>
 
 
@@ -518,7 +532,7 @@
 <a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.transcript.Transcript.compose">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">compose</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose the empty placeholder (removed on the first message)."""</span>
-        <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">"No messages yet."</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"transcript-empty"</span><span class="p">)</span></div>
+        <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"No messages yet."</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"transcript-empty"</span><span class="p">)</span></div>
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_error_style</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
@@ -555,7 +569,9 @@
 <span class="sd">        """</span>
         <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">remove_children</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">messages</span><span class="p">:</span>
-            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="n">Static</span><span class="p">(</span><span class="s2">"No messages yet."</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"transcript-empty"</span><span class="p">))</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span>
+                <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"No messages yet."</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"transcript-empty"</span><span class="p">)</span>
+            <span class="p">)</span>
             <span class="k">return</span>
         <span class="n">error_style</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_error_style</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">message</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">:</span>

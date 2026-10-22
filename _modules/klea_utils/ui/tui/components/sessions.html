@@ -330,9 +330,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.binding</span><span class="w"> </span><span class="kn">import</span> <span class="n">Binding</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.containers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Horizontal</span><span class="p">,</span> <span class="n">Vertical</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.screen</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModalScreen</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Button</span><span class="p">,</span> <span class="n">Input</span><span class="p">,</span> <span class="n">Label</span><span class="p">,</span> <span class="n">ListItem</span><span class="p">,</span> <span class="n">ListView</span><span class="p">,</span> <span class="n">Static</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Button</span><span class="p">,</span> <span class="n">Input</span><span class="p">,</span> <span class="n">Label</span><span class="p">,</span> <span class="n">ListItem</span><span class="p">,</span> <span class="n">ListView</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chat_preview_text</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.selectable</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectableStatic</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
@@ -416,9 +417,9 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">compose</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose the session list and Cancel."""</span>
         <span class="k">with</span> <span class="n">Vertical</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-dialog"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">"Sessions"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-title"</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"Sessions"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-title"</span><span class="p">)</span>
             <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sessions</span><span class="p">:</span>
-                <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">"No sessions yet."</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"No sessions yet."</span><span class="p">)</span>
             <span class="k">else</span><span class="p">:</span>
                 <span class="k">yield</span> <span class="n">ListView</span><span class="p">(</span>
                     <span class="o">*</span><span class="p">[</span>
@@ -439,7 +440,7 @@
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Rename"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-rename"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Delete"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-delete"</span><span class="p">)</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-preview"</span><span class="p">)</span></div>
+            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-preview"</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SessionPicker.on_mount">
@@ -476,7 +477,7 @@
         <span class="p">)</span>
         <span class="n">preview</span> <span class="o">=</span> <span class="n">chat_preview_text</span><span class="p">((</span><span class="n">session</span> <span class="ow">or</span> <span class="p">{})</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"preview"</span><span class="p">),</span> <span class="n">max_chars</span><span class="o">=</span><span class="mi">200</span><span class="p">)</span>
         <span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Preview: </span><span class="si">{</span><span class="n">preview</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">preview</span> <span class="k">else</span> <span class="s2">""</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#sessions-preview"</span><span class="p">,</span> <span class="n">Static</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#sessions-preview"</span><span class="p">,</span> <span class="n">SelectableStatic</span><span class="p">)</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
 
 <div class="viewcode-block" id="SessionPicker.on_list_view_selected">
 <a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.sessions.SessionPicker.on_list_view_selected">[docs]</a>
@@ -609,8 +610,8 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">compose</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose the warning and Cancel / Delete."""</span>
         <span class="k">with</span> <span class="n">Vertical</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"delete-dialog"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">"Delete session?"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-title"</span><span class="p">)</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span>
+            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"Delete session?"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-title"</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
                 <span class="sa">f</span><span class="s2">"This will permanently delete the session </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_title</span><span class="si">!r}</span><span class="s2"> "</span>
                 <span class="s2">"and its messages. This cannot be undone."</span><span class="p">,</span>
                 <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-body"</span><span class="p">,</span>
@@ -687,7 +688,7 @@
     <span class="k">def</span><span class="w"> </span><span class="nf">compose</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose the title input and Save / Cancel."""</span>
         <span class="k">with</span> <span class="n">Vertical</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="s2">"rename-dialog"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Static</span><span class="p">(</span><span class="s2">"Rename session"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-title"</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"Rename session"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-title"</span><span class="p">)</span>
             <span class="k">yield</span> <span class="n">Input</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_title</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-input"</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
                 <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Save"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-save"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>

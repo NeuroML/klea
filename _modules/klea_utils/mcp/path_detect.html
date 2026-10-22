@@ -596,12 +596,59 @@
     <span class="k">return</span> <span class="n">token</span>
 
 
+<div class="viewcode-block" id="platform_is_windows">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.path_detect.platform_is_windows">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">platform_is_windows</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether arguments should be split with Windows quoting rules.</span>
+
+<span class="sd">    Backslashes are literal path separators on Windows, so POSIX ``shlex``</span>
+<span class="sd">    escape processing (``a\\ b``) must not be applied there.  Kept as a function</span>
+<span class="sd">    so tests can pin either behaviour on any platform.</span>
+
+<span class="sd">    :returns: ``True`` when running on Windows.</span>
+<span class="sd">    """</span>
+    <span class="k">return</span> <span class="n">os</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="s2">"nt"</span></div>
+
+
+
+<div class="viewcode-block" id="split_arguments">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.path_detect.split_arguments">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">split_arguments</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">windows</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Split *text* into shell-like argument tokens for the current platform.</span>
+
+<span class="sd">    On POSIX this is :func:`shlex.split` unchanged: quotes group tokens,</span>
+<span class="sd">    backslash escapes are honoured, and unbalanced quotes raise</span>
+<span class="sd">    :class:`ValueError`.  On Windows the split is non-POSIX, so backslashes stay</span>
+<span class="sd">    literal (``C:\\Users\\me\\a.txt`` is a single token); one enclosing quote</span>
+<span class="sd">    pair is stripped from each token, and unbalanced quotes still raise</span>
+<span class="sd">    :class:`ValueError`.</span>
+
+<span class="sd">    :param text: The argument string to split.</span>
+<span class="sd">    :param windows: Force Windows (``True``) or POSIX (``False``) rules;</span>
+<span class="sd">        defaults to :func:`platform_is_windows`.</span>
+<span class="sd">    :returns: The argument tokens.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">windows</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">windows</span> <span class="o">=</span> <span class="n">platform_is_windows</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">windows</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+    <span class="n">tokens</span> <span class="o">=</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">posix</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="n">stripped</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">tokens</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">token</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="mi">2</span> <span class="ow">and</span> <span class="n">token</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">token</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">and</span> <span class="n">token</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="s2">"</span><span class="se">\"</span><span class="s2">'"</span><span class="p">:</span>
+            <span class="n">token</span> <span class="o">=</span> <span class="n">token</span><span class="p">[</span><span class="mi">1</span><span class="p">:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">stripped</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">stripped</span></div>
+
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_tokens_for_value</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
 <span class="w">    </span><span class="sd">"""Split a string value into candidate tokens.</span>
 
 <span class="sd">    A whitespace-containing value is treated as a shell command string and</span>
-<span class="sd">    split with :func:`shlex.split` (falling back to ``str.split`` on a quoting</span>
-<span class="sd">    error); a single-token value (a plain path) is returned as-is.</span>
+<span class="sd">    split with :func:`split_arguments` (falling back to ``str.split`` on a</span>
+<span class="sd">    quoting error); a single-token value (a plain path) is returned as-is.</span>
+<span class="sd">    Windows quoting keeps backslash separators literal.</span>
 <span class="sd">    """</span>
     <span class="n">text</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="p">:</span>
@@ -609,9 +656,9 @@
     <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">ch</span><span class="o">.</span><span class="n">isspace</span><span class="p">()</span> <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">text</span><span class="p">):</span>
         <span class="k">return</span> <span class="p">[</span><span class="n">text</span><span class="p">]</span>
     <span class="k">try</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">shlex</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">split_arguments</span><span class="p">(</span><span class="n">text</span><span class="p">)</span>
     <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
-        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Could not shlex-split value; falling back to whitespace"</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Could not split value; falling back to whitespace"</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">text</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
 
 

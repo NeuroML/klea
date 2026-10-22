@@ -727,7 +727,13 @@
     <span class="p">]</span> <span class="o">=</span> <span class="s2">"."</span><span class="p">,</span>
     <span class="n">offset</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
         <span class="nb">int</span><span class="p">,</span>
-        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"1-indexed line to start reading from"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"1-indexed line to start reading from. Negative values count "</span>
+                <span class="s2">"from the end: -1 is the last line, -N is the Nth line from the "</span>
+                <span class="s2">"end"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
     <span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
     <span class="n">char_offset</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
         <span class="nb">int</span><span class="p">,</span>
@@ -742,7 +748,11 @@
     <span class="n">limit</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
         <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">Field</span><span class="p">(</span>
-            <span class="n">description</span><span class="o">=</span><span class="s2">"Maximum number of lines to return (&gt;=1). 'None' for end of file"</span><span class="p">,</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Maximum number of lines to return (&gt;=1). None removes the "</span>
+                <span class="s2">"line limit, but the server character budget still caps the "</span>
+                <span class="s2">"response"</span>
+            <span class="p">),</span>
             <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
         <span class="p">),</span>
     <span class="p">]</span> <span class="o">=</span> <span class="mi">500</span><span class="p">,</span>
@@ -762,45 +772,66 @@
 <span class="sd">    Document formats (PDF, office files) are converted to Markdown first.</span>
 
 <span class="sd">    Use when:</span>
+
 <span class="sd">    - You need to see the contents of a file in the project.</span>
 <span class="sd">    - You want to page through a large file by line numbers.</span>
+<span class="sd">    - You need the end of a large file, such as the tail of a build log: use a</span>
+<span class="sd">      negative offset (``offset=-100``) instead of paging from the start.</span>
 
 <span class="sd">    Read file chunks instead of complete files. Use the grep tool to locate the</span>
 <span class="sd">    region you need first, then read around it with ``offset``/``limit``.</span>
 
 <span class="sd">    Do not use for:</span>
+
 <span class="sd">    - Listing a directory (use the list files tool instead).</span>
 <span class="sd">    - Fetching remote content (use the web fetch tool instead).</span>
 
-<span class="sd">    Example: read_file(path="README.md", offset=1, limit=100)</span>
+<span class="sd">    Examples:</span>
+
+<span class="sd">    - ``read_file(path="README.md", offset=1, limit=100)``</span>
+<span class="sd">    - ``read_file(path="build.log", offset=-100)``</span>
 
 <span class="sd">    Args:</span>
 <span class="sd">        path: File path to read. Must be relative to the current working</span>
 <span class="sd">            directory and cannot contain '..' for security. Defaults to the</span>
 <span class="sd">            current directory ('.'), which is not a file, so an omitted path</span>
 <span class="sd">            yields the nearby-entries fallback instead of a validation error.</span>
-<span class="sd">        offset: 1-indexed line to start reading from.</span>
+<span class="sd">        offset: 1-indexed line to start reading from. A negative value counts</span>
+<span class="sd">            from the end: -1 is the last line, -N is the Nth line from the end.</span>
 <span class="sd">        char_offset: 0-indexed character position within the start line; used</span>
 <span class="sd">            only to continue inside a single line longer than the character</span>
 <span class="sd">            cap (see ``next_char_offset`` in the result).</span>
-<span class="sd">        limit: Maximum number of lines to return. None reads to the end.</span>
+<span class="sd">        limit: Maximum number of lines to return. ``None`` removes only the line</span>
+<span class="sd">            limit; the server character budget still caps the response, so a</span>
+<span class="sd">            ``None`` read can still be truncated with ``next_offset``. For a</span>
+<span class="sd">            negative offset, this counts forward from the tail start.</span>
 <span class="sd">        line_numbers: Prefix each line with its line number; set false for raw</span>
 <span class="sd">            text to copy into an edit.</span>
 
-<span class="sd">    The response size is capped server-side; a large file is read by paging</span>
-<span class="sd">    (``offset``/``limit``) rather than returned in one call.</span>
+<span class="sd">    The response size is always capped by a server-side character budget,</span>
+<span class="sd">    reported as ``char_budget``; a large file is read by paging</span>
+<span class="sd">    (``offset``/``limit``) or from the end rather than returned in one call.</span>
 
 <span class="sd">    Returns:</span>
 <span class="sd">        Dictionary with content, line range, total_lines, truncated,</span>
-<span class="sd">        next_offset, next_char_offset, error and note.  ``total_lines`` is</span>
-<span class="sd">        ``null`` when a streamed read stops before the end of the file.  A</span>
-<span class="sd">        truncated read is a success (empty ``error``) that normally ends on a</span>
-<span class="sd">        line boundary and carries ``next_offset`` (and an explanatory ``note``)</span>
-<span class="sd">        so the caller can continue.  A single line longer than the character</span>
-<span class="sd">        cap is paged by characters: continue with the same ``offset`` and the</span>
-<span class="sd">        returned ``next_char_offset``.  On a missing/not-a-file error,</span>
-<span class="sd">        ``nearby`` (entries in the nearest existing directory) and ``note`` are</span>
-<span class="sd">        populated so the caller can see what exists instead.</span>
+<span class="sd">        truncation_reason, char_budget, next_offset, next_char_offset, error</span>
+<span class="sd">        and note.  ``line_start``/``line_end`` and ``next_offset`` are negative</span>
+<span class="sd">        for a tail read, with -1 as the last line.  ``total_lines`` is ``null``</span>
+<span class="sd">        when a streamed read stops before the relevant end (EOF for a forward</span>
+<span class="sd">        read, the file start for a tail read); a tail that reaches past the</span>
+<span class="sd">        start clamps to the first line and reports the exact total.  A partial</span>
+<span class="sd">        tail that reaches EOF has ``truncated: false``, ``next_offset: null``</span>
+<span class="sd">        and ``line_end: -1``.  ``char_budget`` is the effective server</span>
+<span class="sd">        character cap, and ``truncation_reason`` is ``char_budget``,</span>
+<span class="sd">        ``line_limit`` or ``scan_cap`` when truncated (empty otherwise), so a</span>
+<span class="sd">        ``limit=None`` read shows why it was cut.  A truncated read is a</span>
+<span class="sd">        success (empty ``error``) that normally ends on a line boundary and</span>
+<span class="sd">        carries ``next_offset`` (and an explanatory ``note``) so the caller can</span>
+<span class="sd">        continue.  A single line longer than the character cap is paged by</span>
+<span class="sd">        characters: continue with the same ``offset`` and the returned</span>
+<span class="sd">        ``next_char_offset``.  On a missing/not-a-file error, ``nearby``</span>
+<span class="sd">        (entries in the nearest existing directory) and ``note`` are populated</span>
+<span class="sd">        so the caller can see what exists instead.</span>
 <span class="sd">    """</span>
     <span class="n">result</span> <span class="o">=</span> <span class="n">read_file_impl</span><span class="p">(</span>
         <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
@@ -833,10 +864,12 @@
 <span class="sd">    The write is atomic and an existing file's mode is preserved.</span>
 
 <span class="sd">    Use when:</span>
+
 <span class="sd">    - Creating a new file.</span>
 <span class="sd">    - Replacing the whole content of a small file.</span>
 
 <span class="sd">    Do not use for:</span>
+
 <span class="sd">    - Reading a file (use the read file tool instead).</span>
 <span class="sd">    - Listing a directory (use the list files tool instead).</span>
 <span class="sd">    - Making a small change to an existing file (use the edit file tool instead).</span>

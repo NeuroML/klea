@@ -524,7 +524,9 @@
 
 <span class="sd">        Notices are derived progress notes (an evaluator verdict, a reasoning</span>
 <span class="sd">        conclusion), not status snapshots and not part of graph memory.  They</span>
-<span class="sd">        are persisted by the API layer as transcript rows.</span>
+<span class="sd">        are persisted by the API layer as transcript rows.  The full content is</span>
+<span class="sd">        emitted; the frontends collapse long notices for display, so the user</span>
+<span class="sd">        can expand them to read everything.</span>
 
 <span class="sd">        :param content: Note text; blank content emits nothing.</span>
 <span class="sd">        :param kind: Semantic kind for styling/routing (default ``progress``).</span>
@@ -532,8 +534,6 @@
         <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">content</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="p">:</span>
             <span class="k">return</span>
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1000</span><span class="p">:</span>
-            <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="mi">997</span><span class="p">]</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span> <span class="o">+</span> <span class="s2">"..."</span>
         <span class="n">event</span> <span class="o">=</span> <span class="n">NodeStreamEvent</span><span class="p">(</span>
             <span class="nb">type</span><span class="o">=</span><span class="s2">"notice"</span><span class="p">,</span>
             <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
