@@ -325,6 +325,19 @@ def test_llm_post_exec_stream_emits_usage_event():
     assert events[0]["data"]["details"]["input_tokens"] == 10
 
 
+def test_emit_notice_does_not_truncate_content():
+    """A long notice keeps its full text; the UI handles collapse."""
+    node = _node(AnswerSchema)
+    events: list[dict] = []
+    cast(Any, node).write_custom_stream = events.append
+    content = "x" * 5000
+
+    node._emit_notice(content)
+
+    assert events[0]["data"]["summary"] == content
+    assert events[0]["data"]["details"]["content"] == content
+
+
 def _system_prompt_value():
     """Build a ChatPromptValue with a plain-string system message."""
     tpl = ChatPromptTemplate([("system", "Base system prompt."), ("human", "{query}")])

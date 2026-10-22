@@ -204,7 +204,9 @@ class AbstractLangGraphNode[
 
         Notices are derived progress notes (an evaluator verdict, a reasoning
         conclusion), not status snapshots and not part of graph memory.  They
-        are persisted by the API layer as transcript rows.
+        are persisted by the API layer as transcript rows.  The full content is
+        emitted; the frontends collapse long notices for display, so the user
+        can expand them to read everything.
 
         :param content: Note text; blank content emits nothing.
         :param kind: Semantic kind for styling/routing (default ``progress``).
@@ -212,8 +214,6 @@ class AbstractLangGraphNode[
         text = str(content or "").strip()
         if not text:
             return
-        if len(text) > 1000:
-            text = text[:997].rstrip() + "..."
         event = NodeStreamEvent(
             type="notice",
             node=self.label,
