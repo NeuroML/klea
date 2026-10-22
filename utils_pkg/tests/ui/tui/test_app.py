@@ -34,6 +34,7 @@ from klea_utils.ui.tui.components.sessions import (
 )
 from klea_utils.ui.tui.components.transcript import MessageBlock, Transcript
 from textual.containers import Horizontal, VerticalScroll
+from textual.selection import Selection
 from textual.widgets import (
     Button,
     Collapsible,
@@ -989,6 +990,54 @@ async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
         assert "Plan" in titles
         assert "context" not in titles
         assert any("3 in (2 cached) / 1 out" in text for text in statics)
+
+
+async def test_status_and_inspector_text_is_selectable(fake_backend, make_app):
+    """Status and inspector text use the shared selectable widget."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "state",
+                "node": "Planner",
+                "data": {"heading": "Plan", "display": "**step 1**"},
+            },
+            {
+                "type": "inspect",
+                "node": "Planner",
+                "data": {
+                    "heading": "Planner",
+                    "summary": "inspect summary",
+                    "details": {},
+                },
+            },
+            {"type": "complete", "message_for_user": "done"},
+        ]
+    ]
+    app = make_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+
+        panel = app.screen.query_one("#status")
+        status_texts = []
+        for widget in panel.query(SelectableStatic):
+            result = widget.get_selection(Selection(None, None))
+            if result is not None:
+                status_texts.append(result[0])
+        assert any("step 1" in text for text in status_texts)
+
+        await app.screen.toggle_view()
+        await pilot.pause()
+        inspector = app.screen.query_one("#inspector")
+        for collapsible in inspector.query(Collapsible):
+            collapsible.collapsed = False
+        await pilot.pause()
+        inspector_texts = []
+        for widget in inspector.query(SelectableStatic):
+            result = widget.get_selection(Selection(None, None))
+            if result is not None:
+                inspector_texts.append(result[0])
+        assert any("inspect summary" in text for text in inspector_texts)
 
 
 async def test_status_panel_scrolls_when_content_overflows(fake_backend, make_app):

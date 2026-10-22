@@ -23,9 +23,10 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
-from textual.widgets import Collapsible, Static
+from textual.widgets import Collapsible
 
 from klea_utils.ui.inspect_format import format_details
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
 
@@ -90,17 +91,17 @@ def _entry_widget(entry: Mapping[str, Any]) -> Collapsible:
     heading = entry.get("heading", "") or entry.get("node", "")
     timing = entry.get("timing_seconds")
     title = f"{heading} ({timing:.1f}s)" if timing else heading
-    body: list[Static] = []
+    body: list[SelectableStatic] = []
     summary = entry.get("summary", "")
     if summary:
-        body.append(Static(summary, markup=False))
+        body.append(SelectableStatic(summary, markup=False))
     details = entry.get("details", {})
     if details:
         # ``format_details`` is arbitrary JSON (arrays/objects); disable markup
         # so brackets are not parsed as Rich tags.
-        body.append(Static(format_details(details), markup=False))
+        body.append(SelectableStatic(format_details(details), markup=False))
     if not body:
-        body.append(Static("(no details)", markup=False))
+        body.append(SelectableStatic("(no details)", markup=False))
     return Collapsible(*body, title=title or "(entry)", collapsed=True)
 
 
@@ -116,7 +117,7 @@ class Inspector(VerticalScroll):
 
     def compose(self) -> ComposeResult:
         """Compose the empty placeholder (replaced on the first refresh)."""
-        yield Static("No inspection data yet.", id="inspector-empty")
+        yield SelectableStatic("No inspection data yet.", id="inspector-empty")
 
     async def set_entries(self, entries: Sequence[Mapping[str, Any]]) -> None:
         """Rebuild the inspector from the chat's ``inspector_entries``.
@@ -125,12 +126,14 @@ class Inspector(VerticalScroll):
         """
         await self.remove_children()
         if not entries:
-            await self.mount(Static("No inspection data yet.", id="inspector-empty"))
+            await self.mount(
+                SelectableStatic("No inspection data yet.", id="inspector-empty")
+            )
             return
         logger.debug("Rendering inspector (items=%d)", len(entries))
         for marker, items in group_sections(entries):
             children = [_entry_widget(item) for item in items] or [
-                Static("No entries.")
+                SelectableStatic("No entries.")
             ]
             await self.mount(
                 Collapsible(

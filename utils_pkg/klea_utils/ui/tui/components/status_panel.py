@@ -25,12 +25,13 @@ from rich.markdown import Markdown
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import Collapsible, Static
+from textual.widgets import Collapsible
 
 from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.inspect_format import format_details
 from klea_utils.ui.model_config import role_label
 from klea_utils.ui.state import format_token_usage, missing_credentials
+from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 if TYPE_CHECKING:
     from klea_utils.ui.tui.context import TuiContext
@@ -70,20 +71,22 @@ def _models_widgets(model_info: Mapping[str, Any], *, collapsed: bool) -> Collap
     :param collapsed: Whether the group starts collapsed.
     :returns: The models group widget.
     """
-    widgets: list[Static] = []
+    widgets: list[SelectableStatic] = []
     for role, cfg in model_info.items():
         raw = str((cfg or {}).get("model", "") or "")
         provider = str((cfg or {}).get("provider", "") or "")
         if not provider and raw:
             provider = parse_model_name(raw).provider or ""
         widgets.append(
-            Static(f"- {role_label(role)}: {provider or '(unknown)'}", markup=False)
+            SelectableStatic(
+                f"- {role_label(role)}: {provider or '(unknown)'}", markup=False
+            )
         )
-        widgets.append(Static(f"    {_model_name(raw)}", markup=False))
+        widgets.append(SelectableStatic(f"    {_model_name(raw)}", markup=False))
     missing = missing_required_roles(model_info)
     if missing:
         widgets.append(
-            Static(
+            SelectableStatic(
                 "Select a model to start: "
                 + ", ".join(role_label(role) for role in missing),
                 markup=False,
@@ -100,7 +103,7 @@ def _models_widgets(model_info: Mapping[str, Any], *, collapsed: bool) -> Collap
         )
         if missing_providers:
             widgets.append(
-                Static(
+                SelectableStatic(
                     "Add an API key for: " + ", ".join(missing_providers),
                     markup=False,
                     classes="status-missing",
@@ -122,22 +125,22 @@ def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
     display = section.get("display", "")
     summary = section.get("summary", "")
     details = section.get("details", {})
-    body: list[Static] = []
+    body: list[SelectableStatic] = []
     if display:
         if section.get("preformatted"):
             # Aligned/literal content (e.g. the plan): render as-is so columns
             # line up and markup-like characters are not interpreted.
-            body.append(Static(display, markup=False))
+            body.append(SelectableStatic(display, markup=False))
         else:
-            body.append(Static(Markdown(display)))
+            body.append(SelectableStatic(Markdown(display)))
     elif summary:
-        body.append(Static(summary, markup=False))
+        body.append(SelectableStatic(summary, markup=False))
     if details:
         # ``format_details`` is arbitrary JSON (arrays/objects); disable markup
         # so brackets are not parsed as Rich tags.
-        body.append(Static(format_details(details), markup=False))
+        body.append(SelectableStatic(format_details(details), markup=False))
     if not body:
-        body.append(Static("(no content)", markup=False))
+        body.append(SelectableStatic("(no content)", markup=False))
     return Collapsible(*body, title=heading, collapsed=False)
 
 
@@ -267,13 +270,15 @@ class StatusPanel(Vertical):
                 )
             usage = chat.get("token_usage") or {}
             if any(usage.values()):
-                fixed_widgets.append(Static(_usage_line(usage), id="status-usage"))
+                fixed_widgets.append(
+                    SelectableStatic(_usage_line(usage), id="status-usage")
+                )
             for key, section in (chat.get("state_sections") or {}).items():
                 sections.append(_section_widget(key, section))
         if fixed_widgets:
             await fixed.mount_all(fixed_widgets)
         if not sections:
-            sections.append(Static("State updates will appear here."))
+            sections.append(SelectableStatic("State updates will appear here."))
         await scroll.mount_all(sections)
         scroll.scroll_end(animate=False)
 
