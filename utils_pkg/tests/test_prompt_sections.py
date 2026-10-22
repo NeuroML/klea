@@ -13,7 +13,7 @@ from typing import Any, ClassVar
 
 from klea_utils.llm import LLMModel
 from klea_utils.nodes.answer_general import AnswerGeneral
-from klea_utils.nodes.base import BaseLLMNode
+from klea_utils.nodes.base import KLEA_AGENT_NAME, BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext
 from pydantic import BaseModel
 
@@ -63,16 +63,33 @@ def test_effective_model_name_empty_without_model():
     assert _answer_general("")._effective_model_name() == ""
 
 
+def test_agent_identity_is_constant():
+    assert KLEA_AGENT_NAME == "Klea"
+
+
 def test_model_identity_is_opt_in():
     assert BaseLLMNode.include_model_identity is False
     assert AnswerGeneral.include_model_identity is True
 
 
-def test_answer_general_renders_model_identity():
+def test_answer_general_renders_agent_and_model_identity():
     class _State(BaseModel):
         query: str = ""
 
     node = _answer_general("openai:gpt-4o")
     prompt = node._get_system_prompt(_State(), LLMNodeContext())
     assert isinstance(prompt, str)
+    assert prompt.startswith("Agent: Klea\n\n")
     assert "Model in use: openai:gpt-4o" in prompt
+
+
+def test_identity_is_omitted_when_not_opted_in(monkeypatch):
+    class _State(BaseModel):
+        query: str = ""
+
+    node = _answer_general("openai:gpt-4o")
+    monkeypatch.setattr(node, "include_model_identity", False)
+    prompt = node._get_system_prompt(_State(), LLMNodeContext())
+    assert isinstance(prompt, str)
+    assert "Agent: Klea" not in prompt
+    assert "Model in use:" not in prompt

@@ -61,6 +61,13 @@ from ..models_catalog import probe_endpoint_model_limits
 from .abstract import AbstractLLMNode, NodeStreamData, NodeStreamEvent
 from .context import LLMNodeContext
 
+#: Product name reported to the model by user-facing nodes.
+KLEA_AGENT_NAME = "Klea"
+
+#: Constant identity line prepended to user-facing system prompts.  Keeping it
+#: identical across nodes makes it part of the cacheable prompt prefix.
+_AGENT_IDENTITY = f"Agent: {KLEA_AGENT_NAME}"
+
 #: Max times to retry an invoke that overflowed the context window, each
 #: time shrinking the reserved output window to free headroom.
 MAX_CONTEXT_OVERFLOW_RETRIES = 3
@@ -264,10 +271,13 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
     are not appropriate.
     """
 
-    #: Append the effective model identity to the system prompt.  Opt in on
-    #: nodes that compose a user-facing reply, so the model can answer "which
-    #: model are you running" with the model that actually produced the reply.
-    #: Off by default: most nodes never need it and it costs prompt tokens.
+    #: Report the agent and effective model identity in the system prompt.
+    #: Opt in on nodes that compose a user-facing reply, so the model can
+    #: answer "which agent/model are you running" with the values that
+    #: actually produced the reply.  The constant agent line is prepended
+    #: (cacheable prefix); the per-run model line is appended after the
+    #: stable prompt sections.  Off by default: most nodes never need it and
+    #: it costs prompt tokens.
     include_model_identity: ClassVar[bool] = False
 
     def __init__(
@@ -1157,6 +1167,11 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
             message objects when memory is enabled.
         """
         system_prompt = self._load_prompt_file(f"{self.prompt_prefix}_system")
+
+        if self.include_model_identity:
+            # Constant prefix: identical across nodes, so it stays in the
+            # cacheable part of the system prompt.
+            system_prompt = f"{_AGENT_IDENTITY}\n\n{system_prompt}"
 
         if ctx.output_schema:
             system_prompt += self._format_output_schema_prompt(ctx.output_schema)

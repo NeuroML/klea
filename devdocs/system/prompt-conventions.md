@@ -164,20 +164,32 @@ separately).
 4. Tests: render with the optional fields empty and assert their headings are
    absent; render with content and assert they appear.
 
-## Opt-in model identity
+## Opt-in agent and model identity
 
 A node that composes a **user-facing reply** can set
 `include_model_identity = True` (a `BaseLLMNode` class attribute, default
-`False`).  The base then appends one line to the system prompt:
+`False`).  The base then reports both identities in the system prompt.
+
+The constant agent line is prepended to the system prompt:
+
+```
+Agent: Klea
+```
+
+It comes from `KLEA_AGENT_NAME`/`_AGENT_IDENTITY` in
+`klea_utils/nodes/base.py`.  Because it is identical across nodes, it belongs
+to the cacheable system-prompt prefix (Rule 5).
+
+The effective model line is appended after the stable prompt sections:
 
 ```
 Model in use: <effective model>
 ```
 
-The effective model is resolved by `BaseLLMNode._effective_model_name()`
-(frozen node default > per-run role override > graph/env default), so the
-model can answer "which model are you running" with the model that actually
-produced the reply.  This is a factual line only -- no prompt rule is needed,
-and the block is omitted when no model is configured.  Enabled on the agent's
-`RouteDecision`/`AnswerFromResults`, the RAG `AnswerFromContext`, and the
-shared `AnswerGeneral` (the user-facing reply nodes).
+It is resolved by `BaseLLMNode._effective_model_name()` (frozen node default >
+per-run role override > graph/env default), so the model can answer "which
+agent/model are you running" with the values that actually produced the reply.
+Both lines are factual -- no prompt rule is needed -- and the model line is
+omitted when no model is configured (the agent line remains).  Enabled on the
+agent's `RouteDecision`/`AnswerFromResults`, the RAG `AnswerFromContext`, and
+the shared `AnswerGeneral` (the user-facing reply nodes).
