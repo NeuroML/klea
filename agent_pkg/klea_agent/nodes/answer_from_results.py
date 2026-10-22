@@ -19,7 +19,6 @@ from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext
-from klea_utils.tools import textualize_tool_results
 from pydantic import BaseModel
 
 from klea_agent.schemas import ArtefactSchema, KleaAgentState
@@ -212,23 +211,26 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     def _fallback_answer(self, state: KleaAgentState) -> str:
         """Return a non-empty answer when synthesis produced nothing.
 
-        On failure, reports that the task could not be completed and why.  On
-        success, prefers the latest tool outputs (which are often the answer,
-        e.g. a command's output), then the completed step description.
+        Reports the plan outcome and renders the plan itself, so the user sees
+        what was attempted instead of a raw tool dump.  ``_get_default_error_result``
+        already recovers raw prose; this is the last resort when no usable
+        synthesis exists at all.
         """
+        status = state.plan.status
         if self._outcome(state) == "failure":
             reason = state.failure_reason or "the task could not be completed"
-            return f"I could not complete this task: {reason}."
-        if state.tool_results:
-            return textualize_tool_results(state.tool_results)
-        step = state.plan.current_step()
-        # A completed plan has no runnable step left (the frontier is empty),
-        # so fall back to the final step's description.
-        if step is None and state.plan.step_list:
-            step = state.plan.step_list[-1]
-        if step and step.description:
-            return f"Completed: {step.description}"
-        return "Done."
+            lead = (
+                f"I could not complete this task: {reason} "
+                f"The plan ended with status: {status.replace('_', ' ')}."
+            )
+        elif status == "completed":
+            lead = "The task plan completed successfully."
+        else:
+            lead = f"The task plan ended with status: {status.replace('_', ' ')}."
+        plan = state.plan.render()
+        if plan and plan != "(no plan)":
+            return f"{lead}\n\n{plan}"
+        return lead
 
     @override
     def _get_inspect(
@@ -258,5 +260,21 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
 
     @override
     def _get_default_error_result(self, ctx: Any) -> AnswerSchema:
-        """Return an empty result; ``_update_state`` falls back deterministically."""
+        """Recover raw prose, or return an empty result for the plan fallback.
+
+        The parser can reject a valid prose reply when the model ignores the
+        requested JSON envelope.  This node's schema is a single free-text
+        field, so the raw text is a usable answer; recover it rather than
+        discarding it.  Blank output and broken JSON are not recovered --
+        ``_update_state`` then falls back to the plan.
+        """
+        if ctx.output is not None:
+            text = extract_llm_output_content(ctx.output).strip()
+            if "</think>" in text:
+                text = text.split("</think>", 1)[1].strip()
+            if text and not text.lstrip().startswith(("{", "[")):
+                self.logger.warning(
+                    "Structured output could not be parsed; recovering raw prose"
+                )
+                return AnswerSchema(answer=text)
         return AnswerSchema()

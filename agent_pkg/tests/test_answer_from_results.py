@@ -21,6 +21,7 @@ from klea_agent.schemas import (
 )
 from klea_utils.llm import LLMModel
 from klea_utils.nodes.context import LLMNodeContext
+from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 
 
@@ -227,6 +228,49 @@ class TestAnswerFromResults(unittest.TestCase):
         prompt = node._get_system_prompt(self._state(), LLMNodeContext())
         assert isinstance(prompt, str)
         assert "Model in use: openai:gpt-4o" in prompt
+
+    def test_prose_reply_is_recovered_as_the_answer(self):
+        """A prose reply that fails JSON parsing is used as the answer."""
+        result = self._node()._process_output(
+            LLMNodeContext(
+                output=AIMessage(content="The tests now pass on macOS."),
+                output_schema=AnswerSchema,
+            )
+        )
+        assert result == AnswerSchema(answer="The tests now pass on macOS.")
+
+    def test_prose_recovery_strips_thought_prefix(self):
+        """Only the text after ``</think>`` becomes the recovered answer."""
+        result = self._node()._process_output(
+            LLMNodeContext(
+                output=AIMessage(content="internal thought</think>The result."),
+                output_schema=AnswerSchema,
+            )
+        )
+        assert result == AnswerSchema(answer="The result.")
+
+    def test_broken_json_is_not_recovered_as_an_answer(self):
+        """Broken JSON-looking output falls back to an empty result."""
+        result = self._node()._get_default_error_result(
+            LLMNodeContext(output=AIMessage(content='{"answer": '))
+        )
+        assert result == AnswerSchema()
+
+    def test_empty_answer_falls_back_to_plan_with_status(self):
+        """Empty synthesis shows the plan and its outcome, not tool results."""
+        state = self._state()
+        update = self._node()._update_state(AnswerSchema(), state, LLMNodeContext())
+        answer = update["message_for_user"]
+        assert "The task plan completed successfully." in answer
+        assert "list files" in answer
+        assert "## Tool Results" not in answer
+
+    def test_failure_fallback_shows_plan_and_reason(self):
+        """A failed synthesis reports the reason and renders the plan."""
+        state = self._failed_state()
+        answer = self._node()._fallback_answer(state)
+        assert "tool-round budget exhausted" in answer
+        assert "aborted" in answer.lower()
 
 
 if __name__ == "__main__":
