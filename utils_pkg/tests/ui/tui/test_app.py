@@ -102,8 +102,9 @@ async def test_streaming_renders_progress_and_complete(fake_backend, make_app):
     assert _chat()["turn_status"]["kind"] == "idle"
 
 
-async def test_stop_sets_stopped_status(fake_backend, make_app, monkeypatch):
-    """Ctrl+C cancels the run and asks the server to cancel."""
+@pytest.mark.parametrize("stop_key", ["ctrl+shift+c", "f12"])
+async def test_stop_keys_cancel_the_run(fake_backend, make_app, monkeypatch, stop_key):
+    """Ctrl+Shift+C and the F12 fallback cancel the run."""
     cancelled: list[bool] = []
 
     async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
@@ -121,10 +122,44 @@ async def test_stop_sets_stopped_status(fake_backend, make_app, monkeypatch):
     async with app.run_test() as pilot:
         await _submit(pilot, app, "go")
         await pilot.pause()
-        await pilot.press("ctrl+c")
+        await pilot.press(stop_key)
         await _settle(pilot, app)
 
     assert _chat()["turn_status"]["kind"] == "stopped"
+    assert cancelled
+
+
+async def test_ctrl_c_without_selection_does_not_stop(
+    fake_backend, make_app, monkeypatch
+):
+    """Ctrl+C is copy-only; with no selection the run keeps streaming."""
+    cancelled: list[bool] = []
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "Working hard"}}
+        await asyncio.Event().wait()  # never completes until cancelled
+
+    async def _cancel(*args, **kwargs):
+        cancelled.append(True)
+        return True
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+    monkeypatch.setattr("klea_utils.api.sse.request_cancel", _cancel)
+
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        assert app._streaming
+
+        await pilot.press("ctrl+c")
+        await pilot.pause()
+        assert app._streaming
+        assert not cancelled
+
+        await pilot.press("ctrl+shift+c")
+        await _settle(pilot, app)
+
     assert cancelled
 
 
@@ -999,6 +1034,9 @@ async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):
         await _settle(pilot, app)
         for selector in ("#view-toggle", "#key-hints", "#chat-title", "#chat-name"):
             assert isinstance(app.screen.query_one(selector), SelectableStatic)
+        hints = str(app.screen.query_one("#key-hints", SelectableStatic).render())
+        assert "Ctrl+C copy" in hints
+        assert "Ctrl+Shift+C stop" in hints
 
         app.screen.query_one("#query-input", TextArea).blur()
         await pilot.press("ctrl+s")

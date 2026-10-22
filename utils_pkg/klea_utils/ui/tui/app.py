@@ -133,8 +133,8 @@ _CSS = """
 #: Default key-hints line, shown whenever no HITL ask is active.
 _KEY_HINTS_DEFAULT = (
     "Enter send | Ctrl+J newline | / commands | "
-    "Ctrl+C stop | Ctrl+R retry | Ctrl+I inspector | "
-    "Ctrl+Q quit"
+    "Ctrl+C copy | Ctrl+Shift+C stop | Ctrl+R retry | "
+    "Ctrl+I inspector | Ctrl+Q quit"
 )
 
 #: Key-hints line per HITL ask kind, shown while its panel is active.
@@ -424,7 +424,14 @@ class KleaTuiApp(App[None]):
 
     CSS = _CSS
     BINDINGS: ClassVar[list[Binding]] = [
-        Binding("ctrl+c", "stop", "Stop"),
+        # Ctrl+C copies a selection (the Screen action runs first).  This
+        # app-level binding only runs when there is nothing to copy and stops
+        # the base App's help/quit binding from firing.
+        Binding("ctrl+c", "copy_selection", "Copy", show=False),
+        Binding("ctrl+shift+c", "stop", "Stop"),
+        # F12 is the fallback: Ctrl+Shift+C is not reported by every terminal,
+        # and Ctrl+X is TextArea's cut binding.
+        Binding("f12", "stop", "Stop", show=False),
         Binding("ctrl+r", "retry", "Retry"),
         Binding("ctrl+i", "toggle_view", "Inspector"),
         Binding("ctrl+s", "open_sessions", "Sessions"),
@@ -734,6 +741,15 @@ class KleaTuiApp(App[None]):
             interrupt_id=interrupt_id,
             interrupt_cancel=interrupt_cancel,
         )
+
+    def action_copy_selection(self) -> None:
+        """Handle Ctrl+C when no text is selected.
+
+        The Screen copies the current selection before this app-level binding
+        runs.  With nothing to copy, this action stops the base App's
+        help/quit binding from firing; Ctrl+Shift+C or F12 stops a run.
+        """
+        self.notify("No text selected", timeout=2)
 
     async def action_stop(self) -> None:
         """Stop the active run: cancel locally and ask the server to cancel."""
