@@ -451,8 +451,8 @@
 <span class="c1">#: Default key-hints line, shown whenever no HITL ask is active.</span>
 <span class="n">_KEY_HINTS_DEFAULT</span> <span class="o">=</span> <span class="p">(</span>
     <span class="s2">"Enter send | Ctrl+J newline | / commands | "</span>
-    <span class="s2">"Ctrl+C copy | Ctrl+Shift+C stop | Ctrl+R retry | "</span>
-    <span class="s2">"Ctrl+I inspector | Ctrl+Q quit | Ctrl+P Textual Options"</span>
+    <span class="s2">"Ctrl+C copy | Ctrl+G stop | Ctrl+R retry | "</span>
+    <span class="s2">"Ctrl+I inspector | Ctrl+Q quit | Ctrl+P more"</span>
 <span class="p">)</span>
 
 <span class="c1">#: Key-hints line per HITL ask kind, shown while its panel is active.</span>
@@ -811,10 +811,7 @@
         <span class="c1"># app-level binding only runs when there is nothing to copy and stops</span>
         <span class="c1"># the base App's help/quit binding from firing.</span>
         <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+c"</span><span class="p">,</span> <span class="s2">"copy_selection"</span><span class="p">,</span> <span class="s2">"Copy"</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
-        <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+shift+c"</span><span class="p">,</span> <span class="s2">"stop"</span><span class="p">,</span> <span class="s2">"Stop"</span><span class="p">),</span>
-        <span class="c1"># F12 is the fallback: Ctrl+Shift+C is not reported by every terminal,</span>
-        <span class="c1"># and Ctrl+X is TextArea's cut binding.</span>
-        <span class="n">Binding</span><span class="p">(</span><span class="s2">"f12"</span><span class="p">,</span> <span class="s2">"stop"</span><span class="p">,</span> <span class="s2">"Stop"</span><span class="p">,</span> <span class="n">show</span><span class="o">=</span><span class="kc">False</span><span class="p">),</span>
+        <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+g"</span><span class="p">,</span> <span class="s2">"stop"</span><span class="p">,</span> <span class="s2">"Stop"</span><span class="p">),</span>
         <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+r"</span><span class="p">,</span> <span class="s2">"retry"</span><span class="p">,</span> <span class="s2">"Retry"</span><span class="p">),</span>
         <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+i"</span><span class="p">,</span> <span class="s2">"toggle_view"</span><span class="p">,</span> <span class="s2">"Inspector"</span><span class="p">),</span>
         <span class="n">Binding</span><span class="p">(</span><span class="s2">"ctrl+s"</span><span class="p">,</span> <span class="s2">"open_sessions"</span><span class="p">,</span> <span class="s2">"Sessions"</span><span class="p">),</span>
