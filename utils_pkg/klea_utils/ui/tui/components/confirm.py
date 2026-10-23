@@ -24,6 +24,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button
 
 from klea_utils.ui.exit_confirm import EXIT_CONFIRM_MESSAGE, EXIT_CONFIRM_TITLE
+from klea_utils.ui.tui.components.buttons import action_button
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
@@ -65,8 +66,8 @@ class ExitConfirm(ModalScreen[bool]):
                 markup=False,
             )
             with Horizontal(classes="actions"):
-                yield Button("Cancel", id="exit-cancel")
-                yield Button("Exit", id="exit-confirm", variant="error")
+                yield action_button("Cancel", id="exit-cancel", variant="default")
+                yield action_button("Exit", id="exit-confirm", variant="error")
 
     def on_mount(self) -> None:
         """Focus Cancel, so a stray Enter does not quit."""
