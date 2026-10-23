@@ -69,9 +69,9 @@ def render_message(
 ) -> RenderableType:
     """Build the Rich renderable for one transcript message.
 
-    User lines render as a bold ``"> "`` prompt; agent and tool messages
-    render MIME-aware (see :func:`_render_body`), with a bold header for tool
-    blocks (in the theme's error colour when the tool result failed).
+    User lines render as bold; agent and tool messages render MIME-aware (see
+    :func:`_render_body`), with a bold header for tool blocks (in the theme's
+    error colour when the tool result failed).
 
     :param message: A message dict (see ``state.MessageData``).
     :param error_style: Rich style for an errored tool block's header; the
@@ -83,9 +83,9 @@ def render_message(
     text = message.get("text", "")
     header = message.get("header", "")
     if role == "user":
-        return Text(f"> {text}", style="bold")
+        return Text(f"{text}", style="bold")
     if role == "notice":
-        prefix = f"{header}: " if header else ""
+        prefix = f"{header}\n" if header else ""
         return Text(prefix + text, style="dim")
     parts: list[RenderableType] = []
     if header:
@@ -119,7 +119,7 @@ class MessageBlock(Vertical):
     MessageBlock {
         height: auto;
         width: 100%;
-        padding: 1 0;
+        padding: 1 1;
     }
     MessageBlock.message-user {
         background: $primary 15%;
