@@ -103,9 +103,9 @@ async def test_streaming_renders_progress_and_complete(fake_backend, make_app):
     assert _chat()["turn_status"]["kind"] == "idle"
 
 
-@pytest.mark.parametrize("stop_key", ["ctrl+shift+c", "f12"])
+@pytest.mark.parametrize("stop_key", ["ctrl+g"])
 async def test_stop_keys_cancel_the_run(fake_backend, make_app, monkeypatch, stop_key):
-    """Ctrl+Shift+C and the F12 fallback cancel the run."""
+    """Ctrl+g cancels the run."""
     cancelled: list[bool] = []
 
     async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
@@ -158,7 +158,7 @@ async def test_ctrl_c_without_selection_does_not_stop(
         assert app._streaming
         assert not cancelled
 
-        await pilot.press("ctrl+shift+c")
+        await pilot.press("ctrl+g")
         await _settle(pilot, app)
 
     assert cancelled
@@ -1102,7 +1102,7 @@ async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):
             assert isinstance(app.screen.query_one(selector), SelectableStatic)
         hints = str(app.screen.query_one("#key-hints", SelectableStatic).render())
         assert "Ctrl+C copy" in hints
-        assert "Ctrl+Shift+C stop" in hints
+        assert "Ctrl+G stop" in hints
 
         app.screen.query_one("#query-input", TextArea).blur()
         await pilot.press("ctrl+s")
