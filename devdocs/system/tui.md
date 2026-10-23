@@ -341,6 +341,37 @@ not hand these tokens to Rich: it resolves each `$token` through
 `render_message`, which falls back to plain bold for a role the active theme
 leaves uncoloured.
 
+## Theme persistence
+
+The selected theme is a sticky local preference: it survives restarts and is
+shared by every TUI session started by the same user on the machine.  It is a
+client-side setting only -- it is never sent to the server and carries no
+session or identity data.
+
+* **Location.** The preference lives in `tui_settings.json` inside the
+  platform-specific user config directory resolved by `platformdirs`
+  (`user_config_dir`), i.e. the ordinary per-OS location for user-level state
+  (`~/.config/...` on Linux, `~/Library/Application Support/...` on macOS,
+  `%APPDATA%\...` on Windows).  The file holds UI preferences only (today just
+  the theme name), so a corrupt or hand-edited copy can never affect server
+  state.
+* **Load.** `load_theme_preference()` runs from the shared `App.__init__`, so
+  the stored theme is applied before the first screen is composed and the TUI
+  never flashes the default theme first.  It reads the settings file, checks
+  the stored name against the themes the active Textual build provides, and
+  sets `App.theme`; a missing file, unreadable JSON, or an unknown theme name
+  leaves the default theme in place instead of raising, so a broken settings
+  file cannot block start-up.
+* **Save.** `watch_theme` is the reactive watcher on `App.theme`: every change
+  -- from the theme selector or any other control -- rewrites the settings
+  file with the new name once, so the choice is persisted immediately rather
+  than at exit (a crash or `Ctrl+Q` therefore never loses it).  The write is
+  best-effort and non-fatal; a failure is reported and the session continues
+  with the theme it already applied.
+
+The theme name is the only key the TUI persists; run state, sessions and
+checkpoints stay on the server (I4).
+
 ## Testing
 
 Textual's in-process `run_test()` pilot drives the real app against a canned

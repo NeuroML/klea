@@ -70,6 +70,10 @@ from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
 from klea_utils.ui.tui.context import TuiContext
 from klea_utils.ui.tui.events import SubmitQuery
+from klea_utils.ui.tui.settings import (
+    load_theme_preference,
+    save_theme_preference,
+)
 
 if TYPE_CHECKING:
     from klea_utils.ui.state import MessageData
@@ -465,6 +469,46 @@ class KleaTuiApp(App[None]):
         self._hitl_panel: HitlDecisionPanel | None = None
         #: Merged session-command catalogue (client + server); loaded on mount.
         self._catalogue: CommandRegistry | None = None
+        #: Set once the persisted theme preference has been restored at
+        #: start-up, so :meth:`watch_theme` does not write it straight back.
+        self._theme_restored = False
+        # Restore the saved theme before the app runs, so the first frame is
+        # already painted with it (no flash of the default theme).
+        self._restore_theme_preference()
+
+    def _restore_theme_preference(self) -> None:
+        """Apply the persisted theme preference, when it is valid and known.
+
+        Called from :meth:`__init__` so the saved theme is in place before the
+        app starts rendering (no flash of the default theme).  The
+        ``_theme_restored`` flag is raised afterwards so this assignment does
+        not trigger a write back to the settings file via :meth:`watch_theme`.
+        """
+        preference = load_theme_preference()
+        if preference is not None:
+            if preference in self.available_themes:
+                try:
+                    self.theme = preference
+                except Exception:  # pragma: no cover - defensive
+                    logger.debug("Could not apply saved theme %r", preference)
+            else:
+                logger.debug("Ignoring unknown saved theme %r", preference)
+        self._theme_restored = True
+
+    def watch_theme(self, old_theme: str, new_theme: str) -> None:
+        """Persist the theme whenever the user changes it.
+
+        The write is skipped during start-up (while the saved preference is
+        being restored) and when the theme did not actually change (Textual
+        invokes watchers once at mount with the current value), so merely
+        launching the app never rewrites the settings file.
+
+        :param old_theme: The previous theme name.
+        :param new_theme: The new theme name.
+        """
+        if not self._theme_restored or new_theme == old_theme:
+            return
+        save_theme_preference(new_theme)
 
     def on_mount(self) -> None:
         """Mount the two-panel screen and load the command catalogue."""
