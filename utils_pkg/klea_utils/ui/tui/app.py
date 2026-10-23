@@ -145,8 +145,8 @@ Screen > .screen--selection {
 #: Default key-hints line, shown whenever no HITL ask is active.
 _KEY_HINTS_DEFAULT = (
     "Enter send | Ctrl+J newline | / commands | "
-    "Ctrl+C copy | Ctrl+Shift+C stop | Ctrl+R retry | "
-    "Ctrl+I inspector | Ctrl+Q quit | Ctrl+P Textual Options"
+    "Ctrl+C copy | Ctrl+G stop | Ctrl+R retry | "
+    "Ctrl+I inspector | Ctrl+Q quit | Ctrl+P more"
 )
 
 #: Key-hints line per HITL ask kind, shown while its panel is active.
@@ -440,10 +440,7 @@ class KleaTuiApp(App[None]):
         # app-level binding only runs when there is nothing to copy and stops
         # the base App's help/quit binding from firing.
         Binding("ctrl+c", "copy_selection", "Copy", show=False),
-        Binding("ctrl+shift+c", "stop", "Stop"),
-        # F12 is the fallback: Ctrl+Shift+C is not reported by every terminal,
-        # and Ctrl+X is TextArea's cut binding.
-        Binding("f12", "stop", "Stop", show=False),
+        Binding("ctrl+g", "stop", "Stop"),
         Binding("ctrl+r", "retry", "Retry"),
         Binding("ctrl+i", "toggle_view", "Inspector"),
         Binding("ctrl+s", "open_sessions", "Sessions"),
