@@ -127,7 +127,7 @@ Screen > .screen--selection {
     height: 1fr;
 }
 #key-hints {
-    height: 1;
+    height: auto;
     color: $text-muted;
 }
 #status {
@@ -146,7 +146,7 @@ Screen > .screen--selection {
 _KEY_HINTS_DEFAULT = (
     "Enter send | Ctrl+J newline | / commands | "
     "Ctrl+C copy | Ctrl+Shift+C stop | Ctrl+R retry | "
-    "Ctrl+I inspector | Ctrl+Q quit"
+    "Ctrl+I inspector | Ctrl+Q quit | Ctrl+P Textual Options"
 )
 
 #: Key-hints line per HITL ask kind, shown while its panel is active.
