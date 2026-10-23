@@ -213,6 +213,40 @@ cannot drift.  A pending interrupt is re-presented on load/switch from
 `GET /chat/{user_id}/{chat_id}/context` (`pending_interrupt`), matching the web
 (ADR-0046).
 
+## HITL dialogs
+
+The review, input and permission asks share one visual grammar, so a long ask
+stays readable while the transcript keeps scrolling beneath it and the panel
+does not change height under the reader (ADR-0046, ADR-0007).
+
+* **Section containers.** Every logical part of an ask -- the summary, the plan
+  history, the questions, the requested paths -- is one section container with
+  its own heading and a blank line before the next, not a run of loose labels.
+  A section owns its rows, so the panel can be rebuilt section by section
+  without reflowing the rest, and a `Rule` separates the fixed chrome (heading,
+  actions) from the scrolled body.
+* **Plan history is presentation, not selection.** When the automated replan
+  budget is exhausted, the input ask renders the earlier plans above its
+  questions as collapsibles labelled `Option 1`, `Option 2`, and so on in
+  order.  The first is expanded and the rest collapsed, so the reader sees the
+  current plan in place and can open an earlier one for comparison.  These
+  collapsibles are history only: expanding one never chooses it, resubmits it
+  or changes what the ask will submit -- the answer still comes from the
+  question fields below, so a stray expand/collapse cannot alter the run.
+* **Empty-feedback guard.** An action that requires feedback (request changes,
+  or a question marked as needing text) never submits an empty value: it moves
+  focus to the field and shows the short hint there instead of closing the
+  panel or posting a blank answer, so the reader keeps their place and the
+  guard reads the same in every ask.
+* **Permission blocks.** A permission ask groups its requests one block per
+  requested path: each block carries a numbered title (`1. <path>`, `2. ...`),
+  the tool-call context beneath it, and the muted hint/coverage text -- the
+  session approval directory when it differs, the allow-once / allow-session /
+  deny note -- in the `notice` role, so coverage reads as guidance rather than
+  as part of the path.  A `Rule` closes each block and separates it from the
+  next, so a multi-path ask is scanned one request at a time and the numbering
+  never drifts from the decision rows.
+
 ## App composition
 
 `klea_agent/ui/tui/` composes the shared screen and registers the operating
@@ -340,6 +374,39 @@ not hand these tokens to Rich: it resolves each `$token` through
 `app.get_css_variables()` once per rebuild and passes the resulting colours to
 `render_message`, which falls back to plain bold for a role the active theme
 leaves uncoloured.
+
+## Buttons
+
+Every button in a dialog, the HITL asks and the command surfaces is built by
+one factory, `action_button` in `ui/tui/components/buttons.py`, so the same
+action looks and behaves the same in every panel.  The factory takes the label
+text, the id the owning panel routes back to itself, and three optional knobs:
+
+* `variant` -- the Textual semantic variant, chosen by meaning, never by
+  colour (see below).
+* `flat` -- defaults to `True`, so a button renders as flat, bordered chrome
+  instead of a filled block.  These buttons sit inside the chat panel, the ask
+  panels and the status panel rather than in a toolbar, and a filled block at
+  that size competes with the transcript for attention; the flat form keeps the
+action reachable without making it the loudest thing on screen.  `flat=False`
+is the exception for a lone call-to-action that should dominate its row.
+* `compact` -- shrinks the padding and the label so that three buttons fit on
+  one row (the review ask's approve / request changes / cancel).  Without it
+the third button wraps, which changes the panel height and shifts the
+transcript under the reader.
+
+Variant is a statement about consequence, not about emphasis:
+
+* `default` for the ordinary cases -- Cancel, dismiss, close and the neutral
+  secondary action of a panel.  Cancel is never coloured: `default` says "this
+  is safe and reversible", so it stays visually quiet and can be reached
+  without reading the label first.
+* `error` only for a destructive confirm -- the button that deletes a session,
+  discards an edit or otherwise destroys state the server cannot restore.  It
+  is reserved for exactly that: spending `error` on a validation failure or a
+  plain "no" trains the eye to ignore the one colour that must mean danger.
+* `primary` for the affirmative action that commits the panel's change
+  (approve, save), the single button in a row allowed to draw the eye.
 
 ## Theme persistence
 
