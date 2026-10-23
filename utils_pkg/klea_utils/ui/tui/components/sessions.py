@@ -27,6 +27,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Input, Label, ListItem, ListView
 
 from klea_utils.ui.state import chat_preview_text
+from klea_utils.ui.tui.components.buttons import action_button
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
@@ -124,9 +125,11 @@ class SessionPicker(ModalScreen[SessionAction]):
                     id="sessions-list",
                 )
             with Horizontal(classes="actions"):
-                yield Button("Rename", id="sessions-rename")
-                yield Button("Delete", id="sessions-delete")
-                yield Button("Cancel", id="sessions-cancel", variant="error")
+                yield action_button("Rename", id="sessions-rename", compact=True)
+                yield action_button("Delete", id="sessions-delete", compact=True)
+                yield action_button(
+                    "Cancel", id="sessions-cancel", variant="default", compact=True
+                )
             yield SelectableStatic("", id="sessions-preview")
 
     def on_mount(self) -> None:
@@ -284,8 +287,8 @@ class SessionDelete(ModalScreen[bool]):
                 markup=False,
             )
             with Horizontal(classes="actions"):
-                yield Button("Cancel", id="delete-cancel")
-                yield Button("Delete", id="delete-confirm", variant="error")
+                yield action_button("Cancel", id="delete-cancel", variant="default")
+                yield action_button("Delete", id="delete-confirm", variant="error")
 
     def on_mount(self) -> None:
         """Focus Cancel, so a stray Enter does not delete."""
@@ -342,8 +345,8 @@ class SessionRename(ModalScreen[str | None]):
             yield SelectableStatic("Rename session", id="rename-title")
             yield Input(value=self._title, id="rename-input")
             with Horizontal(classes="actions"):
-                yield Button("Save", id="rename-save", variant="primary")
-                yield Button("Cancel", id="rename-cancel", variant="error")
+                yield action_button("Save", id="rename-save", variant="primary")
+                yield action_button("Cancel", id="rename-cancel", variant="default")
 
     def on_mount(self) -> None:
         """Focus the input."""
