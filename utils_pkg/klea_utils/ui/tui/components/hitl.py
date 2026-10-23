@@ -193,6 +193,12 @@ class HitlPanel(HitlDecisionPanel):
                 classes="hitl-section",
             ):
                 yield SelectableStatic(
+                    title,
+                    id=f"hitl-section-{index}-title",
+                    classes="hitl-section-title",
+                    markup=False,
+                )
+                yield SelectableStatic(
                     str(section.get("body", "")),
                     id=f"hitl-section-{index}-body",
                     classes="hitl-section-body",
