@@ -58,6 +58,8 @@ from klea_utils.ui.tui.components.credentials_dialog import (
 )
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
+from .buttons import action_button
+
 logger = logging.getLogger(__name__)
 
 #: Backend choices for a HuggingFace model (label, value).
@@ -184,9 +186,9 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             for role in self._roles:
                 yield self._role_collapsible(role)
             with Horizontal(id="model-actions", classes="actions"):
-                yield Button("Manage API keys", id="model-keys")
-                yield Button("Close", id="model-close", variant="error")
-                yield Button("Save", id="model-save", variant="primary")
+                yield action_button("Manage API keys", id="model-keys")
+                yield action_button("Close", id="model-close", variant="default")
+                yield action_button("Save", id="model-save", variant="primary")
 
     def on_mount(self) -> None:
         """Set field visibility, credential status and load the catalogue."""
@@ -265,9 +267,9 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             buttons: list[Button] = []
             if len(self._same_kind(role)) >= 1:
                 buttons.append(
-                    Button("Use for all roles", id=self._dom_id("useall", role))
+                    action_button("Use for all roles", id=self._dom_id("useall", role))
                 )
-            buttons.append(Button("Reset", id=self._dom_id("reset", role)))
+            buttons.append(action_button("Reset", id=self._dom_id("reset", role)))
             children.append(Horizontal(*buttons, classes="actions"))
         return Collapsible(*children, title=role_label(role), collapsed=False)
 
