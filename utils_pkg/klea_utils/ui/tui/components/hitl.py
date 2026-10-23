@@ -28,9 +28,9 @@ from typing import Any, ClassVar
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
-from textual.widgets import Button, Input, RadioButton, RadioSet
+from textual.widgets import Button, Input, RadioButton, RadioSet, Rule
 
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
@@ -89,14 +89,19 @@ class HitlDecisionPanel(VerticalScroll):
         text-style: bold;
         height: auto;
     }
+    HitlDecisionPanel .hitl-section {
+        height: auto;
+        margin-top: 1;
+    }
     HitlDecisionPanel .hitl-section-title {
         text-style: bold;
         color: $text-muted;
         height: auto;
-        margin-top: 1;
+        margin-top: 0;
     }
     HitlDecisionPanel .hitl-section-body {
         height: auto;
+        padding-left: 2;
     }
     HitlDecisionPanel Input {
         width: 1fr;
@@ -152,24 +157,35 @@ class HitlPanel(HitlDecisionPanel):
             yield from self._compose_input()
 
     def _compose_sections(self) -> ComposeResult:
-        """Compose optional ask sections (review plan/progress, input history)."""
-        for index, section in enumerate(self.ask.get("sections") or []):
-            if not isinstance(section, Mapping):
-                continue
-            title = str(section.get("title", ""))
-            if title:
+        """Compose optional ask sections (review plan/progress, input history).
+
+        Each section's title and body are wrapped in a ``.hitl-section``
+        container so they read as one block; when an ask carries more than one
+        section, a :class:`~textual.widgets.Rule` separates them.
+        """
+        sections = [
+            section
+            for section in (self.ask.get("sections") or [])
+            if isinstance(section, Mapping)
+        ]
+        for index, section in enumerate(sections):
+            if index:
+                yield Rule()
+            with Vertical(classes="hitl-section"):
+                title = str(section.get("title", ""))
+                if title:
+                    yield SelectableStatic(
+                        title,
+                        id=f"hitl-section-{index}-title",
+                        classes="hitl-section-title",
+                        markup=False,
+                    )
                 yield SelectableStatic(
-                    title,
-                    id=f"hitl-section-{index}-title",
-                    classes="hitl-section-title",
+                    str(section.get("body", "")),
+                    id=f"hitl-section-{index}-body",
+                    classes="hitl-section-body",
                     markup=False,
                 )
-            yield SelectableStatic(
-                str(section.get("body", "")),
-                id=f"hitl-section-{index}-body",
-                classes="hitl-section-body",
-                markup=False,
-            )
 
     def _compose_review(self) -> ComposeResult:
         """Compose the review form (headline, sections, feedback, buttons).
