@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 from dataclasses import fields
+from typing import TextIO, cast
 
 import pytest
 from klea_utils.ui.tui.glyphs import (
@@ -22,6 +23,10 @@ from klea_utils.ui.tui.glyphs import (
 
 
 class _FakeStream:
+    def isatty(self) -> bool:
+        """Report the fake stream as an interactive terminal."""
+        return True
+
     """Minimal stand-in for a text stream exposing only ``encoding``."""
 
     def __init__(self, encoding: str | None) -> None:
@@ -99,20 +104,30 @@ def test_ascii_forced_unset(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_detect_unicode_support_utf_encodings(encoding: str) -> None:
     """UTF-8/UTF-16 streams are treated as Unicode-capable."""
 
-    assert detect_unicode_support(_FakeStream(encoding)) is True
+    assert detect_unicode_support(cast("TextIO", _FakeStream(encoding))) is True
 
 
-@pytest.mark.parametrize("encoding", ["cp1252", "CP1252", "latin-1", "ascii", ""])
+@pytest.mark.parametrize("encoding", ["cp1252", "CP1252", "latin-1", "ascii"])
 def test_detect_unicode_support_non_utf_encodings(encoding: str) -> None:
-    """Non-UTF encodings (and an unknown encoding) fall back to ASCII."""
+    """Non-UTF encodings fall back to ASCII."""
 
-    assert detect_unicode_support(_FakeStream(encoding)) is False
+    assert detect_unicode_support(cast("TextIO", _FakeStream(encoding))) is False
 
 
-def test_detect_unicode_support_none_encoding() -> None:
-    """A stream without an ``encoding`` attribute is treated as ASCII."""
+@pytest.mark.parametrize(
+    ("isatty", "expected"),
+    [(True, True), (False, False)],
+)
+def test_detect_unicode_support_none_encoding(isatty: bool, expected: bool) -> None:
+    """A stream with an unknown encoding falls back to ``isatty``."""
 
-    assert detect_unicode_support(_FakeStream(None)) is False
+    class _AnonStream(_FakeStream):
+        """Stream with no known encoding that reports ``isatty()``."""
+
+        def isatty(self) -> bool:
+            return isatty
+
+    assert detect_unicode_support(cast("TextIO", _AnonStream(None))) is expected
 
 
 @pytest.mark.parametrize("term", ["dumb", "DUMB", "unknown"])
@@ -122,14 +137,14 @@ def test_detect_unicode_support_dumb_terminals(
     """Dumb/unknown terminals fall back to ASCII even on a UTF-8 stream."""
 
     monkeypatch.setenv("TERM", term)
-    assert detect_unicode_support(_FakeStream("utf-8")) is False
+    assert detect_unicode_support(cast("TextIO", _FakeStream("utf-8"))) is False
 
 
 def test_ascii_forced_beats_utf8_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
     """The environment override wins over an otherwise capable stream."""
 
     monkeypatch.setenv("KLEA_TUI_ASCII", "1")
-    assert detect_unicode_support(_FakeStream("utf-8")) is False
+    assert detect_unicode_support(cast("TextIO", _FakeStream("utf-8"))) is False
 
 
 # --- glyph set selection ---------------------------------------------------
@@ -138,20 +153,20 @@ def test_ascii_forced_beats_utf8_terminal(monkeypatch: pytest.MonkeyPatch) -> No
 def test_get_glyphs_unicode_when_encoding_is_utf8() -> None:
     """A UTF-8 stream selects the Unicode set."""
 
-    assert get_glyphs(_FakeStream("utf-8")) == UNICODE_GLYPHS
+    assert get_glyphs(cast("TextIO", _FakeStream("utf-8"))) == UNICODE_GLYPHS
 
 
 def test_get_glyphs_ascii_when_env_override(monkeypatch: pytest.MonkeyPatch) -> None:
     """``KLEA_TUI_ASCII=1`` selects the ASCII set even on UTF-8."""
 
     monkeypatch.setenv("KLEA_TUI_ASCII", "1")
-    assert get_glyphs(_FakeStream("utf-8")) == ASCII_GLYPHS
+    assert get_glyphs(cast("TextIO", _FakeStream("utf-8"))) == ASCII_GLYPHS
 
 
 def test_get_glyphs_ascii_when_encoding_is_cp1252() -> None:
     """A CP1252 stream selects the ASCII set."""
 
-    assert get_glyphs(_FakeStream("cp1252")) == ASCII_GLYPHS
+    assert get_glyphs(cast("TextIO", _FakeStream("cp1252"))) == ASCII_GLYPHS
 
 
 def test_get_glyphs_defaults_to_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -163,3 +178,35 @@ def test_get_glyphs_defaults_to_stdout(monkeypatch: pytest.MonkeyPatch) -> None:
     assert get_glyphs() == UNICODE_GLYPHS
     monkeypatch.setattr(sys, "stdout", _FakeStream("cp1252"))
     assert get_glyphs() == ASCII_GLYPHS
+
+
+@pytest.mark.parametrize(
+    ("isatty", "expected_set"),
+    [(True, UNICODE_GLYPHS), (False, ASCII_GLYPHS)],
+)
+def test_get_glyphs_unknown_encoding_follows_isatty(
+    isatty: bool, expected_set: GlyphSet
+) -> None:
+    """An unknown encoding defers set selection to the stream's ``isatty()``."""
+
+    class _AnonStream(_FakeStream):
+        """Stream with no known encoding that reports ``isatty()``."""
+
+        def isatty(self) -> bool:
+            return isatty
+
+    stream = _AnonStream(None)
+    assert detect_unicode_support(cast("TextIO", stream)) is isatty
+    assert get_glyphs(cast("TextIO", stream)) == expected_set
+
+
+def test_get_glyphs_unknown_encoding_ignores_ascii_hint_terms() -> None:
+    """A non-dumb terminal with an unknown encoding still follows ``isatty()``."""
+
+    class _AnonTtyStream(_FakeStream):
+        """TTY stream with an unrecognised encoding."""
+
+        def isatty(self) -> bool:
+            return True
+
+    assert get_glyphs(cast("TextIO", _AnonTtyStream(""))) == UNICODE_GLYPHS

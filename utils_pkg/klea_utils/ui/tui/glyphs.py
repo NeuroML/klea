@@ -9,9 +9,12 @@ use at runtime.
 Selection order for :func:`get_glyphs`:
 
 1. ``KLEA_TUI_ASCII=1`` (or ``true``/``yes``/``on``) forces the ASCII set.
-2. A stdout encoding that is not UTF-8/UTF-16 forces the ASCII set.
-3. A ``TERM`` value of ``dumb``/``unknown`` forces the ASCII set.
-4. Otherwise the Unicode set is used.
+2. Redirected output (``isatty()`` is false, including test doubles without a
+   usable ``isatty``) forces the ASCII set.
+3. On a terminal, a stdout encoding that is positively not UTF-8/UTF-16 forces
+   the ASCII set; an unknown/missing encoding is trusted and stays Unicode.
+4. A ``TERM`` value of ``dumb``/``unknown`` forces the ASCII set.
+5. Otherwise the Unicode set is used.
 """
 
 from __future__ import annotations
@@ -65,6 +68,7 @@ ASCII_GLYPHS = GlyphSet(
 
 _TRUTHY_VALUES = frozenset({"1", "true", "yes", "on"})
 _ASCII_HINT_TERMS = frozenset({"dumb", "unknown"})
+_UTF_ENCODING_PREFIXES = ("utf-8", "utf8", "utf-16", "utf16")
 
 
 def ascii_forced() -> bool:
@@ -73,12 +77,36 @@ def ascii_forced() -> bool:
     return os.environ.get("KLEA_TUI_ASCII", "").strip().lower() in _TRUTHY_VALUES
 
 
+def _active_stream(stream: TextIO | None) -> TextIO | None:
+    """Return ``stream`` when given, else the current :data:`sys.stdout`."""
+
+    return stream if stream is not None else sys.stdout
+
+
 def _stream_encoding(stream: TextIO | None) -> str:
     """Return the normalized encoding name of ``stream`` (may be empty)."""
 
-    active = stream if stream is not None else sys.stdout
+    active = _active_stream(stream)
     encoding = getattr(active, "encoding", None) or ""
     return encoding.replace("_", "-").strip().lower()
+
+
+def is_redirected(stream: TextIO | None = None) -> bool:
+    """Report whether ``stream`` is not attached to an interactive terminal.
+
+    ``stream`` defaults to :data:`sys.stdout`.  Streams that do not expose
+    ``isatty`` (test doubles, bare file-like wrappers) are treated as
+    redirected, and unusable streams never raise.
+    """
+
+    active = _active_stream(stream)
+    isatty = getattr(active, "isatty", None)
+    if not callable(isatty):
+        return True
+    try:
+        return not bool(isatty())
+    except (ValueError, OSError):  # closed or otherwise unusable stream
+        return True
 
 
 def detect_unicode_support(stream: TextIO | None = None) -> bool:
@@ -87,13 +115,23 @@ def detect_unicode_support(stream: TextIO | None = None) -> bool:
     ``stream`` defaults to :data:`sys.stdout`.  The check is intentionally
     conservative: anything ambiguous falls back to ASCII so the TUI stays
     readable over pipes and dumb terminals.
+
+    ``isatty()`` is consulted first: redirected output (or a stream without a
+    working ``isatty``) always falls back to ASCII.  For a stream attached to
+    a terminal, only a positively non-UTF encoding is a reason to fall back;
+    a missing/unknown encoding is treated as Unicode-capable.
+    ``KLEA_TUI_ASCII`` and ``TERM=dumb`` / ``TERM=unknown`` always select the
+    ASCII set.
     """
 
     if ascii_forced():
         return False
 
+    if is_redirected(stream):
+        return False
+
     encoding = _stream_encoding(stream)
-    if not encoding.startswith(("utf-8", "utf8", "utf-16", "utf16")):
+    if encoding and not encoding.startswith(_UTF_ENCODING_PREFIXES):
         return False
 
     term = os.environ.get("TERM", "").strip().lower()

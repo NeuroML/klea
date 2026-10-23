@@ -277,18 +277,29 @@ characters and a single environment variable switches the whole interface:
 | `separator` | `\u2502` | `|` | the vertical rule between panes / rows |
 | `overflow` | `\u2026` | `~` | the truncation marker for clipped text |
 
-Unicode is the default.  `get_glyphs(stream=sys.stdout)` returns the ASCII
-table when any of the following holds, checked in that order:
+Unicode is the default.  `get_glyphs(stream=sys.stdout)` picks the ASCII
+table from the following checks, evaluated in this order:
 
 1. `KLEA_TUI_ASCII` is truthy (`1`, `true`, `yes`, `on`; case-insensitive,
-   surrounding whitespace ignored).
-2. The stream's `encoding` is not UTF-8/UTF-16 (a stream with no `encoding`
-   attribute counts as unknown, so ASCII).
-3. `TERM` is `dumb` or `unknown`.
+   surrounding whitespace ignored) -- the explicit override, so it wins over
+   every heuristic below.
+2. The stream is not a TTY (`isatty()` is false, or the stream has no
+   `isatty`): redirected output, a pipe or a CI log capture, so ASCII.  This
+   is checked before the encoding and `TERM` heuristics, because redirected
+   output is the case most likely to mangle or mis-measure glyphs.
+3. The stream's `encoding` is not UTF-8/UTF-16: a known non-UTF-8 locale, so
+   ASCII.
+4. `TERM` is `dumb` or `unknown`, so ASCII.
+5. Otherwise Unicode.
 
-Anything ambiguous therefore degrades to ASCII, which keeps the TUI readable
-over a pipe, in redirected output and CI log capture, on `TERM=dumb`, and under
-a non-UTF-8 locale.  The transcript resolves the table once at component init
+The encoding step distinguishes a *known* encoding from an *unknown* one.  A
+stream with no `encoding` attribute counts as unknown: it is treated as
+Unicode-capable only when the stream is still attached to an interactive
+terminal (step 2 already let it through), and as ASCII otherwise, since a
+redirected stream that declares no encoding is the unreadable case.  Anything
+ambiguous therefore degrades to ASCII, which keeps the TUI readable over a
+pipe, in redirected output and CI log capture, on `TERM=dumb`, and under a
+non-UTF-8 locale.  The transcript resolves the table once at component init
 (`Transcript.__init__`) and passes that `GlyphSet` down to every message block,
 so a whole session shares one table.
 
