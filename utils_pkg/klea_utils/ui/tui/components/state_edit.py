@@ -33,6 +33,7 @@ from textual.widgets import (
     Switch,
 )
 
+from klea_utils.ui.tui.components.buttons import action_button
 from klea_utils.ui.tui.components.hitl import HitlDecision, HitlDecisionPanel
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
@@ -101,11 +102,11 @@ class StateEditPanel(HitlDecisionPanel):
             if kind == "path_list":
                 yield ListView(id=f"state-{key}")
                 if field.get("removable", True):
-                    yield Button("Remove selected", id=f"rmbtn-{key}")
+                    yield action_button("Remove selected", id=f"rmbtn-{key}")
                 if field.get("addable", True):
                     with Horizontal(classes="actions"):
                         yield Input(placeholder="Add a path", id=f"add-{key}")
-                        yield Button("Add", id=f"addbtn-{key}")
+                        yield action_button("Add", id=f"addbtn-{key}")
             elif kind == "text":
                 yield Input(value=str(field.get("value") or ""), id=f"val-{key}")
             elif kind == "bool":
@@ -120,8 +121,8 @@ class StateEditPanel(HitlDecisionPanel):
                     id=f"val-{key}",
                 )
         with Horizontal(classes="actions"):
-            yield Button("Save", id="state-save", variant="primary")
-            yield Button("Cancel", id="state-cancel", variant="error")
+            yield action_button("Save", id="state-save", variant="primary")
+            yield action_button("Cancel", id="state-cancel", variant="default")
 
     def on_mount(self) -> None:
         """Populate path lists after their widgets exist."""
