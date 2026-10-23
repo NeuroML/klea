@@ -30,6 +30,7 @@ from textual.widgets import Button, Input
 from klea_utils.api.sse import fetch_credentials
 from klea_utils.ui.client import clear_credential, set_credential
 from klea_utils.ui.model_config import required_credential_scopes
+from klea_utils.ui.tui.components.buttons import action_button
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
@@ -117,7 +118,7 @@ class CredentialsDialog(ModalScreen[CredentialsResult | None]):
             )
             yield Vertical(id="cred-list")
             with Horizontal(id="cred-actions", classes="actions"):
-                yield Button("Close", id="cred-close", variant="error")
+                yield action_button("Close", id="cred-close", variant="default")
 
     def on_mount(self) -> None:
         """Load the stored credentials and render the scopes."""
@@ -167,8 +168,10 @@ class CredentialsDialog(ModalScreen[CredentialsResult | None]):
         ]
         buttons: list[Button] = []
         if stored:
-            buttons.append(Button("Clear", id=f"cred-clear-{index}"))
-        buttons.append(Button("Save", id=f"cred-save-{index}", variant="primary"))
+            buttons.append(action_button("Clear", id=f"cred-clear-{index}"))
+        buttons.append(
+            action_button("Save", id=f"cred-save-{index}", variant="primary")
+        )
         children.append(Horizontal(*buttons, classes="actions"))
         return Vertical(*children, classes="cred-scope")
 
