@@ -549,6 +549,7 @@ class ToolsCallerNode(
             return None
         return NodeStreamData(
             heading="Tool Execution",
+            key=self.label,
             summary=f"Running {len(tool_calls)} tool(s)",
             display="\n".join(lines),
         )
@@ -584,6 +585,7 @@ class ToolsCallerNode(
             return None
         return NodeStreamData(
             heading="Tool Execution",
+            key=self.label,
             summary=f"Called {len(tool_calls)} tool(s)",
             display="\n".join(lines),
         )
