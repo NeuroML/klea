@@ -28,9 +28,9 @@ from typing import Any, ClassVar
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.message import Message
-from textual.widgets import Button, Collapsible, Input, RadioButton, RadioSet
+from textual.widgets import Button, Collapsible, Input, RadioButton, RadioSet, Rule
 
 from klea_utils.ui.tui.components.buttons import action_button
 from klea_utils.ui.tui.components.selectable import SelectableStatic
@@ -109,6 +109,14 @@ class HitlDecisionPanel(VerticalScroll):
         margin-top: 1;
     }
     HitlDecisionPanel RadioSet {
+        margin-top: 1;
+    }
+    HitlDecisionPanel .hitl-hint {
+        color: $text-muted;
+        height: auto;
+    }
+    HitlDecisionPanel .perm-request {
+        height: auto;
         margin-top: 1;
     }
     """
@@ -208,6 +216,7 @@ class HitlPanel(HitlDecisionPanel):
         yield Input(
             placeholder="Feedback (required to request changes)", id="hitl-feedback"
         )
+        yield SelectableStatic("", id="hitl-feedback-hint", classes="hitl-hint")
         with Horizontal(classes="actions"):
             yield action_button(
                 "Approve", id="hitl-approve", variant="primary", compact=True
@@ -251,7 +260,14 @@ class HitlPanel(HitlDecisionPanel):
         if button_id == "hitl-approve":
             self.post_message(self.Decided(HitlDecision({"decision": "approve"})))
         elif button_id == "hitl-revise":
-            feedback = self.query_one("#hitl-feedback", Input).value or ""
+            field = self.query_one("#hitl-feedback", Input)
+            feedback = field.value or ""
+            hint = self.query_one("#hitl-feedback-hint", SelectableStatic)
+            if not feedback.strip():
+                hint.update("Feedback is required to revise")
+                field.focus()
+                return
+            hint.update("")
             self.post_message(
                 self.Decided(HitlDecision({"decision": "revise", "feedback": feedback}))
             )
@@ -389,23 +405,28 @@ class PermissionPanel(HitlDecisionPanel):
         if question:
             yield SelectableStatic(str(question), id="perm-question")
         for index, request in enumerate(self._requests()):
-            yield SelectableStatic(self._title(request))
-            scope = _permission_scope(request)
-            if scope:
-                yield SelectableStatic(scope)
-            hint = self._hint(request)
-            if hint:
-                yield SelectableStatic(hint)
-            coverage = self._coverage(request)
-            if coverage:
-                yield SelectableStatic(coverage)
-            with RadioSet(id=f"perm-{index}"):
-                for option in self._options(request):
-                    yield RadioButton(
-                        _PERMISSION_OPTION_LABELS[option],
-                        id=f"perm-{index}-{option}",
-                        value=option == "deny",
-                    )
+            if index:
+                yield Rule()
+            with Vertical(classes="perm-request"):
+                yield SelectableStatic(
+                    f"{index + 1}. {self._title(request)}", markup=False
+                )
+                scope = _permission_scope(request)
+                if scope:
+                    yield SelectableStatic(scope, classes="hitl-hint", markup=False)
+                hint = self._hint(request)
+                if hint:
+                    yield SelectableStatic(hint, classes="hitl-hint", markup=False)
+                coverage = self._coverage(request)
+                if coverage:
+                    yield SelectableStatic(coverage, classes="hitl-hint", markup=False)
+                with RadioSet(id=f"perm-{index}"):
+                    for option in self._options(request):
+                        yield RadioButton(
+                            _PERMISSION_OPTION_LABELS[option],
+                            id=f"perm-{index}-{option}",
+                            value=option == "deny",
+                        )
         with Horizontal(classes="actions"):
             yield action_button("Submit", id="perm-submit", variant="primary")
             yield action_button("Cancel", id="perm-cancel", variant="default")
