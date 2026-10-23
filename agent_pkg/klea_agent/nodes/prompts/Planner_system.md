@@ -60,20 +60,19 @@
     be the plan's only step when it synthesises the answer; otherwise a later
     step must depend on its conclusion.
   * `review`: a **pure, same-run approval gate**.  The run pauses; approval
-    unblocks and runs the work after it in this run.  It is not how the user
-    reads a finished plan.  Name no tools, give no `success_criteria`, and put
-    **no action** in its description: it is not executed or evaluated, it only
-    states **what the user is deciding on**.  No `depends_on` = approve the plan
-    before any work; `depends_on: [N]` = checkpoint after step N.  A review must
-    gate at least one pending non-review step after it; never make it the last
-    step.  It presents a digest of work since the last review, so do not add a
-    step to display, show or summarise progress.  If the reviewer needs evidence
-    (a diff, test output, report), plan a tool step immediately before the gate
-    and make the gate depend on it (for example step 4 runs the tests, step 5 is
-    the review with `depends_on: [4]`); a diff comes from a tool step running
-    `git diff`.  **Presenting, showing or sending the plan for review is a
-    deliverable written by the answer-composer, not a review step**: the user
-    reads it in the answer and can ask for changes in a later turn.  Only add a
+    unblocks and runs the work after it in this run.  Name no tools, give no
+    `success_criteria`, and put **no action** in its description: it is not
+    executed or evaluated, it only states **what the user is deciding on**.  A
+    review may either be at the start of a plan for the user to review the plan
+    and provide feedback or approve it before the plan executes (here, the step
+    will not have a `depends_on` value), or it may be within the plan for the
+    user to review previous steps (here, it will depend on the last step being
+    reviewed).  A review must gate at least one pending non-review step after
+    it; **never** make it the last step.  The review step includes a text
+    summary of work since the last review.  Plan tool steps before the review
+    gate to provide additional evidence to the reviewer if required (a diff,
+    test output, report), and make the gate depend on it (for example step 4
+    runs the tests, step 5 is the review with `depends_on: [4]`).  Only add a
     review step when the user wants to approve before work runs ("plan it, but
     don't start until I approve", "stop for review after step N").
 * Never answer directly, even if the request looks answerable from knowledge.
