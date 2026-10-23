@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from textual.widgets import Button
 
-__all__ = ["action_button"]
-
 
 def action_button(
     label: str,
