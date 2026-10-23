@@ -206,6 +206,25 @@ Last updated: 2026-10-16.
 
 ## Frontends / TUI
 
+- Tool-round status-section key: the status section for a tool round is keyed by
+  the node label, which `tools_caller.py` now sets explicitly before emitting.
+  Keying by the rendered heading was rejected: headings are display strings
+  (empty for some emitters) and the deliberately-overwriting `running` /
+  `completed` tool-round pair shares one heading, so two rounds would collide.
+  Fixed in this session.
+- Status-pane section lifetime: turn start no longer clears all of
+  `state_sections`; only the transient tool-round key is popped, because an
+  interrupted turn would otherwise leave a stuck `Running N tool(s)` section
+  behind.  Fixed in this session.
+- Pre-dispatch `running tools` notice: emit a notice through `_emit_notice`
+  before dispatch and group repeated tool names (for example `4x grep`) in
+  `tools_caller.py`, leaving the status-pane tool block unchanged.  Deferred,
+  not started.
+- Web inspector auto-scroll: remove the automatic scroll of the web inspector
+  pane.  Fixed in this session.
+- TUI status/inspection panels: update the status panel by key and append to
+  the inspection panel, with tail-follow scrolling.  Fixed in this session.
+
 - Status-pane plan persistence: the streamed plan section is cleared at each
   turn start (`state_sections = {}` -- web `stream.py`, TUI `app.py`), so it
   disappears until the Planner re-emits it, and both panes auto-scroll to the
