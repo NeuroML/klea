@@ -333,6 +333,7 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Button</span><span class="p">,</span> <span class="n">Input</span><span class="p">,</span> <span class="n">Label</span><span class="p">,</span> <span class="n">ListItem</span><span class="p">,</span> <span class="n">ListView</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">chat_preview_text</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.buttons</span><span class="w"> </span><span class="kn">import</span> <span class="n">action_button</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.selectable</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectableStatic</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -437,9 +438,11 @@
                     <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-list"</span><span class="p">,</span>
                 <span class="p">)</span>
             <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
-                <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Rename"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-rename"</span><span class="p">)</span>
-                <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Delete"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-delete"</span><span class="p">)</span>
-                <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span><span class="s2">"Rename"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-rename"</span><span class="p">,</span> <span class="n">compact</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span><span class="s2">"Delete"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-delete"</span><span class="p">,</span> <span class="n">compact</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span>
+                    <span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"default"</span><span class="p">,</span> <span class="n">compact</span><span class="o">=</span><span class="kc">True</span>
+                <span class="p">)</span>
             <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"sessions-preview"</span><span class="p">)</span></div>
 
 
@@ -618,8 +621,8 @@
                 <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
             <span class="p">)</span>
             <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
-                <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-cancel"</span><span class="p">)</span>
-                <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Delete"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-confirm"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span></div>
+                <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"default"</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span><span class="s2">"Delete"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"delete-confirm"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SessionDelete.on_mount">
@@ -691,8 +694,8 @@
             <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"Rename session"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-title"</span><span class="p">)</span>
             <span class="k">yield</span> <span class="n">Input</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_title</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-input"</span><span class="p">)</span>
             <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
-                <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Save"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-save"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
-                <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span></div>
+                <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span><span class="s2">"Save"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-save"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
+                <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"rename-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"default"</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SessionRename.on_mount">

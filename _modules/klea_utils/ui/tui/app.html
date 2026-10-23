@@ -376,6 +376,10 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.turn_status</span><span class="w"> </span><span class="kn">import</span> <span class="n">TurnStatus</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">TuiContext</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.events</span><span class="w"> </span><span class="kn">import</span> <span class="n">SubmitQuery</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.settings</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">load_theme_preference</span><span class="p">,</span>
+    <span class="n">save_theme_preference</span><span class="p">,</span>
+<span class="p">)</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">MessageData</span>
@@ -429,7 +433,7 @@
 <span class="s2">    height: 1fr;</span>
 <span class="s2">}</span>
 <span class="s2">#key-hints {</span>
-<span class="s2">    height: 1;</span>
+<span class="s2">    height: auto;</span>
 <span class="s2">    color: $text-muted;</span>
 <span class="s2">}</span>
 <span class="s2">#status {</span>
@@ -448,7 +452,7 @@
 <span class="n">_KEY_HINTS_DEFAULT</span> <span class="o">=</span> <span class="p">(</span>
     <span class="s2">"Enter send | Ctrl+J newline | / commands | "</span>
     <span class="s2">"Ctrl+C copy | Ctrl+Shift+C stop | Ctrl+R retry | "</span>
-    <span class="s2">"Ctrl+I inspector | Ctrl+Q quit"</span>
+    <span class="s2">"Ctrl+I inspector | Ctrl+Q quit | Ctrl+P Textual Options"</span>
 <span class="p">)</span>
 
 <span class="c1">#: Key-hints line per HITL ask kind, shown while its panel is active.</span>
@@ -836,6 +840,49 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_hitl_panel</span><span class="p">:</span> <span class="n">HitlDecisionPanel</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="c1">#: Merged session-command catalogue (client + server); loaded on mount.</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_catalogue</span><span class="p">:</span> <span class="n">CommandRegistry</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="c1">#: Set once the persisted theme preference has been restored at</span>
+        <span class="c1">#: start-up, so :meth:`watch_theme` does not write it straight back.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_theme_restored</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="c1"># Restore the saved theme before the app runs, so the first frame is</span>
+        <span class="c1"># already painted with it (no flash of the default theme).</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_restore_theme_preference</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_restore_theme_preference</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Apply the persisted theme preference, when it is valid and known.</span>
+
+<span class="sd">        Called from :meth:`__init__` so the saved theme is in place before the</span>
+<span class="sd">        app starts rendering (no flash of the default theme).  The</span>
+<span class="sd">        ``_theme_restored`` flag is raised afterwards so this assignment does</span>
+<span class="sd">        not trigger a write back to the settings file via :meth:`watch_theme`.</span>
+<span class="sd">        """</span>
+        <span class="n">preference</span> <span class="o">=</span> <span class="n">load_theme_preference</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">preference</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">preference</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">available_themes</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">theme</span> <span class="o">=</span> <span class="n">preference</span>
+                <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>  <span class="c1"># pragma: no cover - defensive</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Could not apply saved theme </span><span class="si">%r</span><span class="s2">"</span><span class="p">,</span> <span class="n">preference</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Ignoring unknown saved theme </span><span class="si">%r</span><span class="s2">"</span><span class="p">,</span> <span class="n">preference</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_theme_restored</span> <span class="o">=</span> <span class="kc">True</span>
+
+<div class="viewcode-block" id="KleaTuiApp.watch_theme">
+<a class="viewcode-back" href="../../../../api/utils/ui-tui.html#klea_utils.ui.tui.app.KleaTuiApp.watch_theme">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">watch_theme</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">old_theme</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">new_theme</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Persist the theme whenever the user changes it.</span>
+
+<span class="sd">        The write is skipped during start-up (while the saved preference is</span>
+<span class="sd">        being restored) and when the theme did not actually change (Textual</span>
+<span class="sd">        invokes watchers once at mount with the current value), so merely</span>
+<span class="sd">        launching the app never rewrites the settings file.</span>
+
+<span class="sd">        :param old_theme: The previous theme name.</span>
+<span class="sd">        :param new_theme: The new theme name.</span>
+<span class="sd">        """</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_theme_restored</span> <span class="ow">or</span> <span class="n">new_theme</span> <span class="o">==</span> <span class="n">old_theme</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="n">save_theme_preference</span><span class="p">(</span><span class="n">new_theme</span><span class="p">)</span></div>
+
 
 <div class="viewcode-block" id="KleaTuiApp.on_mount">
 <a class="viewcode-back" href="../../../../api/utils/ui-tui.html#klea_utils.ui.tui.app.KleaTuiApp.on_mount">[docs]</a>

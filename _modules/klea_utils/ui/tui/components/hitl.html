@@ -334,10 +334,11 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.app</span><span class="w"> </span><span class="kn">import</span> <span class="n">ComposeResult</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.binding</span><span class="w"> </span><span class="kn">import</span> <span class="n">Binding</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">textual.containers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Horizontal</span><span class="p">,</span> <span class="n">VerticalScroll</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">textual.containers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Horizontal</span><span class="p">,</span> <span class="n">Vertical</span><span class="p">,</span> <span class="n">VerticalScroll</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.message</span><span class="w"> </span><span class="kn">import</span> <span class="n">Message</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Button</span><span class="p">,</span> <span class="n">Input</span><span class="p">,</span> <span class="n">RadioButton</span><span class="p">,</span> <span class="n">RadioSet</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Button</span><span class="p">,</span> <span class="n">Collapsible</span><span class="p">,</span> <span class="n">Input</span><span class="p">,</span> <span class="n">RadioButton</span><span class="p">,</span> <span class="n">RadioSet</span><span class="p">,</span> <span class="n">Rule</span>
 
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.buttons</span><span class="w"> </span><span class="kn">import</span> <span class="n">action_button</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.selectable</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectableStatic</span>
 
 <span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
@@ -400,20 +401,33 @@
 <span class="s2">        text-style: bold;</span>
 <span class="s2">        height: auto;</span>
 <span class="s2">    }</span>
+<span class="s2">    HitlDecisionPanel .hitl-section {</span>
+<span class="s2">        height: auto;</span>
+<span class="s2">        margin-top: 1;</span>
+<span class="s2">    }</span>
 <span class="s2">    HitlDecisionPanel .hitl-section-title {</span>
 <span class="s2">        text-style: bold;</span>
 <span class="s2">        color: $text-muted;</span>
 <span class="s2">        height: auto;</span>
-<span class="s2">        margin-top: 1;</span>
+<span class="s2">        margin-top: 0;</span>
 <span class="s2">    }</span>
 <span class="s2">    HitlDecisionPanel .hitl-section-body {</span>
 <span class="s2">        height: auto;</span>
+<span class="s2">        padding-left: 2;</span>
 <span class="s2">    }</span>
 <span class="s2">    HitlDecisionPanel Input {</span>
 <span class="s2">        width: 1fr;</span>
 <span class="s2">        margin-top: 1;</span>
 <span class="s2">    }</span>
 <span class="s2">    HitlDecisionPanel RadioSet {</span>
+<span class="s2">        margin-top: 1;</span>
+<span class="s2">    }</span>
+<span class="s2">    HitlDecisionPanel .hitl-hint {</span>
+<span class="s2">        color: $text-muted;</span>
+<span class="s2">        height: auto;</span>
+<span class="s2">    }</span>
+<span class="s2">    HitlDecisionPanel .perm-request {</span>
+<span class="s2">        height: auto;</span>
 <span class="s2">        margin-top: 1;</span>
 <span class="s2">    }</span>
 <span class="s2">    """</span>
@@ -475,24 +489,44 @@
 
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_compose_sections</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Compose optional ask sections (review plan/progress, input history)."""</span>
-        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">section</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"sections"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[]):</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">):</span>
-                <span class="k">continue</span>
+<span class="w">        </span><span class="sd">"""Compose optional ask sections (review plan/progress, input history).</span>
+
+<span class="sd">        Each section is rendered inside a :class:`~textual.widgets.Collapsible`</span>
+<span class="sd">        so a multi-section ask (for example several candidate plans) can be</span>
+<span class="sd">        reviewed one entry at a time.  When an ask carries more than one</span>
+<span class="sd">        section the titles are numbered (``Option 1``, ``Option 2``, ...) and</span>
+<span class="sd">        only the first section starts expanded, so comparing against the</span>
+<span class="sd">        history opens on the first entry while the rest stay collapsed until</span>
+<span class="sd">        the user expands them.</span>
+<span class="sd">        """</span>
+        <span class="n">sections</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">section</span>
+            <span class="k">for</span> <span class="n">section</span> <span class="ow">in</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ask</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"sections"</span><span class="p">)</span> <span class="ow">or</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">section</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">section</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">sections</span><span class="p">):</span>
             <span class="n">title</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"title"</span><span class="p">,</span> <span class="s2">""</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">title</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sections</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">label</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Option </span><span class="si">{</span><span class="n">index</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">"</span>
+                <span class="n">title</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">title</span> <span class="k">else</span> <span class="n">label</span>
+            <span class="k">with</span> <span class="n">Collapsible</span><span class="p">(</span>
+                <span class="n">title</span><span class="o">=</span><span class="n">title</span><span class="p">,</span>
+                <span class="n">collapsed</span><span class="o">=</span><span class="n">index</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span>
+                <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"hitl-section-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                <span class="n">classes</span><span class="o">=</span><span class="s2">"hitl-section"</span><span class="p">,</span>
+            <span class="p">):</span>
                 <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
                     <span class="n">title</span><span class="p">,</span>
                     <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"hitl-section-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">-title"</span><span class="p">,</span>
                     <span class="n">classes</span><span class="o">=</span><span class="s2">"hitl-section-title"</span><span class="p">,</span>
                     <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
                 <span class="p">)</span>
-            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
-                <span class="nb">str</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"body"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)),</span>
-                <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"hitl-section-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">-body"</span><span class="p">,</span>
-                <span class="n">classes</span><span class="o">=</span><span class="s2">"hitl-section-body"</span><span class="p">,</span>
-                <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-            <span class="p">)</span>
+                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
+                    <span class="nb">str</span><span class="p">(</span><span class="n">section</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"body"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)),</span>
+                    <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"hitl-section-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">-body"</span><span class="p">,</span>
+                    <span class="n">classes</span><span class="o">=</span><span class="s2">"hitl-section-body"</span><span class="p">,</span>
+                    <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_compose_review</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose the review form (headline, sections, feedback, buttons).</span>
@@ -511,10 +545,15 @@
         <span class="k">yield</span> <span class="n">Input</span><span class="p">(</span>
             <span class="n">placeholder</span><span class="o">=</span><span class="s2">"Feedback (required to request changes)"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-feedback"</span>
         <span class="p">)</span>
+        <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-feedback-hint"</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="s2">"hitl-hint"</span><span class="p">)</span>
         <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Approve"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-approve"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
-            <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Request changes"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-revise"</span><span class="p">)</span>
-            <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span>
+                <span class="s2">"Approve"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-approve"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">,</span> <span class="n">compact</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+            <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span><span class="s2">"Request changes"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-revise"</span><span class="p">,</span> <span class="n">compact</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span>
+                <span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"default"</span><span class="p">,</span> <span class="n">compact</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_compose_input</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposeResult</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Compose the input form (plan history, questions, buttons)."""</span>
@@ -528,8 +567,12 @@
             <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">question</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"question"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)))</span>
             <span class="k">yield</span> <span class="n">Input</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"hitl-answer-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
         <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Answer"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-answer"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
-            <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span>
+                <span class="s2">"Answer"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-answer"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">,</span> <span class="n">compact</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+            <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span>
+                <span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"hitl-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"default"</span><span class="p">,</span> <span class="n">compact</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
 
 <div class="viewcode-block" id="HitlPanel.on_mount">
 <a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.hitl.HitlPanel.on_mount">[docs]</a>
@@ -551,7 +594,14 @@
         <span class="k">if</span> <span class="n">button_id</span> <span class="o">==</span> <span class="s2">"hitl-approve"</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">post_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">Decided</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"approve"</span><span class="p">})))</span>
         <span class="k">elif</span> <span class="n">button_id</span> <span class="o">==</span> <span class="s2">"hitl-revise"</span><span class="p">:</span>
-            <span class="n">feedback</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#hitl-feedback"</span><span class="p">,</span> <span class="n">Input</span><span class="p">)</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span>
+            <span class="n">field</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#hitl-feedback"</span><span class="p">,</span> <span class="n">Input</span><span class="p">)</span>
+            <span class="n">feedback</span> <span class="o">=</span> <span class="n">field</span><span class="o">.</span><span class="n">value</span> <span class="ow">or</span> <span class="s2">""</span>
+            <span class="n">hint</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">query_one</span><span class="p">(</span><span class="s2">"#hitl-feedback-hint"</span><span class="p">,</span> <span class="n">SelectableStatic</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">feedback</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="n">hint</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">"Feedback is required to revise"</span><span class="p">)</span>
+                <span class="n">field</span><span class="o">.</span><span class="n">focus</span><span class="p">()</span>
+                <span class="k">return</span>
+            <span class="n">hint</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="s2">""</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">post_message</span><span class="p">(</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">Decided</span><span class="p">(</span><span class="n">HitlDecision</span><span class="p">({</span><span class="s2">"decision"</span><span class="p">:</span> <span class="s2">"revise"</span><span class="p">,</span> <span class="s2">"feedback"</span><span class="p">:</span> <span class="n">feedback</span><span class="p">}))</span>
             <span class="p">)</span>
@@ -695,26 +745,31 @@
         <span class="k">if</span> <span class="n">question</span><span class="p">:</span>
             <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">question</span><span class="p">),</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-question"</span><span class="p">)</span>
         <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">request</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_requests</span><span class="p">()):</span>
-            <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_title</span><span class="p">(</span><span class="n">request</span><span class="p">))</span>
-            <span class="n">scope</span> <span class="o">=</span> <span class="n">_permission_scope</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">scope</span><span class="p">:</span>
-                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="n">scope</span><span class="p">)</span>
-            <span class="n">hint</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hint</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">hint</span><span class="p">:</span>
-                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="n">hint</span><span class="p">)</span>
-            <span class="n">coverage</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coverage</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">coverage</span><span class="p">:</span>
-                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="n">coverage</span><span class="p">)</span>
-            <span class="k">with</span> <span class="n">RadioSet</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"perm-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">"</span><span class="p">):</span>
-                <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_options</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
-                    <span class="k">yield</span> <span class="n">RadioButton</span><span class="p">(</span>
-                        <span class="n">_PERMISSION_OPTION_LABELS</span><span class="p">[</span><span class="n">option</span><span class="p">],</span>
-                        <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"perm-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
-                        <span class="n">value</span><span class="o">=</span><span class="n">option</span> <span class="o">==</span> <span class="s2">"deny"</span><span class="p">,</span>
-                    <span class="p">)</span>
+            <span class="k">if</span> <span class="n">index</span><span class="p">:</span>
+                <span class="k">yield</span> <span class="n">Rule</span><span class="p">()</span>
+            <span class="k">with</span> <span class="n">Vertical</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"perm-request"</span><span class="p">):</span>
+                <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">index</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">. </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_title</span><span class="p">(</span><span class="n">request</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span>
+                <span class="p">)</span>
+                <span class="n">scope</span> <span class="o">=</span> <span class="n">_permission_scope</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">scope</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="n">scope</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="s2">"hitl-hint"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="n">hint</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hint</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">hint</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="n">hint</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="s2">"hitl-hint"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="n">coverage</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_coverage</span><span class="p">(</span><span class="n">request</span><span class="p">)</span>
+                <span class="k">if</span> <span class="n">coverage</span><span class="p">:</span>
+                    <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="n">coverage</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="s2">"hitl-hint"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+                <span class="k">with</span> <span class="n">RadioSet</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"perm-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">"</span><span class="p">):</span>
+                    <span class="k">for</span> <span class="n">option</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_options</span><span class="p">(</span><span class="n">request</span><span class="p">):</span>
+                        <span class="k">yield</span> <span class="n">RadioButton</span><span class="p">(</span>
+                            <span class="n">_PERMISSION_OPTION_LABELS</span><span class="p">[</span><span class="n">option</span><span class="p">],</span>
+                            <span class="nb">id</span><span class="o">=</span><span class="sa">f</span><span class="s2">"perm-</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">-</span><span class="si">{</span><span class="n">option</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                            <span class="n">value</span><span class="o">=</span><span class="n">option</span> <span class="o">==</span> <span class="s2">"deny"</span><span class="p">,</span>
+                        <span class="p">)</span>
         <span class="k">with</span> <span class="n">Horizontal</span><span class="p">(</span><span class="n">classes</span><span class="o">=</span><span class="s2">"actions"</span><span class="p">):</span>
-            <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Submit"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-submit"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
-            <span class="k">yield</span> <span class="n">Button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"error"</span><span class="p">)</span></div>
+            <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span><span class="s2">"Submit"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-submit"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"primary"</span><span class="p">)</span>
+            <span class="k">yield</span> <span class="n">action_button</span><span class="p">(</span><span class="s2">"Cancel"</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"perm-cancel"</span><span class="p">,</span> <span class="n">variant</span><span class="o">=</span><span class="s2">"default"</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="PermissionPanel.on_button_pressed">

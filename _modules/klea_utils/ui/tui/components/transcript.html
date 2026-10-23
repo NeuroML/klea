@@ -336,6 +336,8 @@
 <span class="kn">from</span><span class="w"> </span><span class="nn">textual.widgets</span><span class="w"> </span><span class="kn">import</span> <span class="n">Static</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.components.selectable</span><span class="w"> </span><span class="kn">import</span> <span class="n">SelectableStatic</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.glyphs</span><span class="w"> </span><span class="kn">import</span> <span class="n">GlyphSet</span><span class="p">,</span> <span class="n">get_glyphs</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.tui.theme</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_role_tints</span>
 
 <span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.ui.state</span><span class="w"> </span><span class="kn">import</span> <span class="n">MessageData</span>
@@ -370,37 +372,97 @@
     <span class="k">return</span> <span class="n">Markdown</span><span class="p">(</span><span class="n">data</span> <span class="ow">or</span> <span class="n">text</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="render_message">
-<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.transcript.render_message">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">render_message</span><span class="p">(</span>
-    <span class="n">message</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">error_style</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"bold"</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_style</span><span class="p">(</span><span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">tints</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">bold</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build a Rich style for *role* from the resolved role tints.</span>
+
+<span class="sd">    :param role: A key of ``theme.ROLE_TINTS``.</span>
+<span class="sd">    :param tints: Role -&gt; colour resolved from the active theme; a role the</span>
+<span class="sd">        theme does not colour resolves to an empty string.</span>
+<span class="sd">    :param bold: Whether the style also sets ``bold``.</span>
+<span class="sd">    :returns: A non-empty Rich style string.</span>
+<span class="sd">    """</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="s2">"bold"</span><span class="p">]</span> <span class="k">if</span> <span class="n">bold</span> <span class="k">else</span> <span class="p">[]</span>
+    <span class="n">parts</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">tints</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">role</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+    <span class="k">return</span> <span class="s2">" "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">(</span><span class="n">parts</span><span class="p">))</span> <span class="ow">or</span> <span class="s2">"none"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_notice</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">glyphs</span><span class="p">:</span> <span class="n">GlyphSet</span><span class="p">,</span> <span class="n">tints</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RenderableType</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render a notice as a muted, glyph-prefixed line.</span>
+
+<span class="sd">    :param message: A message dict with ``role == "notice"``.</span>
+<span class="sd">    :param glyphs: The active glyph table.</span>
+<span class="sd">    :param tints: Role -&gt; colour resolved from the active theme.</span>
+<span class="sd">    :returns: A Rich renderable for the notice.</span>
+<span class="sd">    """</span>
+    <span class="n">header</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"header"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">header</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span> <span class="k">if</span> <span class="n">header</span> <span class="k">else</span> <span class="s2">""</span>
+    <span class="k">return</span> <span class="n">Text</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">glyphs</span><span class="o">.</span><span class="n">pending</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">text</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="n">_style</span><span class="p">(</span><span class="s2">"notice"</span><span class="p">,</span> <span class="n">tints</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_message</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">glyphs</span><span class="p">:</span> <span class="n">GlyphSet</span><span class="p">,</span> <span class="n">tints</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RenderableType</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">"""Build the Rich renderable for one transcript message.</span>
 
-<span class="sd">    User lines render as a bold ``"&gt; "`` prompt; agent and tool messages</span>
-<span class="sd">    render MIME-aware (see :func:`_render_body`), with a bold header for tool</span>
-<span class="sd">    blocks (in the theme's error colour when the tool result failed).</span>
+<span class="sd">    User lines render verbatim (no Markdown decoration) in the bold user tint;</span>
+<span class="sd">    notices render muted with the pending glyph; agent and tool messages render</span>
+<span class="sd">    MIME-aware (see :func:`_render_body`), with a glyph-marked header for tool</span>
+<span class="sd">    blocks in the theme's success colour, or its error colour when the tool</span>
+<span class="sd">    result failed.</span>
 
 <span class="sd">    :param message: A message dict (see ``state.MessageData``).</span>
-<span class="sd">    :param error_style: Rich style for an errored tool block's header; the</span>
-<span class="sd">        caller passes the active theme's ``error`` colour so it follows a</span>
-<span class="sd">        theme change (defaults to plain bold for a themeless caller).</span>
+<span class="sd">    :param glyphs: The active glyph table.</span>
+<span class="sd">    :param tints: Role -&gt; colour resolved from the active theme.</span>
 <span class="sd">    :returns: A Rich renderable for the transcript.</span>
 <span class="sd">    """</span>
     <span class="n">role</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"role"</span><span class="p">,</span> <span class="s2">"agent"</span><span class="p">)</span>
     <span class="n">text</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"text"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
     <span class="n">header</span> <span class="o">=</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"header"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="s2">"user"</span><span class="p">:</span>
-        <span class="k">return</span> <span class="n">Text</span><span class="p">(</span><span class="sa">f</span><span class="s2">"&gt; </span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s2">"bold"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Text</span><span class="p">(</span><span class="n">text</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="n">_style</span><span class="p">(</span><span class="s2">"user"</span><span class="p">,</span> <span class="n">tints</span><span class="p">,</span> <span class="n">bold</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
     <span class="k">if</span> <span class="n">role</span> <span class="o">==</span> <span class="s2">"notice"</span><span class="p">:</span>
-        <span class="n">prefix</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">header</span><span class="si">}</span><span class="s2">: "</span> <span class="k">if</span> <span class="n">header</span> <span class="k">else</span> <span class="s2">""</span>
-        <span class="k">return</span> <span class="n">Text</span><span class="p">(</span><span class="n">prefix</span> <span class="o">+</span> <span class="n">text</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="s2">"dim"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_render_notice</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">glyphs</span><span class="o">=</span><span class="n">glyphs</span><span class="p">,</span> <span class="n">tints</span><span class="o">=</span><span class="n">tints</span><span class="p">)</span>
     <span class="n">parts</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">RenderableType</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
     <span class="k">if</span> <span class="n">header</span><span class="p">:</span>
-        <span class="n">style</span> <span class="o">=</span> <span class="n">error_style</span> <span class="k">if</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"is_error"</span><span class="p">)</span> <span class="k">else</span> <span class="s2">"bold"</span>
-        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Text</span><span class="p">(</span><span class="n">header</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="n">style</span><span class="p">))</span>
+        <span class="n">failed</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"is_error"</span><span class="p">))</span>
+        <span class="n">marker</span> <span class="o">=</span> <span class="n">glyphs</span><span class="o">.</span><span class="n">failure</span> <span class="k">if</span> <span class="n">failed</span> <span class="k">else</span> <span class="n">glyphs</span><span class="o">.</span><span class="n">success</span>
+        <span class="n">style</span> <span class="o">=</span> <span class="n">_style</span><span class="p">(</span><span class="s2">"tool_error"</span> <span class="k">if</span> <span class="n">failed</span> <span class="k">else</span> <span class="s2">"tool_success"</span><span class="p">,</span> <span class="n">tints</span><span class="p">,</span> <span class="n">bold</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">Text</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">marker</span><span class="si">}</span><span class="s2"> </span><span class="si">{</span><span class="n">header</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">style</span><span class="o">=</span><span class="n">style</span><span class="p">))</span>
     <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_render_body</span><span class="p">(</span><span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"mime"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span> <span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span> <span class="n">text</span><span class="p">))</span>
-    <span class="k">return</span> <span class="n">Group</span><span class="p">(</span><span class="o">*</span><span class="n">parts</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span></div>
+    <span class="k">return</span> <span class="n">Group</span><span class="p">(</span><span class="o">*</span><span class="n">parts</span><span class="p">)</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="n">parts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="render_message">
+<a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.transcript.render_message">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">render_message</span><span class="p">(</span>
+    <span class="n">message</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">error_style</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"bold"</span><span class="p">,</span>
+    <span class="n">glyphs</span><span class="p">:</span> <span class="n">GlyphSet</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">tints</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RenderableType</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build the Rich renderable for one transcript message.</span>
+
+<span class="sd">    A thin, themeless wrapper around :func:`_render_message` for callers that</span>
+<span class="sd">    build a single renderable directly (for example tests).  The transcript</span>
+<span class="sd">    itself resolves the glyph table and the role tints once and passes them in.</span>
+
+<span class="sd">    :param message: A message dict (see ``state.MessageData``).</span>
+<span class="sd">    :param error_style: Style for an errored tool block's header when no</span>
+<span class="sd">        resolved ``tool_error`` tint is supplied (defaults to plain bold).</span>
+<span class="sd">    :param glyphs: The glyph table to draw markers from; the terminal's table</span>
+<span class="sd">        is detected when omitted.</span>
+<span class="sd">    :param tints: Role -&gt; colour resolved from the active theme; omitted roles</span>
+<span class="sd">        render with no colour.</span>
+<span class="sd">    :returns: A Rich renderable for the transcript.</span>
+<span class="sd">    """</span>
+    <span class="n">active_tints</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">tints</span> <span class="ow">or</span> <span class="p">{})</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">active_tints</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"tool_error"</span><span class="p">):</span>
+        <span class="n">active_tints</span><span class="p">[</span><span class="s2">"tool_error"</span><span class="p">]</span> <span class="o">=</span> <span class="n">error_style</span>
+    <span class="k">return</span> <span class="n">_render_message</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">glyphs</span><span class="o">=</span><span class="n">glyphs</span> <span class="ow">or</span> <span class="n">get_glyphs</span><span class="p">(),</span> <span class="n">tints</span><span class="o">=</span><span class="n">active_tints</span><span class="p">)</span></div>
 
 
 
@@ -428,7 +490,7 @@
 <span class="s2">    MessageBlock {</span>
 <span class="s2">        height: auto;</span>
 <span class="s2">        width: 100%;</span>
-<span class="s2">        padding: 1 0;</span>
+<span class="s2">        padding: 1 1;</span>
 <span class="s2">    }</span>
 <span class="s2">    MessageBlock.message-user {</span>
 <span class="s2">        background: $primary 15%;</span>
@@ -450,16 +512,23 @@
 <span class="s2">    """</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
-        <span class="bp">self</span><span class="p">,</span> <span class="n">message</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="o">*</span><span class="p">,</span> <span class="n">error_style</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">"bold"</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">message</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">glyphs</span><span class="p">:</span> <span class="n">GlyphSet</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">tints</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">"""Build the block for *message*.</span>
 
 <span class="sd">        :param message: A message dict (see ``state.MessageData``).</span>
-<span class="sd">        :param error_style: Rich style for an errored tool block's header.</span>
+<span class="sd">        :param glyphs: The active glyph table; detected from the terminal when</span>
+<span class="sd">            omitted so a standalone block still renders.</span>
+<span class="sd">        :param tints: Role -&gt; colour resolved from the active theme.</span>
 <span class="sd">        """</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_message</span> <span class="o">=</span> <span class="n">message</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_error_style</span> <span class="o">=</span> <span class="n">error_style</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_glyphs</span> <span class="o">=</span> <span class="n">glyphs</span> <span class="ow">or</span> <span class="n">get_glyphs</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tints</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span><span class="n">tints</span> <span class="ow">or</span> <span class="p">{})</span>
         <span class="c1"># Role-specific styling (currently a tinted surface for user messages).</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">add_class</span><span class="p">(</span><span class="sa">f</span><span class="s2">"message-</span><span class="si">{</span><span class="n">message</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s1">'role'</span><span class="p">,</span><span class="w"> </span><span class="s1">'agent'</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
 
@@ -470,7 +539,7 @@
             <span class="c1"># MIME-aware Rich renderable; see its class docstring for why we</span>
             <span class="c1"># keep Rich rendering instead of the native Markdown widget.</span>
             <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span>
-                <span class="n">render_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_message</span><span class="p">,</span> <span class="n">error_style</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_error_style</span><span class="p">)</span>
+                <span class="n">render_message</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_message</span><span class="p">,</span> <span class="n">glyphs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_glyphs</span><span class="p">,</span> <span class="n">tints</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_tints</span><span class="p">)</span>
             <span class="p">)</span>
         <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">""</span><span class="p">,</span> <span class="n">classes</span><span class="o">=</span><span class="s2">"message-more"</span><span class="p">,</span> <span class="n">markup</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
@@ -487,7 +556,9 @@
         <span class="n">more</span><span class="o">.</span><span class="n">display</span> <span class="o">=</span> <span class="n">overflowing</span>
         <span class="k">if</span> <span class="n">overflowing</span><span class="p">:</span>
             <span class="n">action</span> <span class="o">=</span> <span class="s2">"collapse"</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_expanded</span> <span class="k">else</span> <span class="s2">"expand"</span>
-            <span class="n">more</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="sa">f</span><span class="s2">"… Enter/click to </span><span class="si">{</span><span class="n">action</span><span class="si">}</span><span class="s2"> | drag to select"</span><span class="p">)</span>
+            <span class="n">more</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_glyphs</span><span class="o">.</span><span class="n">overflow</span><span class="si">}</span><span class="s2"> Enter/click to </span><span class="si">{</span><span class="n">action</span><span class="si">}</span><span class="s2"> | drag to select"</span>
+            <span class="p">)</span>
 
     <span class="nd">@property</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_expanded</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
@@ -527,6 +598,9 @@
 <span class="sd">        :param id: Optional DOM id for the widget.</span>
 <span class="sd">        """</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="nb">id</span><span class="o">=</span><span class="nb">id</span><span class="p">)</span>
+        <span class="c1"># Resolved once, at component init, so every block in this transcript</span>
+        <span class="c1"># draws the same table even if the terminal changes mid-session.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_glyphs</span> <span class="o">=</span> <span class="n">get_glyphs</span><span class="p">()</span>
 
 <div class="viewcode-block" id="Transcript.compose">
 <a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.transcript.Transcript.compose">[docs]</a>
@@ -535,17 +609,21 @@
         <span class="k">yield</span> <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"No messages yet."</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"transcript-empty"</span><span class="p">)</span></div>
 
 
-    <span class="k">def</span><span class="w"> </span><span class="nf">_error_style</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">"""Return a bold style in the active theme's error colour.</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolved_tints</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Resolve the role tints to colours for the active theme.</span>
 
-<span class="sd">        The TUI follows the Textual theme, so an errored tool block's header</span>
-<span class="sd">        uses ``$error`` rather than a literal colour.  Falls back to plain bold</span>
-<span class="sd">        when the theme exposes no error colour.</span>
+<span class="sd">        The TUI follows the Textual theme, so every role maps to a semantic</span>
+<span class="sd">        colour token (``$error``, ``$success``, ...) rather than a literal</span>
+<span class="sd">        colour.  Tokens the active theme does not define resolve to an empty</span>
+<span class="sd">        string, which the render helpers treat as "no colour".</span>
 
-<span class="sd">        :returns: A Rich style string.</span>
+<span class="sd">        :returns: Role -&gt; colour mapping (see ``theme.ROLE_TINTS``).</span>
 <span class="sd">        """</span>
-        <span class="n">error</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_css_variables</span><span class="p">()</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"error"</span><span class="p">)</span>
-        <span class="k">return</span> <span class="sa">f</span><span class="s2">"bold </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">error</span> <span class="k">else</span> <span class="s2">"bold"</span>
+        <span class="n">variables</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">app</span><span class="o">.</span><span class="n">get_css_variables</span><span class="p">()</span>
+        <span class="n">tints</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">role</span><span class="p">,</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">get_role_tints</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">tints</span><span class="p">[</span><span class="n">role</span><span class="p">]</span> <span class="o">=</span> <span class="n">variables</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">token</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s2">"$"</span><span class="p">),</span> <span class="s2">""</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">tints</span>
 
 <div class="viewcode-block" id="Transcript.append">
 <a class="viewcode-back" href="../../../../../api/utils/ui-tui.html#klea_utils.ui.tui.components.transcript.Transcript.append">[docs]</a>
@@ -556,7 +634,9 @@
 <span class="sd">        """</span>
         <span class="k">for</span> <span class="n">placeholder</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">query</span><span class="p">(</span><span class="s2">"#transcript-empty"</span><span class="p">):</span>
             <span class="n">placeholder</span><span class="o">.</span><span class="n">remove</span><span class="p">()</span>
-        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="n">MessageBlock</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">error_style</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_error_style</span><span class="p">()))</span>
+        <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span>
+            <span class="n">MessageBlock</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">glyphs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_glyphs</span><span class="p">,</span> <span class="n">tints</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_resolved_tints</span><span class="p">())</span>
+        <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scroll_end</span><span class="p">(</span><span class="n">animate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
 
 
@@ -573,9 +653,9 @@
                 <span class="n">SelectableStatic</span><span class="p">(</span><span class="s2">"No messages yet."</span><span class="p">,</span> <span class="nb">id</span><span class="o">=</span><span class="s2">"transcript-empty"</span><span class="p">)</span>
             <span class="p">)</span>
             <span class="k">return</span>
-        <span class="n">error_style</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_error_style</span><span class="p">()</span>
+        <span class="n">tints</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_resolved_tints</span><span class="p">()</span>
         <span class="k">for</span> <span class="n">message</span> <span class="ow">in</span> <span class="n">messages</span><span class="p">:</span>
-            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="n">MessageBlock</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">error_style</span><span class="o">=</span><span class="n">error_style</span><span class="p">))</span>
+            <span class="k">await</span> <span class="bp">self</span><span class="o">.</span><span class="n">mount</span><span class="p">(</span><span class="n">MessageBlock</span><span class="p">(</span><span class="n">message</span><span class="p">,</span> <span class="n">glyphs</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_glyphs</span><span class="p">,</span> <span class="n">tints</span><span class="o">=</span><span class="n">tints</span><span class="p">))</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">scroll_end</span><span class="p">(</span><span class="n">animate</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span></div>
 </div>
 
