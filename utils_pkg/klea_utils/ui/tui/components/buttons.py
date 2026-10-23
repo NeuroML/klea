@@ -20,10 +20,12 @@ def action_button(
         id: Optional widget id.
         compact: When ``True`` the button collapses to its minimum width.
     """
-    return Button(
+    button = Button(
         label,
         variant=variant,
         id=id,
         flat=True,
-        min_width=0 if compact else 16,
     )
+    if compact:
+        button.styles.min_width = 0
+    return button
