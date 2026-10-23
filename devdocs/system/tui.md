@@ -261,6 +261,75 @@ that must run a query posts a shared `SubmitQuery` message
   HTML tables/alerts degrade to plain renderables; no live token typing
   (`token` stays unconsumed, streams.md); no always-visible session sidebar.
 
+## Glyphs
+
+Every status marker the TUI draws comes from one table,
+`ui/tui/glyphs.py` (`GlyphSet`), so a frame never mixes Unicode and ASCII
+characters and a single environment variable switches the whole interface:
+
+| Field | Unicode | ASCII | Drawn as |
+|-------|---------|-------|----------|
+| `success` | `\u2714` | `[ok]` | a completed step / passing check; a clean tool block's header |
+| `failure` | `\u2718` | `[x]` | a failed step; an errored tool block's header |
+| `pending` | `\u22ef` | `...` | an in-flight or not-yet-run step; a muted notice line |
+| `agent` | `\u25c6` | `*` | the bullet preceding an agent turn |
+| `prompt` | `\u276f` | `>` | the input prompt caret |
+| `separator` | `\u2502` | `|` | the vertical rule between panes / rows |
+| `overflow` | `\u2026` | `~` | the truncation marker for clipped text |
+
+Unicode is the default.  `get_glyphs(stream=sys.stdout)` returns the ASCII
+table when any of the following holds, checked in that order:
+
+1. `KLEA_TUI_ASCII` is truthy (`1`, `true`, `yes`, `on`; case-insensitive,
+   surrounding whitespace ignored).
+2. The stream's `encoding` is not UTF-8/UTF-16 (a stream with no `encoding`
+   attribute counts as unknown, so ASCII).
+3. `TERM` is `dumb` or `unknown`.
+
+Anything ambiguous therefore degrades to ASCII, which keeps the TUI readable
+over a pipe, in redirected output and CI log capture, on `TERM=dumb`, and under
+a non-UTF-8 locale.  The transcript resolves the table once at component init
+(`Transcript.__init__`) and passes that `GlyphSet` down to every message block,
+so a whole session shares one table.
+
+## Role tints
+
+Colours are roles, not literals.  `ui/tui/theme.py` maps each role to a Textual
+semantic color token, so a theme change re-colours the interface consistently:
+
+| Role | Token | Meaning |
+|------|-------|---------|
+| `user` | `$text` | the human's own input echo: a passive, already-sent block |
+| `path_approval` | `$text` | the inline prompt asking the human to approve a path |
+| `agent` | `$surface` | agent turn text: the raised base layer of the screen |
+| `tool_success` | `$success` | a tool call or check that completed cleanly |
+| `tool_error` | `$error` | a tool call that failed or was rejected |
+| `notice` | `$warning` | non-fatal warnings and advisory banners |
+| `composer` | `$surface` | the input composer / prompt area |
+
+The `user` role no longer uses `$panel` or `$accent`.  `$panel` sits too close
+to the screen background, so the human's own echo was easy to miss and hard to
+read; `$accent`, in the default Textual themes, belongs to the same warm family
+as `$warning`, so the user block read as a notice.  `$text` is the neutral,
+high-contrast foreground that every Textual theme guarantees against
+`$background`/`$surface`, so the echo stays legible on its `$primary`-tinted
+bubble and reads as a passive, already-sent block.  It is also the token
+furthest from the warm notice hue, so `user` and `notice` are told apart by
+three independent cues rather than hue alone: a neutral bold foreground
+(`$text`) versus a warm advisory one (`$warning`), the tinted `$primary 15%`
+bubble versus the notice's plain background, and the role label/gutter in the
+transcript.  `path_approval` shares `$text` so the inline approval prompt
+stands out from the surrounding content without reading as an error; its
+emphasis comes from its label and interactive chrome, not from a separate hue.
+`notice` stays on `$warning`, which is where advisory text semantically belongs.
+
+`get_role_tints()` returns a defensive copy so a widget can annotate or filter
+its own view without mutating the process-wide defaults.  The transcript does
+not hand these tokens to Rich: it resolves each `$token` through
+`app.get_css_variables()` once per rebuild and passes the resulting colours to
+`render_message`, which falls back to plain bold for a role the active theme
+leaves uncoloured.
+
 ## Testing
 
 Textual's in-process `run_test()` pilot drives the real app against a canned

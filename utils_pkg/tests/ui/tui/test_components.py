@@ -65,7 +65,7 @@ class TestRenderMessage:
         message = {"role": "user", "text": "hi", "stamp": "x", "header": ""}
         rendered = render_message(message)
         assert isinstance(rendered, Text)
-        assert rendered.plain.startswith("> ")
+        assert rendered.plain == "hi"
 
     def test_agent_renders_markdown(self):
         message = {"role": "agent", "text": "# T\n\nbody", "stamp": "x", "header": ""}
