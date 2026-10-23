@@ -28,10 +28,11 @@ from typing import Any, ClassVar
 
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Horizontal, VerticalScroll
 from textual.message import Message
-from textual.widgets import Button, Input, RadioButton, RadioSet, Rule
+from textual.widgets import Button, Collapsible, Input, RadioButton, RadioSet
 
+from klea_utils.ui.tui.components.buttons import action_button
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
@@ -159,9 +160,13 @@ class HitlPanel(HitlDecisionPanel):
     def _compose_sections(self) -> ComposeResult:
         """Compose optional ask sections (review plan/progress, input history).
 
-        Each section's title and body are wrapped in a ``.hitl-section``
-        container so they read as one block; when an ask carries more than one
-        section, a :class:`~textual.widgets.Rule` separates them.
+        Each section is rendered inside a :class:`~textual.widgets.Collapsible`
+        so a multi-section ask (for example several candidate plans) can be
+        reviewed one entry at a time.  When an ask carries more than one
+        section the titles are numbered (``Option 1``, ``Option 2``, ...) and
+        only the first section starts expanded, so comparing against the
+        history opens on the first entry while the rest stay collapsed until
+        the user expands them.
         """
         sections = [
             section
@@ -169,17 +174,16 @@ class HitlPanel(HitlDecisionPanel):
             if isinstance(section, Mapping)
         ]
         for index, section in enumerate(sections):
-            if index:
-                yield Rule()
-            with Vertical(classes="hitl-section"):
-                title = str(section.get("title", ""))
-                if title:
-                    yield SelectableStatic(
-                        title,
-                        id=f"hitl-section-{index}-title",
-                        classes="hitl-section-title",
-                        markup=False,
-                    )
+            title = str(section.get("title", ""))
+            if len(sections) > 1:
+                label = f"Option {index + 1}"
+                title = f"{label}: {title}" if title else label
+            with Collapsible(
+                title=title,
+                collapsed=index > 0,
+                id=f"hitl-section-{index}",
+                classes="hitl-section",
+            ):
                 yield SelectableStatic(
                     str(section.get("body", "")),
                     id=f"hitl-section-{index}-body",
@@ -205,9 +209,13 @@ class HitlPanel(HitlDecisionPanel):
             placeholder="Feedback (required to request changes)", id="hitl-feedback"
         )
         with Horizontal(classes="actions"):
-            yield Button("Approve", id="hitl-approve", variant="primary")
-            yield Button("Request changes", id="hitl-revise")
-            yield Button("Cancel", id="hitl-cancel", variant="error")
+            yield action_button(
+                "Approve", id="hitl-approve", variant="primary", compact=True
+            )
+            yield action_button("Request changes", id="hitl-revise", compact=True)
+            yield action_button(
+                "Cancel", id="hitl-cancel", variant="default", compact=True
+            )
 
     def _compose_input(self) -> ComposeResult:
         """Compose the input form (plan history, questions, buttons)."""
@@ -221,8 +229,12 @@ class HitlPanel(HitlDecisionPanel):
             yield SelectableStatic(str(question.get("question", "")))
             yield Input(id=f"hitl-answer-{index}")
         with Horizontal(classes="actions"):
-            yield Button("Answer", id="hitl-answer", variant="primary")
-            yield Button("Cancel", id="hitl-cancel", variant="error")
+            yield action_button(
+                "Answer", id="hitl-answer", variant="primary", compact=True
+            )
+            yield action_button(
+                "Cancel", id="hitl-cancel", variant="default", compact=True
+            )
 
     def on_mount(self) -> None:
         """Focus the first input field."""
@@ -395,8 +407,8 @@ class PermissionPanel(HitlDecisionPanel):
                         value=option == "deny",
                     )
         with Horizontal(classes="actions"):
-            yield Button("Submit", id="perm-submit", variant="primary")
-            yield Button("Cancel", id="perm-cancel", variant="error")
+            yield action_button("Submit", id="perm-submit", variant="primary")
+            yield action_button("Cancel", id="perm-cancel", variant="default")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Submit the decisions or cancel.
