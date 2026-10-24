@@ -191,7 +191,6 @@ def attach_inspector_panel(ctx: PageContext) -> None:
                 if ctx.chat_is_streaming(ctx.chat_id):
                     active_body = body
                     active_chat_id = ctx.chat_id
-        _scroll_bottom()
 
     def _begin_inspector_section(chat_id: str, marker: Mapping[str, Any]) -> None:
         """Show a new query section for *marker* (data already appended)."""
@@ -215,20 +214,8 @@ def attach_inspector_panel(ctx: PageContext) -> None:
         idx = len(current_chat.get("inspector_entries", [])) - 1 if current_chat else 0
         with active_body:
             _render_entry(entry, idx)
-        _scroll_bottom()
 
-    def _scroll_bottom() -> None:
-        """Scroll the inspector pane to the newest entry."""
-        scroll = ctx.inspector_scroll
-        if scroll is None:
-            return
-        try:
-            scroll.scroll_to(percent=1.0)
-        except Exception as e:  # noqa: BLE001
-            logger.debug("inspector scroll failed: %s", e)
-
-    with ui.scroll_area().classes("w-full grow inspector-scroll-area") as scroll:
-        ctx.inspector_scroll = scroll
+    with ui.scroll_area().classes("w-full grow inspector-scroll-area"):
         ctx.inspector_container = ui.column().classes("w-full px-2 gap-0")
 
     ctx.refresh_inspector = _render_all
