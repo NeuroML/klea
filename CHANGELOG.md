@@ -67,6 +67,7 @@
 - Terminal UI: the status panel header shows the active chat's name and id.
 - Terminal UI: a long transcript message is collapsed to a few lines and expands/collapses on click or `Enter`, matching the web UI.
 - Klea's processes set their OS process title to their role (`klea-agent-tui` / `klea-rag-tui`, `klea-agent-web` / `klea-rag-web`, `klea-agent-serve` / `klea-rag-serve`) instead of `python`, so they are identifiable in `ps`/`top`; an auto-spawned server gets it via the `KLEA_PROC_TITLE` environment variable.
+- Status panes: streamed state sections persist across turns instead of being cleared when a new query starts, so earlier progress and tool rounds stay visible.
 
 ### Changed
 
@@ -116,6 +117,7 @@
 - The web status pane's project-root row is styled like the operating-mode and tool-access rows (same bold label, muted value).
 - Terminal UI: user messages render as a tinted block, every transcript block has vertical padding, and the query input uses the same tint (one row of padding, growing with the text).
 - The plan-review / approval dialog now shows only the **pending** steps the approval unblocks (the whole plan for a whole-plan approval, or the remaining steps for a mid-plan checkpoint); completed work and the step findings stay in the transcript and the inspection pane. A `review` step must gate pending work -- the Planner rejects a trailing review, and the router resolves one defensively instead of pausing on a gate that gates nothing.
+- Terminal UI: the status and inspector panes update in place as content streams in, and follow the newest entry only while the pane is scrolled to the bottom, so a scrolled-up view stays where it was.
 
 ### Fixed
 
@@ -164,6 +166,7 @@
 - Terminal UI: deleting a session from the picker now asks for confirmation before it is removed, matching the web UI.
 - Terminal UI: streamed `state`/`inspect` details containing `[` or `=` (for example a bracketed model repr) no longer crash the status/inspector panes with a Rich markup error; such text is now rendered literally.
 - Terminal UI: the review/input (HITL) and path-permission dialogs now scroll, so their action buttons stay reachable when the plan/progress or the list of paths is long (previously the dialog was clipped at 80% height and the buttons fell off-screen).
+- Web UI: the inspect pane no longer auto-scrolls to the newest entry while the graph runs, so an entry scrolled into view is not dragged away.
 
 ### Dependencies
 
