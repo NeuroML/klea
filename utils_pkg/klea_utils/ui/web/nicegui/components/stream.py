@@ -26,7 +26,7 @@ from nicegui import background_tasks
 
 from klea_utils.api.sse import request_cancel, stream_events
 from klea_utils.ui.state import InspectorMarker, ensure_chat
-from klea_utils.ui.stream_events import apply_stream_event
+from klea_utils.ui.stream_events import TOOL_ROUND_SECTION_KEY, apply_stream_event
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
 logger = logging.getLogger(__name__)
@@ -127,7 +127,13 @@ async def run_stream(
     ctx.retry_cbs[key] = lambda: _retry_stream(ctx, query, chat_id)
     if _active():
         ctx.refresh_stream_button()
-    current_chat["state_sections"] = {}
+    # Status sections persist across turns: each node updates its own section
+    # by key, so the pane keeps the last known state (e.g. the live plan)
+    # instead of blanking until the node re-emits.  Only the transient
+    # tool-round section is dropped: it is scoped to one dispatch, and an
+    # interrupted turn would otherwise leave a stuck ``Running N tool(s)``
+    # section behind (its ``running``/``completed`` pair shares one key).
+    current_chat.setdefault("state_sections", {}).pop(TOOL_ROUND_SECTION_KEY, None)
     # The status region is per-chat state (rendered by the chat-area
     # component), so it is replaced wholesale on every turn and switching
     # chats restores each chat's own status.

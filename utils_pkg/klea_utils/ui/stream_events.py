@@ -26,6 +26,12 @@ from klea_utils.ui.state import ChatData
 
 logger = logging.getLogger(__name__)
 
+# Status section key for a tool round.  ``ToolsCallerNode`` sets it explicitly
+# on both of its emissions (the pre-dispatch ``running`` view and the
+# end-of-round ``ok``/``error`` view), so the pair overwrites one section and a
+# frontend can drop just that section when a turn is interrupted mid-round.
+TOOL_ROUND_SECTION_KEY = "Running tools"
+
 
 def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
     """Apply one stream event's pure state mutations to the *chat* dict.

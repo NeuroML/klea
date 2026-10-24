@@ -1107,7 +1107,10 @@ class KleaTuiApp(App[None]):
 
         from klea_utils.api.sse import stream_events
         from klea_utils.ui.state import ensure_chat
-        from klea_utils.ui.stream_events import apply_stream_event
+        from klea_utils.ui.stream_events import (
+            TOOL_ROUND_SECTION_KEY,
+            apply_stream_event,
+        )
 
         screen = self._screen
         if screen is None:
@@ -1135,8 +1138,10 @@ class KleaTuiApp(App[None]):
                 {"type": "query", "text": query, "stamp": _stamp()}
             )
             await screen.refresh_inspector(chat["inspector_entries"])
-        # Each turn starts with a clean status pane (mirrors the web).
-        chat["state_sections"] = {}
+        # Start the turn with a clean status pane (mirrors the web), but pop
+        # only the tool-round section instead of discarding the store wholesale:
+        # the remaining sections are retained selectively across turns.
+        chat["state_sections"].pop(TOOL_ROUND_SECTION_KEY, None)
         await screen.refresh_status(chat)
         chat["turn_status"] = {"kind": "progress", "heading": "Working..."}
         screen.show_progress("Working...")

@@ -63,6 +63,9 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   state sections, and token usage (input, output, and cached reads when
   present).  Everything up to (and including) the token usage is fixed, so it
   is always visible; only the state sections below (the plan etc.) scroll.
+  State sections persist across turns rather than being cleared: starting a
+  turn drops only the transient tool-round section, so the plan and other
+  state stay visible until the streamed `state` events replace them.
 
 Because the status panel spans the full height, there is no separate
 full-width header or footer bar; the title sits at the top of the status panel
