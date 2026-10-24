@@ -1178,16 +1178,35 @@ async def test_status_panel_scrolls_when_content_overflows(fake_backend, make_ap
         # Only the state-section body scrolls; the top (extras/models/usage) is
         # fixed.
         scroll = app.screen.query_one("#status-scroll", VerticalScroll)
+
         # scroll_end runs after the next refresh, which can take a few frames
         # on a slow runner.
-        for _ in range(20):
-            await pilot.pause()
-            if scroll.max_scroll_y > 0 and scroll.scroll_y == scroll.max_scroll_y:
-                break
+        async def _wait_for_tail() -> None:
+            for _ in range(20):
+                await pilot.pause()
+                if scroll.max_scroll_y > 0 and scroll.scroll_y == scroll.max_scroll_y:
+                    break
+
+        await _wait_for_tail()
         assert scroll.max_scroll_y > 0
         assert scroll.scroll_y == scroll.max_scroll_y
         extras = app.screen.query_one("#status-extras")
         assert extras.region.y < scroll.region.y  # fixed above the scroll body
+
+        # A refresh keeps the current offset when the pane is not at the bottom.
+        scroll.scroll_home(animate=False)
+        await pilot.pause()
+        await app.screen.refresh_status(chat)
+        await pilot.pause()
+        assert scroll.max_scroll_y > 0
+        assert scroll.scroll_y == 0
+
+        # Once the pane is back at the bottom, a refresh follows the tail again.
+        scroll.scroll_end(animate=False)
+        await pilot.pause()
+        await app.screen.refresh_status(chat)
+        await _wait_for_tail()
+        assert scroll.scroll_y == scroll.max_scroll_y
 
 
 async def test_status_panel_shows_models(fake_backend, make_app):
@@ -1391,6 +1410,67 @@ async def test_status_details_with_brackets_render(fake_backend, make_app):
         await _settle(pilot, app)
         panel = app.screen.query_one("#status")
         assert list(panel.query(Collapsible))
+
+
+async def test_inspector_keeps_offset_and_follows_tail(fake_backend, make_app):
+    """A scrolled-up inspector keeps its offset; the bottom follows the tail."""
+    app = make_app()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        await app.workers.wait_for_complete()
+        await pilot.pause()
+        screen = app._screen
+        assert screen is not None
+        await screen.show_view("inspector")
+        entries: list[dict] = [
+            {"type": "query", "text": "overflow", "stamp": "10:00:00"}
+        ]
+        for index in range(80):
+            entries.append(
+                {
+                    "type": "inspect",
+                    "node": "N",
+                    "heading": f"Entry {index}",
+                    "summary": "s",
+                    "details": {},
+                }
+            )
+        await screen.refresh_inspector(entries)
+        await pilot.pause()
+        inspector = screen.query_one("#inspector")
+        assert inspector.max_scroll_y > 0
+        # A user who scrolled up keeps their offset across an update.
+        inspector.scroll_to(y=5, animate=False)
+        await pilot.pause()
+        for index in range(5):
+            entries.append(
+                {
+                    "type": "inspect",
+                    "node": "N",
+                    "heading": f"Late {index}",
+                    "summary": "s",
+                    "details": {},
+                }
+            )
+        await screen.refresh_inspector(entries)
+        await pilot.pause()
+        assert abs(inspector.scroll_y - 5) <= 1
+        # Back at the bottom: the update follows the newest entry.
+        inspector.scroll_end(animate=False)
+        await pilot.pause()
+        for index in range(5):
+            entries.append(
+                {
+                    "type": "inspect",
+                    "node": "N",
+                    "heading": f"Tail {index}",
+                    "summary": "s",
+                    "details": {},
+                }
+            )
+        await screen.refresh_inspector(entries)
+        await pilot.pause()
+        assert inspector.scroll_y >= inspector.max_scroll_y - 1
 
 
 async def test_inspector_details_with_brackets_render(fake_backend, make_app):

@@ -114,14 +114,26 @@ def _models_widgets(model_info: Mapping[str, Any], *, collapsed: bool) -> Collap
     )
 
 
-def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
-    """Build the collapsible widget for one ``state`` section.
+def _section_id(key: str) -> str:
+    """Build the stable widget id for a state-section *key*.
+
+    Textual ids may only contain letters, digits, underscores and hyphens, so
+    the key is slugged; the fixed prefix keeps the id valid and namespaced.
 
     :param key: The section key (``data.key`` or node label).
-    :param section: The stored section (heading/display/summary/details/...).
-    :returns: An open :class:`~textual.widgets.Collapsible`.
+    :returns: A stable, valid Textual id for the section.
     """
-    heading = section.get("heading", "") or key
+    slug = "".join(char if char.isalnum() else "-" for char in key.lower())
+    slug = "-".join(part for part in slug.split("-") if part)
+    return f"status-section-{slug or 'section'}"
+
+
+def _section_body(section: Mapping[str, Any]) -> list[SelectableStatic]:
+    """Build the body widgets for one ``state`` section.
+
+    :param section: The stored section (display/summary/details/...).
+    :returns: The body widgets, never empty.
+    """
     display = section.get("display", "")
     summary = section.get("summary", "")
     details = section.get("details", {})
@@ -141,7 +153,89 @@ def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
         body.append(SelectableStatic(format_details(details), markup=False))
     if not body:
         body.append(SelectableStatic("(no content)", markup=False))
-    return Collapsible(*body, title=heading, collapsed=False)
+    return body
+
+
+def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
+    """Build the collapsible widget for one ``state`` section.
+
+    :param key: The section key (``data.key`` or node label).
+    :param section: The stored section (heading/display/summary/details/...).
+    :returns: An open :class:`~textual.widgets.Collapsible`.
+    """
+    heading = section.get("heading", "") or key
+    return Collapsible(
+        *_section_body(section),
+        title=heading,
+        collapsed=False,
+        id=_section_id(key),
+        classes="status-section",
+    )
+
+
+async def _update_section(
+    widget: Collapsible, key: str, section: Mapping[str, Any]
+) -> None:
+    """Refresh an already-mounted section widget in place.
+
+    The title is reassigned and the body is replaced inside the collapsible's
+    contents, so the section keeps its position and its expanded/collapsed
+    state instead of being rebuilt.
+
+    :param widget: The mounted section collapsible.
+    :param key: The section key (``data.key`` or node label).
+    :param section: The stored section (heading/display/summary/details/...).
+    """
+    title = section.get("heading", "") or key
+    widget.title = title
+    # Also stamp the title onto the header widget, so an update renders even
+    # before the reactive watcher repaints it.
+    for header in widget.query("CollapsibleTitle"):
+        if hasattr(header, "label"):
+            header.label = title
+    contents = widget.query_one("Contents")
+    await contents.remove_children()
+    await contents.mount_all(_section_body(section))
+
+
+async def _reconcile_sections(
+    scroll: VerticalScroll, chat: Mapping[str, Any] | None
+) -> None:
+    """Reconcile the scrolling state sections with the chat's store.
+
+    Sections are matched by their stable id, so the pane is updated rather
+    than rebuilt: an existing key has its title/body refreshed in place, a new
+    key gains exactly one collapsible, and a key that vanished from the store
+    has its widget removed.
+
+    :param scroll: The scrolling container that holds the sections.
+    :param chat: The chat's data dict, or ``None`` when there is none.
+    """
+    sections = (chat.get("state_sections") or {}) if chat else {}
+    rendered: dict[str, Any] = {
+        widget.id: widget
+        for widget in scroll.query(".status-section")
+        if widget.id is not None
+    }
+    new_widgets: list[Collapsible] = []
+    for key, section in sections.items():
+        widget = rendered.pop(_section_id(key), None)
+        if widget is None:
+            new_widgets.append(_section_widget(key, section))
+        else:
+            await _update_section(widget, key, section)
+    for widget in rendered.values():
+        await widget.remove()
+    placeholder = scroll.query("#status-empty")
+    if sections:
+        if placeholder:
+            await placeholder.remove()
+        if new_widgets:
+            await scroll.mount_all(new_widgets)
+    elif not placeholder:
+        await scroll.mount(
+            SelectableStatic("State updates will appear here.", id="status-empty")
+        )
 
 
 class StatusPanel(Vertical):
@@ -150,8 +244,8 @@ class StatusPanel(Vertical):
     The top is fixed so it is always visible: the app-defined controls
     registered on :attr:`TuiContext.status_extras` (e.g. the agent's operating
     mode and tool-access rows), then the selected models and the token usage.
-    Only the streamed state sections below (the plan etc.) scroll, rebuilt on
-    every :meth:`set_state`.
+    Only the streamed state sections below (the plan etc.) scroll; they are
+    reconciled by key on every :meth:`set_state`.
     """
 
     DEFAULT_CSS = """
@@ -238,7 +332,11 @@ class StatusPanel(Vertical):
     async def set_state(
         self, chat: Mapping[str, Any] | None, *, refresh_extras: bool = False
     ) -> None:
-        """Rebuild the fixed info and the scrolling state body.
+        """Rebuild the fixed info and reconcile the scrolling state body.
+
+        The fixed slots are rebuilt wholesale; the state sections are
+        reconciled by key (:func:`_reconcile_sections`), so an unchanged
+        section is refreshed in place rather than rebuilt.
 
         :param chat: The chat's data dict, or ``None`` when there is none.
         :param refresh_extras: Also rebuild the app slots (a ``context``
@@ -250,15 +348,20 @@ class StatusPanel(Vertical):
             widgets = self._extra_widgets()
             if widgets:
                 await extras.mount_all(widgets)
+        scroll = self.query_one("#status-scroll", VerticalScroll)
+        # Capture the scroll position before mutating anything: the fixed block
+        # above the sections is rebuilt and sections may be removed, so the
+        # pane only follows the tail when the user was already at the bottom;
+        # otherwise its offset is restored (a section dropped above the viewport
+        # must not yank the view).
+        follow_tail = scroll.scroll_y >= scroll.max_scroll_y - 1
+        previous_y = scroll.scroll_y
         fixed = self.query_one("#status-fixed", Vertical)
         await fixed.remove_children()
-        scroll = self.query_one("#status-scroll", VerticalScroll)
-        await scroll.remove_children()
         self._status_chat = (
             cast("MutableMapping[str, Any]", chat) if chat is not None else None
         )
         fixed_widgets: list[Any] = []
-        sections: list[Any] = []
         if chat:
             model_info = chat.get("model_info") or {}
             if model_info:
@@ -273,14 +376,13 @@ class StatusPanel(Vertical):
                 fixed_widgets.append(
                     SelectableStatic(_usage_line(usage), id="status-usage")
                 )
-            for key, section in (chat.get("state_sections") or {}).items():
-                sections.append(_section_widget(key, section))
         if fixed_widgets:
             await fixed.mount_all(fixed_widgets)
-        if not sections:
-            sections.append(SelectableStatic("State updates will appear here."))
-        await scroll.mount_all(sections)
-        scroll.scroll_end(animate=False)
+        await _reconcile_sections(scroll, chat)
+        if follow_tail:
+            scroll.scroll_end(animate=False)
+        else:
+            scroll.scroll_to(y=previous_y, animate=False)
 
     @on(Collapsible.Toggled)
     def on_collapsible_toggled(self, event: Collapsible.Toggled) -> None:
