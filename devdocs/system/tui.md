@@ -67,6 +67,17 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   turn drops only the transient tool-round section, so the plan and other
   state stay visible until the streamed `state` events replace them.
 
+The panes update in place rather than re-rendering wholesale.  The status
+panel reconciles its sections by key, so only a section whose content changed
+is re-mounted and an unchanged one keeps its mounted widgets; the inspector
+appends each new entry to the tail (a chat switch or an untrustworthy mounted
+state falls back to a full rebuild), so already-mounted entries keep their
+collapsed/expanded state.  Neither pane scrolls on its own: an update follows
+the tail only when the reader was already at the bottom (within one line of
+`max_scroll_y`), and otherwise the previous offset is restored, so a section
+dropped above the viewport or a newly appended entry never yanks a
+scrolled-up view.
+
 Because the status panel spans the full height, there is no separate
 full-width header or footer bar; the title sits at the top of the status panel
 and the key hints at the foot of the chat panel.  The two panels are
