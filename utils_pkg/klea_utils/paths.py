@@ -15,9 +15,14 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import logging
+import os
+from collections.abc import Mapping
 from pathlib import Path
 
 from platformdirs import PlatformDirs
+
+logger = logging.getLogger(__name__)
 
 
 def get_cache_dir(dirs: PlatformDirs) -> Path:
@@ -105,6 +110,128 @@ def init_dir(path: str | Path) -> Path:
     p = Path(path)
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+#: Application name used to derive the default per-user data directory.  The
+#: ``klea_agent`` data directory is the single *storage root* that owns the
+#: checkpoint database, the session database, the backend PID lockfile, the
+#: endpoint file and the logs (ADR-0023, amendment "one backend per storage
+#: root").
+STORAGE_APP_NAME = "klea_agent"
+
+#: Environment variable that relocates the whole storage root -- data *and*
+#: runtime artifacts -- so a user can run deliberately independent instances.
+#: It is an *isolation* override, not a concurrency mechanism (ADR-0023).
+STORAGE_ROOT_ENV = "KLEA_AGENT_HOME"
+
+#: Name of the SQLite database that holds LangGraph checkpoints.
+CHECKPOINT_DB_NAME = "checkpoints.db"
+
+#: Name of the SQLite database that holds chat sessions and messages.
+SESSION_DB_NAME = "sessions.db"
+
+#: Name of the PID lockfile that enforces one backend per storage root.
+LOCKFILE_NAME = "klea_agent.lock"
+
+#: Name of the file a running backend writes its endpoint (host:port) to.
+ENDPOINT_FILE_NAME = "klea_agent.endpoint"
+
+#: Subdirectory of the storage root that holds backend logs.
+LOG_DIR_NAME = "logs"
+
+
+def resolve_storage_root(
+    data_dir: str | Path | None = None,
+    env: Mapping[str, str] | None = None,
+) -> Path:
+    """Return the effective storage root for a Klea backend.
+
+    Precedence, highest first:
+
+    #. *data_dir* -- the ``--data-dir`` flag, i.e. an explicit choice
+    #. :data:`STORAGE_ROOT_ENV` (``KLEA_AGENT_HOME``) -- an opt-in relocation
+       of the data *and* runtime artifacts
+    #. the platform user data directory for :data:`STORAGE_APP_NAME`
+       (``~/.local/share/klea_agent`` on Linux)
+
+    The resolved root is logged at ``INFO`` level together with the source
+    that selected it, so a user can tell which home a running backend uses.
+
+    :param data_dir: Value of the ``--data-dir`` flag, if given
+    :param env: Environment mapping to read (defaults to :data:`os.environ`)
+    :returns: The resolved storage root, absolute and expanded
+    """
+    environ = os.environ if env is None else env
+    if data_dir:
+        root = Path(data_dir).expanduser()
+        source = "the --data-dir flag"
+    else:
+        from_env = environ.get(STORAGE_ROOT_ENV)
+        if from_env:
+            root = Path(from_env).expanduser()
+            source = f"{STORAGE_ROOT_ENV}={from_env!r}"
+        else:
+            root = get_data_dir(PlatformDirs(STORAGE_APP_NAME))
+            source = f"the default user data dir for {STORAGE_APP_NAME!r}"
+
+    root = root.resolve()
+    logger.info(f"Resolved storage root: {root} (from {source})")
+    return root
+
+
+def _storage_root(root: str | Path | None) -> Path:
+    """Return *root* as a :class:`Path`, resolving it when not supplied."""
+    if root is None:
+        return resolve_storage_root()
+    return Path(root).expanduser()
+
+
+def checkpoint_db_path(root: str | Path | None = None) -> Path:
+    """Return the LangGraph checkpoint database path inside *root*.
+
+    :param root: Storage root; resolved via :func:`resolve_storage_root` when
+        ``None``
+    """
+    return _storage_root(root) / CHECKPOINT_DB_NAME
+
+
+def session_db_path(root: str | Path | None = None) -> Path:
+    """Return the chat session/message database path inside *root*.
+
+    :param root: Storage root; resolved via :func:`resolve_storage_root` when
+        ``None``
+    """
+    return _storage_root(root) / SESSION_DB_NAME
+
+
+def lockfile_path(root: str | Path | None = None) -> Path:
+    """Return the backend PID lockfile path inside *root*.
+
+    :param root: Storage root; resolved via :func:`resolve_storage_root` when
+        ``None``
+    """
+    return _storage_root(root) / LOCKFILE_NAME
+
+
+def endpoint_file_path(root: str | Path | None = None) -> Path:
+    """Return the path of the file that advertises a backend's endpoint.
+
+    :param root: Storage root; resolved via :func:`resolve_storage_root` when
+        ``None``
+    """
+    return _storage_root(root) / ENDPOINT_FILE_NAME
+
+
+def log_dir_path(root: str | Path | None = None) -> Path:
+    """Return the log directory inside *root*.
+
+    The directory is only *named*, never created: callers use
+    :func:`init_dir` when they are ready to write logs.
+
+    :param root: Storage root; resolved via :func:`resolve_storage_root` when
+        ``None``
+    """
+    return _storage_root(root) / LOG_DIR_NAME
 
 
 def cleanup_dir(path: str | Path) -> None:

@@ -23,6 +23,12 @@ logger = logging.getLogger(__name__)
 from klea_utils.api.overrides import migrate_legacy_overrides
 from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
+from klea_utils.backend_lock import (
+    _acquire_backend_lock,
+    _install_lock_signal_handlers,
+    _release_backend_lock,
+    _restore_lock_signal_handlers,
+)
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.paths import init_dir
 
@@ -69,6 +75,36 @@ def make_app(
         app.state.graph = graph
         logger.info("Graph setup complete (%s)", type(graph).__name__)
 
+        # Take the per-root backend lock before any shared database is opened,
+        # so a second backend fails fast instead of contending for the SQLite
+        # files (ADR-0023: one backend per storage root).  The bind address is
+        # recorded for owner diagnostics only.
+        from klea_utils.paths import lockfile_path
+
+        app.state.backend_lock_path = lockfile_path(graph.paths.user_data_dir)
+        app.state.backend_lock = _acquire_backend_lock(
+            app.state.backend_lock_path,
+            graph.paths.user_data_dir,
+            os.environ.get("KLEA_HOST", "127.0.0.1"),
+            int(os.environ.get("KLEA_PORT", "0") or 0),
+        )
+
+        def _release_lock() -> None:
+            """Release the backend lock once; safe to call repeatedly."""
+            fd = getattr(app.state, "backend_lock", None)
+            if fd is None and getattr(app.state, "backend_lock_released", False):
+                return
+            app.state.backend_lock = None
+            app.state.backend_lock_released = True
+            _release_backend_lock(fd, app.state.backend_lock_path)
+
+        # SIGINT (Ctrl-C) and SIGTERM (systemd, docker stop) also release the
+        # lock before the process goes away.  The handlers chain to whatever
+        # uvicorn installed, so graceful shutdown still runs unchanged.
+        app.state.backend_lock_signal_handlers = _install_lock_signal_handlers(
+            _release_lock
+        )
+
         # Per-process registry of in-flight runs (single-flight per thread,
         # cancellation).  In-process by design: the server is one uvicorn
         # worker and asyncio tasks cannot be cancelled across processes.
@@ -90,6 +126,18 @@ def make_app(
 
         app.state.is_ready = False
         logger.info("Klea API shutting down")
+
+        # Release the per-root backend lock so the next backend can start
+        # straight away, and put back the signal handlers we wrapped.  This is
+        # the normal path only: a crash or SIGKILL skips it, and the leftover
+        # lockfile is then reclaimed as *stale* by _acquire_backend_lock on the
+        # next start (its flock is gone with the process, and its PID/start
+        # time no longer match a live process).
+        _release_lock()
+        _restore_lock_signal_handlers(
+            getattr(app.state, "backend_lock_signal_handlers", None)
+        )
+
         # Clean up checkpointer and MCP client to avoid fd leaks / DB locks
         try:
             checkpointer = getattr(graph, "checkpointer", None)
