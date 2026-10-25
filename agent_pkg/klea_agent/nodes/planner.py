@@ -652,7 +652,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             )
             update["failure_reason"] = (
                 result.reason
-                or "planner could not produc a plan with the available information"
+                or "planner could not produce a plan with the available information"
             )
             update["messages_internal"] = [
                 *state.messages_internal,
