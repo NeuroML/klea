@@ -127,6 +127,20 @@ def make_app(
         app.state.is_ready = False
         logger.info("Klea API shutting down")
 
+        # Best-effort WAL checkpoint: fold the write-ahead log back into
+        # ``checkpoints.db`` (truncating the ``-wal`` sidecar) before the
+        # connection is closed and the backend lock is released, so shutdown
+        # leaves a clean, fully materialised database behind.
+        try:
+            checkpointer = getattr(graph, "checkpointer", None)
+            checkpointer_conn = (
+                getattr(checkpointer, "conn", None) if checkpointer else None
+            )
+            if checkpointer_conn is not None:
+                await checkpointer_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"WAL checkpoint during shutdown failed: {exc}")
+
         # Release the per-root backend lock so the next backend can start
         # straight away, and put back the signal handlers we wrapped.  This is
         # the normal path only: a crash or SIGKILL skips it, and the leftover

@@ -33,6 +33,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from klea_utils.graph.base import _apply_sqlite_pragmas
+
 logger = logging.getLogger(__name__)
 
 #: Default lifetime for an unused per-user API credential.  Credentials
@@ -180,12 +182,12 @@ class SessionStore:
         )
         # Timestamp of the last opportunistic purge (0 forces one on first use).
         self._last_credential_purge = 0.0
-        # Improve concurrency and durability for threaded access
+        # Improve concurrency and durability for threaded access.  The
+        # PRAGMAs are shared with the checkpoint store (see
+        # ``klea_utils.graph.base.SQLITE_PRAGMAS``) so both databases use the
+        # same WAL / synchronous / busy-timeout / foreign-key policy.
         try:
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.execute("PRAGMA busy_timeout=5000")
-            self._conn.execute("PRAGMA foreign_keys=ON")
-            self._conn.execute("PRAGMA synchronous=NORMAL")
+            _apply_sqlite_pragmas(self._conn)
         except sqlite3.Error as exc:
             logger.warning(f"Failed to set PRAGMAs: {exc}")
         self._conn.executescript(self._SCHEMA_SQL)

@@ -105,6 +105,48 @@ def _interrupt_event(intr: Any, node: str) -> dict[str, Any]:
     return {"type": "interrupt", "node": node, "data": data}
 
 
+#: SQLite PRAGMAs applied to every Klea SQLite database so the checkpoint
+#: and session stores share one durability and concurrency policy: WAL
+#: journalling (readers never block the single writer), ``NORMAL``
+#: synchronous mode (durable enough under WAL), a five second busy timeout
+#: (a concurrent writer waits instead of failing with "database is locked"),
+#: and enforced foreign keys.
+SQLITE_PRAGMAS: tuple[str, ...] = (
+    "PRAGMA journal_mode=WAL",
+    "PRAGMA synchronous=NORMAL",
+    "PRAGMA busy_timeout=5000",
+    "PRAGMA foreign_keys=ON",
+)
+
+
+def _apply_sqlite_pragmas(conn) -> None:
+    """Apply :data:`SQLITE_PRAGMAS` to a synchronous ``sqlite3`` connection.
+
+    The session store (:class:`~klea_utils.api.sessions_db.SessionStore`)
+    uses the standard-library ``sqlite3`` module, whose ``execute`` is
+    synchronous.  The checkpoint store uses ``aiosqlite`` and applies the
+    same policy through :func:`_apply_sqlite_pragmas_async`, so both
+    databases share one connection policy without duplicating the SQL.
+
+    :param conn: An open :class:`sqlite3.Connection`; PRAGMAs are applied
+        and committed immediately after connecting.
+    """
+    for pragma in SQLITE_PRAGMAS:
+        conn.execute(pragma)
+    conn.commit()
+
+
+async def _apply_sqlite_pragmas_async(conn) -> None:
+    """Apply :data:`SQLITE_PRAGMAS` to an ``aiosqlite`` connection.
+
+    :param conn: An open :class:`aiosqlite.Connection`; PRAGMAs are applied
+        and committed immediately after connecting.
+    """
+    for pragma in SQLITE_PRAGMAS:
+        await conn.execute(pragma)
+    await conn.commit()
+
+
 class _CustomChannelEnabler(StreamTransformer):
     """Enables the ``custom`` channel in LangGraph v3 event streams.
 
@@ -816,9 +858,28 @@ class BaseLangGraph(ABC):
             import aiosqlite
             from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 
+            # ``checkpoints.db`` uses WAL journalling, which keeps the
+            # ``checkpoints.db-wal`` (write-ahead log) and
+            # ``checkpoints.db-shm`` (shared-memory index) sidecar files next
+            # to the database.  They are live state for the running backend
+            # and must not be removed while it is running.
             db_path = init_dir(self.paths.user_data_dir) / "checkpoints.db"
             self.logger.debug("Opening sqlite checkpointer at %s", db_path)
             conn = await aiosqlite.connect(str(db_path))
+            # One-off migration: a database created before WAL was enabled
+            # keeps its old journal mode until it is forced, so verify it here
+            # and switch it over once, logging the change.
+            mode_cursor = await conn.execute("PRAGMA journal_mode")
+            mode_row = await mode_cursor.fetchone()
+            current_mode = str(mode_row[0]).lower() if mode_row else ""
+            if current_mode != "wal":
+                await conn.execute("PRAGMA journal_mode=WAL")
+                self.logger.info(
+                    "Migrated checkpoints database %s to WAL journal mode (was %s)",
+                    db_path,
+                    current_mode or "unknown",
+                )
+            await _apply_sqlite_pragmas_async(conn)
             serde = JsonPlusSerializer(
                 allowed_msgpack_modules=self.get_allowed_msgpack_modules()
             )
