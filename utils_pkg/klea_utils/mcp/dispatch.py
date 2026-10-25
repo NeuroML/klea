@@ -235,6 +235,8 @@ async def dispatch_tool_calls(
     allowed_dirs: Sequence[str] | None = None,
     allowed_files: Sequence[str] | None = None,
     permission_resolver: PermissionResolver | None = None,
+    session_id: str | None = None,
+    mcp_session_pool: Any | None = None,
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
@@ -287,6 +289,14 @@ async def dispatch_tool_calls(
         one that pauses for user approval; when it is ``None`` the outside
         paths are denied (the pre-ADR-0007 behaviour) and the sensitive second
         round is not run.
+    :param session_id: Chat-thread identifier used to select a pooled MCP
+        client for this dispatch.  When given together with *mcp_session_pool*
+        the per-session client from ``mcp_session_pool.get(session_id)`` is
+        used instead of *mcp_client*, so concurrent chats do not share one MCP
+        session.  ``None`` (the default) keeps the shared *mcp_client*, which
+        is what tests and non-pooled callers use.
+    :param mcp_session_pool: Optional session pool exposing
+        ``get(session_id)``.  Ignored when *session_id* is ``None``.
     :returns: One :class:`CallToolResult` per input call, in input order.
     """
     calls = [_as_tool_call(call) for call in tool_calls]
@@ -410,7 +420,13 @@ async def dispatch_tool_calls(
 
     # 3. Dispatch the permitted calls (needs the MCP client).
     if pending:
-        async with mcp_client:
+        # Prefer the per-session pooled client so concurrent chats do not share
+        # one MCP session; fall back to the shared client when no session or no
+        # pool is given (tests and non-pooled callers).
+        client = mcp_client
+        if session_id is not None and mcp_session_pool is not None:
+            client = mcp_session_pool.get(session_id)
+        async with client:
             # Dispatch concurrently, but run calls that target the same
             # resource sequentially in call order (ADR-0041): two writes to one
             # file must not race, so a missed dependency edge costs parallelism,
@@ -420,7 +436,7 @@ async def dispatch_tool_calls(
             groups: dict[frozenset[str], list[tuple[int, Any]]] = {}
             ordered: list[tuple[int, Any, frozenset[str]]] = []
             for idx, call in pending:
-                coro = mcp_client.call_tool(
+                coro = client.call_tool(
                     name=call.tool,
                     arguments=call.args,
                     raise_on_error=False,

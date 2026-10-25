@@ -126,6 +126,19 @@ def create_sessions_router() -> APIRouter:
         # append-only checkpoint DB keeps growing with every deleted chat).
         if graph.checkpointer:
             await graph.checkpointer.adelete_thread(thread_id_for(user_id, chat_id))
+        # Close any pooled MCP sessions bound to this chat thread so a deleted
+        # chat does not leave live client sessions behind.
+        try:
+            await request.app.state.mcp_session_pool.aclose(
+                thread_id_for(user_id, chat_id)
+            )
+        except Exception:
+            logger.warning(
+                "delete_chat(%s, %s): failed to close MCP session pool entries",
+                user_id,
+                chat_id,
+                exc_info=True,
+            )
         store.delete_chat(user_id, chat_id)
         logger.debug("delete_chat(%s, %s): OK", user_id, chat_id)
         return {"status": "ok", "chat_id": chat_id}

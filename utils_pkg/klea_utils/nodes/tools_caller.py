@@ -69,6 +69,7 @@ class ToolsCallerNode(
         post_dispatch: Callable[[Any, list[CallToolResult], list[bool]], dict[str, Any]]
         | None = None,
         permission_policy: Literal["deny", "ask"] = "deny",
+        mcp_session_pool: Any | None = None,
     ):
         """Initialise the tools caller node.
 
@@ -93,6 +94,11 @@ class ToolsCallerNode(
             touches a path outside the permitted roots; ``ask`` pauses the run
             for a per-path allow-now / allow-session / deny decision via the
             shared HITL interrupt (ADR-0007).  RAG keeps the default.
+        :param mcp_session_pool: Optional per-session MCP client pool exposing
+            ``get(session_id)``.  When given, each dispatch uses the client
+            pooled for the current chat thread so concurrent chats do not
+            share one MCP session; ``None`` (the default) keeps the shared
+            client.
 
         The path-permission boundary is the per-session ``state.project_root``
         (falling back to the process working directory); the node holds no
@@ -104,6 +110,7 @@ class ToolsCallerNode(
         self._tool_infos = tool_infos
         self._post_dispatch = post_dispatch
         self._permission_policy = permission_policy
+        self._mcp_session_pool = mcp_session_pool
 
     async def execute(self, state: BaseModel) -> dict[str, Any]:
         """Gate and dispatch the tool calls in ``state.tool_calls``.
@@ -142,6 +149,7 @@ class ToolsCallerNode(
                     type="state", node=self.label, data=running
                 ).model_dump()
             )
+        session_id = self._session_id_for_dispatch(state)
         allowed_dirs = [
             str(directory) for directory in (getattr(state, "allowed_dirs", []) or [])
         ]
@@ -162,6 +170,8 @@ class ToolsCallerNode(
             allowed_dirs=allowed_dirs,
             allowed_files=allowed_files,
             permission_resolver=resolver,
+            session_id=session_id,
+            mcp_session_pool=self._mcp_session_pool,
         )
         self.logger.debug(f"{results =}")
         ctx.tool_results = results
@@ -184,6 +194,28 @@ class ToolsCallerNode(
         if self._post_dispatch:
             updates.update(self._post_dispatch(state, results, ctx.display_flags))
         return updates
+
+    def _session_id_for_dispatch(self, state: BaseModel) -> str | None:
+        """Return the chat-thread id used to select a pooled MCP client.
+
+        Prefers the node's ``_current_session_id`` hook (the LangGraph value for
+        the running thread) and falls back to a ``thread_id`` attribute on the
+        state.  ``None`` means "no per-session client", so the dispatcher keeps
+        the shared MCP client.
+        """
+        getter = getattr(self, "_current_session_id", None)
+        if callable(getter):
+            try:
+                session_id = getter()
+            except Exception:
+                self.logger.debug(
+                    "Could not read the current session id", exc_info=True
+                )
+            else:
+                if session_id:
+                    return str(session_id)
+        thread_id = getattr(state, "thread_id", None)
+        return str(thread_id) if thread_id else None
 
     def _make_permission_resolver(
         self, ctx: ToolCallerContext

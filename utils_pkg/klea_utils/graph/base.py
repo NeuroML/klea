@@ -17,7 +17,6 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import json
 import logging
 import os
-import sys
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -36,6 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field, create_model
 
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import LLMModel, missing_required_roles, resolve_user_agent
+from klea_utils.mcp import spawn
 from klea_utils.mcp.access import (
     AccessLevel,
     ToolAccessOverride,
@@ -754,6 +754,13 @@ class BaseLangGraph(ABC):
         into a domain's config the bundled tools become available to that
         domain's tool picker.
 
+        The spawn mapping itself is built by
+        :func:`klea_utils.mcp.spawn.bundled_server_config`, so the bundled
+        tools server is described in exactly one place.  ``env``, ``cwd`` and
+        ``interpreter`` are left unset, which keeps the previous behaviour:
+        the inherited environment is used and the server runs with the
+        interpreter running this process.
+
         :returns: Dict-form stdio server config, or ``None`` when disabled.
         """
         general = getattr(self.app_config, "general", None)
@@ -762,14 +769,18 @@ class BaseLangGraph(ABC):
             self.logger.debug("Bundled tools server disabled or not configured")
             return None
 
-        config: dict[str, Any] = {
-            "command": sys.executable,
-            "args": ["-m", "klea_utils.mcp.server.bundled"],
-        }
-        if bundled.include_tags:
-            config["include_tags"] = list(bundled.include_tags)
-        if bundled.exclude_tags:
-            config["exclude_tags"] = list(bundled.exclude_tags)
+        # Tag filters are forwarded only when set, so a disabled/empty filter
+        # leaves the ``include_tags``/``exclude_tags`` keys out exactly as
+        # before.
+        include_tags = list(bundled.include_tags) if bundled.include_tags else None
+        exclude_tags = list(bundled.exclude_tags) if bundled.exclude_tags else None
+        config: dict[str, Any] = spawn.bundled_server_config(
+            include_tags=include_tags,
+            exclude_tags=exclude_tags,
+            env=None,
+            cwd=None,
+            interpreter=None,
+        )
         self.logger.debug(f"Bundled tools server config: {config}")
         return config
 

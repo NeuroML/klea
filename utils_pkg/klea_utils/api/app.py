@@ -30,6 +30,7 @@ from klea_utils.backend_lock import (
     _restore_lock_signal_handlers,
 )
 from klea_utils.graph.base import BaseLangGraph
+from klea_utils.mcp.session_pool import SessionMCPClients
 from klea_utils.paths import init_dir
 
 
@@ -74,6 +75,11 @@ def make_app(
         await graph.setup()
         app.state.graph = graph
         logger.info("Graph setup complete (%s)", type(graph).__name__)
+
+        # Per-session MCP clients, built from the graph's bundled server
+        # configuration.  Kept on app.state so routers can reuse one client
+        # per chat session instead of reconnecting on every request.
+        app.state.mcp_session_pool = SessionMCPClients(graph.bundled_server_config)
 
         # Take the per-root backend lock before any shared database is opened,
         # so a second backend fails fast instead of contending for the SQLite
@@ -126,6 +132,13 @@ def make_app(
 
         app.state.is_ready = False
         logger.info("Klea API shutting down")
+
+        # Close every per-session MCP client before the databases go away, so
+        # their transports and child processes are torn down cleanly.
+        try:
+            await app.state.mcp_session_pool.aclose_all()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(f"Failed to close MCP session clients: {exc}")
 
         # Best-effort WAL checkpoint: fold the write-ahead log back into
         # ``checkpoints.db`` (truncating the ``-wal`` sidecar) before the
