@@ -58,6 +58,7 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         # the provider resolver still clamps to the model/context limit.
         "max_output_tokens": MAX_OUTPUT_TOKENS_CEILING,
     }
+    include_model_identity = True
 
     def __init__(
         self,

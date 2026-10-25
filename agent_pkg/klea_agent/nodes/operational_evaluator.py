@@ -55,6 +55,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
     #: One retry to correct an evaluation that conflicts with the plan's step
     #: statuses (see :meth:`_validate_result`) before failing closed.
     max_validation_retries: ClassVar[int] = 1
+    include_model_identity = True
 
     def __init__(
         self,

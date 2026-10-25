@@ -57,6 +57,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     model_defaults: ClassVar[dict[str, Any]] = {
         "temperature": 0.01,
     }
+    include_model_identity = True
     #: Re-invoke the model with the validation error when it returns a
     #: structurally inconsistent plan (dangling dependencies, a trailing
     #: review, duplicate numbers).  Bounded so the node always returns; 3

@@ -73,6 +73,7 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     #: Prompt variable and heading for the conditional feedback section.
     feedback_key: ClassVar[str] = "picker_feedback"
     feedback_title: ClassVar[str] = "Feedback on your previous selection"
+    include_model_identity = True
 
     def __init__(
         self,
