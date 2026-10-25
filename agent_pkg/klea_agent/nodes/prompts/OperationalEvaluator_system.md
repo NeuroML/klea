@@ -84,5 +84,6 @@ genuinely missing evidence.
   in the same response.
 * A conversational request that is fully answered is `plan_done` (with no plan,
   set `overall`).
-* Keep every `reason` to one short sentence.
+* Provide information/suggestions in the `reason` to help correct `step_incomplete`
+  and `need_replan` verdicts if available from the provided inputs, but do not guess.
 * Output all reasoning and text strictly in English.
