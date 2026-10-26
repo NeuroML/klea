@@ -23,6 +23,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from klea_utils.client_context import ClientContext
+
 logger = logging.getLogger(__name__)
 
 
@@ -31,11 +33,13 @@ class KleaRunContext(BaseModel):
 
     ``model_overrides`` is the conventional key the shared nodes in
     ``klea_utils.nodes`` consume (``chat_core`` populates it from the
-    sessions database).  ``extra="allow"`` keeps the schema generic
-    (ADR-0031): an app that wants its own keys validated at the run
-    boundary subclasses this model and registers the subclass as its
-    ``context_schema`` (LangGraph coerces the ``context`` dict via
-    ``context_schema(**context)``); an app that prefers to validate
+    sessions database).  ``client_context`` carries the runtime environment a
+    client (currently the TUI) wants its per-session tool server to use; it
+    is accepted from loopback peers only and never persisted.  ``extra="allow"``
+    keeps the schema generic (ADR-0031): an app that wants its own keys
+    validated at the run boundary subclasses this model and registers the
+    subclass as its ``context_schema`` (LangGraph coerces the ``context`` dict
+    via ``context_schema(**context)``); an app that prefers to validate
     custom keys itself reads them from ``model_extra``.
     """
 
@@ -45,6 +49,10 @@ class KleaRunContext(BaseModel):
     #: sessions database (ADR-0014 decisions on sourcing, merge and key
     #: masking remain governing; ADR-0033 only changed the transport).
     model_overrides: dict[str, dict[str, Any]] = Field(default_factory=dict)
+
+    #: Client-supplied environment for the per-session bundled MCP server
+    #: (cwd, interpreter, env).  Runtime-only and never checkpointed.
+    client_context: ClientContext | None = None
 
 
 def model_overrides_from_context(

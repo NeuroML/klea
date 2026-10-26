@@ -14,6 +14,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 from typing import Any
 
+from klea_utils.client_context import ClientContext, client_context_from_context
 from klea_utils.graph.context import KleaRunContext, model_overrides_from_context
 from langgraph.graph import END, START, StateGraph
 from langgraph.runtime import get_runtime
@@ -44,6 +45,29 @@ class TestKleaRunContext:
         """extra='allow' lets an app carry custom per-run keys."""
         ctx = KleaRunContext(model_overrides={}, custom_key={"n": 1})
         assert ctx.model_extra == {"custom_key": {"n": 1}}
+
+    def test_client_context_defaults_none(self):
+        """client_context defaults to None."""
+        assert KleaRunContext().client_context is None
+
+    def test_client_context_roundtrip(self):
+        """A ClientContext instance survives construction."""
+        client = ClientContext(cwd="/tmp/project", env={"A": "1"})
+        ctx = KleaRunContext(client_context=client)
+        assert ctx.client_context == client
+
+    def test_client_context_coerces_dict(self):
+        """A plain dict is coerced to ClientContext at the boundary."""
+        ctx = KleaRunContext(client_context={"cwd": "/tmp/project"})
+        assert isinstance(ctx.client_context, ClientContext)
+        assert ctx.client_context.cwd == "/tmp/project"
+
+    def test_client_context_read_helper(self):
+        """The shared helper reads the client slice from a KleaRunContext."""
+        client = ClientContext(cwd="/tmp/project")
+        ctx = KleaRunContext(client_context=client)
+        assert client_context_from_context(ctx) == client
+        assert client_context_from_context(KleaRunContext()) is None
 
 
 class AppRunContext(KleaRunContext):
@@ -92,6 +116,16 @@ class TestAmbientRuntimeContext:
         assert res["out"] == ov
         assert isinstance(_AMBIENT_SEEN[-1], KleaRunContext)
         assert _AMBIENT_SEEN[-1].model_overrides == ov
+
+    async def test_ainvoke_ambient_client_context(self):
+        """A dict client_context is coerced at the graph boundary."""
+        _AMBIENT_SEEN.clear()
+        await _ambient_graph().ainvoke(
+            {"out": {}}, context={"client_context": {"cwd": "/tmp/project"}}
+        )
+        assert isinstance(_AMBIENT_SEEN[-1], KleaRunContext)
+        assert _AMBIENT_SEEN[-1].client_context is not None
+        assert _AMBIENT_SEEN[-1].client_context.cwd == "/tmp/project"
 
     async def test_astream_events_v3_ambient_context(self):
         _AMBIENT_SEEN.clear()
