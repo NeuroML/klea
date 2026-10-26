@@ -46,6 +46,9 @@ instruction (``AGENTS.md``/``CLAUDE.md``) discovery.  Context forwarding is only
 available for a local (loopback) server; a remote backend is skipped with a
 note, because it cannot see the client's files or interpreter.
 
+The browser-based web client has no local tool environment; its chats use the
+backend's cwd, environment, and interpreter.  See :doc:`web-ui`.
+
 The layout is a horizontal split: a chat pane on the left and a full-height
 status pane on the right.  The title and server line, and the active chat's
 name and id, sit at the top of the status pane.

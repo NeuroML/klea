@@ -67,6 +67,25 @@ The TUI merges this into the existing request-extra channel:
 The context is attached to every stream call, so a retry or HITL resume after
 a failure uses the current TUI environment.
 
+## Web sessions
+
+The NiceGUI web client sends no `client_context`: its request extras carry
+only mode/access fields.  `chat_core` therefore passes `None`, and
+`SessionMCPClients.get(session_id, None)` creates (or reuses) a client from the
+backend's base `mcp_config`: the backend process's cwd, environment, and
+interpreter.  The per-session process isolation still applies, but every web
+chat sees the same backend environment.
+
+The session `project_root` is independent of this: an explicit `/cwd` still
+controls relative-path resolution, the permission boundary, and discovery for
+that chat.  It does not change the tool process's environment or interpreter.
+
+If a chat alternates between a TUI and the web UI, the fingerprint changes
+(`ClientContext` vs `None`) and the tool server respawns for the frontend that
+is currently running.  A deployment that needs a different web tool
+environment must run a separate backend from that environment; relocation with
+`KLEA_AGENT_HOME` moves data only.
+
 ## Server validation
 
 `klea_utils.client_context.validate_client_context`:

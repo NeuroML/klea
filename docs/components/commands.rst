@@ -98,7 +98,10 @@ These are sent to the graph and run there.
      - ``/cwd [path]``
      - Show or set the session project root -- the directory the file tools
        operate in and the default permission boundary.  The path must be an
-       existing directory; with no argument it reports the current root.
+       existing directory; with no argument it reports the current root.  This
+       changes the path root for file tools and discovery; it does not change
+       the tool server's environment or Python interpreter (the TUI client
+       context controls those).
    * - ``/paths``
      - ``/paths`` / ``/paths list`` / ``/paths add <dir>`` /
        ``/paths remove <path>``

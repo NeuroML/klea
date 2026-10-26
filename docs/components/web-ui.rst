@@ -7,6 +7,26 @@ so the sessions, models and graph state are shared.  It is started with
 ``klea-rag web`` (RAG) or ``klea web`` (agent), and is the interface used
 by the hosted prototypes linked from the :doc:`home page <../index>`.
 
+Project environment
+-------------------
+
+The web client runs in a browser, so it has no local tool environment to send
+to the backend.  A web chat's bundled tools therefore use the backend
+process's working directory, environment, and Python interpreter -- whatever
+the server was launched with.
+
+The per-chat **project root** is still session state: if ``/cwd <path>`` has
+been set, web tool calls resolve relative paths, apply the permission
+boundary, and read ``AGENTS.md``/``CLAUDE.md`` from that root; otherwise they
+use the backend's working directory.  ``/cwd`` changes only the path root, not
+the tool process's environment or interpreter.
+
+If a chat is driven by both a TUI and the web UI, the tool server is respawned
+when the frontend changes: a TUI run uses that terminal's context, while a web
+run uses the backend's.  To give web chats a different tool environment, run a
+separate backend from that environment (with its own ``KLEA_AGENT_HOME`` and
+port); ``KLEA_AGENT_HOME`` alone relocates data, not the environment.
+
 The layout has three parts: a left pane listing chat sessions, a centre
 pane with two tabs (**chat** and **inspect**), and a right pane with
 per-chat state (the **status pane**).  A single footer line carries the

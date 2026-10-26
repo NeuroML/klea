@@ -63,6 +63,11 @@ active frontend, and covers arbitrary project variables.
   venv's `bin/python` is a symlink and resolving it would leave the venv.
 * The context is sent with every chat request (`/query`, `/query/stream`,
   retries, and HITL resumes) through the existing request-extra channel.
+* Web sessions send no client context, so their bundled server uses the
+  backend's cwd/environment/interpreter.  An explicit `/cwd` still selects the
+  session project root for path resolution, permissions, and discovery.  A
+  chat alternating between a TUI and the web UI respawns the tool server as
+  the fingerprint changes.
 * The server accepts it only from a loopback peer (`is_loopback_host`),
   rejecting remote context with **403**; malformed context is **400**.  The
   TUI skips forwarding to a non-loopback server entirely.

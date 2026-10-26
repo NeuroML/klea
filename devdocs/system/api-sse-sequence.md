@@ -105,6 +105,9 @@ Notes:
   event arrives for `HEARTBEAT_INTERVAL_SECONDS` (15 s), so a long-running node
   (e.g. `run_command`) does not let the client's idle read timeout (300 s) or a
   proxy drop the SSE stream.  Clients ignore `ping`; see `streams.md`.
+* `client_context` is optional.  The TUI sends it; the web UI omits it, so web
+  chats use the backend's cwd/environment/interpreter for bundled tools
+  (ADR-0055).  `/cwd` remains a per-chat path root for both frontends.
 
 ## RAG lifecycle (`klea_rag`)
 
