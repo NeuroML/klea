@@ -75,7 +75,8 @@ a failure uses the current TUI environment.
   HTTP 403;
 * `cwd` absolute, existing, a directory, readable/executable; symlinks are
   resolved;
-* `interpreter` absolute, existing, executable; symlinks are resolved;
+* `interpreter` absolute, existing, executable; the path is preserved
+  (a venv's `bin/python` is a symlink, and resolving it would leave the venv);
 * `env` at most 256 variables and 64 KiB serialised; names non-empty and
   without `=`/NUL; values without NUL; malformed input is HTTP 400;
 * rejected rather than trimmed, so a frontend never believes isolation is

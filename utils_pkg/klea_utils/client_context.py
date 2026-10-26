@@ -97,21 +97,27 @@ def _validate_cwd(cwd: str) -> str:
 
 
 def _validate_interpreter(interpreter: str) -> str:
-    """Return the resolved *interpreter*, or raise when it is unusable."""
+    """Return the absolute *interpreter*, preserving symlinks.
+
+    A virtualenv's ``bin/python`` is normally a symlink to the base
+    interpreter; resolving it would leave the venv, so the path is validated
+    in place and returned unresolved.
+    """
     path = Path(interpreter).expanduser()
     if not path.is_absolute():
         raise ClientContextError("client context interpreter must be an absolute path")
+    absolute = Path(os.path.abspath(path))
     try:
-        resolved = path.resolve(strict=True)
+        absolute.stat()
     except OSError as exc:
         raise ClientContextError(
             f"client context interpreter does not exist: {path}"
         ) from exc
-    if not resolved.is_file():
+    if not absolute.is_file():
         raise ClientContextError("client context interpreter is not a file")
-    if not os.access(resolved, os.X_OK):
+    if not os.access(absolute, os.X_OK):
         raise ClientContextError("client context interpreter is not executable")
-    return str(resolved)
+    return str(absolute)
 
 
 def _validate_env(env: Mapping[str, str]) -> dict[str, str]:

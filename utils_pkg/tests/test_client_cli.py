@@ -493,7 +493,7 @@ class TestClientContextOptions(unittest.TestCase):
             self.assertIsInstance(context, ClientContext)
             assert context is not None
             self.assertEqual(context.cwd, str(Path(tmp).resolve()))
-            self.assertEqual(context.interpreter, str(Path(sys.executable).resolve()))
+            self.assertEqual(context.interpreter, str(Path(sys.executable)))
             self.assertIn("PATH", context.env)
 
     def test_env_overrides_win(self):
@@ -515,6 +515,19 @@ class TestClientContextOptions(unittest.TestCase):
         with contextlib.redirect_stderr(stderr):
             self.assertIsNone(_build_client_context("http://10.0.0.1:8005"))
         self.assertIn("only available for a local server", stderr.getvalue())
+
+    def test_build_context_preserves_interpreter_symlink(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            link = Path(tmp) / "python"
+            try:
+                link.symlink_to(sys.executable)
+            except OSError as exc:  # pragma: no cover - platform without symlinks
+                self.skipTest(f"cannot create symlink: {exc}")
+            context = _build_client_context(
+                "http://127.0.0.1:8005", cwd=tmp, interpreter=str(link)
+            )
+            assert context is not None
+            self.assertEqual(context.interpreter, str(link))
 
     def test_invalid_env_option_raises(self):
         with self.assertRaises(typer.BadParameter):

@@ -178,15 +178,19 @@ def _build_client_context(
     cwd_path = Path(cwd).expanduser() if cwd else Path(os.getcwd())
     if not cwd_path.is_dir():
         raise typer.BadParameter(f"--cwd is not a directory: {cwd_path}")
-    interpreter_path = (
-        Path(interpreter).expanduser() if interpreter else Path(sys.executable)
+    # Do not resolve symlinks: a virtualenv's ``bin/python`` is normally a
+    # symlink to the base interpreter, and resolving it would leave the venv.
+    interpreter_path = Path(
+        os.path.abspath(
+            Path(interpreter).expanduser() if interpreter else sys.executable
+        )
     )
     env_values = dict(os.environ)
     env_values.update(_parse_env_options(env or []))
     return ClientContext(
         cwd=str(cwd_path.resolve()),
         env=env_values,
-        interpreter=str(interpreter_path.resolve()),
+        interpreter=str(interpreter_path),
     )
 
 

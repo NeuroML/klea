@@ -59,7 +59,8 @@ active frontend, and covers arbitrary project variables.
   environment, and its interpreter (`sys.executable`).  `--cwd`,
   repeatable `--env KEY=VALUE`, and `--interpreter` override these defaults;
   `--no-client-context` disables forwarding.  `--env` wins over the
-  environment.
+  environment.  The interpreter path is preserved rather than resolved: a
+  venv's `bin/python` is a symlink and resolving it would leave the venv.
 * The context is sent with every chat request (`/query`, `/query/stream`,
   retries, and HITL resumes) through the existing request-extra channel.
 * The server accepts it only from a loopback peer (`is_loopback_host`),

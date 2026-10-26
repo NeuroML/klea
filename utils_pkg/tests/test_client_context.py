@@ -47,7 +47,7 @@ def test_validate_accepts_loopback_context(tmp_path):
 
     assert context is not None
     assert context.cwd == str(cwd.resolve())
-    assert context.interpreter == str(Path(sys.executable).resolve())
+    assert context.interpreter == str(Path(sys.executable))
     assert context.env == {"KLEA_TEST": "1"}
 
 
@@ -92,6 +92,20 @@ def test_validate_rejects_missing_interpreter(tmp_path):
             {"interpreter": str(tmp_path / "missing-python")},
             peer_host="127.0.0.1",
         )
+
+
+def test_validate_preserves_interpreter_symlink(tmp_path):
+    """A venv-style python symlink is kept as the venv path, not resolved."""
+    link = tmp_path / "python"
+    try:
+        link.symlink_to(sys.executable)
+    except OSError as exc:  # pragma: no cover - platform without symlinks
+        pytest.skip(f"cannot create symlink: {exc}")
+
+    context = validate_client_context({"interpreter": str(link)}, peer_host="127.0.0.1")
+
+    assert context is not None
+    assert context.interpreter == str(link)
 
 
 def test_validate_rejects_non_executable_interpreter(tmp_path):

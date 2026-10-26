@@ -13,6 +13,7 @@ import logging
 import sys
 from typing import override
 
+import pytest
 from fastmcp.mcp_config import StdioMCPServer, TransformingStdioMCPServer
 from klea_utils.client_context import ClientContext
 from klea_utils.graph.base import BaseLangGraph
@@ -104,6 +105,22 @@ def test_bundled_entry_uses_client_context(tmp_path):
     assert entry["cwd"] == str(tmp_path)
     assert entry["command"] == sys.executable
     assert entry["env"]["VIRTUAL_ENV"] == "/tmp/client-venv"
+
+
+def test_bundled_entry_preserves_interpreter_symlink(tmp_path):
+    link = tmp_path / "python"
+    try:
+        link.symlink_to(sys.executable)
+    except OSError as exc:  # pragma: no cover - platform without symlinks
+        pytest.skip(f"cannot create symlink: {exc}")
+
+    graph = _BundledGraph()
+    entry = graph._bundled_server_config(
+        client_context=ClientContext(interpreter=str(link))
+    )
+
+    assert entry is not None
+    assert entry["command"] == str(link)
 
 
 def test_bundled_entry_without_context_keeps_inherited_env():
