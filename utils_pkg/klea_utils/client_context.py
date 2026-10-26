@@ -162,7 +162,9 @@ def validate_client_context(
     if raw is None:
         return None
     if not is_loopback_host(peer_host):
-        raise ClientContextError("client context is only accepted from loopback peers")
+        raise ClientContextError(
+            "client context is only accepted from loopback peers", status_code=403
+        )
 
     context = _normalise_context(raw)
     if context.cwd is None and context.interpreter is None and not context.env:

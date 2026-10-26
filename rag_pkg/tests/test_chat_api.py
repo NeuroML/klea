@@ -100,6 +100,35 @@ class TestChat:
             context={"model_overrides": {"chat": {"model": "ollama:qwen3"}}},
         )
 
+    async def test_query_passes_client_context(self, client, app, tmp_path):
+        """POST /query forwards a loopback client context as runtime context."""
+        cwd = tmp_path / "project"
+        cwd.mkdir()
+
+        await client.post(
+            "/query",
+            json={
+                "query": "hello",
+                "chat_id": "c-ctx",
+                "user_id": "u",
+                "client_context": {"cwd": str(cwd), "env": {"A": "1"}},
+            },
+        )
+
+        app.state.graph.run_graph_invoke.assert_called_once_with(
+            "hello",
+            "user_u:chat_c-ctx",
+            extra_state=None,
+            context={
+                "model_overrides": {},
+                "client_context": {
+                    "cwd": str(cwd.resolve()),
+                    "env": {"A": "1"},
+                    "interpreter": None,
+                },
+            },
+        )
+
     async def test_query_reuses_session(self, client, app):
         """Same chat_id/user_id does not raise."""
         self.logger.info("First request (creates session)")

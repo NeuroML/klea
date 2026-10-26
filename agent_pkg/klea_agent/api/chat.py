@@ -22,6 +22,7 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Request, Response
 from klea_utils.api import chat_common, chat_core
+from klea_utils.client_context import ClientContext
 from klea_utils.mcp.access import AccessLevel
 from pydantic import BaseModel, Field, model_validator
 
@@ -72,6 +73,12 @@ class ChatPayload(BaseModel):
     access_level: AccessLevel | None = Field(
         default=None,
         description="Tool access level override: 'read_only' or 'full'",
+    )
+    # Optional client-supplied runtime environment (cwd/env/interpreter) for
+    # the session's bundled tool server.  Runtime-only and loopback-only.
+    client_context: ClientContext | None = Field(
+        default=None,
+        description="Client environment for the bundled tool server (loopback only)",
     )
 
     @model_validator(mode="after")
@@ -140,6 +147,7 @@ def create_chat_router() -> APIRouter:
             interrupt_cancel=payload.interrupt_cancel,
             interrupt_id=payload.interrupt_id,
             extra_state=_extra_state(payload),
+            client_context=payload.client_context,
         )
         return {"result": message}
 
@@ -155,6 +163,7 @@ def create_chat_router() -> APIRouter:
             interrupt_cancel=payload.interrupt_cancel,
             interrupt_id=payload.interrupt_id,
             extra_state=_extra_state(payload),
+            client_context=payload.client_context,
         )
 
     @router.post("/query/cancel", status_code=204)

@@ -173,6 +173,56 @@ class TestChat:
             context={"model_overrides": {}},
         )
 
+    async def test_query_passes_client_context(self, client, app, tmp_path):
+        """POST /query forwards a loopback client context as runtime context."""
+        cwd = tmp_path / "project"
+        cwd.mkdir()
+
+        await client.post(
+            "/query",
+            json={
+                "query": "hello",
+                "chat_id": "c-ctx",
+                "user_id": "u",
+                "client_context": {"cwd": str(cwd), "env": {"A": "1"}},
+            },
+        )
+
+        app.state.graph.run_graph_invoke.assert_called_once_with(
+            "hello",
+            "user_u:chat_c-ctx",
+            extra_state={"mode": {"requested": "general"}},
+            context={
+                "model_overrides": {},
+                "client_context": {
+                    "cwd": str(cwd.resolve()),
+                    "env": {"A": "1"},
+                    "interpreter": None,
+                },
+            },
+        )
+
+    async def test_client_context_rejected_from_non_loopback(self, app, tmp_path):
+        """A non-loopback peer cannot supply a client context."""
+        cwd = tmp_path / "project"
+        cwd.mkdir()
+        transport = ASGITransport(app=app, client=("10.0.0.1", 1))
+
+        async with httpx.AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as other_client:
+            response = await other_client.post(
+                "/query",
+                json={
+                    "query": "hello",
+                    "chat_id": "c-remote",
+                    "user_id": "u",
+                    "client_context": {"cwd": str(cwd)},
+                },
+            )
+
+        assert response.status_code == 403
+
     async def test_query_passes_access_level(self, client, app):
         """POST /query forwards an explicit access_level override (ADR-0037)."""
         await client.post(

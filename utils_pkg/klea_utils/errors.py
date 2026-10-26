@@ -24,7 +24,15 @@ class ClientContextError(Exception):
 
     Raised at the API boundary and mapped to a 4xx response; see
     :mod:`klea_utils.client_context`.
+
+    :param message: Human-readable reason.
+    :param status_code: HTTP status the API layer should use (``400`` for a
+        malformed context, ``403`` for a non-loopback peer).
     """
+
+    def __init__(self, message: str, *, status_code: int = 400) -> None:
+        super().__init__(message)
+        self.status_code = status_code
 
 
 class LLMInvocationErrorCategory(str, Enum):

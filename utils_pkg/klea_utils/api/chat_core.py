@@ -56,7 +56,9 @@ from klea_utils.api.hitl import (
 )
 from klea_utils.api.overrides import resolve_model_overrides
 from klea_utils.api.sessions_db import SessionStore
+from klea_utils.client_context import ClientContext, validate_client_context
 from klea_utils.commands.common import parse_command
+from klea_utils.errors import ClientContextError
 from klea_utils.plogging import mask_sensitive
 
 logger = logging.getLogger(__name__)
@@ -87,6 +89,44 @@ def _command_persist_mode(graph: Any, query: str | None) -> bool | None:
         return None
     command = registry.get(parsed.name) if parsed.name else None
     return bool(command is not None and command.persists == "message")
+
+
+def _validated_client_context(
+    request: Request, client_context: ClientContext | None
+) -> ClientContext | None:
+    """Validate a request's client context, mapping failures to HTTP errors.
+
+    The context is only accepted from a loopback peer; a non-loopback peer is
+    a 403, while a malformed context is a 400.
+
+    :param request: The incoming request (for the peer host).
+    :param client_context: The request's parsed client context, or ``None``.
+    :returns: The validated context, or ``None``.
+    :raises HTTPException: 403 for a non-loopback peer, 400 when malformed.
+    """
+    peer_host = request.client.host if request.client else None
+    try:
+        return validate_client_context(client_context, peer_host=peer_host)
+    except ClientContextError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
+
+def _context_for_logging(context: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a log-safe copy of the assembled runtime context.
+
+    Client environment values are never logged: the client-context slice is
+    reduced to cwd/interpreter/env-key count.  Model overrides are masked by
+    :func:`klea_utils.plogging.mask_sensitive` as before.
+    """
+    safe = dict(context)
+    client_context = safe.get("client_context")
+    if isinstance(client_context, Mapping):
+        safe["client_context"] = {
+            "cwd": client_context.get("cwd"),
+            "interpreter": client_context.get("interpreter"),
+            "env_keys": len(client_context.get("env") or {}),
+        }
+    return mask_sensitive(safe)
 
 
 #: Idle gap, in seconds, after which :func:`_heartbeat` emits a ``ping`` SSE
@@ -234,6 +274,7 @@ async def run_query(
     interrupt_id: str | None = None,
     extra_state: dict[str, Any] | None = None,
     context_fields: dict[str, Any] | None = None,
+    client_context: ClientContext | None = None,
 ) -> str:
     """Run the graph via ``run_graph_invoke`` and persist the exchange.
 
@@ -267,6 +308,10 @@ async def run_query(
         the app subclasses it for typed fields).  Apps wire frontend
         payload fields through this generic hook instead of forking
         ``chat_core``.
+    :param client_context: Optional client-supplied environment for this run
+        (cwd/env/interpreter).  Accepted from loopback peers only; placed in
+        the runtime context (never in graph state) for the bundled tool
+        server.
     :returns: The assistant's answer text
 
     :note: ``POST /query`` returns only the answer string; the session
@@ -286,6 +331,7 @@ async def run_query(
     graph: BaseLangGraph
     store: SessionStore
     graph, store = _graph_and_store(request)
+    validated_client_context = _validated_client_context(request, client_context)
     thread_id = thread_id_for(user_id, chat_id)
     logger.debug(
         "run_query(user_id=%s chat_id=%s) thread=%s resume=%s context_fields=%s",
@@ -327,7 +373,11 @@ async def run_query(
         **(context_fields or {}),
         "model_overrides": overrides or {},
     }
-    logger.debug("run_query: assembled runtime context=%s", mask_sensitive(context))
+    if validated_client_context is not None:
+        context["client_context"] = validated_client_context.model_dump()
+    logger.debug(
+        "run_query: assembled runtime context=%s", _context_for_logging(context)
+    )
 
     # Single-flight per thread: reject a second run while one is in flight,
     # then register this task so a concurrent cancel can reach it.  Cleared
@@ -401,6 +451,7 @@ async def stream_response(
     enrich: Callable[[AsyncIterator[dict]], AsyncIterator[dict]] | None = None,
     extra_state: dict[str, Any] | None = None,
     context_fields: dict[str, Any] | None = None,
+    client_context: ClientContext | None = None,
 ) -> StreamingResponse:
     """Return a ``/query/stream`` SSE response for the graph's events.
 
@@ -440,6 +491,10 @@ async def stream_response(
         the app subclasses it for typed fields).  Apps wire frontend
         payload fields through this generic hook instead of forking
         ``chat_core``.
+    :param client_context: Optional client-supplied environment for this run
+        (cwd/env/interpreter).  Accepted from loopback peers only; placed in
+        the runtime context (never in graph state) for the bundled tool
+        server.
     :returns: A :class:`fastapi.responses.StreamingResponse` SSE stream
     """
     # Lazy: BaseLangGraph is the base class for all graphs; EmptyInputError is
@@ -451,6 +506,7 @@ async def stream_response(
     graph: BaseLangGraph
     store: SessionStore
     graph, store = _graph_and_store(request)
+    validated_client_context = _validated_client_context(request, client_context)
     thread_id = thread_id_for(user_id, chat_id)
     logger.debug(
         "stream_response(user_id=%s chat_id=%s) thread=%s resume=%s context_fields=%s",
@@ -488,8 +544,10 @@ async def stream_response(
         **(context_fields or {}),
         "model_overrides": overrides or {},
     }
+    if validated_client_context is not None:
+        context["client_context"] = validated_client_context.model_dump()
     logger.debug(
-        "stream_response: assembled runtime context=%s", mask_sensitive(context)
+        "stream_response: assembled runtime context=%s", _context_for_logging(context)
     )
 
     # Single-flight per thread, checked before the response is returned so a

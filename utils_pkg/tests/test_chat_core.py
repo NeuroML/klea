@@ -25,13 +25,14 @@ from fastapi import HTTPException, Request
 from klea_utils.api import chat_common, chat_core, overrides
 from klea_utils.api.runs import ActiveRunRegistry
 from klea_utils.api.sessions_db import SessionStore
+from klea_utils.client_context import ClientContext
 from klea_utils.commands.common import Command as CommandSpec
 from klea_utils.commands.common import CommandRegistry, Persists
 from klea_utils.llm import LLMModel
 from langgraph.types import Command
 
 
-def _make_request(store: SessionStore, graph) -> Request:
+def _make_request(store: SessionStore, graph, *, client=("test", 123)) -> Request:
     """A fake FastAPI request whose ``app.state`` carries graph + store."""
     app = SimpleNamespace(
         state=SimpleNamespace(is_ready=True, graph=graph, chat_sessions=store)
@@ -45,7 +46,7 @@ def _make_request(store: SessionStore, graph) -> Request:
         "query_string": b"",
         "root_path": "",
         "headers": [],
-        "client": ("test", 123),
+        "client": client,
         "server": ("test", 80),
         "scheme": "http",
         "app": app,
@@ -168,6 +169,64 @@ class TestRunQueryContext:
             },
         )
 
+    async def test_client_context_rides_runtime_context(self, store, graph, tmp_path):
+        """A loopback client context is added to the runtime context."""
+        cwd = tmp_path / "project"
+        cwd.mkdir()
+        context = ClientContext(cwd=str(cwd), env={"A": "1"})
+
+        await chat_core.run_query(
+            _make_request(store, graph, client=("127.0.0.1", 1)),
+            query="q",
+            user_id="u",
+            chat_id="c",
+            client_context=context,
+        )
+
+        graph.run_graph_invoke.assert_awaited_once_with(
+            "q",
+            "user_u:chat_c",
+            extra_state=None,
+            context={
+                "model_overrides": {},
+                "client_context": {
+                    "cwd": str(cwd.resolve()),
+                    "env": {"A": "1"},
+                    "interpreter": None,
+                },
+            },
+        )
+
+    async def test_client_context_rejected_from_non_loopback(self, store, graph):
+        """A non-loopback peer cannot supply a client context."""
+        context = ClientContext(cwd="/tmp")
+
+        with pytest.raises(HTTPException) as excinfo:
+            await chat_core.run_query(
+                _make_request(store, graph, client=("10.0.0.1", 1)),
+                query="q",
+                user_id="u",
+                chat_id="c",
+                client_context=context,
+            )
+
+        assert excinfo.value.status_code == 403
+
+    async def test_malformed_client_context_is_a_400(self, store, graph):
+        """A relative cwd is a malformed context, not a trust failure."""
+        context = ClientContext(cwd="relative/path")
+
+        with pytest.raises(HTTPException) as excinfo:
+            await chat_core.run_query(
+                _make_request(store, graph, client=("127.0.0.1", 1)),
+                query="q",
+                user_id="u",
+                chat_id="c",
+                client_context=context,
+            )
+
+        assert excinfo.value.status_code == 400
+
     async def test_stream_response_receives_context(self, store, graph):
         """stream_response forwards the same assembled context to the graph."""
         seen: dict = {}
@@ -237,6 +296,28 @@ class TestStreamResponseResume:
 
         assert seen["query"] is None
         assert [m["role"] for m in store.get_messages("u", "c")] == ["assistant"]
+
+    async def test_resume_carries_client_context(self, store, graph, tmp_path):
+        """A retry/resume still forwards the current client context."""
+        seen: dict = {}
+        cwd = tmp_path / "project"
+        cwd.mkdir()
+
+        async def _capture(query, thread_id, *, extra_state=None, context=None):
+            seen["context"] = context
+            yield {"type": "complete", "message_for_user": "answer"}
+
+        graph.run_graph_astream_events = _capture
+        response = await chat_core.stream_response(
+            _make_request(store, graph, client=("127.0.0.1", 1)),
+            user_id="u",
+            chat_id="c",
+            resume=True,
+            client_context=ClientContext(cwd=str(cwd)),
+        )
+        await self._collect(response)
+
+        assert seen["context"]["client_context"]["cwd"] == str(cwd.resolve())
 
     async def test_resume_with_nothing_is_not_resumable(self, store, graph):
         """An EmptyInputError on resume yields a non-resumable error frame."""

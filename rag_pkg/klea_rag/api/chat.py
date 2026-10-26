@@ -19,6 +19,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from fastapi import APIRouter, Request, Response
 from klea_utils.api import chat_common, chat_core
+from klea_utils.client_context import ClientContext
 from pydantic import BaseModel, Field
 
 
@@ -26,6 +27,12 @@ class ChatPayload(BaseModel):
     query: str = Field(..., min_length=1)
     chat_id: str = Field(..., pattern=r"^[^:]+$")
     user_id: str = Field(default="", pattern=r"^[^:]*$")
+    # Optional client-supplied runtime environment (cwd/env/interpreter) for
+    # the session's bundled tool server.  Runtime-only and loopback-only.
+    client_context: ClientContext | None = Field(
+        default=None,
+        description="Client environment for the bundled tool server (loopback only)",
+    )
 
 
 def create_chat_router() -> APIRouter:
@@ -45,6 +52,7 @@ def create_chat_router() -> APIRouter:
             query=payload.query,
             user_id=payload.user_id,
             chat_id=payload.chat_id,
+            client_context=payload.client_context,
         )
         return {"result": message}
 
@@ -55,6 +63,7 @@ def create_chat_router() -> APIRouter:
             query=payload.query,
             user_id=payload.user_id,
             chat_id=payload.chat_id,
+            client_context=payload.client_context,
         )
 
     @router.post("/query/cancel", status_code=204)

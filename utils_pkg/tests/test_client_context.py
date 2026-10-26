@@ -57,8 +57,9 @@ def test_validate_returns_none_for_missing_or_empty_context():
 
 
 def test_validate_rejects_non_loopback_peer(tmp_path):
-    with pytest.raises(ClientContextError, match="loopback"):
+    with pytest.raises(ClientContextError, match="loopback") as excinfo:
         validate_client_context({"cwd": str(tmp_path)}, peer_host="192.168.1.10")
+    assert excinfo.value.status_code == 403
 
 
 def test_validate_rejects_relative_cwd():
