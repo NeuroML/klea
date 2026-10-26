@@ -40,10 +40,12 @@
 
 ## Plan
 
-* Step quality: each step is one action with one observable outcome, executable
+* Step quality: each step is **one** action with **one** observable outcome, executable
     and checkable from its own output; do not merge independent work, and never
     make a step a bundle of work.  Give every step concise `success_criteria`;
-    if you cannot say how it is verified, it is too broad.
+    if you cannot say how it is verified, it is too broad.  Action steps
+    should be preceded by exploration and research steps to ensure that necessary
+    information is available.  Never guess.
 * Each step has one of three `kind`s:
   * `tool`: acts on the environment; name one tool identity in `suggested_tools`
     (several only when they are genuine alternatives for the same action; never
