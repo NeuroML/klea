@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 
 import logging
 import unittest
+from typing import Any, cast
 
 from klea_agent.nodes.reasoning import NO_CONCLUSION_FALLBACK, ReasoningNode
 from klea_agent.schemas import (
@@ -163,7 +164,7 @@ class TestReasoningNode(unittest.TestCase):
         """The reasoning conclusion is surfaced without opening the inspector."""
         node = self._node()
         events: list[dict] = []
-        node.write_custom_stream = events.append
+        cast(Any, node).write_custom_stream = events.append
 
         node._update_state(
             ReasoningSchema(conclusion="H1: X causes Y", rationale="from obs"),
@@ -172,6 +173,7 @@ class TestReasoningNode(unittest.TestCase):
         )
 
         notice = next(event for event in events if event.get("type") == "notice")
+        assert notice["data"]["summary"].startswith("Step 1:")
         assert "H1: X causes Y" in notice["data"]["summary"]
         assert notice["data"]["details"]["kind"] == "progress"
 

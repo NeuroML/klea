@@ -147,7 +147,7 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         message = f"Reasoning (step {step}): {conclusion}"
         if result.rationale.strip():
             message += f"\nRationale: {result.rationale.strip()}"
-        self._emit_notice(f"step {step}: {conclusion or NO_CONCLUSION_FALLBACK}")
+        self._emit_notice(f"Step {step}: {conclusion or NO_CONCLUSION_FALLBACK}")
         update: dict[str, Any] = {
             "step_outputs": outputs,
             "tool_calls": [],
