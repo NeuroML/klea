@@ -34,6 +34,8 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
+from klea_utils.client_context import ClientContext, client_context_fingerprint
+
 logger = logging.getLogger(__name__)
 
 #: Default cap on the number of pooled clients.
@@ -57,8 +59,8 @@ ENV_CLOSE_TIMEOUT = "KLEA_MCP_CLOSE_TIMEOUT"
 #: Close methods tried on a pooled client, in order.
 CLOSE_METHODS: tuple[str, ...] = ("aclose", "close", "stop")
 
-#: Coroutine function creating the client for a session id.
-ClientFactory = Callable[[str], Awaitable[Any]]
+#: Coroutine function creating the client for a session id and context.
+ClientFactory = Callable[[str, ClientContext | None], Awaitable[Any]]
 
 
 def _env_int(name: str, default: int) -> int:
@@ -134,6 +136,22 @@ def _diagnostics(client: Any) -> dict[str, Any]:
     }
 
 
+def _context_diagnostics(context: ClientContext | None) -> dict[str, Any] | None:
+    """Return non-secret client-context details for logging.
+
+    Environment values are never included: only the number of variables and
+    the context fingerprint, so logs cannot leak secrets.
+    """
+    if context is None:
+        return None
+    return {
+        "cwd": context.cwd,
+        "interpreter": context.interpreter,
+        "env_keys": len(context.env),
+        "fingerprint": client_context_fingerprint(context)[:12],
+    }
+
+
 async def _close_client(client: Any) -> None:
     """Close *client* with the first close method it exposes."""
     for name in CLOSE_METHODS:
@@ -155,6 +173,8 @@ class _Entry:
     client: Any
     created_at: float
     last_used: float
+    client_context: ClientContext | None = None
+    context_fingerprint: str = ""
 
 
 class SessionMCPClients:
@@ -162,7 +182,9 @@ class SessionMCPClients:
 
     Clients are created on first use, reused afterwards, and closed when they
     are evicted, closed explicitly, swept for idleness, or when the pool is
-    shut down.
+    shut down.  A session's client is also recreated when the client-supplied
+    context (cwd/env/interpreter) changes, so a tool server follows the
+    frontend that is currently driving the chat.
     """
 
     def __init__(
@@ -178,7 +200,9 @@ class SessionMCPClients:
 
         Args:
             client_factory: Coroutine function creating the client for a
-                session id.  It is called only when no pooled client exists.
+                session id and its optional :class:`ClientContext`.  It is
+                called only when no pooled client exists or the context
+                changed.
             max_sessions: Cap on pooled clients.  Defaults to
                 ``KLEA_MCP_MAX_SESSIONS``, else :data:`DEFAULT_MAX_SESSIONS`.
             idle_ttl: Seconds a client may go unused before
@@ -232,15 +256,22 @@ class SessionMCPClients:
 
     # -- lookup -----------------------------------------------------------
 
-    async def get(self, session_id: str) -> Any:
+    async def get(
+        self, session_id: str, client_context: ClientContext | None = None
+    ) -> Any:
         """Return the client for *session_id*, creating it on first use.
 
         Idle clients are swept before the lookup.  A hit is marked the most
         recently used one; a miss creates the client, which may evict (and
-        close) the least recently used client before returning.
+        close) the least recently used client before returning.  When the
+        supplied *client_context* differs from the one a pooled client was
+        created with, the old client is closed and a new one is created so a
+        chat's tool server follows the current frontend.
 
         Args:
             session_id: The session whose client is wanted.
+            client_context: Optional client-supplied environment (cwd,
+                interpreter, env) for the bundled server.
 
         Returns:
             The client for *session_id*.
@@ -249,32 +280,40 @@ class SessionMCPClients:
             Exception: Whatever *client_factory* raises; nothing is pooled
                 when creation fails.
         """
+        fingerprint = client_context_fingerprint(client_context)
         async with self._lock:
             await self._sweep_idle_locked()
             now = self._clock()
             entry = self._entries.get(session_id)
             if entry is not None:
-                entry.last_used = now
-                self._entries.move_to_end(session_id)
-                logger.debug(
-                    "mcp session pool: reuse session_id=%s %s",
-                    session_id,
-                    _diagnostics(entry.client),
-                )
-                return entry.client
+                if entry.context_fingerprint == fingerprint:
+                    entry.last_used = now
+                    self._entries.move_to_end(session_id)
+                    logger.debug(
+                        "mcp session pool: reuse session_id=%s %s %s",
+                        session_id,
+                        _diagnostics(entry.client),
+                        _context_diagnostics(entry.client_context),
+                    )
+                    return entry.client
+                self._entries.pop(session_id, None)
+                await self._close_entry(entry, reason="context change")
 
-            client = await self._factory(session_id)
+            client = await self._factory(session_id, client_context)
             entry = _Entry(
                 session_id=session_id,
                 client=client,
                 created_at=now,
                 last_used=now,
+                client_context=client_context,
+                context_fingerprint=fingerprint,
             )
             self._entries[session_id] = entry
             logger.info(
-                "mcp session pool: create session_id=%s %s",
+                "mcp session pool: create session_id=%s %s %s",
                 session_id,
                 _diagnostics(client),
+                _context_diagnostics(client_context),
             )
             await self._evict_overflow_locked()
             return client
@@ -356,6 +395,7 @@ class SessionMCPClients:
     async def _close_entry(self, entry: _Entry, *, reason: str) -> None:
         """Close *entry*'s client within ``close_timeout``, logging the result."""
         diagnostics = _diagnostics(entry.client)
+        context = _context_diagnostics(entry.client_context)
         try:
             await asyncio.wait_for(
                 _close_client(entry.client),
@@ -363,24 +403,27 @@ class SessionMCPClients:
             )
         except TimeoutError:
             logger.warning(
-                "mcp session pool: %s: close timed out after %ss session_id=%s %s",
+                "mcp session pool: %s: close timed out after %ss session_id=%s %s %s",
                 reason,
                 self._close_timeout,
                 entry.session_id,
                 diagnostics,
+                context,
             )
         except Exception:
             # Teardown is best effort: one broken client must not stop the rest.
             logger.exception(
-                "mcp session pool: %s: close failed session_id=%s %s",
+                "mcp session pool: %s: close failed session_id=%s %s %s",
                 reason,
                 entry.session_id,
                 diagnostics,
+                context,
             )
         else:
             logger.info(
-                "mcp session pool: %s: closed session_id=%s %s",
+                "mcp session pool: %s: closed session_id=%s %s %s",
                 reason,
                 entry.session_id,
                 diagnostics,
+                context,
             )

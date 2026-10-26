@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
+from klea_utils.client_context import ClientContext
 from klea_utils.mcp.session_pool import (
     DEFAULT_CLOSE_TIMEOUT,
     DEFAULT_IDLE_TTL,
@@ -96,10 +97,14 @@ class CreatedClients:
     def __init__(self, client_cls: type[FakeClient] = FakeClient) -> None:
         self.client_cls = client_cls
         self.clients: list[FakeClient] = []
+        self.contexts: list[ClientContext | None] = []
 
-    async def factory(self, session_id: str) -> FakeClient:
+    async def factory(
+        self, session_id: str, client_context: ClientContext | None = None
+    ) -> FakeClient:
         client = self.client_cls(session_id)
         self.clients.append(client)
+        self.contexts.append(client_context)
         return client
 
     def client(self, session_id: str) -> FakeClient:
@@ -110,7 +115,7 @@ class CreatedClients:
         raise AssertionError(f"no client was created for {session_id!r}")
 
 
-async def _unused_factory(session_id: str) -> FakeClient:
+async def _unused_factory(session_id: str, client_context=None) -> FakeClient:
     """Fail loudly if a pool creates a client it should never need."""
     raise AssertionError(f"unexpected client creation for {session_id!r}")
 
@@ -168,11 +173,56 @@ async def test_get_moves_a_reused_session_to_the_recent_end() -> None:
     assert pool.session_ids() == ["b", "a"]
 
 
+async def test_same_client_context_reuses_the_client() -> None:
+    """A context with the same fingerprint keeps the pooled client."""
+    created = CreatedClients()
+    pool = make_pool(created)
+    context = ClientContext(cwd="/tmp/a", env={"A": "1"})
+
+    first = await pool.get("s", context)
+    again = await pool.get("s", ClientContext(cwd="/tmp/a", env={"A": "1"}))
+
+    assert first is again
+    assert len(created.clients) == 1
+    assert created.contexts == [context]
+
+
+async def test_changed_client_context_recreates_the_client() -> None:
+    """A different context closes the old client and creates a new one."""
+    created = CreatedClients()
+    pool = make_pool(created)
+
+    first = await pool.get("s", ClientContext(cwd="/tmp/a"))
+    second = await pool.get("s", ClientContext(cwd="/tmp/b"))
+
+    assert first is not second
+    assert first.closed is True
+    assert len(created.clients) == 2
+    assert len(pool) == 1
+    assert created.contexts == [
+        ClientContext(cwd="/tmp/a"),
+        ClientContext(cwd="/tmp/b"),
+    ]
+
+
+async def test_removing_client_context_recreates_the_client() -> None:
+    """Dropping the context also spawns a fresh client."""
+    created = CreatedClients()
+    pool = make_pool(created)
+
+    first = await pool.get("s", ClientContext(cwd="/tmp/a"))
+    second = await pool.get("s")
+
+    assert first is not second
+    assert first.closed is True
+    assert created.contexts == [ClientContext(cwd="/tmp/a"), None]
+
+
 async def test_a_failed_creation_is_not_pooled() -> None:
     """A factory error leaves the pool empty, so a retry can create anew."""
     attempts: list[str] = []
 
-    async def factory(session_id: str) -> FakeClient:
+    async def factory(session_id: str, client_context=None) -> FakeClient:
         attempts.append(session_id)
         if len(attempts) == 1:
             raise RuntimeError("spawn failed")
@@ -196,7 +246,7 @@ async def test_concurrent_get_creates_a_single_client() -> None:
     """Two simultaneous lookups serialise, so only one child is started."""
     started: list[str] = []
 
-    async def factory(session_id: str) -> FakeClient:
+    async def factory(session_id: str, client_context=None) -> FakeClient:
         started.append(session_id)
         await asyncio.sleep(0)
         return FakeClient(session_id)
@@ -351,7 +401,7 @@ async def test_close_falls_back_to_a_synchronous_method(client_cls) -> None:
     """A client without ``aclose`` is closed via ``close`` or ``stop``."""
     client = client_cls()
 
-    async def factory(session_id: str) -> FakeClient:
+    async def factory(session_id: str, client_context=None) -> FakeClient:
         return client
 
     pool = SessionMCPClients(factory, max_sessions=1, idle_ttl=0.0, close_timeout=5.0)
@@ -393,7 +443,7 @@ async def test_aclose_all_closes_the_rest_when_one_close_fails() -> None:
     failing = _FailingClient("bad")
     healthy = FakeClient("good")
 
-    async def factory(session_id: str) -> FakeClient:
+    async def factory(session_id: str, client_context=None) -> FakeClient:
         return {"bad": failing, "good": healthy}[session_id]
 
     pool = SessionMCPClients(factory, max_sessions=2, idle_ttl=0.0, close_timeout=5.0)
@@ -411,7 +461,7 @@ async def test_aclose_all_is_bounded_by_the_close_timeout() -> None:
     """A child that never acknowledges shutdown cannot hang the teardown."""
     hanging = _HangingClient("slow")
 
-    async def factory(session_id: str) -> FakeClient:
+    async def factory(session_id: str, client_context=None) -> FakeClient:
         return hanging
 
     pool = SessionMCPClients(factory, max_sessions=1, idle_ttl=0.0, close_timeout=0.05)

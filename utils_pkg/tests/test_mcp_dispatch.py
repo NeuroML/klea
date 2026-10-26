@@ -13,6 +13,7 @@ import logging
 import os
 
 from fastmcp.client.client import CallToolResult
+from klea_utils.client_context import ClientContext
 from klea_utils.mcp.dispatch import (
     DEFAULT_TOOL_CALL_TIMEOUT_SECONDS,
     TOOL_CALL_TIMEOUT_ENV_VAR,
@@ -57,9 +58,13 @@ class FakeSessionPool:
     def __init__(self, client: FakeMCPClient):
         self.client = client
         self.requested: list[str] = []
+        self.contexts: list[ClientContext | None] = []
 
-    async def get(self, session_id: str) -> FakeMCPClient:
+    async def get(
+        self, session_id: str, client_context: ClientContext | None = None
+    ) -> FakeMCPClient:
         self.requested.append(session_id)
+        self.contexts.append(client_context)
         return self.client
 
 
@@ -78,8 +83,28 @@ async def test_dispatch_uses_pooled_session_client():
 
     assert [r.is_error for r in results] == [False]
     assert pool.requested == ["thread-1"]
+    assert pool.contexts == [None]
     assert pooled.calls == [("a", {"x": 1})]
     assert shared.calls == []
+
+
+async def test_dispatch_forwards_client_context_to_pool():
+    """The client context is forwarded with the session id."""
+    shared = FakeMCPClient()
+    pooled = FakeMCPClient()
+    pool = FakeSessionPool(pooled)
+    context = ClientContext(cwd="/tmp/project", env={"A": "1"})
+
+    await dispatch_tool_calls(
+        shared,
+        [("a", {"x": 1})],
+        session_id="thread-1",
+        mcp_session_pool=pool,
+        client_context=context,
+    )
+
+    assert pool.contexts == [context]
+    assert pooled.calls == [("a", {"x": 1})]
 
 
 async def test_dispatch_calls_all_tools_in_order():

@@ -33,6 +33,7 @@ from mcp.types import Tool
 from platformdirs import PlatformDirs
 from pydantic import BaseModel, ConfigDict, Field, create_model
 
+from klea_utils.client_context import ClientContext
 from klea_utils.graph.context import KleaRunContext
 from klea_utils.llm import LLMModel, missing_required_roles, resolve_user_agent
 from klea_utils.mcp import spawn
@@ -409,18 +410,45 @@ class BaseLangGraph(ABC):
         if self.mcp_client is None:
             self.logger.warning("No MCP server configured.")
 
-    def new_mcp_client(self) -> Client | None:
+    def new_mcp_client(
+        self, client_context: ClientContext | None = None
+    ) -> Client | None:
         """Return a new MCP client over the configured servers.
 
         The returned client owns its own connections and server subprocesses;
-        it is used to give each chat session an isolated MCP session.  Returns
-        ``None`` when no MCP server is configured, matching
-        :meth:`_create_mcp_client`.
+        it is used to give each chat session an isolated MCP session.  When
+        *client_context* is given, only the ``bundled`` server entry is
+        rebuilt with that cwd/env/interpreter; external MCP servers keep
+        their configured invocation.  Returns ``None`` when no MCP server is
+        configured, matching :meth:`_create_mcp_client`.
+
+        :param client_context: Optional client-supplied environment for the
+            bundled tools server.
+        :returns: A new MCP client, or ``None`` when nothing is configured.
         """
         if not self.mcp_config or not self.mcp_config.mcpServers:
             return None
-        self.logger.debug(f"{self.mcp_config = }")
-        return Client(self.mcp_config)
+        if client_context is None or (
+            client_context.cwd is None
+            and client_context.interpreter is None
+            and not client_context.env
+        ):
+            self.logger.debug(f"{self.mcp_config = }")
+            return Client(self.mcp_config)
+
+        servers: dict[str, Any] = dict(self.mcp_config.mcpServers)
+        if "bundled" in servers:
+            bundled = self._bundled_server_config(client_context=client_context)
+            if bundled is not None:
+                servers["bundled"] = bundled
+        self.logger.debug(
+            "Creating MCP client with client context: cwd=%s interpreter=%s "
+            "env_keys=%d",
+            client_context.cwd,
+            client_context.interpreter,
+            len(client_context.env),
+        )
+        return Client(MCPConfig(mcpServers=servers))
 
     async def _get_mcp_tools(self) -> None:
         """Get MCP tools."""
@@ -755,7 +783,9 @@ class BaseLangGraph(ABC):
                 result[provider] = dict(role_configs[role])
         return result
 
-    def _bundled_server_config(self) -> dict[str, Any] | None:
+    def _bundled_server_config(
+        self, client_context: ClientContext | None = None
+    ) -> dict[str, Any] | None:
         """Build the bundled tools server config entry from the app config.
 
         Reads ``app_config.general.bundled_tools`` and returns ``None`` when
@@ -770,11 +800,14 @@ class BaseLangGraph(ABC):
 
         The spawn mapping itself is built by
         :func:`klea_utils.mcp.spawn.bundled_server_config`, so the bundled
-        tools server is described in exactly one place.  ``env``, ``cwd`` and
-        ``interpreter`` are left unset, which keeps the previous behaviour:
-        the inherited environment is used and the server runs with the
-        interpreter running this process.
+        tools server is described in exactly one place.  Without
+        *client_context* the ``env``, ``cwd`` and ``interpreter`` are left
+        unset, which keeps the previous behaviour: the inherited environment
+        is used and the server runs with the interpreter running this
+        process.  With a context, only the fields it sets are forwarded.
 
+        :param client_context: Optional client-supplied environment for the
+            bundled tools server.
         :returns: Dict-form stdio server config, or ``None`` when disabled.
         """
         general = getattr(self.app_config, "general", None)
@@ -788,12 +821,15 @@ class BaseLangGraph(ABC):
         # before.
         include_tags = list(bundled.include_tags) if bundled.include_tags else None
         exclude_tags = list(bundled.exclude_tags) if bundled.exclude_tags else None
+        # An explicitly empty env is treated as "unset" so a cwd/interpreter
+        # override alone keeps the inherited environment unchanged.
+        env = client_context.env if client_context and client_context.env else None
         config: dict[str, Any] = spawn.bundled_server_config(
             include_tags=include_tags,
             exclude_tags=exclude_tags,
-            env=None,
-            cwd=None,
-            interpreter=None,
+            env=env,
+            cwd=client_context.cwd if client_context else None,
+            interpreter=client_context.interpreter if client_context else None,
         )
         self.logger.debug(f"Bundled tools server config: {config}")
         return config

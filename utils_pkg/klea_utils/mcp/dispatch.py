@@ -18,6 +18,7 @@ from typing import Any, cast
 from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
 
+from klea_utils.client_context import ClientContext
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, AccessLevel, check_tool_access
 from klea_utils.mcp.path_detect import (
     PathRequest,
@@ -237,6 +238,7 @@ async def dispatch_tool_calls(
     permission_resolver: PermissionResolver | None = None,
     session_id: str | None = None,
     mcp_session_pool: Any | None = None,
+    client_context: ClientContext | None = None,
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
@@ -291,12 +293,17 @@ async def dispatch_tool_calls(
         round is not run.
     :param session_id: Chat-thread identifier used to select a pooled MCP
         client for this dispatch.  When given together with *mcp_session_pool*
-        the per-session client from ``mcp_session_pool.get(session_id)`` is
-        used instead of *mcp_client*, so concurrent chats do not share one MCP
-        session.  ``None`` (the default) keeps the shared *mcp_client*, which
-        is what tests and non-pooled callers use.
+        the per-session client from
+        ``mcp_session_pool.get(session_id, client_context)`` is used instead
+        of *mcp_client*, so concurrent chats do not share one MCP session.
+        ``None`` (the default) keeps the shared *mcp_client*, which is what
+        tests and non-pooled callers use.
     :param mcp_session_pool: Optional session pool exposing
-        ``get(session_id)``.  Ignored when *session_id* is ``None``.
+        ``get(session_id, client_context)``.  Ignored when *session_id* is
+        ``None``.
+    :param client_context: Optional client-supplied environment forwarded to
+        the per-session pooled client.  Ignored without a pool/session id;
+        the shared *mcp_client* always uses its own spawn configuration.
     :returns: One :class:`CallToolResult` per input call, in input order.
     """
     calls = [_as_tool_call(call) for call in tool_calls]
@@ -425,7 +432,7 @@ async def dispatch_tool_calls(
         # pool is given (tests and non-pooled callers).
         client = mcp_client
         if session_id is not None and mcp_session_pool is not None:
-            client = await mcp_session_pool.get(session_id)
+            client = await mcp_session_pool.get(session_id, client_context)
         async with client:
             # Dispatch concurrently, but run calls that target the same
             # resource sequentially in call order (ADR-0041): two writes to one

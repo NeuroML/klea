@@ -29,6 +29,7 @@ from klea_utils.backend_lock import (
     _release_backend_lock,
     _restore_lock_signal_handlers,
 )
+from klea_utils.client_context import ClientContext
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.mcp.session_pool import SessionMCPClients
 from klea_utils.paths import init_dir
@@ -73,13 +74,17 @@ def make_app(
 
         graph = graph_factory()
 
-        async def _new_session_client(session_id: str):
+        async def _new_session_client(
+            session_id: str, client_context: ClientContext | None = None
+        ):
             """Create an isolated MCP client for one chat session.
 
             The factory is lazy: ``graph.mcp_config`` is only resolved when a
             session first dispatches a tool, which is after ``graph.setup()``.
+            The client context carries the frontend's cwd/env/interpreter, and
+            is applied only to the bundled tools server.
             """
-            client = graph.new_mcp_client()
+            client = graph.new_mcp_client(client_context)
             if client is None:
                 raise RuntimeError(
                     "Cannot create a per-session MCP client: no MCP servers "

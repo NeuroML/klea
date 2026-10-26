@@ -14,6 +14,7 @@ import sys
 from typing import override
 
 from fastmcp.mcp_config import StdioMCPServer, TransformingStdioMCPServer
+from klea_utils.client_context import ClientContext
 from klea_utils.graph.base import BaseLangGraph
 from klea_utils.mcp.server.config import BundledToolsConfig
 from pydantic import BaseModel, Field
@@ -87,6 +88,67 @@ def test_enabled_with_filters_carries_tag_lists():
     assert entry is not None
     assert set(entry["include_tags"]) == {"local", "files"}
     assert set(entry["exclude_tags"]) == {"code"}
+
+
+def test_bundled_entry_uses_client_context(tmp_path):
+    graph = _BundledGraph()
+    context = ClientContext(
+        cwd=str(tmp_path),
+        interpreter=sys.executable,
+        env={"VIRTUAL_ENV": "/tmp/client-venv"},
+    )
+
+    entry = graph._bundled_server_config(client_context=context)
+
+    assert entry is not None
+    assert entry["cwd"] == str(tmp_path)
+    assert entry["command"] == sys.executable
+    assert entry["env"]["VIRTUAL_ENV"] == "/tmp/client-venv"
+
+
+def test_bundled_entry_without_context_keeps_inherited_env():
+    graph = _BundledGraph()
+    entry = graph._bundled_server_config(client_context=None)
+    assert entry is not None
+    assert "env" not in entry
+    assert "cwd" not in entry
+
+
+def test_new_mcp_client_rebuilds_only_bundled_server(tmp_path):
+    from fastmcp.mcp_config import MCPConfig
+
+    graph = _BundledGraph()
+    bundled = graph._bundled_server_config()
+    assert bundled is not None
+    graph.mcp_config = MCPConfig(
+        mcpServers={
+            "bundled": bundled,
+            "external": {"url": "http://example.com/mcp"},
+        }
+    )
+    context = ClientContext(cwd=str(tmp_path), interpreter=sys.executable)
+
+    client = graph.new_mcp_client(context)
+
+    assert client is not None
+    servers = client.transport.config.mcpServers
+    assert servers["bundled"].cwd == str(tmp_path)
+    assert servers["bundled"].command == sys.executable
+    assert getattr(servers["external"], "url", None) == "http://example.com/mcp"
+
+
+def test_new_mcp_client_without_context_uses_base_config():
+    from fastmcp.mcp_config import MCPConfig
+
+    graph = _BundledGraph()
+    bundled = graph._bundled_server_config()
+    assert bundled is not None
+    graph.mcp_config = MCPConfig(mcpServers={"bundled": bundled})
+
+    client = graph.new_mcp_client()
+
+    assert client is not None
+    assert client.transport.config is graph.mcp_config
 
 
 def test_no_tags_yields_plain_stdio_server():

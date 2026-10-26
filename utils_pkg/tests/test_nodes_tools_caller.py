@@ -9,9 +9,12 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from types import SimpleNamespace
 from typing import Any, Literal, cast
 
 from fastmcp.client.client import CallToolResult
+from klea_utils.client_context import ClientContext
+from klea_utils.graph.context import KleaRunContext
 from klea_utils.mcp.permission_hitl import PathDecision, PermissionResponse
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.nodes.context import ToolCallerContext
@@ -55,6 +58,7 @@ def _make_node(
     tool_infos: dict | None = None,
     post_dispatch=None,
     permission_policy: Literal["deny", "ask"] = "deny",
+    mcp_session_pool=None,
 ) -> ToolsCallerNode:
     return ToolsCallerNode(
         logger=logging.getLogger("test"),
@@ -63,6 +67,7 @@ def _make_node(
         tool_infos=tool_infos,
         post_dispatch=post_dispatch,
         permission_policy=permission_policy,
+        mcp_session_pool=mcp_session_pool,
     )
 
 
@@ -103,6 +108,31 @@ async def test_pre_exec_gates_on_tool_calls_and_client():
         no_client._pre_exec(MiniState(tool_calls=[ToolCallSchema(tool="a")]), ctx)
         is False
     )
+
+
+async def test_forwards_client_context_to_pooled_dispatch(monkeypatch):
+    """The node reads the runtime client context and forwards it to the pool."""
+    client = FakeMCPClient()
+    seen: list[tuple[str, ClientContext | None]] = []
+
+    class Pool:
+        async def get(self, session_id, client_context=None):
+            seen.append((session_id, client_context))
+            return client
+
+    node = _make_node(client=client, mcp_session_pool=Pool())
+    _record_stream(node, [])
+    monkeypatch.setattr(
+        "klea_utils.nodes.tools_caller._current_session_id", lambda: "thread-1"
+    )
+    runtime = SimpleNamespace(
+        context=KleaRunContext(client_context=ClientContext(cwd="/tmp/project"))
+    )
+    monkeypatch.setattr("langgraph.runtime.get_runtime", lambda: runtime)
+
+    await node.execute(MiniState(tool_calls=[ToolCallSchema(tool="a", args={"x": 1})]))
+
+    assert seen == [("thread-1", ClientContext(cwd="/tmp/project"))]
 
 
 async def test_dispatches_and_returns_tool_results():

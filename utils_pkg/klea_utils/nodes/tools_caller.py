@@ -26,6 +26,7 @@ from mcp.types import (
 )
 from pydantic import BaseModel
 
+from klea_utils.client_context import ClientContext, client_context_from_context
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
 from klea_utils.mcp.dispatch import dispatch_tool_calls
 from klea_utils.mcp.path_detect import PathRequest
@@ -151,6 +152,7 @@ class ToolsCallerNode(
                 ).model_dump()
             )
         session_id = self._session_id_for_dispatch(state)
+        client_context = self._client_context_for_dispatch()
         allowed_dirs = [
             str(directory) for directory in (getattr(state, "allowed_dirs", []) or [])
         ]
@@ -173,6 +175,7 @@ class ToolsCallerNode(
             permission_resolver=resolver,
             session_id=session_id,
             mcp_session_pool=self._mcp_session_pool,
+            client_context=client_context,
         )
         self.logger.debug(f"{results =}")
         ctx.tool_results = results
@@ -209,6 +212,21 @@ class ToolsCallerNode(
             return str(session_id)
         thread_id = getattr(state, "thread_id", None)
         return str(thread_id) if thread_id else None
+
+    def _client_context_for_dispatch(self) -> ClientContext | None:
+        """Return the run's client context, or ``None`` outside a graph run.
+
+        The context is carried on the LangGraph runtime context (ADR-0033) and
+        is only present when a frontend supplied one for this run.
+        """
+        try:
+            from langgraph.runtime import get_runtime
+
+            runtime_context = get_runtime().context
+        except Exception:
+            self.logger.debug("Could not read the runtime context", exc_info=True)
+            return None
+        return client_context_from_context(runtime_context)
 
     def _make_permission_resolver(
         self, ctx: ToolCallerContext
