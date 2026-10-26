@@ -10,6 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 
 import logging
 import unittest
+from typing import Any, cast
 
 from klea_agent.nodes.planner import Planner
 from klea_agent.schemas import (
@@ -80,6 +81,82 @@ class TestPlannerState(unittest.TestCase):
         )
         self.assertNotIn("goal", update)
         self.assertEqual(update["plan"].status, "in_progress")
+
+    @staticmethod
+    def _valid_plan() -> PlannerPlanSchema:
+        return PlannerPlanSchema(
+            step_list=[
+                StepSchema(
+                    step_number=1,
+                    description="read the model file",
+                    suggested_tools=["read_file"],
+                )
+            ]
+        )
+
+    def test_new_goal_emits_a_notice(self):
+        """The user sees the fixed goal and its success criteria."""
+        planner = self._planner()
+        events: list[dict] = []
+        cast(Any, planner).write_custom_stream = events.append
+
+        planner._update_state(
+            PlannerOutput(
+                goal=GoalSchema(goal="g", success_criteria="c"),
+                plan=self._valid_plan(),
+            ),
+            KleaAgentState(query="q"),
+            LLMNodeContext(),
+        )
+
+        notices = [event for event in events if event.get("type") == "notice"]
+        self.assertEqual(len(notices), 1)
+        self.assertEqual(notices[0]["data"]["summary"], "Goal: g\nSuccess criteria: c")
+        self.assertEqual(notices[0]["data"]["details"]["kind"], "progress")
+
+    def test_goal_notice_omits_empty_criteria(self):
+        planner = self._planner()
+        events: list[dict] = []
+        cast(Any, planner).write_custom_stream = events.append
+
+        planner._update_state(
+            PlannerOutput(goal=GoalSchema(goal="g"), plan=self._valid_plan()),
+            KleaAgentState(query="q"),
+            LLMNodeContext(),
+        )
+
+        notices = [event for event in events if event.get("type") == "notice"]
+        self.assertEqual(notices[0]["data"]["summary"], "Goal: g")
+
+    def test_locked_goal_does_not_emit_another_notice(self):
+        planner = self._planner()
+        events: list[dict] = []
+        cast(Any, planner).write_custom_stream = events.append
+        state = KleaAgentState(goal=GoalSchema(goal="fixed"))
+
+        planner._update_state(
+            PlannerOutput(goal=GoalSchema(goal="different"), plan=self._valid_plan()),
+            state,
+            LLMNodeContext(),
+        )
+
+        self.assertEqual([e for e in events if e.get("type") == "notice"], [])
+
+    def test_unplannable_does_not_emit_a_goal_notice(self):
+        planner = self._planner()
+        events: list[dict] = []
+        cast(Any, planner).write_custom_stream = events.append
+
+        planner._update_state(
+            PlannerOutput(
+                goal=GoalSchema(goal="g"),
+                plan=PlannerPlanSchema(status="unplannable"),
+            ),
+            KleaAgentState(query="q"),
+            LLMNodeContext(),
+        )
+
+        self.assertEqual([e for e in events if e.get("type") == "notice"], [])
 
     def test_empty_plan_is_unplannable(self):
         update = self._planner()._update_state(

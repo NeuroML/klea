@@ -665,6 +665,13 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         # Goal lock: write only while unset.
         if not state.goal.goal and result.goal.goal:
             update["goal"] = result.goal
+            goal_text = result.goal.goal.strip()
+            if goal_text:
+                lines = [f"Goal: {goal_text}"]
+                criteria = result.goal.success_criteria.strip()
+                if criteria:
+                    lines.append(f"Success criteria: {criteria}")
+                self._emit_notice("\n".join(lines))
         elif (
             state.goal.goal and result.goal.goal and result.goal.goal != state.goal.goal
         ):

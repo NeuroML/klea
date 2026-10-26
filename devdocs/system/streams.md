@@ -178,12 +178,12 @@ not parsed as markdown.
 
 ### `notice` (chat progress note)
 
-A concise, user-facing progress note derived from an internal node result: an
-evaluator verdict/reason (`Evaluating`) or a reasoning conclusion
-(`Reasoning`).  It is append-only transcript history, not a status snapshot:
-the status pane keeps the current plan/state, while notices explain what
-happened in order.  `chat_core` persists each notice as a `role="notice"`
-transcript row; it is **not** added to graph `messages` or
+A concise, user-facing progress note derived from an internal node result: the
+Planner's newly fixed goal (with its success criteria when set), an evaluator
+verdict/reason (`Evaluating`), or a reasoning conclusion (`Reasoning`).  It is
+append-only transcript history, not a status snapshot: the status pane keeps
+the current plan/state, while notices explain what happened in order.
+`chat_core` persists each notice as a `role="notice"` transcript row; it is **not** added to graph `messages` or
 `messages_internal` (the underlying evaluator/reasoning data is already
 there).  Long content is truncated by the emitting node to keep the chat
 usable.
