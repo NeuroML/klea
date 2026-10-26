@@ -99,6 +99,47 @@ def _windows_start_time(pid: int) -> str | None:
     return str((created.dwHighDateTime << 32) | created.dwLowDateTime)
 
 
+def _posix_start_time(pid: int) -> str | None:
+    """Return a POSIX process's start time as a stable string.
+
+    Linux exposes it as field 22 of ``/proc/<pid>/stat``.  macOS has no
+    procfs, so fall back to ``ps -o lstart=`` (one-second resolution).
+    Both the lock writer and the stale-lock reader use this helper, so the
+    recorded and observed strings compare consistently, and a reused PID
+    still has a different start time.
+    """
+    import subprocess
+    from pathlib import Path
+
+    try:
+        stat = Path(f"/proc/{pid}/stat").read_text(errors="replace")
+    except OSError:
+        stat = None
+    if stat is not None:
+        # ``comm`` (field 2) may contain spaces and parentheses, so only
+        # split after its closing parenthesis.
+        rparen = stat.rfind(")")
+        if rparen >= 0:
+            fields = stat[rparen + 1 :].split()
+            # ``fields[0]`` is field 3 (state); start time is field 22.
+            if len(fields) > 19:
+                return fields[19]
+
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "lstart=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "LC_ALL": "C", "TZ": "UTC"},
+        )
+    except OSError as exc:
+        logger.debug("Could not read start time for pid %s: %s", pid, exc)
+        return None
+    start = " ".join(result.stdout.split())
+    return start or None
+
+
 def _acquire_backend_lock(
     lock_path,
     root,
@@ -147,24 +188,13 @@ def _acquire_backend_lock(
     def _start_time(pid: int) -> str | None:
         """Return the process start time, if it is readable.
 
-        POSIX reads ``/proc/<pid>/stat`` field 22.  Windows uses
-        ``GetProcessTimes`` (creation time), which is stable for the lifetime
-        of a process and changes if the PID is reused.
+        POSIX reads ``/proc/<pid>/stat`` field 22 or falls back to ``ps`` on
+        macOS.  Windows uses ``GetProcessTimes`` (creation time), which is
+        stable for the lifetime of a process and changes if the PID is reused.
         """
         if os.name == "nt":
             return _windows_start_time(pid)
-        try:
-            stat = Path(f"/proc/{pid}/stat").read_text(errors="replace")
-        except OSError:
-            return None
-        # ``comm`` (field 2) may contain spaces and parentheses, so only
-        # split after its closing parenthesis.
-        rparen = stat.rfind(")")
-        if rparen < 0:
-            return None
-        fields = stat[rparen + 1 :].split()
-        # ``fields[0]`` is field 3 (state); start time is field 22.
-        return fields[19] if len(fields) > 19 else None
+        return _posix_start_time(pid)
 
     def _pid_alive(pid: int) -> bool:
         """Return True if *pid* names a running process."""
