@@ -16,6 +16,11 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# Windows byte-range locks deny access to the locked bytes, so the owner
+# record must stay outside the locked range.  Lock one byte well past the
+# small JSON payload instead of byte zero.
+_WINDOWS_LOCK_OFFSET = 1 << 20
+
 
 def _windows_pid_alive(pid: int) -> bool:
     """Return whether *pid* names a running Windows process.
@@ -216,7 +221,9 @@ def _acquire_backend_lock(
         if os.name == "nt":
             import msvcrt
 
-            os.lseek(fd, 0, os.SEEK_SET)
+            # Lock past the JSON payload: Windows locks deny reads of the
+            # locked range, and the owner record must stay readable.
+            os.lseek(fd, _WINDOWS_LOCK_OFFSET, os.SEEK_SET)
             msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
             os.lseek(fd, 0, os.SEEK_SET)
             return
