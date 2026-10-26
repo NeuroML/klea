@@ -199,6 +199,59 @@ async def test_streaming_uses_shared_hooks():
     assert events[1]["data"]["summary"] == "inspect-summary"
 
 
+async def test_client_cwd_is_default_project_root(monkeypatch, tmp_path):
+    """With no checkpointed root, the client cwd is the effective root."""
+    root = tmp_path / "client-project"
+    root.mkdir()
+
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"read_file": ToolInfo(checkpaths=["path"])},
+    )
+    _record_stream(node, [])
+    runtime = SimpleNamespace(
+        context=KleaRunContext(client_context=ClientContext(cwd=str(root)))
+    )
+    monkeypatch.setattr("langgraph.runtime.get_runtime", lambda: runtime)
+
+    updates = await node.execute(
+        MiniState(tool_calls=[ToolCallSchema(tool="read_file", args={"path": "a.txt"})])
+    )
+
+    assert updates["tool_results"][0].is_error is False
+    assert client.calls == [("read_file", {"path": str(root / "a.txt")})]
+
+
+async def test_state_project_root_overrides_client_cwd(monkeypatch, tmp_path):
+    """An explicit /cwd root wins over the client cwd."""
+    explicit = tmp_path / "explicit"
+    explicit.mkdir()
+    client_cwd = tmp_path / "client"
+    client_cwd.mkdir()
+
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={"read_file": ToolInfo(checkpaths=["path"])},
+    )
+    _record_stream(node, [])
+    runtime = SimpleNamespace(
+        context=KleaRunContext(client_context=ClientContext(cwd=str(client_cwd)))
+    )
+    monkeypatch.setattr("langgraph.runtime.get_runtime", lambda: runtime)
+
+    updates = await node.execute(
+        MiniState(
+            project_root=str(explicit),
+            tool_calls=[ToolCallSchema(tool="read_file", args={"path": "a.txt"})],
+        )
+    )
+
+    assert updates["tool_results"][0].is_error is False
+    assert client.calls == [("read_file", {"path": str(explicit / "a.txt")})]
+
+
 async def test_denies_path_arg_without_server_call(tmp_path):
     root = tmp_path / "root"
     root.mkdir()

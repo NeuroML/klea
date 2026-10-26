@@ -13,9 +13,11 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 from typing import Any, override
 
+from klea_utils.client_context import client_context_from_context
 from klea_utils.nodes.abstract import AbstractLangGraphNode
 from klea_utils.nodes.context import NodeContext
 from langchain_core.messages import HumanMessage
+from langgraph.runtime import get_runtime
 
 from klea_agent.discovery import refresh_project_files
 from klea_agent.schemas import (
@@ -65,9 +67,11 @@ class InitGraphState(
         file (``AGENTS.md``/``CLAUDE.md``) is upserted, re-read only when it
         changes, so the Planner and answer-composer see current project
         conventions.  The file is read from the session ``project_root`` when
-        one is set (the ``/cwd`` command), else the process working directory.
+        one is set (the ``/cwd`` command), else the current run's client cwd
+        (the TUI's working directory), else the process working directory.
         """
         self._emit_progress()
+        project_root = self._effective_project_root(state)
         return {
             "guard_decision": "safe",
             "message_for_user": "",
@@ -75,9 +79,25 @@ class InitGraphState(
             "route": RouteSchema(),
             "discovery_persistent": refresh_project_files(
                 state.discovery_persistent,
-                project_root=state.project_root or None,
+                project_root=project_root,
             ),
             "discovery_per_step": Discovery(),
             "code": CodeSchema(),
             "messages": [*state.messages, HumanMessage(content=state.query)],
         }
+
+    def _effective_project_root(self, state: KleaAgentState) -> str | None:
+        """Return the discovery root for this run.
+
+        The checkpointed ``project_root`` (``/cwd``) wins.  When unset, the
+        run's client cwd is used without writing it back to state, so a TUI
+        relaunched in another project is followed on the next turn.
+        """
+        if state.project_root:
+            return state.project_root
+        try:
+            runtime_context = get_runtime().context
+        except RuntimeError:
+            return None
+        client_context = client_context_from_context(runtime_context)
+        return client_context.cwd if client_context else None

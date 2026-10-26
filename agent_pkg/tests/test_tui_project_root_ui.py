@@ -15,6 +15,7 @@ from klea_agent.ui.tui.project_root_ui import (
     current_project_root,
     project_root_status_extra,
 )
+from klea_utils.client_context import ClientContext
 from klea_utils.ui.state import chats, ensure_chat
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 from klea_utils.ui.tui.context import TuiContext
@@ -39,6 +40,22 @@ def test_current_project_root_reads_context():
     assert current_project_root(ctx) == ""
     ensure_chat("u", "c")["context"] = {"project_root": "/work/proj"}
     assert current_project_root(ctx) == "/work/proj"
+
+
+def test_client_cwd_is_the_fallback_project_root():
+    """When /cwd is empty, the TUI's client cwd is shown."""
+    ctx = TuiContext(
+        server_url="http://x",
+        user_id="u",
+        chat_id="c",
+        client_context=ClientContext(cwd="/work/client"),
+    )
+    assert current_project_root(ctx) == "/work/client"
+    widget = project_root_status_extra(ctx)
+    assert str(widget.render()) == "Project root: /work/client"
+
+    ensure_chat("u", "c")["context"] = {"project_root": "/work/explicit"}
+    assert current_project_root(ctx) == "/work/explicit"
 
 
 def test_extra_renders_default_and_value():

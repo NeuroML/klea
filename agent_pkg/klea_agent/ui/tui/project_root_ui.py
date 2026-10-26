@@ -28,11 +28,18 @@ logger = logging.getLogger(__name__)
 def current_project_root(ctx: TuiContext) -> str:
     """Return the chat's effective project root, or ``""`` when unset.
 
+    The checkpointed ``project_root`` (``/cwd``) wins.  When it is empty, the
+    TUI's own client cwd is the effective root for the run.
+
     :param ctx: The shared TUI context.
-    :returns: The checkpointed ``project_root`` from the chat's context.
+    :returns: The effective project root.
     """
     chat = chats.get(f"{ctx.user_id}:{ctx.chat_id}") or {}
-    return str((chat.get("context") or {}).get("project_root", "") or "").strip()
+    root = str((chat.get("context") or {}).get("project_root", "") or "").strip()
+    if root:
+        return root
+    client_context = ctx.client_context
+    return str(client_context.cwd or "").strip() if client_context else ""
 
 
 def project_root_status_extra(ctx: TuiContext) -> SelectableStatic:

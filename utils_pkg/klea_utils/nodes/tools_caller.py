@@ -153,6 +153,12 @@ class ToolsCallerNode(
             )
         session_id = self._session_id_for_dispatch(state)
         client_context = self._client_context_for_dispatch()
+        # The checkpointed project root wins; otherwise the client's cwd is
+        # the effective root for this run.  The fallback is deliberately not
+        # written back to state, so a TUI relaunched elsewhere is followed.
+        project_root = getattr(state, "project_root", "") or None
+        if project_root is None and client_context is not None:
+            project_root = client_context.cwd
         allowed_dirs = [
             str(directory) for directory in (getattr(state, "allowed_dirs", []) or [])
         ]
@@ -168,7 +174,7 @@ class ToolsCallerNode(
             self._mcp_client,
             tool_calls,
             self._tool_infos,
-            getattr(state, "project_root", "") or None,
+            project_root,
             access_level=access_level,
             allowed_dirs=allowed_dirs,
             allowed_files=allowed_files,

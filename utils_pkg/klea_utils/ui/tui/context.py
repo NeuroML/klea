@@ -20,6 +20,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
+from klea_utils.client_context import ClientContext
+
 
 @dataclass
 class TuiContext:
@@ -42,6 +44,9 @@ class TuiContext:
     :param resume_chat_id: Chat to resume on launch (``--resume <chat_id>``).
     :param continue_session: Resume the most recently updated chat on launch
         (``--continue``).
+    :param client_context: Client-supplied environment (cwd/env/interpreter)
+        sent with each query for the session's bundled tool server.  ``None``
+        disables forwarding (e.g. a remote server).
     """
 
     server_url: str
@@ -52,6 +57,7 @@ class TuiContext:
     chat_id: str = ""
     resume_chat_id: str = ""
     continue_session: bool = False
+    client_context: ClientContext | None = None
 
     #: App-defined status-panel renderers, called with this context in
     #: registration order (e.g. mode/access selectors).  Empty for RAG.

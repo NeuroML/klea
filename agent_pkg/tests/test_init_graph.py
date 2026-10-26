@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 import logging
+from types import SimpleNamespace
 
 import pytest
 from klea_agent.nodes.init_graph import InitGraphState
@@ -22,6 +23,8 @@ from klea_agent.schemas import (
     RouteSchema,
     StepSchema,
 )
+from klea_utils.client_context import ClientContext
+from klea_utils.graph.context import KleaRunContext
 from klea_utils.mcp.schemas import ToolCallSchema
 from langchain_core.messages import AIMessage, HumanMessage
 
@@ -121,4 +124,32 @@ async def test_init_reads_discovery_from_project_root(monkeypatch, tmp_path):
     assert update["discovery_persistent"].items[0].source == "AGENTS.md"
     assert update["discovery_persistent"].items[0].content == "root rules"
     # project_root is session-scoped: never reset per turn.
+    assert "project_root" not in update
+
+
+@pytest.mark.asyncio
+async def test_init_reads_discovery_from_client_cwd(monkeypatch, tmp_path):
+    """With no checkpointed root, discovery uses the run's client cwd.
+
+    The fallback must not be written back to state (it is runtime context,
+    not session state).
+    """
+    cwd = tmp_path / "cwd"
+    cwd.mkdir()
+    root = tmp_path / "client-project"
+    root.mkdir()
+    (root / "AGENTS.md").write_text("client rules")
+    monkeypatch.chdir(cwd)
+
+    node = InitGraphState(logging.getLogger("test"), "Initializing")
+    monkeypatch.setattr(node, "write_custom_stream", lambda ev: None)
+    runtime = SimpleNamespace(
+        context=KleaRunContext(client_context=ClientContext(cwd=str(root)))
+    )
+    monkeypatch.setattr("klea_agent.nodes.init_graph.get_runtime", lambda: runtime)
+
+    update = await node.execute(KleaAgentState(query="q"))
+
+    assert update["discovery_persistent"].items[0].source == "AGENTS.md"
+    assert update["discovery_persistent"].items[0].content == "client rules"
     assert "project_root" not in update
