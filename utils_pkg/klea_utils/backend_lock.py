@@ -17,6 +17,88 @@ import os
 logger = logging.getLogger(__name__)
 
 
+def _windows_pid_alive(pid: int) -> bool:
+    """Return whether *pid* names a running Windows process.
+
+    Uses ``OpenProcess`` + ``WaitForSingleObject`` rather than ``os.kill``:
+    on Windows ``os.kill`` with a non-control signal terminates the target
+    process, so it is not a safe liveness probe.
+    """
+    import ctypes
+    from ctypes import wintypes
+
+    synchronize = 0x00100000
+    wait_timeout = 0x102
+    error_access_denied = 5
+    kernel32 = getattr(ctypes, "WinDLL")(  # noqa: B009
+        "kernel32", use_last_error=True
+    )
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel32.WaitForSingleObject.restype = wintypes.DWORD
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    handle = kernel32.OpenProcess(synchronize, False, pid)
+    if not handle:
+        # Access denied means the process exists but belongs to another user.
+        return getattr(ctypes, "get_last_error")() == error_access_denied  # noqa: B009
+    try:
+        return kernel32.WaitForSingleObject(handle, 0) == wait_timeout
+    finally:
+        kernel32.CloseHandle(handle)
+
+
+def _windows_start_time(pid: int) -> str | None:
+    """Return a Windows process's creation time as a stable string."""
+    import ctypes
+    from ctypes import wintypes
+
+    class FileTime(ctypes.Structure):
+        _fields_ = [
+            ("dwLowDateTime", wintypes.DWORD),
+            ("dwHighDateTime", wintypes.DWORD),
+        ]
+
+    process_query_limited_information = 0x1000
+    kernel32 = getattr(ctypes, "WinDLL")(  # noqa: B009
+        "kernel32", use_last_error=True
+    )
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.GetProcessTimes.argtypes = [
+        wintypes.HANDLE,
+        ctypes.POINTER(FileTime),
+        ctypes.POINTER(FileTime),
+        ctypes.POINTER(FileTime),
+        ctypes.POINTER(FileTime),
+    ]
+    kernel32.GetProcessTimes.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+
+    handle = kernel32.OpenProcess(process_query_limited_information, False, pid)
+    if not handle:
+        return None
+    created = FileTime()
+    exited = FileTime()
+    kernel = FileTime()
+    user = FileTime()
+    try:
+        if not kernel32.GetProcessTimes(
+            handle,
+            ctypes.byref(created),
+            ctypes.byref(exited),
+            ctypes.byref(kernel),
+            ctypes.byref(user),
+        ):
+            return None
+    finally:
+        kernel32.CloseHandle(handle)
+    return str((created.dwHighDateTime << 32) | created.dwLowDateTime)
+
+
 def _acquire_backend_lock(
     lock_path,
     root,
@@ -28,12 +110,14 @@ def _acquire_backend_lock(
     The lockfile is the single source of truth for "which backend owns
     this storage root" (ADR-0023: one backend per storage root).  It is
     created with ``O_CREAT | O_EXCL`` and additionally protected by an
-    exclusive :func:`fcntl.flock`, and records the owning PID, that
-    process' start time (``/proc/<pid>/stat`` field 22), the resolved
-    storage root, the Klea version, the bind address and a timestamp.
+    exclusive OS file lock (``fcntl.flock`` on POSIX,
+    ``msvcrt.locking`` on Windows), and records the owning PID, that
+    process' start time (``/proc/<pid>/stat`` field 22 on POSIX,
+    ``GetProcessTimes`` on Windows), the resolved storage root, the Klea
+    version, the bind address and a timestamp.
 
-    A lockfile whose owner is gone -- the ``flock`` is free and either
-    the PID is dead or its start time no longer matches, i.e. the PID was
+    A lockfile whose owner is gone -- the OS lock is free and either the
+    PID is dead or its start time no longer matches, i.e. the PID was
     recycled -- is *stale* and is reclaimed.  A lockfile that is still
     held makes this function raise :class:`SystemExit` naming the live
     owner.
@@ -43,10 +127,9 @@ def _acquire_backend_lock(
     :param host: Host the backend binds to (recorded for the owner info)
     :param port: Port the backend binds to (recorded for the owner info)
     :returns: The open file descriptor that holds the lock; keep it open
-        for the lifetime of the process so the ``flock`` is not released
+        for the lifetime of the process so the OS lock is not released
     :raises SystemExit: If another live backend already owns *root*
     """
-    import fcntl
     import json
     import time
     from pathlib import Path
@@ -62,7 +145,14 @@ def _acquire_backend_lock(
     root = Path(root)
 
     def _start_time(pid: int) -> str | None:
-        """Return ``/proc/<pid>/stat`` field 22 (start time), if readable."""
+        """Return the process start time, if it is readable.
+
+        POSIX reads ``/proc/<pid>/stat`` field 22.  Windows uses
+        ``GetProcessTimes`` (creation time), which is stable for the lifetime
+        of a process and changes if the PID is reused.
+        """
+        if os.name == "nt":
+            return _windows_start_time(pid)
         try:
             stat = Path(f"/proc/{pid}/stat").read_text(errors="replace")
         except OSError:
@@ -80,6 +170,8 @@ def _acquire_backend_lock(
         """Return True if *pid* names a running process."""
         if not isinstance(pid, int) or pid <= 0:
             return False
+        if os.name == "nt":
+            return _windows_pid_alive(pid)
         try:
             os.kill(pid, 0)
         except ProcessLookupError:
@@ -88,6 +180,19 @@ def _acquire_backend_lock(
             # Owned by another user, but it exists.
             return True
         return True
+
+    def _lock_fd(fd: int) -> None:
+        """Take a non-blocking exclusive OS lock on *fd*."""
+        if os.name == "nt":
+            import msvcrt
+
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            os.lseek(fd, 0, os.SEEK_SET)
+            return
+        import fcntl
+
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def _read_owner() -> dict:
         """Return the recorded owner info, or an empty dict."""
@@ -120,7 +225,7 @@ def _acquire_backend_lock(
 
         if fd is not None:
             try:
-                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                _lock_fd(fd)
             except OSError as exc:
                 os.close(fd)
                 raise SystemExit(
@@ -139,9 +244,9 @@ def _acquire_backend_lock(
             ) from exc
 
         try:
-            fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            _lock_fd(probe)
         except OSError:
-            # Another process holds the flock: a live backend.
+            # Another process holds the OS lock: a live backend.
             os.close(probe)
             raise SystemExit(
                 "Another Klea backend already owns this storage root.\n"
@@ -151,7 +256,7 @@ def _acquire_backend_lock(
                 "--data-dir / KLEA_AGENT_HOME."
             ) from None
 
-        # The flock is free, so no process is using the lockfile.  Only
+        # The OS lock is free, so no process is using the lockfile.  Only
         # treat it as live if the recorded process is genuinely the same
         # process (PID *and* start time), which guards against PID reuse.
         owner = _read_owner()
@@ -175,6 +280,20 @@ def _acquire_backend_lock(
             lock_path,
             _owner_summary(owner),
         )
+        if os.name == "nt":
+            # Windows does not normally allow deleting a file while a handle
+            # is open.  Drop the probe lock, then remove the stale marker; the
+            # outer O_EXCL loop retries creation.
+            os.close(probe)
+            try:
+                os.unlink(lock_path)
+            except FileNotFoundError:
+                pass
+            except OSError as exc:
+                logger.warning(
+                    "Could not remove stale backend lock %s: %s", lock_path, exc
+                )
+            continue
         try:
             os.unlink(lock_path)
         except FileNotFoundError:
@@ -213,14 +332,14 @@ def _acquire_backend_lock(
 def _release_backend_lock(fd, lock_path) -> None:
     """Release the backend lock and remove its lockfile.
 
-    Closing *fd* drops the ``flock`` and unlinking the file removes the
+    Closing *fd* drops the OS lock and unlinking the file removes the
     on-disk marker, so the next backend to start finds no owner at all.
 
     This is the *normal* shutdown path only (the lifespan shutdown plus the
     SIGINT/SIGTERM handlers).  Crash recovery does not depend on it: a
     backend that is SIGKILLed, segfaults or loses power never gets here,
-    and the next start treats the leftover lockfile as *stale* -- the
-    ``flock`` died with the process and either the recorded PID is dead or
+    and the next start treats the leftover lockfile as *stale* -- the OS
+    lock died with the process and either the recorded PID is dead or
     its start time no longer matches, so PID reuse cannot fool it -- and
     reclaims it (see :func:`_acquire_backend_lock`).
 

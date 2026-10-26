@@ -62,6 +62,18 @@ def test_concurrent_start_second_exits(tmp_path):
         _release_backend_lock(fd, lock_path)
 
 
+def test_lock_records_a_process_start_time(tmp_path):
+    """The owner record carries a non-empty start time on every platform."""
+    lock_path = tmp_path / "backend.lock"
+    fd = _acquire_backend_lock(lock_path, tmp_path, "127.0.0.1", 8000)
+    try:
+        owner = json.loads(lock_path.read_text(encoding="utf-8"))
+        assert owner["starttime"] is not None
+        assert owner["starttime"] != ""
+    finally:
+        _release_backend_lock(fd, lock_path)
+
+
 def test_stale_pid_reclaim(tmp_path):
     """A lockfile left by a dead process is reclaimed."""
     lock_path = tmp_path / "backend.lock"
