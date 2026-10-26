@@ -18,8 +18,13 @@ Project environment
 The TUI tells the backend which project to run the session's bundled tools in.
 By default it sends its current directory, its full environment, and the Python
 interpreter running the client, so the tools use the same project variables and
-virtual environment as your terminal.  The settings are sent with every query,
-so a retry or a resumed run uses the current terminal's environment.
+virtual environment as your terminal.  The interpreter defaults to the Python
+that launched the TUI: if you start ``klea`` from a global install while a
+project venv is active, pass ``--interpreter path/to/.venv/bin/python`` (or
+install/run Klea in that venv) so the bundled server itself uses the venv.  The
+path is used as-is, so a venv's ``bin/python`` symlink works.  The settings are
+sent with every query, so a retry or a resumed run uses the current terminal's
+environment.
 
 .. list-table::
    :header-rows: 1

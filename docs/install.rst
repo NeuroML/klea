@@ -483,7 +483,8 @@ Each file stores only a pointer to server-side state::
     {"user_id": "...", "dark_mode": false, "chat_id": "..."}
 
 The chat history itself lives in the server's session store
-(``~/.local/share/<app>/sessions.db``) and is not duplicated here.
+(``~/.local/share/<app>/sessions.db``), or under ``KLEA_AGENT_HOME`` for the
+agent backend, and is not duplicated here.
 
 These files are **never deleted automatically**.  NiceGUI prunes stale
 sessions from its in-memory store but leaves the JSON files on disk, so

@@ -108,9 +108,11 @@ Notes:
 
 ## RAG lifecycle (`klea_rag`)
 
-RAG's `ChatPayload` is `{query, chat_id, user_id}` only.  It has no
-`resume` / `interrupt_response` / `interrupt_cancel` fields and no
-`context_snapshot` override, so no `context` event is produced.  The one
+RAG's `ChatPayload` is `{query, chat_id, user_id}` plus an optional
+`client_context`, which carries the TUI's cwd/env/interpreter for the bundled
+tool server (ADR-0055).  It has no `resume` /
+`interrupt_response` / `interrupt_cancel` fields and no `context_snapshot`
+override, so no `context` event is produced.  The one
 terminal is `complete`; failures surface as `error`.  Graph node labels match
 `rag_pkg/example-configs/rag-lang-graph.mmd`.
 
@@ -174,10 +176,11 @@ Notes:
 ## Agent lifecycle (`klea_agent`)
 
 The agent's `ChatPayload` adds `resume`, `interrupt_response`, `interrupt_id`,
-`interrupt_cancel`, `mode`, and `access_level`.  It overrides
-`context_snapshot` (`klea_agent.py`), so the graph emits a `context` event
-carrying mode, requested mode, assurance, note, and effective access level
-(ADR-0032).  It has HITL nodes (`Awaiting review`, `Awaiting input`) whose
+`interrupt_cancel`, `mode`, `access_level`, and the optional
+`client_context` (cwd/env/interpreter for the bundled tool server;
+ADR-0055).  It overrides `context_snapshot` (`klea_agent.py`), so the graph
+emits a `context` event carrying mode, requested mode, assurance, note, and
+effective access level (ADR-0032).  It has HITL nodes (`Awaiting review`, `Awaiting input`) whose
 pause is delivered as an `interrupt` event (ADR-0046), and the shared
 `ToolsCallerNode` pauses with `kind="permission"` when a tool call would touch
 a path outside the project root (or a sensitive file inside it; ADR-0007).
@@ -195,8 +198,8 @@ sequenceDiagram
     participant LLM as LLM provider
     participant MCP as MCP servers
 
-    UI->>API: POST /query/stream {query, mode, access_level}
-    API->>Core: stream_response(extra_state={mode, access_level})
+    UI->>API: POST /query/stream {query, mode, access_level, client_context?}
+    API->>Core: stream_response(extra_state={mode, access_level}, client_context)
     Core-->>UI: 200 text/event-stream
     Core->>Graph: astream_events
     Graph-->>Core: Initializing
@@ -291,7 +294,7 @@ Notes:
 
 | Aspect | `klea_rag` | `klea_agent` |
 |--------|------------|--------------|
-| Chat payload | `query`, `chat_id`, `user_id` | adds `resume`, `interrupt_response`, `interrupt_id`, `interrupt_cancel`, `mode`, `access_level` |
+| Chat payload | `query`, `chat_id`, `user_id`, optional `client_context` | adds `resume`, `interrupt_response`, `interrupt_id`, `interrupt_cancel`, `mode`, `access_level`, optional `client_context` |
 | Initial state extras | none | `mode.requested`, optional `access_level` |
 | `context` event | none (base `context_snapshot` returns `None`) | emits mode / assurance / note / access_level |
 | HITL `interrupt` / resume | none | `Awaiting input`, `Awaiting review`, `permission` (path approval) |

@@ -178,7 +178,10 @@ Klea logs to a rotating per-app file (1 MB x 5 backups) at
 ``~/.local/share/<app>/<app>.log`` (Linux), ``~/Library/Application
 Support/<app>/<app>.log`` (macOS), or ``%LOCALAPPDATA%\<app>\<app>.log``
 (Windows) -- see :ref:`logging` in :doc:`install` for the full per-CLI
-table.  The console shows ``INFO``; the file captures ``DEBUG``.
+table.  The console shows ``INFO``; the file captures ``DEBUG``.  For the
+agent backend, setting ``KLEA_AGENT_HOME`` relocates its log (and the
+checkpoint/session databases and lockfile) to that directory; the TUI and web
+client logs stay in their own per-app directories.
 
 NiceGUI web clients keep ``storage-user-*.json`` small session
 pointers in the per-app user-data ``nicegui/`` directory
