@@ -244,7 +244,9 @@ def _iter_sources() -> dict[str, str]:
                 continue
             if "tests" in path.relative_to(package_dir).parts:
                 continue
-            sources[str(path.relative_to(_REPO_ROOT))] = path.read_text()
+            sources[str(path.relative_to(_REPO_ROOT))] = path.read_text(
+                encoding="utf-8"
+            )
     return sources
 
 

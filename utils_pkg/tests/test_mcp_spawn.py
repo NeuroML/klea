@@ -141,7 +141,7 @@ def test_explicit_cwd_accepts_a_path_like() -> None:
     """Path objects are normalised to ``str`` for the spawn layer."""
     cwd = bundled_server_config(cwd=Path("/srv/klea"))["cwd"]
 
-    assert cwd == "/srv/klea"
+    assert cwd == str(Path("/srv/klea"))
     assert isinstance(cwd, str)
 
 
@@ -157,7 +157,7 @@ def test_explicit_interpreter_accepts_a_path_like() -> None:
     """A ``Path`` interpreter is normalised to ``str``."""
     command = bundled_server_config(interpreter=Path("/opt/py/bin/python"))["command"]
 
-    assert command == "/opt/py/bin/python"
+    assert command == str(Path("/opt/py/bin/python"))
     assert isinstance(command, str)
 
 

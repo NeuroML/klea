@@ -26,7 +26,7 @@ APP_PACKAGES = ("klea_agent", "klea_rag", "neuroml_mcp")
 
 def _imported_modules(path: Path) -> set[str]:
     """Return the module names imported by *path* (import + from-import)."""
-    tree = ast.parse(path.read_text(), filename=str(path))
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     modules: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):

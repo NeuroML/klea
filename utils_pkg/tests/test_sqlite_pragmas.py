@@ -42,12 +42,12 @@ for i in range(count):
 conn.close()
 """
 
-# A writer that commits a first batch and then SIGKILLs itself mid-write, so
-# the process never closes the connection and the write-ahead log is left
-# behind on disk -- exactly what a crash (SIGKILL, segfault, power loss) does.
+# A writer that commits a first batch and then exits abruptly, so the process
+# never closes the connection and the write-ahead log is left behind on disk --
+# exactly what a crash (SIGKILL, segfault, power loss) does.  ``os._exit`` is
+# used instead of SIGKILL so the simulation also works on Windows.
 _CRASH_SCRIPT = """
 import os
-import signal
 import sqlite3
 import sys
 
@@ -61,7 +61,7 @@ for i in range(1000):
     conn.execute("INSERT INTO crash VALUES (?)", (i,))
     conn.commit()
     if i == 50:
-        os.kill(os.getpid(), signal.SIGKILL)
+        os._exit(1)
 """
 
 
@@ -190,7 +190,7 @@ def test_crash_recovery(tmp_path):
         capture_output=True,
         timeout=120,
     )
-    # The child was SIGKILLed, so it never closed its connection.
+    # The child exited abruptly, so it never closed its connection.
     assert proc.returncode != 0
     assert db_path.exists()
     # The write-ahead log is left behind, which is what makes recovery needed.

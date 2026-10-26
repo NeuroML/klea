@@ -108,6 +108,10 @@ def test_validate_preserves_interpreter_symlink(tmp_path):
     assert context.interpreter == str(link)
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="Windows does not expose POSIX executable bits",
+)
 def test_validate_rejects_non_executable_interpreter(tmp_path):
     interpreter = tmp_path / "python"
     interpreter.write_text("#!/bin/sh\n")

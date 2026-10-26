@@ -139,7 +139,9 @@ def _iter_node_sources() -> dict[str, str]:
         for path in sorted(node_dir.rglob("*.py")):
             if "__pycache__" in path.parts:
                 continue
-            sources[str(path.relative_to(_REPO_ROOT))] = path.read_text()
+            sources[str(path.relative_to(_REPO_ROOT))] = path.read_text(
+                encoding="utf-8"
+            )
     return sources
 
 
