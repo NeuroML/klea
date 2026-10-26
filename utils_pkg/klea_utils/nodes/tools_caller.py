@@ -41,6 +41,7 @@ from klea_utils.nodes.abstract import (
     NodeStreamData,
     NodeStreamEvent,
 )
+from klea_utils.nodes.base import _current_session_id
 from klea_utils.nodes.context import ToolCallerContext
 
 
@@ -198,22 +199,14 @@ class ToolsCallerNode(
     def _session_id_for_dispatch(self, state: BaseModel) -> str | None:
         """Return the chat-thread id used to select a pooled MCP client.
 
-        Prefers the node's ``_current_session_id`` hook (the LangGraph value for
-        the running thread) and falls back to a ``thread_id`` attribute on the
-        state.  ``None`` means "no per-session client", so the dispatcher keeps
-        the shared MCP client.
+        Uses the current LangGraph ``thread_id`` (the stable per-conversation
+        session id) and falls back to a ``thread_id`` attribute on the state.
+        ``None`` means "no per-session client", so the dispatcher keeps the
+        shared MCP client.
         """
-        getter = getattr(self, "_current_session_id", None)
-        if callable(getter):
-            try:
-                session_id = getter()
-            except Exception:
-                self.logger.debug(
-                    "Could not read the current session id", exc_info=True
-                )
-            else:
-                if session_id:
-                    return str(session_id)
+        session_id = _current_session_id()
+        if session_id:
+            return str(session_id)
         thread_id = getattr(state, "thread_id", None)
         return str(thread_id) if thread_id else None
 

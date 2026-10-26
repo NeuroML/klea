@@ -425,7 +425,7 @@ async def dispatch_tool_calls(
         # pool is given (tests and non-pooled callers).
         client = mcp_client
         if session_id is not None and mcp_session_pool is not None:
-            client = mcp_session_pool.get(session_id)
+            client = await mcp_session_pool.get(session_id)
         async with client:
             # Dispatch concurrently, but run calls that target the same
             # resource sequentially in call order (ADR-0041): two writes to one

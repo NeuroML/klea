@@ -709,6 +709,7 @@ class KleaAgent(BaseLangGraph):
             # project root (ADR-0007 update 2026-10-08).  RAG keeps the default
             # deny policy (it has no HITL interrupt path).
             permission_policy="ask",
+            mcp_session_pool=self.mcp_session_pool,
         )
         self._triage_router_node = TriageRouter(logger=self.logger, label="Triaging")
         self._op_evaluator_node = OperationalEvaluator(

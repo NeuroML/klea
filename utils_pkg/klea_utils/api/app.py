@@ -72,14 +72,32 @@ def make_app(
             set_process_title(proc_title)
 
         graph = graph_factory()
+
+        async def _new_session_client(session_id: str):
+            """Create an isolated MCP client for one chat session.
+
+            The factory is lazy: ``graph.mcp_config`` is only resolved when a
+            session first dispatches a tool, which is after ``graph.setup()``.
+            """
+            client = graph.new_mcp_client()
+            if client is None:
+                raise RuntimeError(
+                    "Cannot create a per-session MCP client: no MCP servers "
+                    "are configured"
+                )
+            logger.debug("Created MCP client for session %s", session_id)
+            return client
+
+        # Per-session MCP clients.  Built before ``graph.setup()`` so the
+        # graph can hand the pool to its tool-caller node: each chat session
+        # gets its own MCP client (and therefore its own server processes)
+        # instead of sharing one connection across chats.
+        app.state.mcp_session_pool = SessionMCPClients(_new_session_client)
+        graph.mcp_session_pool = app.state.mcp_session_pool
+
         await graph.setup()
         app.state.graph = graph
         logger.info("Graph setup complete (%s)", type(graph).__name__)
-
-        # Per-session MCP clients, built from the graph's bundled server
-        # configuration.  Kept on app.state so routers can reuse one client
-        # per chat session instead of reconnecting on every request.
-        app.state.mcp_session_pool = SessionMCPClients(graph.bundled_server_config)
 
         # Take the per-root backend lock before any shared database is opened,
         # so a second backend fails fast instead of contending for the SQLite

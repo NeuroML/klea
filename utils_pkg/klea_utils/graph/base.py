@@ -269,6 +269,10 @@ class BaseLangGraph(ABC):
 
         self.mcp_config: MCPConfig | None = None
         self.mcp_client: Client | None = None
+        #: Optional per-session MCP client pool (set by the API app before
+        #: ``setup()`` so the tool-caller node can use it).  ``None`` keeps
+        #: the shared ``mcp_client`` for non-server callers and tests.
+        self.mcp_session_pool: Any | None = None
         self.mcp_tools: list[Tool] | None = None
 
         self.retriever_config: RetrieverConfig | None = None
@@ -401,12 +405,22 @@ class BaseLangGraph(ABC):
         Reads the MCP server configurations from ``self.app_env.mcp_config_file``
         and creates a ``fastmcp.Client`` instance.
         """
-        if self.mcp_config and self.mcp_config.mcpServers:
-            self.logger.debug(f"{self.mcp_config = }")
-            self.mcp_client = Client(self.mcp_config)
-        else:
+        self.mcp_client = self.new_mcp_client()
+        if self.mcp_client is None:
             self.logger.warning("No MCP server configured.")
-            self.mcp_client = None
+
+    def new_mcp_client(self) -> Client | None:
+        """Return a new MCP client over the configured servers.
+
+        The returned client owns its own connections and server subprocesses;
+        it is used to give each chat session an isolated MCP session.  Returns
+        ``None`` when no MCP server is configured, matching
+        :meth:`_create_mcp_client`.
+        """
+        if not self.mcp_config or not self.mcp_config.mcpServers:
+            return None
+        self.logger.debug(f"{self.mcp_config = }")
+        return Client(self.mcp_config)
 
     async def _get_mcp_tools(self) -> None:
         """Get MCP tools."""

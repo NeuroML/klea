@@ -51,6 +51,37 @@ async def test_dispatch_empty_input():
     assert client.calls == []
 
 
+class FakeSessionPool:
+    """Minimal pool fake returning one client per session id."""
+
+    def __init__(self, client: FakeMCPClient):
+        self.client = client
+        self.requested: list[str] = []
+
+    async def get(self, session_id: str) -> FakeMCPClient:
+        self.requested.append(session_id)
+        return self.client
+
+
+async def test_dispatch_uses_pooled_session_client():
+    """A session id + pool selects the pooled client, not the shared one."""
+    shared = FakeMCPClient()
+    pooled = FakeMCPClient()
+    pool = FakeSessionPool(pooled)
+
+    results = await dispatch_tool_calls(
+        shared,
+        [("a", {"x": 1})],
+        session_id="thread-1",
+        mcp_session_pool=pool,
+    )
+
+    assert [r.is_error for r in results] == [False]
+    assert pool.requested == ["thread-1"]
+    assert pooled.calls == [("a", {"x": 1})]
+    assert shared.calls == []
+
+
 async def test_dispatch_calls_all_tools_in_order():
     client = FakeMCPClient()
     results = await dispatch_tool_calls(

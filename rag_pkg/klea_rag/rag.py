@@ -306,6 +306,7 @@ class RAG(BaseLangGraph):
             label="Running tools",
             mcp_client=self.mcp_client,
             tool_infos=self._tools_by_name(),
+            mcp_session_pool=self.mcp_session_pool,
         )
         self.workflow.add_node(
             self._tools_caller_node.label, self._tools_caller_node.execute
