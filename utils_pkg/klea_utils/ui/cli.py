@@ -95,10 +95,10 @@ def _maybe_spawn_server(
     # Lazy: spawn_server pulls in the klea_utils.api machinery.
     from klea_utils.api.server import (
         configure_profile,
-        is_loopback_host,
         spawn_server,
         split_server_url,
     )
+    from klea_utils.net import is_loopback_host
 
     configure_profile(profile, config_env_var, config_dir, template_writer)
 

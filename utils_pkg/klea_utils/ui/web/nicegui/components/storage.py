@@ -95,8 +95,8 @@ def client_is_loopback() -> bool:
 
     :returns: True when the request client host is loopback.
     """
-    # Lazy: the URL helpers pull in the api.server module.
-    from klea_utils.api.server import is_loopback_host
+    # Lazy: the host helper is only needed when a request context exists.
+    from klea_utils.net import is_loopback_host
 
     request = request_contextvar.get()
     if request is None or request.client is None:

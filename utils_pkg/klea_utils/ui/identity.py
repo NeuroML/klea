@@ -37,8 +37,9 @@ def is_loopback_url(server_url: str) -> bool:
     :param server_url: Base URL of the backend API server.
     :returns: True for ``127.0.0.1`` / ``localhost`` / ``::1``.
     """
-    # Lazy: the URL helpers pull in the api.server module.
-    from klea_utils.api.server import is_loopback_host, split_server_url
+    # Lazy: the URL helper pulls in the api.server module.
+    from klea_utils.api.server import split_server_url
+    from klea_utils.net import is_loopback_host
 
     host, _ = split_server_url(server_url)
     return is_loopback_host(host)

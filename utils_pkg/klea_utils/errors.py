@@ -19,6 +19,14 @@ class PromptTemplateError(Exception):
     pass
 
 
+class ClientContextError(Exception):
+    """A client-supplied runtime context is untrusted or malformed.
+
+    Raised at the API boundary and mapped to a 4xx response; see
+    :mod:`klea_utils.client_context`.
+    """
+
+
 class LLMInvocationErrorCategory(str, Enum):
     """Classification of LLM invocation failures.
 

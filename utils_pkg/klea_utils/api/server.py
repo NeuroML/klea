@@ -23,6 +23,7 @@ from urllib.parse import urlsplit
 import httpx
 import typer
 
+from klea_utils.net import is_loopback_host as _is_loopback_host
 from klea_utils.paths import resolve_app_config_path
 
 logger = logging.getLogger(__name__)
@@ -197,10 +198,13 @@ def split_server_url(url: str, default_port: int = 8005) -> tuple[str, int]:
 def is_loopback_host(host: str) -> bool:
     """Return ``True`` when *host* refers to the local machine.
 
+    Kept for backward compatibility; the implementation lives in
+    :func:`klea_utils.net.is_loopback_host`.
+
     :param host: Hostname from a server URL (e.g. ``"127.0.0.1"``)
     :returns: ``True`` for loopback addresses, ``False`` otherwise
     """
-    return host.lower() in {"127.0.0.1", "localhost", "::1"}
+    return _is_loopback_host(host)
 
 
 @contextmanager
