@@ -16,6 +16,8 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 
+from klea_utils.client_context import ClientContext
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +31,7 @@ def run_agent_tui(
     resume: str = "",
     continue_session: bool = False,
     identity_app_name: str = "",
+    client_context: ClientContext | None = None,
 ) -> None:
     """Launch the agent Textual TUI.
 
@@ -42,6 +45,7 @@ def run_agent_tui(
         (``--continue``).
     :param identity_app_name: Canonical identity key shared with the web
         frontend (``"klea-agent"``).
+    :param client_context: Client environment forwarded with each query.
     """
     # Lazy: Textual (the [tui] extra) and the shared TUI are only needed on
     # launch, so importing the CLI (e.g. for --help) stays light.
@@ -59,6 +63,7 @@ def run_agent_tui(
         resume=resume,
         continue_session=continue_session,
         identity_app_name=identity_app_name,
+        client_context=client_context,
         status_extras=[
             mode_access_status_extra,
             project_root_status_extra,

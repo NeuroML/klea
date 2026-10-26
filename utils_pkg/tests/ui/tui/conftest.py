@@ -93,6 +93,7 @@ class FakeBackend:
                 "interrupt_response": interrupt_response,
                 "interrupt_id": interrupt_id,
                 "interrupt_cancel": interrupt_cancel,
+                "extra": kwargs.get("extra"),
             }
         )
         script = (
@@ -278,6 +279,7 @@ def make_app():
         resume_chat_id: str = "",
         continue_session: bool = False,
         status_extras: list[Any] | None = None,
+        client_context=None,
     ) -> KleaTuiApp:
         return KleaTuiApp(
             TuiContext(
@@ -288,6 +290,7 @@ def make_app():
                 resume_chat_id=resume_chat_id,
                 continue_session=continue_session,
                 status_extras=list(status_extras or []),
+                client_context=client_context,
             )
         )
 

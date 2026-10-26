@@ -9,15 +9,20 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import contextlib
+import io
 import logging
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import typer
+from klea_utils.client_context import ClientContext
 from klea_utils.ui.cli import (
+    _build_client_context,
     _maybe_spawn_server,
+    _parse_env_options,
     _resolve_favicon,
     _run_tui,
     _run_web,
@@ -93,12 +98,40 @@ class TestMakeClientApp(unittest.TestCase):
                 resume="",
                 continue_session=False,
                 identity_app_name="klea-rag",
+                client_cwd=None,
+                client_env=None,
+                client_interpreter=None,
+                no_client_context=False,
                 debug=False,
                 profile=None,
                 config_env_var=None,
                 config_dir=None,
                 template_writer=None,
             )
+
+    def test_tui_routes_client_context_options(self):
+        with mock.patch("klea_utils.ui.cli._run_tui") as run_tui:
+            result = self.runner.invoke(
+                self.app,
+                [
+                    "tui",
+                    "--cwd",
+                    "/tmp",
+                    "--env",
+                    "A=1",
+                    "--env",
+                    "B=2",
+                    "--interpreter",
+                    "/usr/bin/python3",
+                    "--no-client-context",
+                ],
+            )
+            self.assertEqual(result.exit_code, 0)
+            kwargs = run_tui.call_args.kwargs
+            self.assertEqual(kwargs["client_cwd"], "/tmp")
+            self.assertEqual(kwargs["client_env"], ["A=1", "B=2"])
+            self.assertEqual(kwargs["client_interpreter"], "/usr/bin/python3")
+            self.assertTrue(kwargs["no_client_context"])
 
     def test_web_routing(self):
         with mock.patch("klea_utils.ui.cli._run_web") as run_web:
@@ -434,6 +467,7 @@ class TestRunTui(unittest.TestCase):
                 app_module="klea_rag.api.main:app",
                 tui_entry="klea_utils.ui.tui.app:run_tui",
                 identity_app_name="klea-rag",
+                no_client_context=True,
             )
         # The TUI is full-screen: the spawned server output must be discarded.
         self.assertIs(spawn.call_args.kwargs["quiet"], True)
@@ -446,7 +480,54 @@ class TestRunTui(unittest.TestCase):
             resume="",
             continue_session=False,
             identity_app_name="klea-rag",
+            client_context=None,
         )
+
+
+class TestClientContextOptions(unittest.TestCase):
+    """The TUI client-context builder and --env parsing."""
+
+    def test_build_context_defaults_to_process_environment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            context = _build_client_context("http://127.0.0.1:8005", cwd=tmp)
+            self.assertIsInstance(context, ClientContext)
+            assert context is not None
+            self.assertEqual(context.cwd, str(Path(tmp).resolve()))
+            self.assertEqual(context.interpreter, str(Path(sys.executable).resolve()))
+            self.assertIn("PATH", context.env)
+
+    def test_env_overrides_win(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            context = _build_client_context(
+                "http://127.0.0.1:8005",
+                cwd=tmp,
+                env=["KLEA_TEST=one", "PATH=/custom/bin"],
+            )
+            assert context is not None
+            self.assertEqual(context.env["KLEA_TEST"], "one")
+            self.assertEqual(context.env["PATH"], "/custom/bin")
+
+    def test_no_client_context_returns_none(self):
+        self.assertIsNone(_build_client_context("http://127.0.0.1:8005", disabled=True))
+
+    def test_remote_server_returns_none(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.assertIsNone(_build_client_context("http://10.0.0.1:8005"))
+        self.assertIn("only available for a local server", stderr.getvalue())
+
+    def test_invalid_env_option_raises(self):
+        with self.assertRaises(typer.BadParameter):
+            _parse_env_options(["NOEQUALS"])
+
+    def test_invalid_cwd_raises(self):
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            self.assertRaises(typer.BadParameter),
+        ):
+            _build_client_context(
+                "http://127.0.0.1:8005", cwd=str(Path(tmp) / "missing")
+            )
 
 
 if __name__ == "__main__":

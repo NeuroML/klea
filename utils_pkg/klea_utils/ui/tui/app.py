@@ -36,6 +36,7 @@ from textual.screen import Screen
 from textual.widgets import TextArea
 from textual.worker import Worker
 
+from klea_utils.client_context import ClientContext
 from klea_utils.commands.common import (
     CommandRegistry,
     CommandResult,
@@ -791,6 +792,12 @@ class KleaTuiApp(App[None]):
             interrupt_cancel=interrupt_cancel,
         )
 
+    def _client_context_extra(self) -> dict[str, Any] | None:
+        """Return the per-query client context payload, or ``None``."""
+        if self.ctx.client_context is None:
+            return None
+        return {"client_context": self.ctx.client_context.model_dump()}
+
     def copy_to_clipboard(self, text: str) -> None:
         """Copy *text* to the app clipboard and, if possible, the OS clipboard.
 
@@ -1152,6 +1159,7 @@ class KleaTuiApp(App[None]):
                 self.ctx.chat_id,
                 self.ctx.server_url,
                 user_id=self.ctx.user_id,
+                extra=self._client_context_extra(),
                 resume=resume,
                 interrupt_response=interrupt_response,
                 interrupt_id=interrupt_id,
@@ -1241,6 +1249,7 @@ def run_tui(
     resume: str = "",
     continue_session: bool = False,
     identity_app_name: str = "",
+    client_context: ClientContext | None = None,
     status_extras: Iterable[Callable[[TuiContext], Any]] | None = None,
 ) -> None:
     """Launch the shared Klea Textual TUI.
@@ -1261,6 +1270,9 @@ def run_tui(
     :param identity_app_name: Canonical identity key for the persisted
         ``user_id`` file, shared with the web frontend of the same app (e.g.
         ``"klea-agent"``); falls back to *app_name* when empty.
+    :param client_context: Client environment (cwd/env/interpreter) forwarded
+        with each query for the session's bundled tool server.  ``None``
+        disables forwarding.
     :param status_extras: App-defined status-panel renderers, in order.
     """
     # Lazy: coolname mints the interim chat id; identity resolves the user id.
@@ -1297,6 +1309,7 @@ def run_tui(
         chat_id=coolname.generate_slug(2),
         resume_chat_id=resume,
         continue_session=continue_session,
+        client_context=client_context,
         status_extras=list(status_extras or []),
     )
     logger.info("Launching Klea TUI (app=%s, url=%s, title=%s)", app_name, url, title)

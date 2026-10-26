@@ -19,6 +19,7 @@ import asyncio
 from typing import Any
 
 import pytest
+from klea_utils.client_context import ClientContext
 from klea_utils.ui.state import chats
 from klea_utils.ui.tui.components.commands import CommandSuggestions
 from klea_utils.ui.tui.components.confirm import ExitConfirm
@@ -101,6 +102,50 @@ async def test_streaming_renders_progress_and_complete(fake_backend, make_app):
     assert texts[0] == "hi"
     assert "the answer" in texts
     assert _chat()["turn_status"]["kind"] == "idle"
+
+
+async def test_query_sends_client_context(fake_backend, make_app):
+    """The active client context rides every query as a request extra."""
+    client_context = ClientContext(cwd="/tmp/project", env={"A": "1"})
+    app = make_app(client_context=client_context)
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["extra"] == {
+        "client_context": client_context.model_dump()
+    }
+
+
+async def test_retry_resends_client_context(fake_backend, make_app):
+    """A retry/resume also carries the current client context."""
+    client_context = ClientContext(cwd="/tmp/project")
+    fake_backend.scripts = [
+        [{"type": "error", "message": "boom", "resumable": True}],
+        [{"type": "complete", "message_for_user": "recovered"}],
+    ]
+    app = make_app(client_context=client_context)
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        await pilot.press("ctrl+r")
+        await _settle(pilot, app)
+
+    assert [call["extra"] for call in fake_backend.calls] == [
+        {"client_context": client_context.model_dump()},
+        {"client_context": client_context.model_dump()},
+    ]
+    assert fake_backend.calls[-1]["resume"] is True
+
+
+async def test_no_client_context_sends_no_extra(fake_backend, make_app):
+    """Without a context the request carries no extra fields."""
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["extra"] is None
 
 
 @pytest.mark.parametrize("stop_key", ["ctrl+g"])

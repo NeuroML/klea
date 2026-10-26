@@ -9,8 +9,10 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import importlib.util
+import os
 import shlex
 import subprocess
+import sys
 from collections.abc import Callable
 from contextlib import chdir, nullcontext
 from pathlib import Path
@@ -117,6 +119,77 @@ def _maybe_spawn_server(
     return spawn_server(app_module, host=host, port=port, quiet=quiet)
 
 
+def _parse_env_options(values: list[str]) -> dict[str, str]:
+    """Parse repeatable ``--env KEY=VALUE`` options.
+
+    :param values: Raw option values.
+    :returns: The overrides, later values winning on duplicate keys.
+    :raises typer.BadParameter: When a value is not ``KEY=VALUE``.
+    """
+    overrides: dict[str, str] = {}
+    for raw in values:
+        key, sep, value = raw.partition("=")
+        if not sep or not key:
+            raise typer.BadParameter(f"Invalid --env {raw!r}; expected KEY=VALUE")
+        overrides[key] = value
+    return overrides
+
+
+def _build_client_context(
+    server_url: str,
+    *,
+    cwd: str | None = None,
+    env: list[str] | None = None,
+    interpreter: str | None = None,
+    disabled: bool = False,
+):
+    """Build the TUI's per-query client context, or ``None`` when disabled.
+
+    The whole current environment is forwarded (with ``--env`` overrides on
+    top), so custom project variables are preserved.  Context is only sent to
+    a loopback server: a remote backend runs on another machine and cannot use
+    the client's paths/interpreter.
+
+    :param server_url: Base URL of the backend API server.
+    :param cwd: Working directory override; defaults to the TUI's cwd.
+    :param env: Repeatable ``KEY=VALUE`` overrides.
+    :param interpreter: Python interpreter override; defaults to this process.
+    :param disabled: Skip forwarding entirely.
+    :returns: A :class:`~klea_utils.client_context.ClientContext`, or ``None``.
+    :raises typer.BadParameter: When ``--cwd`` is not a directory or an
+        ``--env`` value is malformed.
+    """
+    if disabled:
+        return None
+    # Lazy: keep the TUI/web --help path light.
+    from klea_utils.api.server import split_server_url
+    from klea_utils.client_context import ClientContext
+    from klea_utils.net import is_loopback_host
+
+    host, _ = split_server_url(server_url)
+    if not is_loopback_host(host):
+        typer.echo(
+            "Note: client environment isolation is only available for a local "
+            "server; not forwarding cwd/env/interpreter.",
+            err=True,
+        )
+        return None
+
+    cwd_path = Path(cwd).expanduser() if cwd else Path(os.getcwd())
+    if not cwd_path.is_dir():
+        raise typer.BadParameter(f"--cwd is not a directory: {cwd_path}")
+    interpreter_path = (
+        Path(interpreter).expanduser() if interpreter else Path(sys.executable)
+    )
+    env_values = dict(os.environ)
+    env_values.update(_parse_env_options(env or []))
+    return ClientContext(
+        cwd=str(cwd_path.resolve()),
+        env=env_values,
+        interpreter=str(interpreter_path.resolve()),
+    )
+
+
 def _run_tui(
     server_url: str,
     title: str,
@@ -128,6 +201,10 @@ def _run_tui(
     resume: str = "",
     continue_session: bool = False,
     identity_app_name: str = "",
+    client_cwd: str | None = None,
+    client_env: list[str] | None = None,
+    client_interpreter: str | None = None,
+    no_client_context: bool = False,
     debug: bool = False,
     profile: str | None = None,
     config_env_var: str | None = None,
@@ -158,6 +235,13 @@ def _run_tui(
         from klea_utils.plogging import enable_debug_logging
 
         enable_debug_logging()
+    client_context = _build_client_context(
+        server_url,
+        cwd=client_cwd,
+        env=client_env,
+        interpreter=client_interpreter,
+        disabled=no_client_context,
+    )
     with _maybe_spawn_server(
         server_url,
         app_module,
@@ -186,6 +270,7 @@ def _run_tui(
             resume=resume,
             continue_session=continue_session,
             identity_app_name=identity_app_name,
+            client_context=client_context,
         )
 
 
@@ -376,6 +461,12 @@ def make_client_app(
         "directory or the config dir. Use 'template' to scaffold a "
         "new config and exit.",
     )
+    client_env_option = typer.Option(
+        None,
+        "--env",
+        help="Environment override for the bundled tools, KEY=VALUE "
+        "(repeatable). The whole current environment is forwarded by default.",
+    )
 
     @app.callback(invoke_without_command=True)
     def main(ctx: typer.Context):
@@ -414,6 +505,24 @@ def make_client_app(
             "--continue",
             help="Resume the most recently updated chat session.",
         ),
+        client_cwd: str = typer.Option(
+            "",
+            "--cwd",
+            help="Working directory for the session's bundled tools "
+            "(default: the current directory).",
+        ),
+        client_env: list[str] | None = client_env_option,
+        client_interpreter: str = typer.Option(
+            "",
+            "--interpreter",
+            help="Python interpreter for the bundled tools "
+            "(default: the interpreter running this client).",
+        ),
+        no_client_context: bool = typer.Option(
+            False,
+            "--no-client-context",
+            help="Do not forward cwd/env/interpreter to the server.",
+        ),
         debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
         profile: str = profile_option,
     ):
@@ -428,6 +537,10 @@ def make_client_app(
             resume=resume,
             continue_session=continue_,
             identity_app_name=identity_app_name,
+            client_cwd=client_cwd or None,
+            client_env=client_env,
+            client_interpreter=client_interpreter or None,
+            no_client_context=no_client_context,
             debug=debug,
             profile=profile,
             config_env_var=config_env_var,
