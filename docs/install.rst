@@ -371,6 +371,11 @@ The environment variables Klea reads, and what they control:
        endpoint rate-limits nearly every request without a key.
    * - ``KLEA_LOG_LEVEL``
      - Console log level (level name or number; see `Logging`_).
+   * - ``KLEA_AGENT_HOME``
+     - Relocate the agent backend's storage root (checkpoints, session
+       database, lockfile, and logs).  Defaults to the platform user-data
+       directory for ``klea-agent``.  This is an isolation override, not a
+       concurrency mechanism (ADR-0023).
    * - ``KLEA_TOOL_CALL_TIMEOUT``
      - Per-call wall-clock backstop for tool calls, in seconds (default
        ``900``; ``0`` disables).
@@ -440,6 +445,11 @@ it.  The rotating file always captures DEBUG.  Each CLI uses its own
      - ``klea-agent-web/klea-agent-web.log``
    * - ``nml-mcp`` (MCP server)
      - ``nml_mcp/nml_mcp.log``
+
+The agent server's storage root (checkpoints, session database, lockfile and
+logs) can be relocated with ``KLEA_AGENT_HOME``; the TUI and web client logs
+stay in their own per-app data directories.  This is an isolation override,
+not a way to run two backends against one home (ADR-0023).
 
 The ``tui`` subcommand is the full terminal interface (see
 :doc:`components/tui`); bare ``klea`` / ``klea-rag`` launches it.  The web

@@ -143,14 +143,19 @@ LOG_DIR_NAME = "logs"
 def resolve_storage_root(
     data_dir: str | Path | None = None,
     env: Mapping[str, str] | None = None,
+    *,
+    default_root: str | Path | None = None,
+    env_name: str | None = STORAGE_ROOT_ENV,
 ) -> Path:
     """Return the effective storage root for a Klea backend.
 
     Precedence, highest first:
 
     #. *data_dir* -- the ``--data-dir`` flag, i.e. an explicit choice
-    #. :data:`STORAGE_ROOT_ENV` (``KLEA_AGENT_HOME``) -- an opt-in relocation
-       of the data *and* runtime artifacts
+    #. *env_name* (default :data:`STORAGE_ROOT_ENV`, ``KLEA_AGENT_HOME``) --
+       an opt-in relocation of the data *and* runtime artifacts
+    #. *default_root* -- the graph's existing per-app data directory, when
+       given
     #. the platform user data directory for :data:`STORAGE_APP_NAME`
        (``~/.local/share/klea_agent`` on Linux)
 
@@ -159,6 +164,9 @@ def resolve_storage_root(
 
     :param data_dir: Value of the ``--data-dir`` flag, if given
     :param env: Environment mapping to read (defaults to :data:`os.environ`)
+    :param default_root: Per-app data directory used when no relocation is
+        configured; preserves a graph's existing default layout
+    :param env_name: Environment variable to read, or ``None`` to ignore it
     :returns: The resolved storage root, absolute and expanded
     """
     environ = os.environ if env is None else env
@@ -166,10 +174,13 @@ def resolve_storage_root(
         root = Path(data_dir).expanduser()
         source = "the --data-dir flag"
     else:
-        from_env = environ.get(STORAGE_ROOT_ENV)
+        from_env = environ.get(env_name) if env_name else None
         if from_env:
             root = Path(from_env).expanduser()
-            source = f"{STORAGE_ROOT_ENV}={from_env!r}"
+            source = f"{env_name}={from_env!r}"
+        elif default_root is not None:
+            root = Path(default_root).expanduser()
+            source = "the default user data dir"
         else:
             root = get_data_dir(PlatformDirs(STORAGE_APP_NAME))
             source = f"the default user data dir for {STORAGE_APP_NAME!r}"

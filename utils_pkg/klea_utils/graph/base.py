@@ -45,7 +45,12 @@ from klea_utils.mcp.access import (
 )
 from klea_utils.mcp.privilege import warn_if_root
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
-from klea_utils.paths import get_config_dir, init_dir, resolve_app_config_path
+from klea_utils.paths import (
+    get_config_dir,
+    init_dir,
+    resolve_app_config_path,
+    resolve_storage_root,
+)
 from klea_utils.stores.config import RetrieverConfig
 from klea_utils.stores.retrieval.bm25 import BM25RetrieverManager
 from klea_utils.stores.retrieval.vs import VSRetriever
@@ -215,6 +220,11 @@ class BaseLangGraph(ABC):
     #: for ``platformdirs`` data/cache directories.
     graph_name: str = "BaseLangGraph"
 
+    #: Environment variable that relocates this graph's storage root (data
+    #: and runtime artifacts).  ``None`` disables relocation; the agent sets
+    #: this to ``KLEA_AGENT_HOME``.
+    storage_root_env: str | None = None
+
     def __init__(
         self,
         logging_level: int = logging.INFO,
@@ -230,12 +240,12 @@ class BaseLangGraph(ABC):
             enabled regardless of *logging_level*; otherwise *logging_level*
             is used (default ``INFO``).
         :param checkpoint: Checkpointer mode  ---  ``"inmemory"`` (volatile, default),
-            ``"sqlite"`` (persistent via ``self.paths.user_data_dir``),
+            ``"sqlite"`` (persistent via ``self.storage_root``),
             or ``"none"`` (no checkpointing).  When set to ``"none"``, nodes
             that need conversation history receive ``memory=False``.
         :param log_file: When ``True`` (default), configure the process-wide
             root logger with a rotating file handler writing to
-            ``{self.paths.user_data_dir}/{self.graph_name}.log``, alongside
+            ``{self.storage_root}/{self.graph_name}.log``, alongside
             the checkpoints and session database.  Set to ``False`` in
             short-lived processes (e.g. tests) to avoid writing log files.
         """
@@ -254,6 +264,14 @@ class BaseLangGraph(ABC):
         self.checkpointer: None | AsyncSqliteSaver | InMemorySaver = None
 
         self.paths = PlatformDirs(self.graph_name.lower())
+        #: Storage root for the checkpoint/session databases, lockfile, and
+        #: logs.  Defaults to this graph's per-app data directory; a graph
+        #: may opt into an environment-variable override via
+        #: :attr:`storage_root_env`.
+        self.storage_root = resolve_storage_root(
+            default_root=self.paths.user_data_dir,
+            env_name=type(self).storage_root_env,
+        )
         #: Klea identity sent to OpenAI-compatible endpoints (User-Agent).
         self.user_agent = resolve_user_agent(self.graph_name)
 
@@ -301,7 +319,7 @@ class BaseLangGraph(ABC):
         setup_root_logger(
             self.graph_name,
             stderr_level=stderr_level,
-            log_dir=self.paths.user_data_dir if log_file else None,
+            log_dir=self.storage_root if log_file else None,
         )
         self.logger = logging.getLogger(self.graph_name)
 
@@ -924,7 +942,7 @@ class BaseLangGraph(ABC):
             # ``checkpoints.db-shm`` (shared-memory index) sidecar files next
             # to the database.  They are live state for the running backend
             # and must not be removed while it is running.
-            db_path = init_dir(self.paths.user_data_dir) / "checkpoints.db"
+            db_path = init_dir(self.storage_root) / "checkpoints.db"
             self.logger.debug("Opening sqlite checkpointer at %s", db_path)
             conn = await aiosqlite.connect(str(db_path))
             # One-off migration: a database created before WAL was enabled

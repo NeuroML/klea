@@ -28,6 +28,7 @@ from klea_utils.nodes.guard_router import GuardRouterNode
 from klea_utils.nodes.summarise_memory import SummariseMemoryNode
 from klea_utils.nodes.tools_caller import ToolsCallerNode
 from klea_utils.nodes.tools_picker import MAX_BATCH_STEPS
+from klea_utils.paths import STORAGE_ROOT_ENV
 from klea_utils.tools import tool_call_errors
 from langgraph.graph import END, START, StateGraph
 from mcp.types import TextContent
@@ -89,6 +90,8 @@ class KleaAgent(BaseLangGraph):
     #: RAG, no JSON config is required.
     config_file_default = ""
     graph_name = "klea-agent"
+    #: ``KLEA_AGENT_HOME`` relocates the agent backend's storage root.
+    storage_root_env = STORAGE_ROOT_ENV
 
     #: Cap on accumulated tool results kept per step (bounds checkpoint and
     #: prompt size); only the most recent results are retained.

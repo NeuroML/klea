@@ -9,6 +9,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast, override
 from unittest import mock
@@ -1255,6 +1256,52 @@ class TestExportGraphPng:
         self._graph(calls)._export_graph_png(str(tmp_path / "g.png"))
 
         assert calls == []
+
+
+class TestStorageRoot:
+    """BaseLangGraph resolves its storage root and honours the opt-in env var."""
+
+    def _make(self, env_name: str | None):
+        class StorageGraph(BaseLangGraph):
+            env_class: type[BaseModel] = BaseModel
+            config_class: type[BaseModel] = BaseModel
+            env_var: str = "STORAGE_ENV_FILE"
+            env_file_default: str = "storage.env"
+            graph_name: str = "StorageToyGraph"
+            storage_root_env = env_name
+
+            def _configure_resources(self):
+                pass
+
+            def _setup_models(self):
+                pass
+
+            async def _create_graph(self):
+                pass
+
+        return StorageGraph(log_file=False, checkpoint="none")
+
+    def test_default_matches_per_app_data_dir(self, monkeypatch):
+        monkeypatch.delenv("KLEA_TEST_HOME", raising=False)
+        from platformdirs import PlatformDirs
+
+        graph = self._make("KLEA_TEST_HOME")
+        expected = Path(PlatformDirs("storagetoygraph").user_data_dir).resolve()
+        assert graph.storage_root == expected
+
+    def test_env_var_relocates_storage_root(self, monkeypatch, tmp_path):
+        home = tmp_path / "agent-home"
+        monkeypatch.setenv("KLEA_TEST_HOME", str(home))
+        graph = self._make("KLEA_TEST_HOME")
+        assert graph.storage_root == home.resolve()
+
+    def test_no_env_name_ignores_the_variable(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("KLEA_AGENT_HOME", str(tmp_path / "agent-home"))
+        from platformdirs import PlatformDirs
+
+        graph = self._make(None)
+        expected = Path(PlatformDirs("storagetoygraph").user_data_dir).resolve()
+        assert graph.storage_root == expected
 
 
 if __name__ == "__main__":

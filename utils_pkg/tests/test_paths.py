@@ -46,6 +46,29 @@ def test_resolve_storage_root_default(monkeypatch):
     assert str(result)
 
 
+def test_resolve_storage_root_default_root(monkeypatch, tmp_path):
+    """A graph's existing data dir is the default when no override is set."""
+    monkeypatch.delenv("KLEA_AGENT_HOME", raising=False)
+    result = resolve_storage_root(default_root=tmp_path / "default")
+    assert result == (tmp_path / "default").resolve()
+
+
+def test_resolve_storage_root_custom_env_name(monkeypatch, tmp_path):
+    """A caller can select a different relocation variable."""
+    monkeypatch.setenv("KLEA_TEST_HOME", str(tmp_path / "testhome"))
+    result = resolve_storage_root(
+        default_root=tmp_path / "default", env_name="KLEA_TEST_HOME"
+    )
+    assert result == (tmp_path / "testhome").resolve()
+
+
+def test_resolve_storage_root_none_env_name(monkeypatch, tmp_path):
+    """env_name=None ignores KLEA_AGENT_HOME."""
+    monkeypatch.setenv("KLEA_AGENT_HOME", str(tmp_path / "envhome"))
+    result = resolve_storage_root(default_root=tmp_path / "default", env_name=None)
+    assert result == (tmp_path / "default").resolve()
+
+
 def test_checkpoint_db_path(tmp_path):
     """The checkpoint DB lives under the storage root."""
     root = tmp_path / "store"

@@ -183,7 +183,16 @@ Support exactly **one backend per storage root**, and make that safe and explici
 
 - Postgres/Redis checkpointer implementation -- the sanctioned path for shared/multi-user/hosted deployments.
 - Authentication/authorisation for shared deployments (deliberately out of scope here; a saver choice is not an authn/authz model).
-- Option precedence for the home override (`flag > env > default`) and its interaction with existing `--data-dir` semantics.
-- Credential relocation alongside data when `KLEA_AGENT_HOME` is set.
+- Option precedence for the home override (`flag > env > default`) and its interaction with existing `--data-dir` semantics.  (The env > default path is implemented; there is no `--data-dir` flag on `klea-serve`.)
 - Merge/reconciliation story for users who already split homes -- or an explicit statement that none exists.
 - Precedent: OpenCode V2 (one shared per-user server, WAL, `busy_timeout=5000`, `SQLITE_BUSY` retries, per-session sharding), Claude Code (`daemon.lock`, roster, stale checks), Codex (one app-server per `CODEX_HOME`).
+
+### Implementation note (2026-10-26)
+
+`KLEA_AGENT_HOME` is wired through `BaseLangGraph.storage_root`: the agent sets
+`storage_root_env` to that variable.  Checkpoints, the session database
+(including the stored provider credentials), the backend lockfile, and the
+logs all use the resolved root.  The default remains the platform user-data
+directory for `klea-agent`, so existing installations are unchanged; RAG has no
+relocation variable yet.  The pre-existing `resolve_storage_root` helpers were
+previously unused.

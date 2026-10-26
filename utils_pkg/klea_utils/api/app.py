@@ -47,8 +47,8 @@ def make_app(
 
     1. Instantiates and sets up the graph via *graph_factory*
     2. Opens a persistent :class:`SessionStore` at
-       ``{graph.paths.user_data_dir}/sessions.db`` alongside the
-       graph's checkpoints.
+       ``{graph.storage_root}/sessions.db`` alongside the graph's
+       checkpoints.
     3. Stores the graph and session store on ``app.state``
 
     :param graph_factory: Callable that returns a configured
@@ -110,10 +110,10 @@ def make_app(
         # recorded for owner diagnostics only.
         from klea_utils.paths import lockfile_path
 
-        app.state.backend_lock_path = lockfile_path(graph.paths.user_data_dir)
+        app.state.backend_lock_path = lockfile_path(graph.storage_root)
         app.state.backend_lock = _acquire_backend_lock(
             app.state.backend_lock_path,
-            graph.paths.user_data_dir,
+            graph.storage_root,
             os.environ.get("KLEA_HOST", "127.0.0.1"),
             int(os.environ.get("KLEA_PORT", "0") or 0),
         )
@@ -139,7 +139,7 @@ def make_app(
         # worker and asyncio tasks cannot be cancelled across processes.
         app.state.active_runs = ActiveRunRegistry()
 
-        db_path = init_dir(graph.paths.user_data_dir) / "sessions.db"
+        db_path = init_dir(graph.storage_root) / "sessions.db"
         app.state.chat_sessions = SessionStore(str(db_path))
         # Drop stored API credentials unused past their TTL (short-lived
         # processes still expire keys without a background task).

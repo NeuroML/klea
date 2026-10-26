@@ -138,3 +138,8 @@ def test_context_snapshot_projects_project_root():
     snapshot = agent.context_snapshot({})
     assert snapshot is not None
     assert snapshot["project_root"] == ""
+
+
+def test_agent_uses_klea_agent_home_for_storage_root():
+    """KLEA_AGENT_HOME relocates the agent backend's storage root."""
+    assert KleaAgent.storage_root_env == "KLEA_AGENT_HOME"

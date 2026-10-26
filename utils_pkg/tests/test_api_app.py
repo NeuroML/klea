@@ -31,6 +31,7 @@ class _FakeGraph:
 
     def __init__(self, user_data_dir: Path) -> None:
         self.paths = SimpleNamespace(user_data_dir=user_data_dir)
+        self.storage_root = user_data_dir
         self.checkpointer = None
         self.mcp_client = None
         self.mcp_config = None

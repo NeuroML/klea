@@ -122,6 +122,7 @@
 
 ### Fixed
 
+- `KLEA_AGENT_HOME` now relocates the agent backend's storage root (checkpoints, session database, lockfile, and logs); it was previously ignored. The default and RAG paths are unchanged.
 - Tool path detection now splits shell command strings with a platform-aware tokeniser and recognises Windows backslash paths, so `path_detect` and `parse_command` no longer miss or mangle arguments such as `C:\Users\me\file.txt`.
 - TUI text selection now highlights Rich Markdown/Syntax output, supports drags ending on blank lines, and copies to the OS clipboard through `wl-copy`/`xclip`/`xsel`/`pbcopy`/`clip` when OSC 52 is unavailable; a brief notification confirms the copy.
 - `read_file` no longer implies that `limit=None` reads to the end of the file: `None` removes only the line limit, while the server character budget still caps the response. Results now report the effective `char_budget` and a `truncation_reason` (`char_budget`, `line_limit` or `scan_cap`), and a character-capped `limit=None` note explains how to continue.
