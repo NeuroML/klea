@@ -93,9 +93,33 @@ there, so the dry-run version has to be one TestPyPI does not have yet.
 - [ ] `klea-rag web` opens (the `nicegui` extra). `klea-rag`, or
       `klea-rag tui`, opens (the `tui` extra). Bare `klea-rag` is the
       Textual TUI. The old `klea-rag cli` subcommand is gone.
-- [ ] The evaluation harness is added to this list once it exists
-      (`system/agent-evaluation-harness.md`). Until then the smoke
-      above is the check.
+
+## Manual checks
+
+These are done by hand on the TestPyPI install. Automated end-to-end
+tests, and an AI-agent security review, join this list once the
+evaluation framework exists (`system/agent-evaluation-harness.md`).
+
+- [ ] User-facing docs (`docs/guides/`, `docs/cli/`, `docs/components/`)
+      and the API docs (`docs/api/`) match this release. A green docs
+      build only means the pages compile.
+- [ ] In the fresh virtualenv:
+
+      ```
+      pip-audit
+      ```
+
+      Nothing it reports blocks the release.
+- [ ] Update a free HuggingFace Space from `docs/guides/huggingface.rst`,
+      send one query, then delete the Space.
+- [ ] One query each with a HuggingFace, OpenCode, Anthropic, and
+      OpenAI model.
+- [ ] Web and TUI: the dialogs and buttons work, including model and
+      credential setup.
+- [ ] Cancel a running query, and resume a failed one.
+- [ ] Restart the web UI and the TUI. The same session is still there.
+- [ ] Send stays blocked when a required model or API key is missing.
+- [ ] One turn uses a tool, not only a plain chat reply.
 
 ## Tag
 
