@@ -12,6 +12,35 @@ extra (``pip install klea-utils[tui]`` or the ``full`` extra).  Without it,
 to the frontend name (for example ``klea-agent-tui``) so it is identifiable in
 ``ps``/``top`` instead of ``python``.
 
+Project environment
+-------------------
+
+The TUI tells the backend which project to run the session's bundled tools in.
+By default it sends its current directory, its full environment, and the Python
+interpreter running the client, so the tools use the same project variables and
+virtual environment as your terminal.  The settings are sent with every query,
+so a retry or a resumed run uses the current terminal's environment.
+
+.. list-table::
+   :header-rows: 1
+
+   * - Option
+     - Meaning
+   * - ``--cwd PATH``
+     - Working directory for the tools (default: the current directory)
+   * - ``--env KEY=VALUE``
+     - Add or override an environment variable (repeatable)
+   * - ``--interpreter PATH``
+     - Python interpreter for the bundled tools (default: this client's)
+   * - ``--no-client-context``
+     - Do not forward the environment to the server
+
+When no project root has been set with ``/cwd``, the client's working directory
+is also the default root for the session's file tools and for project
+instruction (``AGENTS.md``/``CLAUDE.md``) discovery.  Context forwarding is only
+available for a local (loopback) server; a remote backend is skipped with a
+note, because it cannot see the client's files or interpreter.
+
 The layout is a horizontal split: a chat pane on the left and a full-height
 status pane on the right.  The title and server line, and the active chat's
 name and id, sit at the top of the status pane.

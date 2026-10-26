@@ -10,6 +10,7 @@
 
 ### Added
 
+- TUI project context: the terminal client sends its working directory, full environment and Python interpreter with each query (loopback only), so one backend can run different chats in different projects or virtual environments. `--cwd`, repeatable `--env KEY=VALUE`, `--interpreter` and `--no-client-context` control it; the client cwd is also the default project root when `/cwd` is unset. A changed context respawns that session's bundled MCP tools (ADR-0055).
 - `/paths` session command: list, add or remove the thread-scoped path approvals, or open a batch editor for allowed directories and sensitive files. A bare `/paths` uses the new generic `state_edit` HITL editor; the reusable path-approval helpers live in `klea_utils.mcp.path_approval`.
 - Path permission asks now show every distinct path covered by a directory approval (`covered_paths`), show the detected token for shell-command guesses, and split shell operators with shlex punctuation mode so `/dev/null;` is detected as `/dev/null` rather than a path with a trailing separator.
 - Terminal UI: all free-standing text (transcript, status/inspector panes, dialogs, HITL prompts and app chrome) can be selected with the mouse and copied with Ctrl+C; copying uses OSC 52, so terminals without support may need their native selection.

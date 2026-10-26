@@ -54,6 +54,7 @@ source change.
 | `system/c4-container.md` | C4 model Level 2: container diagram (Klea packages/services, datastores, shared lib, and their interactions + external systems) |
 | `system/store-create.md` | Store creation pipeline: chunk, store, build, worker isolation, and cache layout |
 | `system/mcp-permissions.md` | Filesystem permissions for MCP tools: the current in-tool check, why it cannot cover third-party servers, and what opencode does instead |
+| `system/session-mcp-context.md` | Runtime client context: TUI cwd/env/interpreter -> per-session bundled MCP server, validation, pool fingerprint, project-root fallback (ADR-0055) |
 | `system/external-source-pools.md` | External source pools: the shared keyless-first provider-pool + sequential-fallback pattern (DOI resolver, web search, paper search) and each one's adaptations |
 | `system/edit-format-strategy.md` | Edit-format strategy for coding tools: write (whole-file) + edit (search/replace) dual tools with model-guided selection |
 | `system/agent-topology-literature-review.md` | Literature review: agent loop topology, cost-aware inference, planning/verification and small-model agency |

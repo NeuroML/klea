@@ -121,3 +121,16 @@ client-side; roots is not used.
 * ADR-0007 (path permissions), ADR-0037 (tool access), ADR-0047 (session
   commands, `/cwd`), ADR-0031 (per-app frontends).
 * `devdocs/system/{mcp-permissions,file-tools,session-commands,tui}.md`.
+
+## Update (2026-10-26): per-session bundled server cwd
+
+ADR-0055 supersedes this ADR's assumptions that the bundled MCP subprocess has
+a single fixed cwd and that there is no per-session MCP client.  The bundled
+server is now spawned per session with the TUI's client cwd/environment as
+runtime context, so cwd-dependent work in the bundled tools is covered.
+
+The decision to resolve relative path arguments client-side to absolute paths
+(option A) remains: it is still needed for the permission gate, for
+determinism, and for tools that do not rely on the subprocess cwd.  The
+"single shared MCP client" driver in the original decision is superseded by
+the per-session pool in ADR-0055.

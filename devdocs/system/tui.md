@@ -280,6 +280,17 @@ that must run a query posts a shared `SubmitQuery` message
 (`ui/tui/events.py`), which the app routes through
 `submit` (commands and the setup gating still apply).
 
+## Client context
+
+The TUI forwards a per-run client context with every query (and retry/HITL
+resume): its working directory, its full environment, and its Python
+interpreter.  Defaults are `os.getcwd()`, `os.environ`, and `sys.executable`;
+`--cwd`, repeatable `--env KEY=VALUE`, and `--interpreter` override them, and
+`--no-client-context` disables forwarding.  The server accepts it from a
+loopback peer only; a non-loopback server is skipped with a note.  The context
+is runtime data: it is never persisted, and a changed context recreates that
+session's bundled MCP client.  See `session-mcp-context.md` and ADR-0055.
+
 ## Rendering and non-goals
 
 * Markdown renders through Rich; diffs (`text/x-diff`, `text/x-patch`) and

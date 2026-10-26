@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-16.
+Last updated: 2026-10-26.
 
 ## Cancellation / concurrency
 
@@ -199,13 +199,20 @@ Last updated: 2026-10-16.
     servers that rigidly enforce MCP roots or prefix all paths with a root are
     incompatible (ADR-0053).  Advertise roots only if such servers become a
     target.
-  - **cwd-dependent / remote servers**: a tool that resolves relative paths
-    against its own cwd for non-argument work, or a remote server that does not
-    share the client's filesystem, is out of scope; only OS sandboxing is a hard
-    boundary (advisory gate, ADR-0007).
+  - **cwd-dependent / remote servers**: the bundled server now runs with the
+    client cwd (ADR-0055), so its cwd-dependent work is covered.  An *external*
+    server (whose invocation the client context does not change) or a remote
+    server that does not share the client's filesystem remains out of scope;
+    only OS sandboxing is a hard boundary (advisory gate, ADR-0007).
 
 ## Frontends / TUI
 
+- Client-context envelope follow-up (ADR-0055): the TUI sends its cwd/env/
+  interpreter as one `client_context` request field.  Fold the web's
+  `mode`/`access_level` request fields into the same client-facing envelope so
+  there is one per-run shape.  Keep `model_overrides` server-resolved and
+  persisted; do not move model selection into the per-query client context.
+  Deferred to avoid API churn in the initial isolation work.
 - Pre-dispatch `running tools` notice: emit a notice through `_emit_notice`
   before dispatch and group repeated tool names (for example `4x grep`) in
   `tools_caller.py`, leaving the status-pane tool block unchanged.  Deferred,

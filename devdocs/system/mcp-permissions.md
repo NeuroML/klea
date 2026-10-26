@@ -61,14 +61,15 @@ The single enforcement point is the pre-dispatch gate in
   dismissed guess is never shown as a denial.
 
 The boundary is the **session project root** (`BaseGraphSchema.project_root`,
-ADR-0053), set with `/cwd`; it defaults to the API server's working directory
-when unset.  Before detection and dispatch, relative path arguments are
-resolved to absolute against it (`klea_utils.mcp.path_detect.resolve_path_arguments`),
-because the tools run in a subprocess whose cwd is fixed at spawn and cannot be
-changed per session.  Declared `checkpaths` are always resolved; other arguments
-are resolved heuristically when the argument name is path-ish and the value is a
-single-token, non-URL/flag/glob string (shell command strings are never
-rewritten).
+ADR-0053), set with `/cwd`.  When it is unset, the current run's **client cwd**
+from a loopback TUI is used (ADR-0055), else the API server's working
+directory.  This fallback is runtime context, not persisted state.  Before
+detection and dispatch, relative path arguments are resolved to absolute
+against it (`klea_utils.mcp.path_detect.resolve_path_arguments`), so path
+semantics do not depend on the tool subprocess's own cwd.  Declared
+`checkpaths` are always resolved; other arguments are resolved heuristically
+when the argument name is path-ish and the value is a single-token,
+non-URL/flag/glob string (shell command strings are never rewritten).
 
 ### Layered path discovery
 
