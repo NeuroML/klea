@@ -8,13 +8,17 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
+from typing import get_args
+
 import pytest
 from fastmcp.client.client import CallToolResult
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.nodes.answer_from_results import AnswerSchema
 from klea_agent.schemas import (
+    EVALUATION_OVERALL_LABELS,
     MAX_CONTINUATION_STEPS,
     MAX_PREVIOUS_PLANS,
+    STEP_VERDICT_LABELS,
     ContinuationEvidence,
     EvaluationSchema,
     GoalSchema,
@@ -193,6 +197,20 @@ class TestEvaluationSchema:
 
     def test_evaluation_accepts_abort(self):
         assert EvaluationSchema(overall="abort").overall == "abort"
+
+    def test_step_verdict_labels_cover_all_literals(self):
+        """Every schema verdict has exactly one user-facing label."""
+        literals = set(get_args(StepEvaluation.model_fields["verdict"].annotation))
+        assert set(STEP_VERDICT_LABELS) == literals
+        assert all(STEP_VERDICT_LABELS.values())
+
+    def test_overall_labels_cover_non_empty_literals(self):
+        """Every non-empty overall outcome has a user-facing label."""
+        literals = set(
+            get_args(EvaluationSchema.model_fields["overall"].annotation)
+        ) - {""}
+        assert set(EVALUATION_OVERALL_LABELS) == literals
+        assert all(EVALUATION_OVERALL_LABELS.values())
 
     def test_per_step_verdicts_map(self):
         evaluation = EvaluationSchema(

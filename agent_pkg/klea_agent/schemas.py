@@ -735,6 +735,15 @@ class StepEvaluation(BaseModel):
     reason: str = ""
 
 
+#: User-facing labels for :attr:`StepEvaluation.verdict` values.
+STEP_VERDICT_LABELS: dict[str, str] = {
+    "step_done": "DONE",
+    "step_skipped": "SKIPPED",
+    "step_incomplete": "INCOMPLETE",
+    "need_replan": "NEEDS REVISION",
+}
+
+
 class EvaluationSchema(BaseModel):
     # The Evaluator's per-step verdicts and optional whole-plan outcome.
     # Verdict and outcome semantics live in OperationalEvaluator_system.md.
@@ -771,6 +780,13 @@ class EvaluationSchema(BaseModel):
         if not lines:
             return ""
         return "The evaluator judged these step(s) incomplete:\n" + "\n".join(lines)
+
+
+#: User-facing labels for :attr:`EvaluationSchema.overall` values.
+EVALUATION_OVERALL_LABELS: dict[str, str] = {
+    "plan_done": "PLAN COMPLETE",
+    "abort": "CANNOT COMPLETE",
+}
 
 
 #: Cap the length of a progress-summary line: the review modal is compact and

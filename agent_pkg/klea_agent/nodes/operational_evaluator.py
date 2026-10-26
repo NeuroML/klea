@@ -23,11 +23,21 @@ from klea_utils.tools import tool_call_errors
 from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import (
+    EVALUATION_OVERALL_LABELS,
+    STEP_VERDICT_LABELS,
     EvaluationSchema,
     KleaAgentState,
     PlanSchema,
     StepEvaluation,
 )
+
+
+def _notice_step_line(verdict: StepEvaluation) -> str:
+    """Return one human-readable step line for the transcript notice."""
+    label = STEP_VERDICT_LABELS.get(verdict.verdict, verdict.verdict.upper())
+    reason = verdict.reason.strip()
+    line = f"Step {verdict.step_number}: {label}"
+    return f"{line} - {reason}" if reason else line
 
 
 class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
@@ -384,18 +394,33 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         )
 
         # Record the verdict in run history so a replan (and summarisation) can
-        # see why the plan was sent back.
-        summary = "\n".join(
+        # see why the plan was sent back.  Keep the schema literals here: this
+        # is model-facing history, not the user-facing transcript notice.
+        internal_summary = "\n".join(
             f"- step {verdict.step_number} {verdict.verdict} -- {verdict.reason}"
             for verdict in result.evaluations
         )
         if result.overall:
-            summary = f"{summary}\n- overall {result.overall}".strip("\n")
+            internal_summary = f"{internal_summary}\n- overall {result.overall}".strip(
+                "\n"
+            )
+
+        # User-facing notice: human labels, and an overall line derived from
+        # the effective plan state (not only the model's raw ``overall``).
+        notice_lines = [_notice_step_line(verdict) for verdict in result.evaluations]
+        if plan.status == "completed":
+            notice_lines.append(f"Overall: {EVALUATION_OVERALL_LABELS['plan_done']}")
+        elif plan.status == "aborted":
+            notice_lines.append(f"Overall: {EVALUATION_OVERALL_LABELS['abort']}")
+        elif update.get("replan_reason") and not any(
+            verdict.verdict == "need_replan" for verdict in result.evaluations
+        ):
+            notice_lines.append("Overall: NEEDS REVISION")
         # no label required since emit_notice adds the node label already
-        self._emit_notice(f"\n{summary or 'no verdict'}")
+        self._emit_notice("\n".join(notice_lines) or "No verdict")
         update["messages_internal"] = [
             *state.messages_internal,
-            AIMessage(content=f"Evaluation: {summary or 'no verdict'}"),
+            AIMessage(content=f"Evaluation: {internal_summary or 'no verdict'}"),
         ]
         self.logger.debug(f"{update = }")
         return update

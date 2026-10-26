@@ -10,8 +10,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 import logging
 import unittest
-from typing import Literal
+from typing import Any, Literal, cast
 
+import pytest
 from fastmcp.client.client import CallToolResult
 from klea_agent.nodes.operational_evaluator import OperationalEvaluator
 from klea_agent.schemas import (
@@ -536,7 +537,7 @@ def test_update_state_emits_a_progress_notice():
     """The evaluator's concise verdict is surfaced to the chat transcript."""
     evaluator = TestOperationalEvaluator()._evaluator()
     events: list[dict] = []
-    evaluator.write_custom_stream = events.append
+    cast(Any, evaluator).write_custom_stream = events.append
 
     evaluator._update_state(
         _verdict(1, "step_done", "the file was read"),
@@ -545,5 +546,108 @@ def test_update_state_emits_a_progress_notice():
     )
 
     notice = next(event for event in events if event.get("type") == "notice")
-    assert "step 1 step_done" in notice["data"]["summary"]
+    assert notice["data"]["summary"] == "Step 1: DONE - the file was read"
     assert notice["data"]["details"]["kind"] == "progress"
+
+
+@pytest.mark.parametrize(
+    ("verdict", "label"),
+    [
+        ("step_done", "DONE"),
+        ("step_skipped", "SKIPPED"),
+        ("step_incomplete", "INCOMPLETE"),
+        ("need_replan", "NEEDS REVISION"),
+    ],
+)
+def test_notice_uses_human_step_labels(verdict, label):
+    """User-facing notices never expose the schema verdict literals."""
+    evaluator = TestOperationalEvaluator()._evaluator()
+    events: list[dict] = []
+    cast(Any, evaluator).write_custom_stream = events.append
+
+    update = evaluator._update_state(
+        _verdict(1, verdict, "because"),
+        TestOperationalEvaluator()._state(),
+        LLMNodeContext(),
+    )
+
+    notice = next(event for event in events if event.get("type") == "notice")
+    summary = notice["data"]["summary"]
+    assert summary.startswith(f"Step 1: {label}")
+    assert verdict not in summary
+    # Model-facing history keeps the raw verdict for later replanning.
+    assert verdict in update["messages_internal"][-1].content
+
+
+def test_notice_overall_plan_complete():
+    evaluator = TestOperationalEvaluator()._evaluator()
+    events: list[dict] = []
+    cast(Any, evaluator).write_custom_stream = events.append
+    result = EvaluationSchema(
+        evaluations=[
+            StepEvaluation(step_number=1, verdict="step_done"),
+            StepEvaluation(step_number=2, verdict="step_done"),
+        ],
+        overall="plan_done",
+    )
+
+    update = evaluator._update_state(
+        result, TestOperationalEvaluator()._state(), LLMNodeContext()
+    )
+
+    summary = next(e for e in events if e.get("type") == "notice")["data"]["summary"]
+    assert "Overall: PLAN COMPLETE" in summary
+    assert "plan_done" not in summary
+    assert "overall plan_done" in update["messages_internal"][-1].content
+
+
+def test_notice_overall_cannot_complete():
+    evaluator = TestOperationalEvaluator()._evaluator()
+    events: list[dict] = []
+    cast(Any, evaluator).write_custom_stream = events.append
+
+    evaluator._update_state(
+        EvaluationSchema(overall="abort", reason="not possible"),
+        TestOperationalEvaluator()._state(),
+        LLMNodeContext(),
+    )
+
+    summary = next(e for e in events if e.get("type") == "notice")["data"]["summary"]
+    assert summary == "Overall: CANNOT COMPLETE"
+
+
+def test_notice_completes_when_all_steps_resolved_without_overall():
+    evaluator = TestOperationalEvaluator()._evaluator()
+    events: list[dict] = []
+    cast(Any, evaluator).write_custom_stream = events.append
+    result = EvaluationSchema(
+        evaluations=[
+            StepEvaluation(step_number=1, verdict="step_done"),
+            StepEvaluation(step_number=2, verdict="step_done"),
+        ]
+    )
+
+    evaluator._update_state(
+        result, TestOperationalEvaluator()._state(), LLMNodeContext()
+    )
+
+    summary = next(e for e in events if e.get("type") == "notice")["data"]["summary"]
+    assert "Overall: PLAN COMPLETE" in summary
+
+
+def test_notice_plan_done_with_pending_steps_says_needs_revision():
+    evaluator = TestOperationalEvaluator()._evaluator()
+    events: list[dict] = []
+    cast(Any, evaluator).write_custom_stream = events.append
+    result = EvaluationSchema(
+        evaluations=[StepEvaluation(step_number=1, verdict="step_done")],
+        overall="plan_done",
+    )
+
+    evaluator._update_state(
+        result, TestOperationalEvaluator()._state(), LLMNodeContext()
+    )
+
+    summary = next(e for e in events if e.get("type") == "notice")["data"]["summary"]
+    assert "Overall: NEEDS REVISION" in summary
+    assert "PLAN COMPLETE" not in summary
