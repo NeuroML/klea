@@ -767,7 +767,6 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             details={
                 "input_prompt": prompt_value_to_messages(ctx.prompt),
                 "unprocessed_output": extract_llm_output_content(ctx.output),
-                "processed_output": str(ctx.result),
                 "tools_description": self._get_tool_descriptions(state),
             },
         )

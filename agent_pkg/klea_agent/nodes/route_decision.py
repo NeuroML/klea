@@ -210,7 +210,6 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
             {
                 "input_prompt": prompt_value_to_messages(ctx.prompt),
                 "unprocessed_output": extract_llm_output_content(ctx.output),
-                "processed_output": str(ctx.result),
             }
         )
         return NodeStreamData(heading="Route", summary=summary, details=details)

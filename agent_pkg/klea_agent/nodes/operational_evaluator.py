@@ -454,7 +454,6 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             {
                 "input_prompt": prompt_value_to_messages(ctx.prompt),
                 "unprocessed_output": extract_llm_output_content(ctx.output),
-                "processed_output": str(ctx.result),
             }
         )
         return NodeStreamData(

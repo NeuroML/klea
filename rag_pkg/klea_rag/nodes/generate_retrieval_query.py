@@ -234,7 +234,6 @@ class GenerateRetrievalQuery(BaseLLMNode[RAGState, RetrievalQueryOutput]):
             "retrieval_attempts": attempt,
             "input_prompt": prompt_value_to_messages(ctx.prompt),
             "unprocessed_output": extract_llm_output_content(ctx.output),
-            "processed_output": str(ctx.result),
         }
         # Add evaluator feedback if this is a retry
         if state.retrieval_attempts > 0 and state.text_response_eval:
