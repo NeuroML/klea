@@ -198,9 +198,10 @@ Read this before adding or editing a node prompt.
 
 ## Session continuity
 
-`.agents/YYYY-MM-DD-HHMM.md` logs previous work, where HHMM is the time the
-session started (24h) -- separate files per session avoid merge conflicts when
-multiple sessions run the same day (see `.agents/Readme.md` for template).
+`.agents/YYYY-MM-DD-HHMM.md` logs previous work, where YYYY-MM-DD is today's
+date and HHMM is the time the session started (24-hour format) -- separate files
+per session avoid merge conflicts when multiple sessions run the same day (see
+`.agents/Readme.md` for template).
 Read previous logs at session start; write one at session end.
 
 Every log must record the authoring agent **and the model in use** (e.g.
