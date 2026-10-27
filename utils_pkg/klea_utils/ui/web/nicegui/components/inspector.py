@@ -88,15 +88,15 @@ def attach_inspector_panel(ctx: PageContext) -> None:
                 with ui.row().classes("w-full flex-nowrap items-center"):
                     ui.label(heading)
                     if timing:
-                        ui.label(f"({timing:.1f}s)").classes("text-xs text-grey-5")
+                        ui.label(f"({timing:.1f}s)").classes("text-xs inspector-hint")
             with ui.column().classes("inspector-entry-body w-full gap-0"):
                 ui.label(entry.get("summary", "")).classes(
-                    "text-xs text-grey-6 mb-1 w-full"
+                    "text-xs inspector-muted mb-1 w-full"
                 )
                 details = entry.get("details", {})
                 if details:
                     with ui.element("details").classes(
-                        "inspector-details text-xs text-grey-5 cursor-pointer w-full"
+                        "inspector-details text-xs inspector-hint cursor-pointer w-full"
                     ):
                         with ui.element("summary").classes("text-xs w-full"):
                             ui.label("View details")
@@ -125,7 +125,7 @@ def attach_inspector_panel(ctx: PageContext) -> None:
                     stamp = marker.get("stamp", "")
                     text = marker.get("text", "")
                     if stamp:
-                        ui.label(stamp).classes("text-sm text-grey-5")
+                        ui.label(stamp).classes("text-sm inspector-hint")
                     label = ui.label(_truncate_query(text)).classes("text-sm font-bold")
                     if text:
                         label.tooltip(text)
@@ -164,10 +164,12 @@ def attach_inspector_panel(ctx: PageContext) -> None:
         entries = current_chat.get("inspector_entries", []) if current_chat else []
         with container:
             if not entries:
-                ui.label("No inspection data yet").classes("text-sm text-grey-5 py-8")
+                ui.label("No inspection data yet").classes(
+                    "text-sm inspector-hint py-8"
+                )
                 ui.label(
                     "Inspector entries will appear here as the graph runs."
-                ).classes("text-xs text-grey-5")
+                ).classes("text-xs inspector-hint")
                 return
             logger.debug(
                 "Rendering inspector panel for chat %s (items=%d)",

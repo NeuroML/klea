@@ -66,6 +66,24 @@ variable and never need paired light/dark rules.
 | `--q-primary` | `#1976D2` (Quasar default) | `#64b5f6` | primary brand colour |
 | `--q-dark-page` | n/a (light theme) | `#1d1d1d` | dark page background, set to match the `q-dark` panels/drawers |
 
+### Derived role tokens (phase 2)
+
+Phase 2 stops hand-picking per-widget greys: the semantic roles are derived
+from the TUI's role palette, so each role has exactly one definition and the
+web tokens are derived from it.  A role therefore cannot drift between the
+terminal and the web UI.  The derived tokens are installed by
+`_add_css_overrides` in `theme.py` under `:root` and overridden under
+`body.body--dark` exactly like the tokens above.
+
+| Role token | TUI role | Use |
+|------------|----------|-----|
+| `--klea-hint` | `hint` | faintest inspector/status text (`.inspector-hint`, `.cred-status--muted`) |
+| `--klea-muted` | `muted` | secondary text, inactive/unknown state (`.inspector-muted`) |
+| `--klea-error` | `error` | credential failure text (`.cred-status--error`) |
+
+Always reference the role token, never a literal `#rrggbb`, so the role keeps
+its light/dark pairing.
+
 Notes:
 
 - Redefining `--q-primary` under `body.body--dark` themes **every**
@@ -104,6 +122,11 @@ themes:
   `.q-footer` has no background of its own, so the app pins one.  The
   shared footer component stacks the disclaimer and the footer text on this
   one line.
+- `.status-pane` / `.status-pane-header` -- the status/panels drawer surface
+  (`status_pane.py`): the drawer follows the built-in `--q-dark` panel grey
+  and its sticky header the existing `--klea-surface` bar token, replacing the
+  `bg-white` utility pair whose unlayered declaration beat its `dark:`
+  variant; both are colour rules in `@layer overrides`.
 - `.chat-bubble--user` / `.chat-bubble--agent` / `.chat-bubble--tool` /
   `.chat-bubble--system` -- the full-width transcript block surfaces
   (`chat_bubble.py`): user tinted, agent transparent, tool neutral, system (a
@@ -119,13 +142,25 @@ themes:
   details block scrolls inside the entry.  The inspector pane keeps its own
   scroll; `overscroll-behavior: contain` stops the entry's scroll from
   chaining into the pane.  This is a plain (unlayered) layout rule.
+- `.inspector-hint` -- faint inspector label/annotation text; uses the
+  derived `hint` role token (`--klea-hint`), so it stays faint in both
+  themes.
+- `.inspector-muted` -- secondary inspector text (paths, counts, inactive
+  values); uses the derived `muted` role token (`--klea-muted`).
+- `.cred-status--error` -- credential state text for a failed/absent
+  credential; uses the derived `error` role token (`--klea-error`).  This is
+  a colour rule, so it lives in `@layer overrides`.
+- `.cred-status--muted` -- credential state text for an unknown/inactive
+  credential; uses the derived `hint` role token (`--klea-hint`).  Also a
+  colour rule in `@layer overrides`.
 
 All of these are styled in `theme.py`; call sites only add the class.
 
 ## Adding a themed control (checklist)
 
 1. Use a token (`--klea-control` / `--klea-muted` / `--klea-hint` /
-   `--klea-surface`) or, for brand colour, Quasar's `color=` prop (themed by
+   `--klea-surface`) or one of the derived role tokens (`hint`, `muted`,
+   `error`) or, for brand colour, Quasar's `color=` prop (themed by
    `--q-primary`).
 2. Put any colour rule that must beat Quasar in `@layer overrides`;
    layout/structure rules can stay unlayered.
