@@ -554,7 +554,7 @@ def test_list_files_basic(tmp_path):
 
     logger.debug(f"{len(result['files']) = }")
     logger.debug(f"{result['error'] = }")
-
+    assert result["note"] == ""
     names = {Path(f["path"]).name for f in result["files"]}
     assert "a.py" in names
     assert "b.md" in names
@@ -656,6 +656,28 @@ def test_list_files_truncates(tmp_path):
 
     assert len(result["files"]) == 2
     assert result["truncated"] is True
+    assert result["note"].startswith("Results truncated:")
+    assert "first 2 entries" in result["note"]
+    assert "more exist and were not listed" in result["note"]
+
+
+def test_list_files_truncation_note_with_fallback(tmp_path):
+    """A fallback listing cut short by ``max_results`` carries both notes."""
+    (tmp_path / "a.md").write_text("")
+    (tmp_path / "b.md").write_text("")
+    (tmp_path / "c.md").write_text("")
+
+    result = list_files(
+        path=str(tmp_path), pattern="*.txt", max_results=2, project_root=str(tmp_path)
+    )
+
+    logger.debug(f"{result['note'] = }")
+    assert result["truncated"] is True
+    assert "No entries matched the requested filter" in result["note"]
+    assert result["note"].endswith(
+        "Results truncated: showing the first 2 entries; "
+        "more exist and were not listed."
+    )
 
 
 def test_list_files_max_depth(tmp_path):
