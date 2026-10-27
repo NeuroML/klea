@@ -577,6 +577,24 @@ async def test_rg_files_lists_and_normalizes(monkeypatch, tmp_path):
     assert result["error"] == ""
     assert result["files"] == ["a.py", "sub/b.py"]
     assert result["truncated"] is False
+    assert result["note"] == ""
+
+
+async def test_rg_files_truncated_sets_note(monkeypatch, tmp_path):
+    """A listing cut short by ``max_results`` carries the truncation note."""
+
+    async def fake_run_rg(args, **kwargs):
+        return [b"a.py\n", b"b.py\n"], "", 0, True, ""
+
+    monkeypatch.setattr(rg_backend, "_run_rg", fake_run_rg)
+    result = await rg_backend.rg_files("rg", path=str(tmp_path), max_results=2)
+
+    logger.debug(f"{result = }")
+    assert result["error"] == ""
+    assert result["truncated"] is True
+    assert result["note"].startswith("Results truncated:")
+    assert "first 2 entries" in result["note"]
+    assert "more exist and were not listed" in result["note"]
 
 
 async def test_rg_files_args(monkeypatch, tmp_path):

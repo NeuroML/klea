@@ -462,6 +462,13 @@ async def rg_grep(
     return _grep_result(pattern, path, matches=hunks, truncated=truncated)
 
 
+#: Note appended to a result cut short by ``max_results``.
+_TRUNCATION_NOTE = (
+    "Results truncated: showing the first {max_results} entries; "
+    "more exist and were not listed."
+)
+
+
 async def rg_files(
     rg: str,
     pattern: str = "*",
@@ -481,7 +488,9 @@ async def rg_files(
     :param timeout_seconds: Wall-clock cap for the invocation.
     :param project_root: Retained for callers; the boundary is enforced by
         the client-side gate, not here (ADR-0007 update 2026-10-08).
-    :returns: dict with files, truncated, error.
+    :returns: dict with files, truncated, error, note.  ``note`` carries a
+        truncation message when the result was cut short by *max_results*,
+        and is empty otherwise.
     """
     logger.debug(
         f"ripgrep file listing\n"
@@ -494,7 +503,12 @@ async def rg_files(
     the_path = Path(path)
     if not the_path.is_dir():
         logger.warning(f"Not a directory: {path}")
-        return {"files": [], "truncated": False, "error": f"Not a directory: {path}"}
+        return {
+            "files": [],
+            "truncated": False,
+            "error": f"Not a directory: {path}",
+            "note": "",
+        }
 
     args = _base_command(rg, include_ignored=include_ignored)
     args.append("--files")
@@ -509,18 +523,39 @@ async def rg_files(
         max_records=max_results,
     )
     if run_error:
-        return {"files": [], "truncated": False, "error": run_error}
+        return {
+            "files": [],
+            "truncated": False,
+            "error": run_error,
+            "note": "",
+        }
     if not truncated and returncode != 0:
         if returncode == 1:
-            return {"files": [], "truncated": False, "error": ""}
+            return {
+                "files": [],
+                "truncated": False,
+                "error": "",
+                "note": "",
+            }
         message = stderr or f"ripgrep exited with status {returncode}"
         logger.warning(f"ripgrep failed: {message}")
-        return {"files": [], "truncated": False, "error": message}
+        return {
+            "files": [],
+            "truncated": False,
+            "error": message,
+            "note": "",
+        }
 
     files = [
         _normalize_path(line.decode("utf-8", errors="replace").strip())
         for line in lines
         if line.strip()
     ]
+    note = _TRUNCATION_NOTE.format(max_results=max_results) if truncated else ""
     logger.debug(f"ripgrep listing done\n{len(files) = }\n{truncated = }")
-    return {"files": files, "truncated": truncated, "error": ""}
+    return {
+        "files": files,
+        "truncated": truncated,
+        "error": "",
+        "note": note,
+    }
