@@ -12,7 +12,7 @@ from dataclasses import fields
 from typing import TextIO, cast
 
 import pytest
-from klea_utils.ui.tui.glyphs import (
+from klea_utils.ui.glyphs import (
     ASCII_GLYPHS,
     UNICODE_GLYPHS,
     GlyphSet,

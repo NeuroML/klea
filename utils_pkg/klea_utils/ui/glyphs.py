@@ -1,12 +1,17 @@
-"""Terminal glyph tables with Unicode/ASCII fallback detection.
+"""Shared glyph tables with Unicode/ASCII fallback detection.
+
+Both frontends draw their status markers from this one module: the TUI (for
+terminals, using the fallback logic below) and the web UI (which always uses
+:data:`UNICODE_GLYPHS` directly, because a browser is always Unicode-capable).
+A single source of truth keeps the role markers identical in both frontends.
 
 The TUI can run on terminals that cannot render box-drawing or symbol
 characters (non-UTF-8 locales, ``TERM=dumb``, redirected output, or CI
 log capture).  This module keeps a single source of truth for the small
-set of glyphs the TUI draws, plus the logic that decides which table to
-use at runtime.
+set of glyphs both frontends draw, plus the logic that decides which table
+the TUI should use at runtime.
 
-Selection order for :func:`get_glyphs`:
+Selection order for :func:`get_glyphs` (terminal use only):
 
 1. ``KLEA_TUI_ASCII=1`` (or ``true``/``yes``/``on``) forces the ASCII set.
 2. Redirected output (``isatty()`` is false, including test doubles without a
@@ -27,7 +32,7 @@ from typing import TextIO
 
 @dataclass(frozen=True)
 class GlyphSet:
-    """A complete set of glyphs used by the TUI.
+    """A complete set of glyphs used by the frontends.
 
     Keeping every glyph on one dataclass means callers never mix Unicode
     and ASCII characters in a single frame.
@@ -42,15 +47,15 @@ class GlyphSet:
     overflow: str  # truncation marker for clipped text
 
 
-#: Unicode glyph table used for capable terminals (the default).
+#: Unicode glyph table used for capable terminals and the web (the default).
 UNICODE_GLYPHS = GlyphSet(
-    success="\u2714",  # ✔
-    failure="\u2718",  # ✘
-    pending="\u22ef",  # ⋯
-    agent="\u25c6",  # ◆
-    prompt="\u276f",  # ❯
-    separator="\u2502",  # │
-    overflow="\u2026",  # …
+    success="\u2714",  # U+2714 heavy check mark
+    failure="\u2718",  # U+2718 heavy ballot X
+    pending="\u22ef",  # U+22EF midline horizontal ellipsis
+    agent="\u25c6",  # U+25C6 black diamond
+    prompt="\u276f",  # U+276F heavy right-pointing angle quotation mark ornament
+    separator="\u2502",  # U+2502 box drawings light vertical
+    overflow="\u2026",  # U+2026 horizontal ellipsis
 )
 
 

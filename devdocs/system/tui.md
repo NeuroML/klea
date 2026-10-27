@@ -325,7 +325,7 @@ session's bundled MCP client.  See `session-mcp-context.md` and ADR-0055.
 ## Glyphs
 
 Every status marker the TUI draws comes from one table,
-`ui/tui/glyphs.py` (`GlyphSet`), so a frame never mixes Unicode and ASCII
+`ui/glyphs.py` (`GlyphSet`), so a frame never mixes Unicode and ASCII
 characters and a single environment variable switches the whole interface:
 
 | Field | Unicode | ASCII | Drawn as |

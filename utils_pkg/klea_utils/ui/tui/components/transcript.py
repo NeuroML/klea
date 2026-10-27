@@ -29,8 +29,8 @@ from textual.binding import Binding
 from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Static
 
+from klea_utils.ui.glyphs import GlyphSet, get_glyphs
 from klea_utils.ui.tui.components.selectable import SelectableStatic
-from klea_utils.ui.tui.glyphs import GlyphSet, get_glyphs
 from klea_utils.ui.tui.theme import get_role_tints
 
 if TYPE_CHECKING:
