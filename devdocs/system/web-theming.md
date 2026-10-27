@@ -107,6 +107,15 @@ Notes:
   page/body, while `--q-dark` (#1d1d1d) paints `q-dark` panels and drawers.
   We set `--q-dark-page` to the panel grey so the page and its panels match.
 
+### Shared glyphs and tool headers (phase 2)
+
+Phase 2 also lifts the role glyph table out of the TUI: `klea_utils/ui/glyphs.py`
+is now the single shared source (`UNICODE_GLYPHS`), reused by the web frontend,
+so the two UIs cannot drift apart.  Accordingly, a tool-call header in
+`chat_bubble.py` is prefixed with the success glyph -- or the failure glyph when
+the tool result is an error -- and carries the matching positive/negative role
+colours from the theme.
+
 ## Semantic classes
 
 Prefer a semantic class over inline colours so the token applies in both

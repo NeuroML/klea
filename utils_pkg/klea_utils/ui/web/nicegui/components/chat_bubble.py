@@ -9,7 +9,13 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from nicegui import ui
 
+from klea_utils.ui.glyphs import UNICODE_GLYPHS
 from klea_utils.ui.linkify import linkify_html
+
+#: Browser output is always Unicode-capable, so the web reuses the TUI's glyph
+#: table directly (the terminal detection / ASCII fallback does not apply); one
+#: shared source keeps the role markers identical in both frontends.
+GLYPHS = UNICODE_GLYPHS
 
 #: Recognised transcript roles; anything else falls back to ``agent``.
 _ROLES = ("user", "agent", "tool", "system")
@@ -128,13 +134,13 @@ class ChatBubble(ui.element):
             ),
         ):
             if header:
+                failed = role == "tool" and is_error
                 header_classes = "text-xs font-bold"
-                header_classes += (
-                    " tool-header--error"
-                    if role == "tool" and is_error
-                    else " text-grey-6"
-                )
-                ui.label(header).classes(header_classes)
+                header_classes += " tool-header--error" if failed else " text-grey-6"
+                # Mirror the TUI transcript: a header carries its role's glyph
+                # (success/failure), coloured by the same role tokens.
+                marker = GLYPHS.failure if failed else GLYPHS.success
+                ui.label(f"{marker} {header}").classes(header_classes)
 
             if role == "tool":
                 # A tool block collapses to a one-line preview (the header is
