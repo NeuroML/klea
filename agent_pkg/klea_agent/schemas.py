@@ -205,7 +205,7 @@ class PlannerPlanSchema(BaseModel):
                     else "(none)"
                 )
                 lines.append(
-                    f"Step {step.step_number}/{total} {marker} "
+                    f"{marker} Step {step.step_number}/{total} "
                     f"{step.description} (depends on: {depends})"
                 )
             else:
