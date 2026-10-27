@@ -1,7 +1,7 @@
 # ADR-0056: Test Case Storage Format
 
 **Status:** Proposed
-**Date:** 2025-01-01
+**Date:** 2026-10-27
 **Deciders:** Architecture Team
 **Relates to:** ADR-0057 (Turn Executor), ADR-0058 (Run Config Semantics)
 
