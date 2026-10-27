@@ -69,6 +69,9 @@ class CredentialsDialog(ModalScreen[CredentialsResult | None]):
         height: auto;
         padding-top: 1;
     }
+    CredentialsDialog #cred-list {
+        height: auto;
+    }
     CredentialsDialog #cred-actions {
         height: auto;
         align-horizontal: right;
