@@ -21,21 +21,35 @@ logger = logging.getLogger(__name__)
 #: Default cap on the number of file paths returned.
 DEFAULT_MAX_RESULTS = 100
 
+#: Note appended to a result cut short by ``max_results``.
+_TRUNCATION_NOTE = (
+    "Results truncated: showing the first {max_results} entries; "
+    "more exist and were not listed."
+)
+
 
 def _result(
     *,
     files: list[str] | None = None,
     truncated: bool = False,
     error: str = "",
+    note: str = "",
 ) -> dict[str, Any]:
     """Build the standard find_files result dict.
 
     :param files: Matching paths, relative to the search root.
     :param truncated: Whether the result was cut short by the cap.
     :param error: Empty on success; a message otherwise.
+    :param note: Human-readable guidance; carries the truncation message when
+        the result was cut short by ``max_results``, and is empty otherwise.
     :returns: The result dict returned to the MCP wrapper.
     """
-    return {"files": files or [], "truncated": truncated, "error": error}
+    return {
+        "files": files or [],
+        "truncated": truncated,
+        "error": error,
+        "note": note,
+    }
 
 
 def find_files_inhouse(
@@ -61,7 +75,9 @@ def find_files_inhouse(
     :param max_results: Maximum number of file paths to return.
     :param project_root: Retained for callers; the boundary is enforced by the
         client-side gate, not here (ADR-0007 update 2026-10-08).
-    :returns: dict with files, truncated, error.
+    :returns: dict with files, truncated, error, note.  ``note`` carries a
+        truncation message when the result was cut short by *max_results*,
+        and is empty otherwise.
     """
     logger.debug(
         f"Finding files\n{pattern = }\n{path = }\n{max_results = }\n{project_root = }"
@@ -89,8 +105,9 @@ def find_files_inhouse(
 
     truncated = len(files) > max_results
     files = files[:max_results]
+    note = _TRUNCATION_NOTE.format(max_results=max_results) if truncated else ""
     logger.debug(f"Found files\n{len(files) = }\n{truncated = }")
-    return _result(files=files, truncated=truncated)
+    return _result(files=files, truncated=truncated, note=note)
 
 
 async def find_files(
@@ -116,7 +133,9 @@ async def find_files(
     :param max_results: Maximum number of file paths to return.
     :param project_root: Retained for callers; the boundary is enforced
         by the client-side gate, not here (ADR-0007 update 2026-10-08).
-    :returns: dict with files, truncated, error.
+    :returns: dict with files, truncated, error, note.  ``note`` carries a
+        truncation message when the result was cut short by *max_results*,
+        and is empty otherwise.
     """
     rg = resolve_rg()
     if rg is not None:

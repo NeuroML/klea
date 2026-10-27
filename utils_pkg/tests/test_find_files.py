@@ -31,6 +31,7 @@ def test_find_files_basic(tmp_path):
     assert result["error"] == ""
     assert result["truncated"] is False
     assert set(result["files"]) == {"a.py", "sub/c.py"}
+    assert result["note"] == ""
 
 
 def test_find_files_match_all(tmp_path):
@@ -80,6 +81,8 @@ def test_find_files_truncates(tmp_path):
     logger.debug(f"{result = }")
     assert len(result["files"]) == 2
     assert result["truncated"] is True
+    assert result["note"].startswith("Results truncated:")
+    assert "more exist and were not listed" in result["note"]
 
 
 def test_find_files_exact_boundary_not_truncated(tmp_path):
@@ -95,6 +98,7 @@ def test_find_files_exact_boundary_not_truncated(tmp_path):
 
     assert len(result["files"]) == 3
     assert result["truncated"] is False
+    assert result["note"] == ""
 
 
 def test_find_files_path_relative_pattern(tmp_path):
