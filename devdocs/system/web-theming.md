@@ -116,6 +116,18 @@ so the two UIs cannot drift apart.  Accordingly, a tool-call header in
 the tool result is an error -- and carries the matching positive/negative role
 colours from the theme.
 
+### Notice rendering (phase 3)
+
+Phase 3 splits transcript rendering by role in `chat_bubble.py`: a **notice**
+(a compact progress note) and **user** text are rendered as escaped plain text
+through `ui.html(linkify_html(...), sanitize=True)`, so underscores, `#`, lists
+and other Markdown markup stay literal; glyph placement follows the TUI: the pending `...` glyph precedes
+a notice's header, while the success/failure (tick) glyphs are reserved for
+tool-call headers; a notice with no header takes the pending glyph once on its
+plain-text body.  Only **agent** and **tool** bodies keep the Markdown / `ui.code`
+renderers.  This mirrors the TUI, where a notice is plain Rich text and only
+agent/tool bodies pass through a Markdown renderer.
+
 ## Semantic classes
 
 Prefer a semantic class over inline colours so the token applies in both
