@@ -165,9 +165,10 @@ class PlannerPlanSchema(BaseModel):
 
         Prompts (``markdown=False``) render each step as ``[STATUS] N.
         description (...)`` with plain-word markers, which every model reads
-        unambiguously.  The status pane (``markdown=True``) renders ``[marker]
-        Step N: description (...)`` lines with symbol markers, separated by a
-        blank line and rendered preformatted so tool names stay literal.
+        unambiguously.  The status pane (``markdown=True``) renders ``Step
+        N/total [marker] description (...)`` lines with symbol markers,
+        separated by a blank line and rendered preformatted so tool names stay
+        literal.
 
         Steps whose number is in *current_numbers* are marked as current.  By
         default that is the next runnable step (the first in the frontier); a
@@ -188,11 +189,27 @@ class PlannerPlanSchema(BaseModel):
         lines: list[str] = []
         if not markdown:
             lines.append("Steps:")
+        # Only the plan knows the step count, so the ``Step N/total`` counter
+        # for the status pane is built here; the prompt render keeps delegating
+        # to ``StepSchema.render`` and is unchanged.
+        total = len(self.step_list)
         for step in self.step_list:
             is_current = (
                 step.step_number in current_numbers and step.status == "pending"
             )
-            lines.append(step.render(current=is_current, markdown=markdown))
+            if markdown:
+                marker = step.status_label(current=is_current, markdown=True)
+                depends = (
+                    ", ".join(str(number) for number in step.depends_on)
+                    if step.depends_on
+                    else "(none)"
+                )
+                lines.append(
+                    f"Step {step.step_number}/{total} {marker} "
+                    f"{step.description} (depends on: {depends})"
+                )
+            else:
+                lines.append(step.render(current=is_current, markdown=False))
         separator = "\n\n" if markdown else "\n"
         return separator.join(lines)
 
