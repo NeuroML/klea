@@ -47,7 +47,7 @@ def attach_status_pane(ctx: PageContext) -> None:
     with (
         ui.right_drawer(value=True)
         .props("width=420 bordered")
-        .classes("overflow-y-auto overflow-x-hidden bg-white dark:bg-[#1d1d1d]")
+        .classes("overflow-y-auto overflow-x-hidden status-pane")
     ):
 
         @ui.refreshable
@@ -83,9 +83,7 @@ def attach_status_pane(ctx: PageContext) -> None:
             )
 
             # Sticky header: stays visible while the state sections scroll.
-            with ui.column().classes(
-                "w-full gap-0 p-2 sticky top-0 z-20 bg-white dark:bg-[#1d1d1d]"
-            ):
+            with ui.column().classes("w-full gap-0 p-2 sticky top-0 z-20"):
                 # App-defined context slots (e.g. operating-mode and
                 # tool-access selectors, ADR-0030/ADR-0037).
                 for render in ctx.status_extras:

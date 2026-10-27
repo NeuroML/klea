@@ -33,12 +33,15 @@ def _add_css_overrides() -> None:
     # GitHub-style alerts (rendered from ``> [!WARNING]`` etc. by the markdown2
     # 'alerts' extra) used for the fallback / best-effort warnings in bubbles.
     # No default style defined by nicegui for these extras
+    # Warning-role surfaces (the ``> [!WARNING]`` alerts): derived from
+    # Quasar's warning brand token so they follow the active theme instead of
+    # duplicating its hex value here.
     ui.add_css(
         ".nicegui-markdown div.alert { "
         "padding: 0.4rem 0.75rem; "
-        "border-left: 4px solid #d29922; "
+        "border-left: 4px solid var(--q-warning); "
         "border-radius: 0.25rem; "
-        "background: rgba(210, 153, 34, 0.12); "
+        "background: color-mix(in srgb, var(--q-warning) 12%, transparent); "
         "margin: 0.5rem 0; "
         "}"
     )
@@ -51,8 +54,9 @@ def _add_css_overrides() -> None:
     # Tool blocks collapse to a one-line preview (the block header is the
     # title); long diffs/command output stay hidden until expanded.
     ui.add_css(".tool-block-collapsed { max-height: 1.8em; overflow: hidden; }")
-    # An errored tool block's header uses the theme's negative colour.
-    ui.add_css(".tool-header--error { color: var(--q-negative); }")
+    # Tool block header status roles are colour rules, so they live in the
+    # ``overrides`` layer below (see ``.tool-header--success`` /
+    # ``.tool-header--error``).
     # Fenced code blocks in chat bubbles.  NiceGUI's markdown CSS only sets a
     # margin on ``<pre>``; a long line would overflow the bubble and the page.
     # The block is kept inside the bubble and its lines wrap (see the wrap
@@ -128,10 +132,14 @@ def _add_css_overrides() -> None:
         "    --klea-muted: #757575;\n"
         "    --klea-hint: #9e9e9e;\n"
         "    --klea-surface: #e0e0e0;\n"
-        "    --klea-bubble-user: #e8f0fe;\n"
+        # Role colours are derived from Quasar's brand tokens rather than
+        # hard-coded, so one declaration covers both themes: the user block is
+        # a translucent primary tint (it composites over whatever surface it
+        # sits on) and attention / notice is the warning role.
+        "    --klea-bubble-user: color-mix(in srgb, var(--q-primary) 12%, transparent);\n"
         "    --klea-bubble-tool: #f0f0f0;\n"
         "    --klea-bubble-system: #eef1f6;\n"
-        "    --klea-attention: #e65100;\n"
+        "    --klea-attention: var(--q-warning);\n"
         "  }\n"
         "  body.body--dark {\n"
         # Quasar brand token: lighten ``primary`` so primary-tinted widgets (the
@@ -148,10 +156,11 @@ def _add_css_overrides() -> None:
         # Footer stays a distinct, slightly darker bar (mirrors light mode,
         # where the footer is darker than the page).
         "    --klea-surface: #161616;\n"
-        "    --klea-bubble-user: #1e2a3a;\n"
+        # The derived role colours need no dark counterparts: the translucent
+        # primary tint adapts to the dark surface and attention/notice is the
+        # same warning token in both themes.
         "    --klea-bubble-tool: #262626;\n"
         "    --klea-bubble-system: #23272e;\n"
-        "    --klea-attention: #ffb74d;\n"
         "  }\n"
         # Neutral interactive icons and the inactive segmented option; the
         # outline border follows the text colour (Quasar draws
@@ -165,6 +174,20 @@ def _add_css_overrides() -> None:
         "  .model-btn--attention {\n"
         "    color: var(--klea-attention) !important;\n"
         "  }\n"
+        # Tool block header status roles: success is Quasar's positive brand
+        # token, error its negative one, so a tool round's outcome follows the
+        # theme with no literal colour at the call site.
+        "  .tool-header--success { color: var(--q-positive); }\n"
+        "  .tool-header--error { color: var(--q-negative); }\n"
+        # Inspector text roles: hint is the quietest label (timings, section
+        # stamps, empty-state copy), muted the secondary body text, so the
+        # inspector follows the theme tokens instead of fixed Quasar greys.
+        "  .inspector-hint { color: var(--klea-hint); }\n"
+        "  .inspector-muted { color: var(--klea-muted); }\n"
+        # Credential status tone for the model dialog: error is Quasar's
+        # negative brand token, muted the themed secondary text colour.
+        "  .cred-status--error { color: var(--q-negative); }\n"
+        "  .cred-status--muted { color: var(--klea-muted); }\n"
         "  .choice-label {\n"
         "    color: var(--klea-muted) !important;\n"
         "  }\n"
@@ -184,6 +207,14 @@ def _add_css_overrides() -> None:
         "  body.body--dark .text-grey-5 { color: var(--klea-hint) !important; }\n"
         "  body.body--dark .text-grey-6 { color: var(--klea-muted) !important; }\n"
         "  body.body--dark .text-grey-7 { color: var(--klea-muted) !important; }\n"
+        # Status / panels pane surface: the pane used a literal ``bg-white``
+        # utility (an ``!important`` rule inside Quasar's ``quasar_importants``
+        # layer, so its paired ``dark:`` variant lost) and therefore stayed
+        # light in dark mode, leaving the theme-coloured hint/muted labels
+        # illegible.  Bind the drawer to Quasar's built-in dark token so the
+        # whole pane follows the active theme with no literal colour
+        # introduced; the sticky header stays transparent over that surface.
+        "  body.body--dark .status-pane { background: var(--q-dark) !important; }\n"
         "}"
     )
     ui.add_css(
@@ -193,6 +224,13 @@ def _add_css_overrides() -> None:
         ".inspector-entry > summary::before { content: '\\25B6'; font-size: 0.65rem; margin-right: 0.35rem; transition: transform 0.15s; }"
     )
     ui.add_css(".inspector-entry[open] > summary::before { content: '\\25BC'; }")
+    # Bound an expanded inspector entry so its rendered details block cannot
+    # grow the pane without limit; the body scrolls internally instead and
+    # overscroll is contained so the pane does not scroll with it.  This is a
+    # plain layout declaration (not a colour override), so it stays unlayered.
+    ui.add_css(
+        ".inspector-entry-body { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }"
+    )
     # Inspector query sections: same disclosure triangle as entries, plus a
     # separating rule between sections so consecutive queries are distinct.
     ui.add_css(

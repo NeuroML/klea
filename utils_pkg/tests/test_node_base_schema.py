@@ -617,3 +617,53 @@ def test_extract_usage_none_without_metadata():
     """No usage in either shape yields ``None``."""
     node = _node(AnswerSchema)
     assert node._extract_usage(LLMNodeContext(output=AIMessage(content="ok"))) is None
+
+
+async def test_invoke_with_retries_folds_retried_attempt_usage():
+    """Usage of a retried (blank) attempt is added to the surviving one.
+
+    The provider bills the discarded attempt too, so the single response the
+    node reports must carry both attempts' tokens: the blank first attempt's
+    100 in / 20 out / 120 total plus the successful attempt's 10 / 5 / 15.
+    """
+    node = _node(AnswerSchema)
+    responses = [
+        AIMessage(
+            content="",
+            usage_metadata={
+                "input_tokens": 100,
+                "output_tokens": 20,
+                "total_tokens": 120,
+                "input_token_details": {"cache_read": 64},
+                "output_token_details": {"reasoning": 12},
+            },
+        ),
+        AIMessage(
+            content="ok",
+            usage_metadata={
+                "input_tokens": 10,
+                "output_tokens": 5,
+                "total_tokens": 15,
+            },
+        ),
+    ]
+    attempts: list[int] = []
+
+    async def invoke(prompt, config=None):
+        attempts.append(len(attempts) + 1)
+        return responses.pop(0)
+
+    output = await node._invoke_with_retries(
+        invoke, _system_prompt_value(), cast(Any, {"configurable": {}})
+    )
+
+    # The blank first attempt is rejected and the node re-invokes.
+    assert len(attempts) == 2
+
+    usage = node._extract_usage(LLMNodeContext(output=output))
+    assert usage is not None
+    assert usage.input_tokens == 110
+    assert usage.output_tokens == 25
+    assert usage.total_tokens == 135
+    assert usage.reasoning_tokens == 12
+    assert usage.cached_tokens == 64

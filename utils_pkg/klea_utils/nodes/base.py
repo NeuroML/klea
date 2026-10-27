@@ -762,6 +762,63 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
         truncation_retries = 0
         empty_retries = 0
         transient_retries = 0
+        # Attempts that return a usable-but-useless response (truncated or
+        # blank) are retried, but the provider still bills them.  Their usage
+        # is accumulated here and folded into the surviving response so the
+        # single ``_extract_usage`` call downstream reports all of it.
+        discarded_usage: dict[str, int] = {}
+
+        def _fold_discarded(output: AIMessage | dict[str, Any]) -> None:
+            """Record the usage of an attempt that is about to be retried."""
+            target = output if isinstance(output, AIMessage) else output.get("raw")
+            if not isinstance(target, AIMessage):
+                return
+            usage = self._extract_usage(LLMNodeContext(output=target))
+            if usage is None:
+                return
+            for field in (
+                "input_tokens",
+                "output_tokens",
+                "total_tokens",
+                "reasoning_tokens",
+                "cached_tokens",
+            ):
+                discarded_usage[field] = discarded_usage.get(field, 0) + (
+                    getattr(usage, field, 0) or 0
+                )
+
+        def _merge_discarded(
+            output: AIMessage | dict[str, Any],
+        ) -> AIMessage | dict[str, Any]:
+            """Fold retried-attempt usage into the surviving response."""
+            if not discarded_usage:
+                return output
+            target = output if isinstance(output, AIMessage) else output.get("raw")
+            if not isinstance(target, AIMessage):
+                return output
+            usage = self._extract_usage(LLMNodeContext(output=target))
+            own_input = usage.input_tokens if usage else 0
+            own_output = usage.output_tokens if usage else 0
+            own_total = usage.total_tokens if usage else 0
+            own_cached = usage.cached_tokens if usage else 0
+            own_reasoning = usage.reasoning_tokens if usage else 0
+            usage_metadata: dict[str, Any] = {
+                "input_tokens": own_input + discarded_usage.get("input_tokens", 0),
+                "output_tokens": own_output + discarded_usage.get("output_tokens", 0),
+                "total_tokens": own_total + discarded_usage.get("total_tokens", 0),
+            }
+            cached_tokens = own_cached + discarded_usage.get("cached_tokens", 0)
+            if cached_tokens:
+                usage_metadata["input_token_details"] = {"cache_read": cached_tokens}
+            reasoning_tokens = own_reasoning + discarded_usage.get(
+                "reasoning_tokens", 0
+            )
+            if reasoning_tokens:
+                usage_metadata["output_token_details"] = {"reasoning": reasoning_tokens}
+            merged = target.model_copy(update={"usage_metadata": usage_metadata})
+            if isinstance(output, dict):
+                return {**output, "raw": merged}
+            return merged
 
         while True:
             try:
@@ -866,8 +923,9 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                         action="grow",
                         max_tokens=self._current_output_window(config),
                     )
+                    _fold_discarded(output)
                     continue
-                return output
+                return _merge_discarded(output)
 
             if is_output_empty(output):
                 if empty_retries < MAX_EMPTY_OUTPUT_RETRIES:
@@ -882,14 +940,15 @@ class BaseLLMNode[TState: BaseModel, TOutput: BaseModel](
                         attempt=empty_retries,
                         max_attempts=MAX_EMPTY_OUTPUT_RETRIES,
                     )
+                    _fold_discarded(output)
                     continue
                 self.logger.warning(
                     "Empty LLM output after %d retries; returning as-is",
                     MAX_EMPTY_OUTPUT_RETRIES,
                 )
-                return output
+                return _merge_discarded(output)
 
-            return output
+            return _merge_discarded(output)
 
     def _next_truncation_retry(
         self,

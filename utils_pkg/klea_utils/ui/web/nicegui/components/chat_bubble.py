@@ -9,7 +9,13 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from nicegui import ui
 
+from klea_utils.ui.glyphs import UNICODE_GLYPHS
 from klea_utils.ui.linkify import linkify_html
+
+#: Browser output is always Unicode-capable, so the web reuses the TUI's glyph
+#: table directly (the terminal detection / ASCII fallback does not apply); one
+#: shared source keeps the role markers identical in both frontends.
+GLYPHS = UNICODE_GLYPHS
 
 #: Recognised transcript roles; anything else falls back to ``agent``.
 _ROLES = ("user", "agent", "tool", "system")
@@ -25,17 +31,35 @@ def _is_code_mime(mime: str) -> bool:
     return mime in _DIFF_MIMES or mime.startswith("text/x-")
 
 
-def _render_body(role: str, mime: str, data: str, text: str) -> None:
+def _render_body(
+    role: str,
+    mime: str,
+    data: str,
+    text: str,
+    *,
+    notice: bool = False,
+    notice_glyph: bool = False,
+) -> None:
     """Render a block body according to its role and MIME type.
 
     A **user** message is shown verbatim -- no Markdown decoration, so literal
     underscores, ``#``, lists and newlines in the user's input (URLs, paths,
-    pasted code) are preserved; bare URLs stay clickable.  Other roles use the
-    MIME type: diffs and code use NiceGUI's native ``ui.code`` (syntax
-    highlighting and a copy button); text uses ``ui.markdown``.
+    pasted code) are preserved; bare URLs stay clickable.  A **notice** is
+    likewise rendered as plain, escaped text, mirroring the TUI, where a notice
+    is plain Rich text and only agent/tool bodies go through a Markdown
+    renderer.  The pending glyph normally marks the notice's header line; a
+    notice *without* a header carries it here instead (``notice_glyph``), so
+    every notice shows exactly one marker.  Other roles use the MIME type:
+    diffs and code use NiceGUI's native ``ui.code`` (syntax highlighting and a
+    copy button); text uses ``ui.markdown``.
     """
     if role == "user":
         ui.html(linkify_html(text), sanitize=True).classes(
+            "whitespace-pre-wrap break-words"
+        )
+    elif notice:
+        body = f"{GLYPHS.pending} {text}" if notice_glyph else text
+        ui.html(linkify_html(body), sanitize=True).classes(
             "whitespace-pre-wrap break-words"
         )
     elif mime in _DIFF_MIMES:
@@ -112,8 +136,12 @@ class ChatBubble(ui.element):
         """
         super().__init__("div")
 
-        if role == "notice":
-            # A progress notice is a muted, system-style transcript block.
+        is_notice = role == "notice"
+        if is_notice:
+            # A progress notice is a muted, system-style transcript block.  It
+            # keeps its notice identity for rendering: notices are plain text
+            # (see ``_render_body``), never Markdown, so underscores and other
+            # markup in tool names stay literal (mirrors the TUI).
             role = "system"
         elif role not in _ROLES:
             role = "agent"
@@ -128,13 +156,18 @@ class ChatBubble(ui.element):
             ),
         ):
             if header:
+                failed = role == "tool" and is_error
                 header_classes = "text-xs font-bold"
-                header_classes += (
-                    " tool-header--error"
-                    if role == "tool" and is_error
-                    else " text-grey-6"
-                )
-                ui.label(header).classes(header_classes)
+                header_classes += " tool-header--error" if failed else " text-grey-6"
+                # Mirror the TUI transcript: the tick / cross are reserved for
+                # tool-call headers (success/failure), coloured by the same role
+                # tokens; any other header -- a notice's node label -- takes the
+                # pending marker, exactly as the TUI's ``_render_notice`` does.
+                if role == "tool":
+                    marker = GLYPHS.failure if failed else GLYPHS.success
+                else:
+                    marker = GLYPHS.pending
+                ui.label(f"{marker} {header}").classes(header_classes)
 
             if role == "tool":
                 # A tool block collapses to a one-line preview (the header is
@@ -147,10 +180,17 @@ class ChatBubble(ui.element):
             # would stack our ``pre``/``code`` rules on top of it.  A user
             # message is plain text (no markdown styling).
             classes = f"text-left {text_cls}"
-            if role != "user" and not _is_code_mime(mime):
+            if role != "user" and not is_notice and not _is_code_mime(mime):
                 classes += " chat-markdown"
             with ui.element("div").classes(classes):
-                _render_body(role, mime, data, text)
+                _render_body(
+                    role,
+                    mime,
+                    data,
+                    text,
+                    notice=is_notice,
+                    notice_glyph=is_notice and not header,
+                )
 
             with ui.row().classes("flex flex-row justify-start items-center gap-1"):
                 ui.label(stamp).classes("text-xs text-grey-5")

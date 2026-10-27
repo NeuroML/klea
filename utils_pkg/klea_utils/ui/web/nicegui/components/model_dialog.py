@@ -518,7 +518,9 @@ def attach_model_info(ctx: PageContext) -> None:
         def _credential_display(model_name: str, saved: dict) -> tuple[str, str]:
             """Return ``(label, colour class)`` for a model's credential status."""
             text, tone = credential_display(model_name, saved, stored_by_scope)
-            colour = "text-negative" if tone == TONE_ERROR else "text-grey-6"
+            colour = (
+                "cred-status--error" if tone == TONE_ERROR else "cred-status--muted"
+            )
             return text, colour
 
         def _on_model_change(role: str, value: str) -> None:
@@ -529,7 +531,7 @@ def attach_model_info(ctx: PageContext) -> None:
             label = role_labels.get(role)
             if label is not None:
                 label.text = text
-                label.classes(remove="text-grey-6 text-negative")
+                label.classes(remove="cred-status--muted cred-status--error")
                 label.classes(add=colour)
             logger.debug(f"model dialog: live label {role = }\n{text = }")
 

@@ -66,6 +66,24 @@ variable and never need paired light/dark rules.
 | `--q-primary` | `#1976D2` (Quasar default) | `#64b5f6` | primary brand colour |
 | `--q-dark-page` | n/a (light theme) | `#1d1d1d` | dark page background, set to match the `q-dark` panels/drawers |
 
+### Derived role tokens (phase 2)
+
+Phase 2 stops hand-picking per-widget greys: the semantic roles are derived
+from the TUI's role palette, so each role has exactly one definition and the
+web tokens are derived from it.  A role therefore cannot drift between the
+terminal and the web UI.  The derived tokens are installed by
+`_add_css_overrides` in `theme.py` under `:root` and overridden under
+`body.body--dark` exactly like the tokens above.
+
+| Role token | TUI role | Use |
+|------------|----------|-----|
+| `--klea-hint` | `hint` | faintest inspector/status text (`.inspector-hint`, `.cred-status--muted`) |
+| `--klea-muted` | `muted` | secondary text, inactive/unknown state (`.inspector-muted`) |
+| `--klea-error` | `error` | credential failure text (`.cred-status--error`) |
+
+Always reference the role token, never a literal `#rrggbb`, so the role keeps
+its light/dark pairing.
+
 Notes:
 
 - Redefining `--q-primary` under `body.body--dark` themes **every**
@@ -89,6 +107,27 @@ Notes:
   page/body, while `--q-dark` (#1d1d1d) paints `q-dark` panels and drawers.
   We set `--q-dark-page` to the panel grey so the page and its panels match.
 
+### Shared glyphs and tool headers (phase 2)
+
+Phase 2 also lifts the role glyph table out of the TUI: `klea_utils/ui/glyphs.py`
+is now the single shared source (`UNICODE_GLYPHS`), reused by the web frontend,
+so the two UIs cannot drift apart.  Accordingly, a tool-call header in
+`chat_bubble.py` is prefixed with the success glyph -- or the failure glyph when
+the tool result is an error -- and carries the matching positive/negative role
+colours from the theme.
+
+### Notice rendering (phase 3)
+
+Phase 3 splits transcript rendering by role in `chat_bubble.py`: a **notice**
+(a compact progress note) and **user** text are rendered as escaped plain text
+through `ui.html(linkify_html(...), sanitize=True)`, so underscores, `#`, lists
+and other Markdown markup stay literal; glyph placement follows the TUI: the pending `...` glyph precedes
+a notice's header, while the success/failure (tick) glyphs are reserved for
+tool-call headers; a notice with no header takes the pending glyph once on its
+plain-text body.  Only **agent** and **tool** bodies keep the Markdown / `ui.code`
+renderers.  This mirrors the TUI, where a notice is plain Rich text and only
+agent/tool bodies pass through a Markdown renderer.
+
 ## Semantic classes
 
 Prefer a semantic class over inline colours so the token applies in both
@@ -104,6 +143,11 @@ themes:
   `.q-footer` has no background of its own, so the app pins one.  The
   shared footer component stacks the disclaimer and the footer text on this
   one line.
+- `.status-pane` -- the status/panels drawer surface (`status_pane.py`): the
+  drawer follows the built-in `--q-dark` panel grey, replacing the `bg-white`
+  utility pair whose unlayered declaration beat its `dark:` variant; the rule
+  is a colour rule in `@layer overrides`.  The pane's sticky header carries no
+  background of its own, so it reads straight over the drawer surface.
 - `.chat-bubble--user` / `.chat-bubble--agent` / `.chat-bubble--tool` /
   `.chat-bubble--system` -- the full-width transcript block surfaces
   (`chat_bubble.py`): user tinted, agent transparent, tool neutral, system (a
@@ -114,13 +158,30 @@ themes:
 - `.nicegui-code-noformat` -- strips the `ui.code` wrapper box/border/shadow
   and the copy button for the preformatted status block (the plan), so it
   reads as plain pane text; the inner layers are set to pre-wrap.
+- `.inspector-entry-body` -- the body of one inspector entry (`inspector.py`):
+  bounded to `40vh` with its own `overflow-y: auto`, so a long rendered
+  details block scrolls inside the entry.  The inspector pane keeps its own
+  scroll; `overscroll-behavior: contain` stops the entry's scroll from
+  chaining into the pane.  This is a plain (unlayered) layout rule.
+- `.inspector-hint` -- faint inspector label/annotation text; uses the
+  derived `hint` role token (`--klea-hint`), so it stays faint in both
+  themes.
+- `.inspector-muted` -- secondary inspector text (paths, counts, inactive
+  values); uses the derived `muted` role token (`--klea-muted`).
+- `.cred-status--error` -- credential state text for a failed/absent
+  credential; uses the derived `error` role token (`--klea-error`).  This is
+  a colour rule, so it lives in `@layer overrides`.
+- `.cred-status--muted` -- credential state text for an unknown/inactive
+  credential; uses the derived `hint` role token (`--klea-hint`).  Also a
+  colour rule in `@layer overrides`.
 
 All of these are styled in `theme.py`; call sites only add the class.
 
 ## Adding a themed control (checklist)
 
 1. Use a token (`--klea-control` / `--klea-muted` / `--klea-hint` /
-   `--klea-surface`) or, for brand colour, Quasar's `color=` prop (themed by
+   `--klea-surface`) or one of the derived role tokens (`hint`, `muted`,
+   `error`) or, for brand colour, Quasar's `color=` prop (themed by
    `--q-primary`).
 2. Put any colour rule that must beat Quasar in `@layer overrides`;
    layout/structure rules can stay unlayered.

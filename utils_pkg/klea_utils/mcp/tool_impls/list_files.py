@@ -16,6 +16,8 @@ import os
 from pathlib import Path
 from typing import Any
 
+from klea_utils.mcp.tool_impls.file_ops import TRUNCATION_NOTE
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,8 +51,9 @@ def list_files(
         client-side gate, not here (ADR-0007 update 2026-10-08).
 
     :returns: dict with files, error, truncated, note.  ``note`` is non-empty
-        when the requested filter matched nothing and the fallback below
-        returned an unfiltered listing instead.
+        when the result was cut short by *max_results* (it then carries the
+        truncation message) and/or when the requested filter matched nothing
+        and the fallback below returned an unfiltered listing instead.
     """
     logger.debug(
         f"Listing files\n"
@@ -167,6 +170,7 @@ def list_files(
 
         if len(paths) > max_results:
             truncated = True
+            note = f"{note} {TRUNCATION_NOTE.format(max_results=max_results)}".strip()
 
         for f in paths[:max_results]:
             ftype = "file"

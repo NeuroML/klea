@@ -1420,7 +1420,7 @@ class TestPlannerToolDisclosure(unittest.TestCase):
 
         assert status is not None
         self.assertIn("2 step(s)", status.summary)
-        self.assertIn("[*] Step 1: a", status.display)
+        self.assertIn("[*] Step 1/2 a", status.display)
         self.assertNotEqual(status.display, "(no plan)")
         self.assertEqual(status.key, "plan")
         self.assertTrue(status.preformatted)

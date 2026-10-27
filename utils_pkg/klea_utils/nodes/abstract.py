@@ -423,6 +423,17 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         # On the final attempt the invalid result is kept and handled by
         # ``_update_state`` (fail-closed), so the loop always terminates.
         attempt = 0
+        # Accumulate token usage across every LLM invocation of this node.
+        # A validation retry overwrites ``ctx.output``, so without this the
+        # tokens burnt by the rejected attempt(s) never reach the totals.
+        usage_totals: dict[str, int] = {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "total_tokens": 0,
+            "reasoning_tokens": 0,
+            "cached_tokens": 0,
+        }
+        usage_calls = 0
         while True:
             # Re-derive the variables each attempt so the node's own
             # ``_get_prompt_variables`` (and any state it reads) stays the
@@ -437,6 +448,14 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             ctx.output = output
             chars_received = len(extract_llm_output_content(output))
             self.logger.debug(f"{chars_received = } characters received from LLM")
+            # Fold this attempt's usage into the accumulator immediately, so a
+            # rejected attempt (which will be overwritten by the next one) is
+            # still accounted for exactly once.
+            attempt_usage = self._extract_usage(ctx)
+            if attempt_usage is not None:
+                usage_calls += 1
+                for field_name in usage_totals:
+                    usage_totals[field_name] += getattr(attempt_usage, field_name)
             ctx.result = self._process_output(ctx)
             error = self._validate_result(ctx.result, state, ctx)
 
@@ -467,8 +486,13 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
 
         ctx.state_updates = self._update_state(ctx.result, state, ctx)
 
-        # token calculations
-        ctx.token_usage = self._extract_usage(ctx)
+        # token calculations: sum every attempt (retried and final) so the
+        # discarded-attempt tokens are not lost.  Each call was added exactly
+        # once above, so the final attempt is not double counted.
+        if usage_calls:
+            ctx.token_usage = TokenUsage(role=self.model_role, **usage_totals)
+        else:
+            ctx.token_usage = None
         final_state = self._update_usage_metrics(ctx.token_usage, ctx.state_updates)
         ctx.final_state = final_state
 

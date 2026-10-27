@@ -109,10 +109,15 @@ def _render_ask_sections(ask: dict[str, Any]) -> None:
     The sections are rendered monospace so tool names and paths stay literal;
     full results remain in the inspection pane.
     """
-    for section in ask.get("sections") or []:
-        if not isinstance(section, dict):
-            continue
-        if title := section.get("title"):
+    sections = [
+        section for section in (ask.get("sections") or []) if isinstance(section, dict)
+    ]
+    for index, section in enumerate(sections):
+        title = str(section.get("title", ""))
+        if len(sections) > 1:
+            label = f"Option {index + 1}"
+            title = f"{label}: {title}" if title else label
+        if title:
             ui.label(title).classes("text-xs font-bold")
         if body := section.get("body"):
             ui.code(body, language=None).classes("text-xs w-full nicegui-code-noformat")
@@ -311,7 +316,9 @@ def _render_permission_form(
             decisions.setdefault(_permission_key(request), "deny")
 
     with ui.column().classes("w-full gap-2 p-3 border border-primary rounded"):
-        ui.label("Permission required").classes("text-sm font-bold")
+        count = len(requests)
+        noun = "path" if count == 1 else "paths"
+        ui.label(f"Permission required ({count} {noun})").classes("text-sm font-bold")
         if question := ask.get("question"):
             ui.label(str(question)).classes("text-xs text-grey-6")
 
@@ -319,7 +326,7 @@ def _render_permission_form(
         # (``choice_buttons`` computes it at build time).
         @ui.refreshable
         def _rows() -> None:
-            for request in requests:
+            for index, request in enumerate(requests, start=1):
                 if not isinstance(request, dict):
                     continue
                 path = _permission_path_display(request)
@@ -327,6 +334,7 @@ def _render_permission_form(
                     title = f"Sensitive file: {path}"
                 else:
                     title = f"Outside project path: {path}"
+                title = f"{index}. {title}"
                 scope = _permission_scope(request)
                 hint = _permission_hint(request)
                 key = _permission_key(request)

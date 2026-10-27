@@ -35,6 +35,12 @@ _umask = os.umask(0)
 os.umask(_umask)
 DEFAULT_FILE_MODE = 0o666 & ~_umask
 
+#: Note appended to a result cut short by ``max_results``.
+TRUNCATION_NOTE = (
+    "Results truncated: showing the first {max_results} entries; "
+    "more exist and were not listed."
+)
+
 
 @dataclass(frozen=True)
 class TextFile:

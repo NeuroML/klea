@@ -44,10 +44,10 @@ class TestPlanRender(unittest.TestCase):
             ],
         )
         rendered = plan.render(markdown=True)
-        self.assertIn("[x] Step 1: a", rendered)
-        self.assertIn("[!] Step 2: b", rendered)
-        self.assertIn("[*] Step 3: c", rendered)
-        self.assertIn("[ ] Step 4: d", rendered)
+        self.assertIn("[x] Step 1/4 a", rendered)
+        self.assertIn("[!] Step 2/4 b", rendered)
+        self.assertIn("[*] Step 3/4 c", rendered)
+        self.assertIn("[ ] Step 4/4 d", rendered)
 
     def test_success_criteria_included(self):
         plan = PlanSchema(
@@ -64,7 +64,7 @@ class TestPlanRender(unittest.TestCase):
         )
         rendered = plan.render(markdown=True)
         self.assertEqual(len(rendered.split("\n\n")), 2)
-        self.assertTrue(rendered.startswith("[*] Step 1: a"))
+        self.assertTrue(rendered.startswith("[*] Step 1/2 a"))
 
     def test_step_render(self):
         step = StepSchema(
