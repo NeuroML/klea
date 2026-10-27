@@ -141,6 +141,36 @@ originally written without an enumerated edge-case contract, which let
 * `files_scanned` stays `null` for ripgrep and a count for the in-house
   walker; the `.gitignore` divergence documented above is unchanged.
 
+## `find_files` / `rg_files` / `list_files` truncation contract
+
+* `max_results` (default 100) **caps the result list**: only the first
+  `max_results` entries are returned.  The payload sets `truncated: true`
+  when the cap cut the listing short.  All three tools stop one entry past
+  the cap, so the true total is not known and no omitted count is claimed.
+* A truncated listing carries a human-readable `note` (a plain string) with
+  this wording, the cap interpolated:
+
+  `Results truncated: showing the first <max_results> entries; more exist and were not listed.`
+
+  `note` is the empty string when the listing is complete.  As with
+  `read_file`, a truncated result is a **success** (`error` empty), not an
+  MCP error.
+* Payload keys, per tool:
+
+  | Tool | Keys |
+  |------|------|
+  | `find_files` (ripgrep backend and the `find_files_inhouse` fallback) | `files`, `truncated`, `error`, `note` |
+  | `rg_files` | `files`, `truncated`, `error`, `note` |
+  | `list_files` | `files`, `error`, `truncated`, `note` |
+
+* `list_files` already used `note` for its unfiltered-fallback message (a
+  requested filter that matched nothing).  When such a fallback listing is
+  also cut short, the truncation sentence is **appended** after the fallback
+  sentence rather than replacing it.
+* Every return path has the same shape: the `rg_files` error returns (not a
+  directory, spawn error, no matches, ripgrep failure) and the `find_files`
+  error returns carry `note: ""`.
+
 ## Edge-case matrix
 
 | Case | Handling |
