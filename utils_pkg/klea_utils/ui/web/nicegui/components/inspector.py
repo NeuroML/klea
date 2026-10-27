@@ -89,23 +89,18 @@ def attach_inspector_panel(ctx: PageContext) -> None:
                     ui.label(heading)
                     if timing:
                         ui.label(f"({timing:.1f}s)").classes("text-xs text-grey-5")
-            ui.label(entry.get("summary", "")).classes(
-                "text-xs text-grey-6 mb-1 w-full"
-            )
-            details = entry.get("details", {})
-            if details:
-                with ui.element("details").classes(
-                    "inspector-details text-xs text-grey-5 cursor-pointer w-full"
-                ):
-                    with ui.element("summary").classes("text-xs w-full"):
-                        ui.label("View details")
-                    # Keep the code box (JSON highlighting + copy button); the
-                    # formatter does the readability work (expands multi-line
-                    # values such as prompts and inlines JSON-encoded ones,
-                    # which json.dumps would escape).  A custom renderer is
-                    # used because ``ui.code`` breaks on code fences in the
-                    # content and its JSON lexer rejects the expanded newlines.
-                    render_inspector_code(format_details(details))
+            with ui.column().classes("inspector-entry-body w-full gap-0"):
+                ui.label(entry.get("summary", "")).classes(
+                    "text-xs text-grey-6 mb-1 w-full"
+                )
+                details = entry.get("details", {})
+                if details:
+                    with ui.element("details").classes(
+                        "inspector-details text-xs text-grey-5 cursor-pointer w-full"
+                    ):
+                        with ui.element("summary").classes("text-xs w-full"):
+                            ui.label("View details")
+                        render_inspector_code(format_details(details))
 
     def _render_section(
         section_idx: int,

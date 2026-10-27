@@ -114,6 +114,11 @@ themes:
 - `.nicegui-code-noformat` -- strips the `ui.code` wrapper box/border/shadow
   and the copy button for the preformatted status block (the plan), so it
   reads as plain pane text; the inner layers are set to pre-wrap.
+- `.inspector-entry-body` -- the body of one inspector entry (`inspector.py`):
+  bounded to `40vh` with its own `overflow-y: auto`, so a long rendered
+  details block scrolls inside the entry.  The inspector pane keeps its own
+  scroll; `overscroll-behavior: contain` stops the entry's scroll from
+  chaining into the pane.  This is a plain (unlayered) layout rule.
 
 All of these are styled in `theme.py`; call sites only add the class.
 

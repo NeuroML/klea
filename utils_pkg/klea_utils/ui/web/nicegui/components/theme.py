@@ -193,6 +193,13 @@ def _add_css_overrides() -> None:
         ".inspector-entry > summary::before { content: '\\25B6'; font-size: 0.65rem; margin-right: 0.35rem; transition: transform 0.15s; }"
     )
     ui.add_css(".inspector-entry[open] > summary::before { content: '\\25BC'; }")
+    # Bound an expanded inspector entry so its rendered details block cannot
+    # grow the pane without limit; the body scrolls internally instead and
+    # overscroll is contained so the pane does not scroll with it.  This is a
+    # plain layout declaration (not a colour override), so it stays unlayered.
+    ui.add_css(
+        ".inspector-entry-body { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }"
+    )
     # Inspector query sections: same disclosure triangle as entries, plus a
     # separating rule between sections so consecutive queries are distinct.
     ui.add_css(
