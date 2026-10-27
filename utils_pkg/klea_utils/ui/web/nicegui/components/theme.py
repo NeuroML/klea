@@ -211,11 +211,10 @@ def _add_css_overrides() -> None:
         # utility (an ``!important`` rule inside Quasar's ``quasar_importants``
         # layer, so its paired ``dark:`` variant lost) and therefore stayed
         # light in dark mode, leaving the theme-coloured hint/muted labels
-        # illegible.  Bind the drawer to Quasar's built-in dark token and give
-        # the opaque sticky header the existing bar-surface token, so the whole
-        # pane follows the active theme with no literal colour introduced.
+        # illegible.  Bind the drawer to Quasar's built-in dark token so the
+        # whole pane follows the active theme with no literal colour
+        # introduced; the sticky header stays transparent over that surface.
         "  body.body--dark .status-pane { background: var(--q-dark) !important; }\n"
-        "  .status-pane-header { background: var(--klea-surface) !important; }\n"
         "}"
     )
     ui.add_css(

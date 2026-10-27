@@ -143,11 +143,11 @@ themes:
   `.q-footer` has no background of its own, so the app pins one.  The
   shared footer component stacks the disclaimer and the footer text on this
   one line.
-- `.status-pane` / `.status-pane-header` -- the status/panels drawer surface
-  (`status_pane.py`): the drawer follows the built-in `--q-dark` panel grey
-  and its sticky header the existing `--klea-surface` bar token, replacing the
-  `bg-white` utility pair whose unlayered declaration beat its `dark:`
-  variant; both are colour rules in `@layer overrides`.
+- `.status-pane` -- the status/panels drawer surface (`status_pane.py`): the
+  drawer follows the built-in `--q-dark` panel grey, replacing the `bg-white`
+  utility pair whose unlayered declaration beat its `dark:` variant; the rule
+  is a colour rule in `@layer overrides`.  The pane's sticky header carries no
+  background of its own, so it reads straight over the drawer surface.
 - `.chat-bubble--user` / `.chat-bubble--agent` / `.chat-bubble--tool` /
   `.chat-bubble--system` -- the full-width transcript block surfaces
   (`chat_bubble.py`): user tinted, agent transparent, tool neutral, system (a
