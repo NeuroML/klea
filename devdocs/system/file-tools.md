@@ -152,6 +152,10 @@ originally written without an enumerated edge-case contract, which let
 
   `Results truncated: showing the first <max_results> entries; more exist and were not listed.`
 
+  The wording is defined once as `TRUNCATION_NOTE` in
+  `klea_utils/mcp/tool_impls/file_ops.py` and imported by `find_files`,
+  `rg_files` and `list_files`.
+
   `note` is the empty string when the listing is complete.  As with
   `read_file`, a truncated result is a **success** (`error` empty), not an
   MCP error.

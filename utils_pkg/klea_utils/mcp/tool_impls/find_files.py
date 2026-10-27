@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from klea_utils.mcp.tool_impls.file_ops import TRUNCATION_NOTE
 from klea_utils.mcp.tool_impls.rg_backend import resolve_rg, rg_files
 from klea_utils.mcp.tool_impls.walk import iter_files
 
@@ -20,12 +21,6 @@ logger = logging.getLogger(__name__)
 
 #: Default cap on the number of file paths returned.
 DEFAULT_MAX_RESULTS = 100
-
-#: Note appended to a result cut short by ``max_results``.
-_TRUNCATION_NOTE = (
-    "Results truncated: showing the first {max_results} entries; "
-    "more exist and were not listed."
-)
 
 
 def _result(
@@ -105,7 +100,7 @@ def find_files_inhouse(
 
     truncated = len(files) > max_results
     files = files[:max_results]
-    note = _TRUNCATION_NOTE.format(max_results=max_results) if truncated else ""
+    note = TRUNCATION_NOTE.format(max_results=max_results) if truncated else ""
     logger.debug(f"Found files\n{len(files) = }\n{truncated = }")
     return _result(files=files, truncated=truncated, note=note)
 

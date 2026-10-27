@@ -16,6 +16,7 @@ from importlib.metadata import PackageNotFoundError, distribution
 from pathlib import Path
 from typing import Any
 
+from klea_utils.mcp.tool_impls.file_ops import TRUNCATION_NOTE
 from klea_utils.mcp.tool_impls.grep_hunks import (
     DEFAULT_CONTEXT_LINES,
     DEFAULT_MAX_CHARS,
@@ -462,13 +463,6 @@ async def rg_grep(
     return _grep_result(pattern, path, matches=hunks, truncated=truncated)
 
 
-#: Note appended to a result cut short by ``max_results``.
-_TRUNCATION_NOTE = (
-    "Results truncated: showing the first {max_results} entries; "
-    "more exist and were not listed."
-)
-
-
 async def rg_files(
     rg: str,
     pattern: str = "*",
@@ -551,7 +545,7 @@ async def rg_files(
         for line in lines
         if line.strip()
     ]
-    note = _TRUNCATION_NOTE.format(max_results=max_results) if truncated else ""
+    note = TRUNCATION_NOTE.format(max_results=max_results) if truncated else ""
     logger.debug(f"ripgrep listing done\n{len(files) = }\n{truncated = }")
     return {
         "files": files,

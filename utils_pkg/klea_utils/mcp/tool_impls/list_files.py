@@ -16,13 +16,9 @@ import os
 from pathlib import Path
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from klea_utils.mcp.tool_impls.file_ops import TRUNCATION_NOTE
 
-#: Note appended to a result cut short by ``max_results``.
-_TRUNCATION_NOTE = (
-    "Results truncated: showing the first {max_results} entries; "
-    "more exist and were not listed."
-)
+logger = logging.getLogger(__name__)
 
 
 def list_files(
@@ -174,7 +170,7 @@ def list_files(
 
         if len(paths) > max_results:
             truncated = True
-            note = f"{note} {_TRUNCATION_NOTE.format(max_results=max_results)}".strip()
+            note = f"{note} {TRUNCATION_NOTE.format(max_results=max_results)}".strip()
 
         for f in paths[:max_results]:
             ftype = "file"
