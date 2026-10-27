@@ -76,7 +76,9 @@ collapsed/expanded state.  Neither pane scrolls on its own: an update follows
 the tail only when the reader was already at the bottom (within one line of
 `max_scroll_y`), and otherwise the previous offset is restored, so a section
 dropped above the viewport or a newly appended entry never yanks a
-scrolled-up view.
+scrolled-up view.  Each inspection entry's body is height-bounded and scrolls
+internally, so an expanded entry never swallows the pane; the pane keeps its
+own scroll and the tail-follow rule above applies to the pane only.
 
 Because the status panel spans the full height, there is no separate
 full-width header or footer bar; the title sits at the top of the status panel

@@ -33,6 +33,13 @@ logger = logging.getLogger(__name__)
 #: Maximum query text length shown in a section title.
 _MAX_MARKER_CHARS = 80
 
+#: Maximum rendered height (in rows) of one entry's scrollable body.  A long
+#: summary/``details`` body would otherwise grow unbounded inside the pane;
+#: capping it gives each entry its own scrollbar, so several expanded entries
+#: stay readable while the pane's own scroll still handles overflow between
+#: entries.
+_ENTRY_MAX_HEIGHT = 20
+
 
 def _truncate_query(text: str) -> str:
     """Truncate a query for the section title.
@@ -102,11 +109,23 @@ def _entry_widget(entry: Mapping[str, Any]) -> Collapsible:
         body.append(SelectableStatic(format_details(details), markup=False))
     if not body:
         body.append(SelectableStatic("(no details)", markup=False))
-    return Collapsible(*body, title=title or "(entry)", collapsed=True)
+    # Cap the body's height and scroll it internally (see ``DEFAULT_CSS``): an
+    # expanded entry then never grows to swallow the pane, and its scrollbar is
+    # independent of the pane's own scroll (same recipe as ``MessageBlock``).
+    scrollable = VerticalScroll(*body, classes="inspector-entry-scroll")
+    return Collapsible(scrollable, title=title or "(entry)", collapsed=True)
 
 
 class Inspector(VerticalScroll):
     """The inspector view: per-query sections of streamed inspect entries."""
+
+    DEFAULT_CSS = f"""
+    Inspector .inspector-entry-scroll {{
+        height: auto;
+        max-height: {_ENTRY_MAX_HEIGHT};
+        overflow-y: auto;
+    }}
+    """
 
     def __init__(self, *, id: str | None = None) -> None:
         """Build an empty inspector.
