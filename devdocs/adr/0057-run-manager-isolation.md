@@ -1,11 +1,12 @@
+---
+status: "proposed"
+date: 2026-10-27
+decision-makers: [Architecture Team]
+---
+
 # ADR-0057: Run Manager & Isolation
 
-**Status:** Proposed
-**Date:** 2026-10-27
-**Deciders:** Architecture Team
-**Relates to:** ADR-0056 (Test Case Format), ADR-0058 (Run Config Semantics)
-
-## Problem
+## Context and Problem Statement
 
 The evaluation harness must initialize and manage isolated execution contexts ("runs") for each test case. This involves:
 
@@ -17,7 +18,31 @@ The evaluation harness must initialize and manage isolated execution contexts ("
 
 Without a clear run initialization and isolation strategy, the harness will lack reproducibility, enable cross-case interference, and complicate debugging and metrics aggregation.
 
-## Decision
+## Decision Drivers
+
+* **Reproducibility**: runs must be deterministic and reproducible; seeds, model parameters and fixture state must be captured and versioned so the same case + seed always produces identical outputs and metrics.
+* **Isolation**: each run must execute in its own workspace so that cross-case contamination is impossible and parallel execution is safe.
+* **Debuggability**: intermediate state, run metadata and metrics must be human-readable and inspectable so developers can compare runs and trace execution.
+* **Scalability**: isolation must scale to large test suites (millions of cases) within disk-space limits.
+* **Extensibility**: new isolation strategies, workspace backends and metrics collectors must be addable without modifying a core class.
+* **Operational simplicity**: no external infrastructure (databases, message queues) may be required; standard filesystem operations and JSON libraries suffice.
+* **Model-resolution determinism**: role-to-model resolution must be deterministic and fail clearly when a role cannot be resolved.
+* **Metrics isolation and aggregation**: collectors must be isolated per run yet aggregatable across runs.
+
+## Considered Options
+
+* Monolithic run manager
+* Modular run manager
+* In-memory isolation
+* Filesystem isolation
+* Eager model resolution
+* Lazy model resolution
+* Centralized metrics collection
+* Distributed metrics collection
+
+## Decision Outcome
+
+Chosen option: "Modular run manager", because modular design enables independent testing, easier debugging, and future extensibility (e.g., cloud-based workspaces, custom metrics collectors). It is combined with the companion choices of filesystem isolation, eager model resolution and centralized metrics collection, as detailed below.
 
 We adopt a **modular, filesystem-based isolation strategy** for run initialization and management:
 
@@ -114,57 +139,96 @@ The run manager enforces the following invariants:
 5. **Metrics Completeness**: All tool calls and turns are recorded in metrics; no metrics are dropped or lost.
 6. **Reproducibility**: Runs with the same `case_id`, `user_id`, and harness seed are reproducible; outputs and metrics are identical.
 
-## Alternatives
+### Consequences
 
-### 1. Monolithic vs. Modular Run Manager
+* Good, because runs are deterministic and reproducible; the same case + seed always produces identical outputs and metrics.
+* Good, because complete filesystem isolation prevents cross-case contamination, so parallel execution is safe.
+* Good, because workspace directories and metrics logs are human-readable; developers can inspect intermediate state, compare runs, and trace execution.
+* Good, because filesystem isolation scales to millions of cases, and metrics are stored in JSONL format, enabling efficient aggregation.
+* Good, because the modular design enables future enhancements without major refactoring.
+* Bad, because copying fixtures and creating workspace directories adds I/O overhead, which may be noticeable for very large test suites (millions of cases with large fixtures).
+* Bad, because if a role is not defined in the harness-level or case-level model map the run fails with an error, requiring careful configuration management.
+* Bad, because workspaces are retained for debugging and consume disk space, so a cleanup policy must be defined and enforced.
+* Bad, because metrics are stored in separate JSONL files per run, so aggregation requires external tools (jq, pandas) or custom scripts.
 
-| Aspect | Monolithic | Modular |
-|--------|-----------|----------|
-| **Design** | Single `RunManager` class handles all initialization, isolation, metrics | Separate `RunInitializer`, `WorkspaceManager`, `ModelResolver`, `MetricsCollector` |
-| **Testability** | Hard to test in isolation; requires full harness setup | Easy to test each component independently |
-| **Extensibility** | Adding new isolation strategies requires modifying core class | New strategies can be added as plugins |
-| **Complexity** | Lower initial complexity; higher long-term maintenance burden | Higher initial complexity; lower long-term maintenance burden |
-| **Verdict** | ✗ Rejected | ✓ Chosen |
+## Pros and Cons of the Options
 
-**Rationale**: Modular design enables independent testing, easier debugging, and future extensibility (e.g., cloud-based workspaces, custom metrics collectors).
+### Monolithic run manager
 
-### 2. In-Memory vs. Filesystem Isolation
+Single `RunManager` class handles all initialization, isolation, metrics.
 
-| Aspect | In-Memory | Filesystem |
-|--------|-----------|------------|
-| **Isolation** | Processes share memory; requires careful synchronization | Complete isolation via separate directories |
-| **Debugging** | Hard to inspect intermediate state; requires logging | Easy to inspect files, compare runs |
-| **Scalability** | Limited by available RAM; not suitable for large test suites | Scales to millions of cases; limited by disk space |
-| **Fixture Handling** | Fixtures loaded into memory; high overhead for large files | Fixtures copied to disk; efficient for large files |
-| **Verdict** | ✗ Rejected | ✓ Chosen |
+* Good, because it has lower initial complexity.
+* Bad, because it is hard to test in isolation; requires full harness setup.
+* Bad, because adding new isolation strategies requires modifying the core class.
+* Bad, because it carries a higher long-term maintenance burden.
 
-**Rationale**: Filesystem isolation is more debuggable, scalable, and aligns with the harness's streaming-first design. In-memory isolation is suitable only for small, tightly-coupled test suites.
+### Modular run manager
 
-### 3. Eager vs. Lazy Model Resolution
+Separate `RunInitializer`, `WorkspaceManager`, `ModelResolver`, `MetricsCollector`.
 
-| Aspect | Eager | Lazy |
-|--------|-------|------|
-| **Timing** | Resolve all models at run initialization | Resolve models on-demand during turn execution |
-| **Error Detection** | Errors caught early; clear error messages | Errors caught during execution; harder to debug |
-| **Flexibility** | Less flexible; all models must be available upfront | More flexible; models can be resolved dynamically |
-| **Performance** | Slightly higher initialization overhead | Slightly lower initialization overhead |
-| **Verdict** | ✓ Chosen | ✗ Rejected |
+* Good, because each component can be tested independently.
+* Good, because new strategies can be added as plugins.
+* Neutral, because it has higher initial complexity but lower long-term maintenance burden.
+* Good, because modular design enables independent testing, easier debugging, and future extensibility (e.g., cloud-based workspaces, custom metrics collectors).
 
-**Rationale**: Eager resolution enables early error detection and clearer debugging. The initialization overhead is negligible compared to the benefits of catching configuration errors upfront.
+### In-memory isolation
 
-### 4. Centralized vs. Distributed Metrics Collection
+Processes share memory; requires careful synchronization.
 
-| Aspect | Centralized | Distributed |
-|--------|-------------|-------------|
-| **Architecture** | Single `MetricsCollector` instance per harness | Each component (executor, tool caller) maintains local metrics |
-| **Aggregation** | Simple; all metrics in one place | Complex; requires aggregation logic |
-| **Scalability** | Potential bottleneck for high-concurrency scenarios | Better scalability; each component is independent |
-| **Consistency** | Strong consistency; all metrics synchronized | Eventual consistency; requires reconciliation |
-| **Verdict** | ✓ Chosen | ✗ Rejected |
+* Bad, because processes share memory and therefore require careful synchronization.
+* Bad, because it is hard to inspect intermediate state; requires logging.
+* Bad, because scalability is limited by available RAM; not suitable for large test suites.
+* Bad, because fixtures are loaded into memory, which has high overhead for large files.
+* Neutral, because it is suitable only for small, tightly-coupled test suites.
 
-**Rationale**: Centralized metrics collection is simpler to implement and debug. For typical evaluation harnesses (sequential or moderate concurrency), the bottleneck is negligible. Distributed metrics can be added later if needed.
+### Filesystem isolation
 
-## Rationale
+Complete isolation via separate directories.
+
+* Good, because filesystem isolation provides complete isolation through separate directories.
+* Good, because it is easy to inspect files and compare runs.
+* Good, because it scales to millions of cases; limited only by disk space.
+* Good, because fixtures are copied to disk, which is efficient for large files.
+* Good, because it is more debuggable, more scalable, and aligns with the harness's streaming-first design.
+
+### Eager model resolution
+
+Resolve all models at run initialization.
+
+* Good, because errors are caught early with clear error messages.
+* Good, because early error detection and clearer debugging are enabled; the initialization overhead is negligible compared to the benefits of catching configuration errors upfront.
+* Bad, because it is less flexible; all models must be available upfront.
+* Neutral, because it has slightly higher initialization overhead.
+
+### Lazy model resolution
+
+Resolve models on-demand during turn execution.
+
+* Good, because it is more flexible; models can be resolved dynamically.
+* Neutral, because it has slightly lower initialization overhead.
+* Bad, because errors are caught during execution and are harder to debug.
+
+### Centralized metrics collection
+
+Single `MetricsCollector` instance per harness.
+
+* Good, because aggregation is simple; all metrics are in one place.
+* Good, because consistency is strong; all metrics are synchronized.
+* Good, because it is simpler to implement and debug; for typical evaluation harnesses (sequential or moderate concurrency) the bottleneck is negligible.
+* Neutral, because it is a potential bottleneck for high-concurrency scenarios.
+
+### Distributed metrics collection
+
+Each component (executor, tool caller) maintains local metrics.
+
+* Good, because scalability is better; each component is independent.
+* Neutral, because distributed metrics can be added later if needed.
+* Bad, because aggregation is complex; requires aggregation logic.
+* Bad, because consistency is eventual; requires reconciliation.
+
+## More Information
+
+### Rationale
 
 The chosen strategy aligns with the evaluation harness's core requirements:
 
@@ -175,26 +239,9 @@ The chosen strategy aligns with the evaluation harness's core requirements:
 5. **Extensibility**: Modular design enables future enhancements (e.g., cloud-based workspaces, custom metrics collectors, distributed execution).
 6. **Operational Simplicity**: No external infrastructure (databases, message queues) is required. The harness uses standard filesystem operations and JSON libraries.
 
-## Consequences
+### Implementation Notes
 
-### Positive
-
-1. **Reproducibility**: Runs are deterministic and reproducible. The same case + seed always produces identical outputs and metrics.
-2. **Isolation**: Complete filesystem isolation prevents cross-case contamination. Parallel execution is safe.
-3. **Debuggability**: Workspace directories and metrics logs are human-readable. Developers can inspect intermediate state, compare runs, and trace execution.
-4. **Scalability**: Filesystem isolation scales to millions of cases. Metrics are stored in JSONL format, enabling efficient aggregation.
-5. **Extensibility**: Modular design enables future enhancements without major refactoring.
-
-### Negative
-
-1. **Filesystem Overhead**: Copying fixtures and creating workspace directories adds I/O overhead. For very large test suites (millions of cases with large fixtures), this may be noticeable.
-2. **Model Resolution Errors**: If a role is not defined in the harness-level or case-level model map, the run fails with an error. This requires careful configuration management.
-3. **Workspace Cleanup**: Workspaces are retained for debugging, consuming disk space. A cleanup policy must be defined and enforced.
-4. **Metrics Aggregation**: Metrics are stored in separate JSONL files per run. Aggregation requires external tools (jq, pandas) or custom scripts.
-
-## Implementation Notes
-
-### Run Initialization Flow
+#### Run Initialization Flow
 
 1. **Load Case**: Read case from JSONL file (ADR-0056).
 2. **Generate Run ID**: Compute UUID v5 from `case_id` and harness seed.
@@ -204,7 +251,7 @@ The chosen strategy aligns with the evaluation harness's core requirements:
 6. **Initialize Metrics**: Create a metrics collector for the run.
 7. **Return Run Context**: Return a `RunContext` object with run ID, workspace path, resolved models, and metrics collector.
 
-### RunContext Object
+#### RunContext Object
 
 ```python
 class RunContext:
@@ -218,7 +265,7 @@ class RunContext:
     metadata: Dict[str, Any]  # case_id, seed, timestamps, etc.
 ```
 
-### Workspace Structure
+#### Workspace Structure
 
 ```
 runs/<run_id>/
@@ -230,9 +277,9 @@ runs/<run_id>/
 └-- trace.jsonl            # Execution trace
 ```
 
-## Examples
+### Examples
 
-### Example 1: Simple Single-Model Run
+#### Example 1: Simple Single-Model Run
 
 **Case**:
 ```json
@@ -286,7 +333,7 @@ runs/<run_id>/
 }
 ```
 
-### Example 2: Complex Multi-Model Run with Overrides
+#### Example 2: Complex Multi-Model Run with Overrides
 
 **Case**:
 ```json
@@ -373,12 +420,12 @@ runs/660e8400-e29b-41d4-a716-446655440000/
 └-- trace.jsonl
 ```
 
-## Related Decisions
+### Related Decisions
 
 - **ADR-0056 (Test Case Format)**: Defines the JSONL format for test cases; ADR-0057 loads and initializes runs from this format.
 - **ADR-0058 (Run Config Semantics)**: Defines the semantics of `run_config` overrides; ADR-0057 applies these overrides during model resolution and metrics initialization.
 
-## References
+### References
 
 - [UUID v5 Specification](https://tools.ietf.org/html/rfc4122#section-4.3)
 - [JSONL Format Specification](https://jsonlines.org/)
