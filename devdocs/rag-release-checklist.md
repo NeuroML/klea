@@ -3,30 +3,33 @@
 Status: procedure for cutting a `klea_utils` and `klea_rag` release.
 `klea_agent` and `neuroml_mcp` stay unreleased (see `CHANGELOG.md`).
 
-Scope of this note: the procedure only.
-`.github/workflows/python-publish.yml` stays as it is.
+Scope of this note: the procedure, plus a short comment in
+`.github/workflows/python-publish.yml` that marks which trigger goes
+to TestPyPI. The publish behaviour itself stays as it is.
 
 The workflow builds one package folder from the name in the tag
 (`klea_utils` -> `utils_pkg`, `klea_rag` -> `rag_pkg`) with `uv build`.
 A manual run (`workflow_dispatch`) uploads that build to TestPyPI.
-A tag push uploads it to PyPI. The tag version is not compared with
-`version` in `setup.cfg`, so those two have to be checked by hand.
-
-Last released tags: `klea_utils-v0.5.0`, `klea_rag-v0.5.0`.
-`utils_pkg/setup.cfg` and `rag_pkg/setup.cfg` currently say `0.6.0`.
+A tag push uploads it to PyPI. Releases are cut with tags only; this
+repo does not use GitHub Releases for publishing (a monorepo with
+per-package tags). The tag version is not compared with `version` in
+`setup.cfg`, so those two have to be checked by hand.
 
 ## Before the tag
 
-- [ ] If `klea_utils` changed since `klea_utils-v0.5.0`, release it
-      first. Then set a minimum on the RAG dependency. Today
-      `rag_pkg/setup.cfg` has `klea_utils[rerank]` with no version;
-      after a utils `X.Y.Z` tag that line becomes
+- [ ] Check the last release tags (`git tag -l 'klea_utils-v*'
+      'klea_rag-v*' --sort=-v:refname`). If `klea_utils` changed since
+      its last tag, release it first. Then set a minimum on the RAG
+      dependency. Today `rag_pkg/setup.cfg` has `klea_utils[rerank]`
+      with no version; after a utils `X.Y.Z` tag that line becomes
       `klea_utils[rerank]>=X.Y.Z`.
 - [ ] Bump `version` in `utils_pkg/setup.cfg` and `rag_pkg/setup.cfg`
       for each package that is shipping. The tag pushed later has to
-      be that same number (`klea_rag-v0.6.0` for `version = 0.6.0`).
-- [ ] Update `CHANGELOG.md`. Tagged releases share one heading for
-      `klea_utils` / `klea_rag`.
+      be that same number (`klea_rag-vX.Y.Z` for `version = X.Y.Z`).
+- [ ] Check `CHANGELOG.md` is up to date for this release. Tagged
+      releases share one heading for `klea_utils` / `klea_rag`. A
+      `klea-agent` pass over the git log since the last tags can help
+      catch missing entries.
 - [ ] CI is green on the commit that will be tagged. If that commit
       changes `docs/` or a package, the docs workflow is green too
       (`sphinx-build -W docs docs/_build` in
@@ -38,14 +41,25 @@ Last released tags: `klea_utils-v0.5.0`, `klea_rag-v0.5.0`.
 Run this from the commit whose `setup.cfg` version you are testing.
 Actions -> "Upload Python Package" -> Run workflow. Pick `klea_utils`
 first when utils is part of this release, then `klea_rag`. That run
-uploads to TestPyPI. TestPyPI rejects a file version that is already
-there, so the dry-run version has to be one TestPyPI does not have yet.
+uploads to TestPyPI (see the comment on `workflow_dispatch` in
+`.github/workflows/python-publish.yml`). TestPyPI rejects a file
+version that is already there, so the dry-run version has to be one
+TestPyPI does not have yet.
 
 - [ ] In a fresh virtualenv, install the TestPyPI build and take every
-      other dependency from PyPI:
+      other dependency from PyPI. Either:
 
       ```
       pip install \
+        --index-url https://test.pypi.org/simple/ \
+        --extra-index-url https://pypi.org/simple/ \
+        "klea-rag[chroma,nicegui,tui]"
+      ```
+
+      or with uv:
+
+      ```
+      uv pip install \
         --index-url https://test.pypi.org/simple/ \
         --extra-index-url https://pypi.org/simple/ \
         "klea-rag[chroma,nicegui,tui]"
@@ -96,9 +110,7 @@ there, so the dry-run version has to be one TestPyPI does not have yet.
 
 ## Manual checks
 
-These are done by hand on the TestPyPI install. Automated end-to-end
-tests, and an AI-agent security review, join this list once the
-evaluation framework exists (`system/agent-evaluation-harness.md`).
+These are done by hand on the TestPyPI install.
 
 - [ ] User-facing docs (`docs/guides/`, `docs/cli/`, `docs/components/`)
       and the API docs (`docs/api/`) match this release. A green docs
@@ -110,22 +122,41 @@ evaluation framework exists (`system/agent-evaluation-harness.md`).
       ```
 
       Nothing it reports blocks the release.
+- [ ] Code security audit of this release. How to run it is still open
+      (`klea-agent`, or a dedicated AI / non-AI tool). Until that is
+      decided, note what was tried in the release notes.
 - [ ] Update a free HuggingFace Space from `docs/guides/huggingface.rst`,
       send one query, then delete the Space.
 - [ ] One query each with a HuggingFace, OpenCode, Anthropic, and
       OpenAI model.
 - [ ] Web and TUI: the dialogs and buttons work, including model and
       credential setup.
+- [ ] Config and session data: after a restart, chats reload, and the
+      inspection pane restores with them.
 - [ ] Cancel a running query, and resume a failed one.
 - [ ] Restart the web UI and the TUI. The same session is still there.
 - [ ] Send stays blocked when a required model or API key is missing.
 - [ ] One turn uses a tool, not only a plain chat reply.
+- [ ] One `klea-rag-serve` with two clients (web and/or TUI) in
+      parallel. Each client keeps its own chat without conflicts.
+      (Agent: two `klea` TUI clients from different venvs against one
+      `klea-serve` must show each TUI's own environment, not the
+      server's. That check belongs on the agent release checklist.)
+
+## Automated E2E tests and evaluation
+
+TODO. Once the evaluation / E2E harness exists
+(`system/agent-evaluation-harness.md`), add the commands that replace
+the manual smoke and UX checks above. An AI-agent security review can
+sit here too when that path is chosen.
 
 ## Tag
 
 Tag the same commit that was smoked. Push the tag to `NeuroML/klea`.
 Push the utils tag first when utils is in this release, then the RAG
-tag. Each tag publishes only that package.
+tag. Each tag publishes only that package. Do not create a GitHub
+Release for the tag: this monorepo publishes from tags only, and a
+published Release would run the workflow a second time.
 
 ```
 git tag klea_utils-vX.Y.Z
@@ -133,7 +164,3 @@ git push git@github.com:NeuroML/klea.git klea_utils-vX.Y.Z
 git tag klea_rag-vX.Y.Z
 git push git@github.com:NeuroML/klea.git klea_rag-vX.Y.Z
 ```
-
-Stop after the tag push. Publishing a GitHub Release for the same tag
-runs the workflow again (`release: published`), and the second upload
-to PyPI fails.
