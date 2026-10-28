@@ -4,7 +4,7 @@ Status: implemented.  Mechanism: `BaseLLMNode._invoke_llm`
 (`utils_pkg/klea_utils/nodes/base.py`) plus the helpers in
 `utils_pkg/klea_utils/llm.py`.
 
-Last updated: 2026-10-22.
+Last updated: 2026-10-28.
 
 ## Scope
 
@@ -54,6 +54,14 @@ Three distinct outcomes, deliberately separated:
    and *also* recorded in a process-local negative cache so later calls skip
    the structured attempt entirely.
 
+An HTTP 400 from the structured call is treated as a per-call failure even
+when the message carries no detail (some OpenAI-compatible gateways return a
+bare body such as `{"model": ...}`, leaving the SDK message as just
+`"Error code: 400"`).  It falls back like (2) but is never cached: the same
+status also covers unrelated bad requests, and a gateway/upstream fault can be
+transient.  Detection walks the exception cause chain for `status_code` (or
+`response.status_code`) equal to 400.
+
 Infra errors (rate limit, auth, model-not-found, timeout) still propagate to
 `_invoke_with_retries` and are never misread as structured failures.
 
@@ -93,8 +101,9 @@ their typed fail-closed defaults: prose is not a valid plan or verdict.
 * Only `is_structured_capability_rejection` populates it - a strictened
   subset of `_STRUCTURED_OUTPUT_REJECTED_PATTERNS` that names
   `response_format` / `json_schema` / `structured output`.  The generic
-  `400 invalid_request_error` pattern drives the per-call fallback but must
-  not poison the cache, since it also matches unrelated bad requests.
+  `400 invalid_request_error` pattern (and the body-less HTTP 400 status)
+  drives the per-call fallback but must not poison the cache, since they
+  also match unrelated bad requests or transient upstream faults.
 * Cleared with `clear_structured_output_cache()` (used by tests).
 
 ## References
