@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-28.
+Last updated: 2026-10-29.
 
 ## Cancellation / concurrency
 
@@ -108,6 +108,24 @@ Last updated: 2026-10-28.
 - Independent inline-answer verifier for `chat`-route answers (ADR-0029
   phase).
 - `eval_pkg` harness (see `devdocs/system/agent-evaluation-harness.md`).
+
+## Evaluation harness (`eval_pkg`)
+
+Ordered phases.  The package scaffold and distribution (`klea-eval`) are done;
+ADR-0056 JSONL case loading is the next task.
+
+- JSONL case loader (ADR-0056), **next task**: read case definitions from the
+  ADR-0056 JSONL format and expose them to the harness.
+- Run manager and run isolation (ADR-0057): give each case an isolated run
+  directory and environment, with cleanup.
+- Metrics collector (ADR-0058): collect per-case metrics through the runner
+  interfaces.
+- Result storage (ADR-0059): persist run results in the ADR-0059 reporting
+  format.
+- Harness pipeline, CLI and in-process scheduler (ADR-0060): wire loader,
+  runners and storage together behind the `klea-eval` command.
+- Scoring and aggregation, API/SSE integration (ADR-0060): aggregate case
+  scores and expose runs through the API and SSE stream.
 
 ## Infrastructure / correctness
 
