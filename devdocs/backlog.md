@@ -258,6 +258,13 @@ Last updated: 2026-10-28.
   persist it.
 - `chat_events` retention/pruning: the per-chat UI-event store grows with
   every run; add a retention/size policy (cf. the checkpoint-growth item).
+- Chat/inspect pagination (later, if needed): the transcript hydrates every
+  persisted message and the inspector replays every stored event, with no
+  display cap yet.  If long chats become slow, add cursor/keyset pagination
+  (for example the last 100 messages / 20 queries plus a load-earlier action)
+  at the API/hydration boundary, keeping the complete history in SQLite.
+  Web UIs commonly use load-earlier/infinite scroll; the TUI can use a
+  load-earlier binding or rely on `/export`.  Deferred until a measured need.
 - Cross-frontend sessions / shared identity follow-ups (ADR-0052): (a) a
   remote/multi-user deployment still uses the per-browser NiceGUI session
   cookie, so chats can "disappear" on a new window/browser/profile; a stable
