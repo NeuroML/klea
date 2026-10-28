@@ -1,5 +1,9 @@
 name: Upload Python Package
 
+# Manual "Run workflow" (workflow_dispatch) uploads to TestPyPI.
+# Tag pushes (klea_*-v*) upload to PyPI. A published GitHub Release
+# also uploads to PyPI; this repo cuts releases with tags only.
+
 on:
   workflow_dispatch:
     inputs:
