@@ -181,9 +181,13 @@ Models and API keys
 :kbd:`Ctrl+M` (or ``/model``) opens the model dialog.  Each role's model is
 chosen with a **provider** field, a **model** field, and an optional **custom
 URL**, filled from the `models.dev <https://models.dev>`_ catalogue; free text
-is accepted for models not in the catalogue.  **Manage API keys** opens the
-provider-scoped credentials editor: keys are stored per provider on the
-server, returned only in masked form, and expire after a period unused.
+is accepted for models not in the catalogue.  Saving applies the models to the
+current chat and updates the session default, so a new chat starts from the
+latest selection; a chat that has already saved its own models keeps them, and
+a later change elsewhere only affects chats that have not chosen their own.
+**Manage API keys** opens the provider-scoped credentials editor: keys are
+stored per provider on the server, returned only in masked form, and expire
+after a period unused.
 
 Human-in-the-loop
 -----------------

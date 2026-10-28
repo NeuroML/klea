@@ -879,13 +879,17 @@ class KleaTuiApp(App[None]):
         from klea_utils.api.sse import fetch_active_models
         from klea_utils.ui.state import ensure_chat
 
-        chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
-        info = chat.get("model_info") or {}
-        if not info:
-            info = await fetch_active_models(
-                self.ctx.server_url, self.ctx.user_id, self.ctx.chat_id
-            )
+        # Pin the chat: an await below must never let a session switch retarget
+        # this dialog (or the cache write) at another chat.
+        chat_id = self.ctx.chat_id
+        chat = ensure_chat(self.ctx.user_id, chat_id)
+        # Always resolve the effective models afresh so the dialog opens with
+        # the chat's real config, even if its cached snapshot is stale.
+        info = await fetch_active_models(self.ctx.server_url, self.ctx.user_id, chat_id)
+        if info:
             chat["model_info"] = info
+        else:
+            info = chat.get("model_info") or {}
         if not info:
             self.notify("No model roles available to configure.", severity="warning")
             return
@@ -893,33 +897,36 @@ class KleaTuiApp(App[None]):
             ModelDialog(
                 server_url=self.ctx.server_url,
                 user_id=self.ctx.user_id,
-                chat_id=self.ctx.chat_id,
+                chat_id=chat_id,
                 info=info,
             ),
             callback=self._on_models_closed,
         )
 
     def _on_models_closed(self, result: ModelResult | None) -> None:
-        """Refresh the chat after the model dialog closes with changes.
+        """Refresh the chat the dialog edited (not necessarily the active one).
 
         :param result: The dialog's :class:`ModelResult`, or ``None``.
         """
         if result and result.changed:
-            self._refresh_models()
+            self._refresh_models(result.chat_id or self.ctx.chat_id)
 
     @work
-    async def _refresh_models(self) -> None:
-        """Re-fetch the active models for the current chat."""
+    async def _refresh_models(self, chat_id: str) -> None:
+        """Re-fetch the active models for *chat_id*.
+
+        The fetch result is stored under the chat it was requested for, so a
+        session switch during the request cannot copy one chat's models into
+        another chat's cache.
+        """
         # Lazy: httpx and the server client are only needed for a live server.
         from klea_utils.api.sse import fetch_active_models
         from klea_utils.ui.state import ensure_chat
 
-        info = await fetch_active_models(
-            self.ctx.server_url, self.ctx.user_id, self.ctx.chat_id
-        )
-        chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
+        info = await fetch_active_models(self.ctx.server_url, self.ctx.user_id, chat_id)
+        chat = ensure_chat(self.ctx.user_id, chat_id)
         chat["model_info"] = info
-        if self._screen is not None:
+        if chat_id == self.ctx.chat_id and self._screen is not None:
             await self._screen.refresh_status(chat)
 
     def _on_session_choice(self, action: SessionAction | None) -> None:

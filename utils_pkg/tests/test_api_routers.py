@@ -191,6 +191,35 @@ class TestModels:
         user = (await models_client.get("/chat/u1/models/active")).json()
         assert user["chat"]["model"] == "ollama:qwen3:0.6b"
 
+    async def test_new_chat_inherits_but_saved_chat_keeps_its_models(
+        self, models_client
+    ):
+        """A new chat starts from the default; a saved chat keeps its choice.
+
+        This is the intended "latest chat is the default" behaviour: chat A's
+        save becomes the session default that a *new* chat B inherits, but B's
+        own save must not change A back or forward.
+        """
+        await models_client.post(
+            "/chat/u1/chat-a/models/overrides/chat", json={"model": "openai:a"}
+        )
+        inherited = (await models_client.get("/chat/u1/chat-b/models/active")).json()
+        assert inherited["chat"]["model"] == "openai:a"
+        assert inherited["chat"]["overridden"] is False
+        assert inherited["chat"]["session_overridden"] is True
+
+        await models_client.post(
+            "/chat/u1/chat-b/models/overrides/chat", json={"model": "openai:b"}
+        )
+        own_a = (await models_client.get("/chat/u1/chat-a/models/active")).json()
+        own_b = (await models_client.get("/chat/u1/chat-b/models/active")).json()
+        assert own_a["chat"]["model"] == "openai:a"
+        assert own_b["chat"]["model"] == "openai:b"
+        # ... and the latest save is only the default for chats without a
+        # selection of their own.
+        user = (await models_client.get("/chat/u1/models/active")).json()
+        assert user["chat"]["model"] == "openai:b"
+
     async def test_clear_chat_override_falls_back_to_default(self, models_client):
         """Clearing a chat override reverts to the session default."""
         await models_client.post(
