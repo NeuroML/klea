@@ -111,14 +111,9 @@ Each run initializes a metrics collector:
 
 ```json
 {
-  "run_id": "string",
-  "case_id": "string",
-  "metrics": {
-    "tool_calls": "array (tool call records)",
-    "latency_ms": "number (total execution time)",
-    "token_usage": "object (input, output, total tokens)",
-    "evaluation_results": "object (rubric scores, pass/fail)"
-  }
+  "run_id": "string (UUID v5, from ADR-0057)",
+  "case_id": "string (from test case)",
+  "metrics": "RunMetrics (schema defined in ADR-0058; intentionally not duplicated here)"
 }
 ```
 
@@ -423,7 +418,7 @@ runs/660e8400-e29b-41d4-a716-446655440000/
 ### Related Decisions
 
 - **ADR-0056 (Test Case Format)**: Defines the JSONL format for test cases; ADR-0057 loads and initializes runs from this format.
-- **ADR-0058 (Run Config Semantics)**: Defines the semantics of `run_config` overrides; ADR-0057 applies these overrides during model resolution and metrics initialization.
+- **ADR-0058 (Metrics Collection & Aggregation)**: Defines the versioned `RunMetrics` schema and the centralized `RunMetricsCollector`; ADR-0057 instantiates one collector per run, feeds it the run-scoped identifiers (`run_id`, `case_id`) and persists its output to `metrics.jsonl` at run completion.
 
 ### References
 

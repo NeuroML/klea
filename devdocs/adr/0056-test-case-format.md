@@ -344,8 +344,8 @@ The harness includes a validator that checks:
 
 ### Related Decisions
 
-- **ADR-0057 (Turn Executor)**: Depends on this format for loading and executing turns.
-- **ADR-0058 (Run Config Semantics)**: Depends on this format for case-level `run_config` overrides.
+- **ADR-0057 (Run Manager & Isolation)**: Depends on this format for loading and executing turns.
+- **ADR-0058 (Metrics Collection & Aggregation)**: Keys each per-run metrics record by the test case's `case_id` and reuses the JSONL conventions defined here for `metrics.jsonl` persistence.
 
 ### References
 
