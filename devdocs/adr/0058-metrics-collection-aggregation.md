@@ -1,5 +1,5 @@
 ---
-status: "proposed"
+status: "accepted"
 date: 2026-10-27
 decision-makers: [Architecture Team]
 ---
@@ -666,16 +666,16 @@ The harness includes a validator that checks:
 
 ### Primary vs. secondary metrics hierarchy
 
-| Aspect | Primary (Evaluative) | Secondary (Operational) |
+| Aspect | Primary (Evaluative) | Secondary (Optional / Non-Evaluative) |
 |--------|---------------------|------------------------|
-| **Metrics** | Token usage (input/output/cached), evaluation results (rubric scores, pass/fail), task success, pass@k | Latency (per-turn, total), LLM invocation count (turn count), tool call count |
-| **Purpose** | Measure agent behavior, reasoning quality, and task success independent of infrastructure | Measure infrastructure efficiency, deployment planning, and internal agent optimization |
-| **Comparability** | Cross-architecture comparable; depends only on agent logic and model capability | Infrastructure-dependent; varies 20–50% across identical runs due to hardware/system load |
-| **Reproducibility** | Deterministic; identical runs produce identical results | Non-deterministic; varies with system state, network latency, hardware contention |
-| **Use Case** | Evaluate agent correctness, compare models, assess reasoning quality | Optimize deployment, analyze infrastructure bottlenecks, debug performance issues |
-| **Verdict** | ✓ Chosen as primary | ✓ Chosen as secondary |
+| **Metrics** | task_success, pass@k, turn_count | token_usage (input/output/cached), latency (per-turn, total), cost_estimate |
+| **Purpose** | Measure task completion, reliability across k attempts, and reasoning effort independent of infrastructure | Support cost accounting and deployment planning; latency is infrastructure noise rather than evidence about agent behaviour |
+| **Comparability** | Cross-architecture comparable; depends only on agent logic and model capability | token_usage and cost_estimate are derived accounting values; latency varies 20–50% across identical runs due to hardware/system load |
+| **Reproducibility** | Deterministic; identical runs produce identical task_success, pass@k and turn_count | token_usage and cost_estimate are reproducible from the same transcript; latency is non-deterministic and varies with system state, network latency and hardware contention |
+| **Use Case** | Evaluate agent correctness, compare models, assess reliability and reasoning effort | Cost/deployment analysis and debugging; never compare agent quality on latency |
+| **Verdict** | ✓ Chosen as primary | ✓ Chosen as secondary/optional; latency is explicitly not an evaluation signal |
 
-**Rationale**: Klea's distributed architecture (ADR-0025, ADR-0032) decouples agent reasoning from infrastructure execution. Unlike flat ReAct loops where turn count directly reflects reasoning steps, Klea's multi-agent topology with concurrent tool execution and asynchronous message passing means turn count is not directly comparable across different agent designs. LLM invocation count (turn count) is meaningful for internal agent optimization (e.g., "this agent uses 5 turns on average") but is secondary for cross-architecture evaluation. Latency is infrastructure-dependent and should not be used to evaluate agent quality; it varies significantly across identical runs due to hardware/system load and is useful only for deployment planning and infrastructure analysis.
+**Rationale**: task_success, pass@k and turn_count are the primary, evaluative metrics: they describe what the agent achieved (task completion and reliability across k attempts) and how much reasoning effort it spent (LLM invocation count). turn_count is meaningful for cross-architecture comparison because it reflects the agent's own control flow rather than the machine it runs on. token_usage and cost_estimate are retained as secondary, optional metrics for accounting and deployment analysis; they are derived from tokens actually consumed and do not measure agent quality. latency is explicitly not an evaluation signal: wall-clock execution time varies 20–50% across identical runs due to hardware load, system scheduling, network conditions and hardware contention, so it cannot distinguish agent behaviour from infrastructure noise. Latency is therefore retained only for cost/deployment analysis and debugging, never as a primary metric or a basis for comparing agents.
 
 ### Related Decisions
 
