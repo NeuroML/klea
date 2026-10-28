@@ -121,6 +121,16 @@ source change.
 | `adr/0048-web-search-providers.md` | ADR-0048: Web search tool: keyless-first provider pool with sequential fallback |
 | `adr/0049-paper-search-tool.md` | ADR-0049: Paper search tool: peer-reviewed-first scholarly source pool with preprint gating |
 | `adr/0050-textual-tui.md` | ADR-0050: Terminal UI: a Textual client with a single active session |
+| `adr/0051-review-as-plan-step.md` | ADR-0051: Plan review as a plan step |
+| `adr/0052-cross-frontend-identity.md` | ADR-0052: Cross-frontend local identity |
+| `adr/0053-per-session-project-root.md` | ADR-0053: Per-session project root |
+| `adr/0054-cross-run-continuity.md` | ADR-0054: Cross-run continuity for "plan now, implement later" |
+| `adr/0055-runtime-client-mcp-context.md` | ADR-0055: Runtime client context for the bundled MCP server |
+| `adr/0056-test-case-format.md` | ADR-0056: Test Case Storage Format |
+| `adr/0057-run-manager-isolation.md` | ADR-0057: Run Manager & Isolation |
+| `adr/0058-metrics-collection-aggregation.md` | ADR-0058: Metrics Collection & Aggregation |
+| `adr/0059-result-storage.md` | ADR-0059: Result Storage |
+| `adr/0060-harness-execution.md` | ADR-0060: Harness Execution & Orchestration |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-component-agent.md` | C4 model Level 3: Agent component diagram (graph nodes + supporting components, auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |
