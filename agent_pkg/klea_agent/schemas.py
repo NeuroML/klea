@@ -1123,16 +1123,9 @@ class KleaAgentState(BaseGraphSchema):
             if not entries:
                 continue
 
-            this_step = None
-            for step in self.plan.step_list:
-                if step.step_number == step_key:
-                    this_step = step
-                    break
-
             rendered = ""
             for ind, entry in enumerate(entries):
-                kind = f" ({this_step.kind})" if this_step else ""
-                rendered += f"\n\n{ind}{kind}: {entry.render()}"
+                rendered += f"\n\n{ind}: {entry.render()}"
             parts.append(f"Step {step_key}:\n{rendered}")
         return "\n\n".join(parts) if parts else "(no observations)"
 
@@ -1170,8 +1163,7 @@ class KleaAgentState(BaseGraphSchema):
         chunks: list[str] = []
         for step, outputs in self.work_since_review():
             rendered = "".join(
-                f"\n\n{index} ({step.kind}): {entry.render()}"
-                for index, entry in enumerate(outputs)
+                f"\n\n{index}: {entry.render()}" for index, entry in enumerate(outputs)
             )
             chunks.append(f"Step {step.step_number}: {step.description}{rendered}")
         return "\n\n".join(chunks) if chunks else "(no work since the last review)"
