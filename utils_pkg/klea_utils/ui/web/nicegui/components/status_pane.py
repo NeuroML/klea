@@ -23,12 +23,7 @@ from nicegui import ui
 
 from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.linkify import linkify_md
-from klea_utils.ui.state import (
-    ChatData,
-    chats,
-    format_token_usage,
-    missing_credentials,
-)
+from klea_utils.ui.state import ChatData, chats, format_token_usage, missing_credentials
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
 logger = logging.getLogger(__name__)

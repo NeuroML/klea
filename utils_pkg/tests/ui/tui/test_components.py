@@ -27,10 +27,7 @@ from klea_utils.ui.tui.components.inspector import (
     group_sections,
 )
 from klea_utils.ui.tui.components.sessions import _session_label
-from klea_utils.ui.tui.components.status_panel import (
-    _section_widget,
-    _usage_line,
-)
+from klea_utils.ui.tui.components.status_panel import _section_widget, _usage_line
 from klea_utils.ui.tui.components.transcript import (
     MessageBlock,
     _render_body,

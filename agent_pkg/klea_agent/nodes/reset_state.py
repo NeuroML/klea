@@ -16,12 +16,7 @@ from typing import Any, override
 from klea_utils.nodes.abstract import AbstractLangGraphNode
 from klea_utils.nodes.context import NodeContext
 
-from klea_agent.schemas import (
-    EvaluationSchema,
-    GoalSchema,
-    KleaAgentState,
-    PlanSchema,
-)
+from klea_agent.schemas import EvaluationSchema, GoalSchema, KleaAgentState, PlanSchema
 
 
 class ResetState(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]):

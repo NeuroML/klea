@@ -12,11 +12,7 @@ from importlib import metadata
 
 import httpx
 import pytest
-from klea_utils.llm import (
-    LLMModel,
-    apply_provider_overrides,
-    resolve_user_agent,
-)
+from klea_utils.llm import LLMModel, apply_provider_overrides, resolve_user_agent
 from klea_utils.nodes.base import _current_session_id
 
 

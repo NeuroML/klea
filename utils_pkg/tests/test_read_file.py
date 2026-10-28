@@ -1089,10 +1089,7 @@ def test_stream_reader_splits_crlf_across_chunks():
     """A CRLF straddling a chunk boundary is normalised, not split."""
     import io
 
-    from klea_utils.mcp.tool_impls.read_file import (
-        _iter_capped_lines,
-        _StreamState,
-    )
+    from klea_utils.mcp.tool_impls.read_file import _iter_capped_lines, _StreamState
 
     state = _StreamState()
     lines = list(
@@ -1113,10 +1110,7 @@ def test_stream_reader_splits_multibyte_across_chunks():
     """A UTF-8 character split across a chunk boundary decodes correctly."""
     import io
 
-    from klea_utils.mcp.tool_impls.read_file import (
-        _iter_capped_lines,
-        _StreamState,
-    )
+    from klea_utils.mcp.tool_impls.read_file import _iter_capped_lines, _StreamState
 
     state = _StreamState()
     lines = list(
@@ -1137,10 +1131,7 @@ def test_stream_reader_can_preserve_a_bom_after_a_seek():
     """A mid-file seek treats a leading U+FEFF as content, not a BOM."""
     import io
 
-    from klea_utils.mcp.tool_impls.read_file import (
-        _iter_capped_lines,
-        _StreamState,
-    )
+    from klea_utils.mcp.tool_impls.read_file import _iter_capped_lines, _StreamState
 
     state = _StreamState()
     lines = list(
@@ -1162,10 +1153,7 @@ def test_stream_reader_caps_an_over_long_line():
     """A line beyond the cap is truncated and flagged, bounding memory."""
     import io
 
-    from klea_utils.mcp.tool_impls.read_file import (
-        _iter_capped_lines,
-        _StreamState,
-    )
+    from klea_utils.mcp.tool_impls.read_file import _iter_capped_lines, _StreamState
 
     state = _StreamState()
     lines = list(

@@ -12,12 +12,7 @@ import logging
 from typing import Literal
 
 from klea_agent.nodes.await_human import AwaitHuman
-from klea_agent.schemas import (
-    KleaAgentState,
-    PlanRevision,
-    PlanSchema,
-    StepSchema,
-)
+from klea_agent.schemas import KleaAgentState, PlanRevision, PlanSchema, StepSchema
 from langchain_core.messages import AIMessage, AnyMessage, HumanMessage
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph import END, START, StateGraph

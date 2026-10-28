@@ -17,10 +17,7 @@ import subprocess
 import sys
 
 import pytest
-from klea_utils.backend_lock import (
-    _acquire_backend_lock,
-    _release_backend_lock,
-)
+from klea_utils.backend_lock import _acquire_backend_lock, _release_backend_lock
 
 
 def _dead_pid() -> int:

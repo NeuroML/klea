@@ -37,11 +37,7 @@ from textual.widgets import TextArea
 from textual.worker import Worker
 
 from klea_utils.client_context import ClientContext
-from klea_utils.commands.common import (
-    CommandRegistry,
-    CommandResult,
-    unescape_command,
-)
+from klea_utils.commands.common import CommandRegistry, CommandResult, unescape_command
 from klea_utils.ui.tui.clipboard import copy_to_system_clipboard
 from klea_utils.ui.tui.components.commands import (
     EXIT_APP_SERVICE,
@@ -71,10 +67,7 @@ from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
 from klea_utils.ui.tui.context import TuiContext
 from klea_utils.ui.tui.events import SubmitQuery
-from klea_utils.ui.tui.settings import (
-    load_theme_preference,
-    save_theme_preference,
-)
+from klea_utils.ui.tui.settings import load_theme_preference, save_theme_preference
 
 if TYPE_CHECKING:
     from klea_utils.ui.state import MessageData

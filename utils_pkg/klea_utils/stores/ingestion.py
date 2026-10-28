@@ -24,10 +24,7 @@ from langchain_core.documents import Document
 
 from ..biblio.extract import Resolver, extract_metadata, extract_metadata_from_text
 from ..llm import setup_embedding
-from .metadata import (
-    PERSON_NAME_FILTER_FIELDS,
-    STORE_DROPPED_METADATA_KEYS,
-)
+from .metadata import PERSON_NAME_FILTER_FIELDS, STORE_DROPPED_METADATA_KEYS
 from .utils import (
     CACHE_DIR_NAME,
     TEMPLATE_FILE_NAME,
@@ -1313,10 +1310,7 @@ class StoresBuilder:
             self.logger.debug(
                 f"Initialising Docling DocumentConverter (do_ocr={self.do_ocr})"
             )
-            from docling.document_converter import (
-                DocumentConverter,
-                PdfFormatOption,
-            )
+            from docling.document_converter import DocumentConverter, PdfFormatOption
 
             if self.do_ocr:
                 self._converter = DocumentConverter()

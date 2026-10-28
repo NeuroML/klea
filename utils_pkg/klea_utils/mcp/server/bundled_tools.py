@@ -8,7 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastmcp import Context
 from fastmcp.tools import ToolResult
@@ -28,15 +28,9 @@ from klea_utils.mcp.tool_impls.list_files import list_files as list_files_impl
 from klea_utils.mcp.tool_impls.papers.search import (
     DEFAULT_MAX_RESULTS as PAPERS_DEFAULT_MAX_RESULTS,
 )
-from klea_utils.mcp.tool_impls.papers.search import (
-    MAX_RESULTS as PAPERS_MAX_RESULTS,
-)
-from klea_utils.mcp.tool_impls.papers.search import (
-    Domain,
-)
-from klea_utils.mcp.tool_impls.papers.search import (
-    search_papers as search_papers_impl,
-)
+from klea_utils.mcp.tool_impls.papers.search import MAX_RESULTS as PAPERS_MAX_RESULTS
+from klea_utils.mcp.tool_impls.papers.search import Domain
+from klea_utils.mcp.tool_impls.papers.search import search_papers as search_papers_impl
 from klea_utils.mcp.tool_impls.read_file import read_file as read_file_impl
 from klea_utils.mcp.tool_impls.run_command import (
     DEFAULT_MAX_OUTPUT_CHARS,
@@ -46,10 +40,7 @@ from klea_utils.mcp.tool_impls.run_command import (
 )
 from klea_utils.mcp.tool_impls.run_command import run_command as run_command_impl
 from klea_utils.mcp.tool_impls.web_fetch import web_fetch as web_fetch_impl
-from klea_utils.mcp.tool_impls.web_search import (
-    DEFAULT_MAX_RESULTS,
-    MAX_RESULTS,
-)
+from klea_utils.mcp.tool_impls.web_search import DEFAULT_MAX_RESULTS, MAX_RESULTS
 from klea_utils.mcp.tool_impls.web_search import web_search as web_search_impl
 from klea_utils.mcp.tool_impls.write_file import write_file as write_file_impl
 from klea_utils.mcp.tool_result import to_result
@@ -216,6 +207,138 @@ async def web_search(
         max_results=max_results,
     )
     return to_result(result)
+
+
+#: Tag marking the tool as searching the deployment's document stores.
+STORES_TAG = "stores"
+
+
+def _stores_description() -> str:
+    """Render the store-search description from the resolved configuration.
+
+    The domain list is read from the stores configuration named by
+    ``KLEA_STORES_CONFIG`` (see
+    :func:`klea_utils.stores.utils.resolve_stores_config_path`) so the model
+    sees what it can search without first calling the tool in catalogue
+    mode.  A domain is shown with its description when it has one, and as
+    its bare key otherwise.  Any resolution or load failure (no
+    configuration, missing file, invalid contents) leaves the domain section
+    out, so the description stays usable and the tool reports the problem
+    itself.
+
+    :returns: The tool description.
+    """
+    description = (
+        "Search the deployment's configured document stores for one domain.\n\n"
+        "Use this tool to answer a question from the deployment's document "
+        "collections: it queries the domain's vector and BM25 stores, fuses "
+        "their results, re-ranks them and returns character-budgeted "
+        "reference material.\n\n"
+        "Use when:\n"
+        "- Answering a question from the deployment's document collections.\n"
+        "- Looking up material held in a vector store or BM25 corpus.\n\n"
+        "Do not use for:\n"
+        "- Reading a local file (use the read file tool instead).\n"
+        "- General web pages (use the web search tool instead).\n\n"
+        "Call it with mode 'catalogue' (or an empty domain) to list the "
+        "domains with the filter fields each accepts.\n\n"
+        "Args:\n"
+        "    query: Search string; required unless mode is 'catalogue'.\n"
+        "    domain: Domain to search, or empty to list the catalogue.\n"
+        "    mode: One of 'hybrid', 'vector', 'bm25' or 'catalogue'.\n"
+        "    top_k: Documents fetched per store (1-50).\n"
+        "    rerank: Re-rank the fused results with the cross-encoder.\n"
+        "    metadata_filter: Optional metadata filter in the store filter "
+        "DSL.\n"
+        "    max_chars: Character budget for the returned reference "
+        "material.\n\n"
+        "Returns:\n"
+        "    Dictionary with query, domain, mode, top_k, results, count, "
+        "content, catalogue, truncated, error and note."
+    )
+
+    try:
+        from klea_utils.stores.utils import (
+            load_retriever_config,
+            resolve_stores_config_path,
+        )
+
+        path = resolve_stores_config_path()
+        if path is None:
+            return description
+        config = load_retriever_config(path)
+    except (ImportError, OSError, ValueError):
+        return description
+
+    lines: list[str] = []
+    for name, domain_config in config.domains.items():
+        text = (domain_config.description or "").strip()
+        lines.append(f"- {name}: {text}" if text else f"- {name}")
+    if not lines:
+        return description
+    return f"{description}\n\nAvailable domains:\n" + "\n".join(lines)
+
+
+@tool_meta(
+    ToolInfo(
+        tags={BUNDLED_TAG, "local", STORES_TAG},
+        read_only=True,
+        idempotent=True,
+        open_world=False,
+    )
+)
+async def search_stores(
+    query: Annotated[str, Field(description="Search string.")] = "",
+    domain: Annotated[
+        str,
+        Field(description="Domain to search, or empty to list the catalogue."),
+    ] = "",
+    mode: Annotated[
+        str,
+        Field(description="One of 'hybrid', 'vector', 'bm25' or 'catalogue'."),
+    ] = "hybrid",
+    top_k: Annotated[
+        int,
+        Field(description="Documents fetched per store", ge=1, le=50),
+    ] = 5,
+    rerank: Annotated[
+        bool,
+        Field(description="Re-rank the fused results with the cross-encoder"),
+    ] = True,
+    metadata_filter: Annotated[
+        dict[str, Any] | None,
+        Field(description="Optional metadata filter in the store filter DSL"),
+    ] = None,
+    max_chars: Annotated[
+        int,
+        Field(
+            description="Character budget for the returned reference material",
+            ge=1,
+            le=200_000,
+        ),
+    ] = 20000,
+) -> ToolResult:
+    """Search the deployment's document stores for one domain."""
+    # Lazy: the implementation pulls in the retrieval layer (LangChain, the
+    # embedding model), so importing the CLI/bundled server stays light.
+    from klea_utils.mcp.tool_impls.stores import search_stores as search_stores_impl
+
+    result = search_stores_impl(
+        query=query,
+        domain=domain,
+        mode=mode,
+        top_k=top_k,
+        rerank=rerank,
+        metadata_filter=metadata_filter,
+        max_chars=max_chars,
+    )
+    return to_result(result)
+
+
+#: Domain names come from the deployment's configuration, so the description
+#: is rendered once, after the function exists, and used by fastmcp at
+#: registration time.
+search_stores.__doc__ = _stores_description()
 
 
 @tool_meta(
