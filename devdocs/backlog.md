@@ -49,7 +49,6 @@ Last updated: 2026-10-28.
   and only the `context_snapshot` projection is exposed today -- so it needs a
   new endpoint and a serialisation design.  Research whether LangChain/LangGraph
   checkpoint/state serialisation (or replay) can produce it directly.
-- Revisit the `max_automated_plan_revisions` default (4 automated replans).
 - Absence handling as a class: bound search escalation when a requested path
   is missing (an agent may reach for `find /`).  `read_file`/`edit_file` now
   report nearby entries on a missing target, and the picker escalates identical

@@ -70,7 +70,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         label: str,
         llm_models: dict[str, Any],
         memory: bool = False,
-        max_automated_plan_revisions: int = 4,
+        max_automated_plan_revisions: int = 8,
         tools_info: dict[str, dict[str, ToolInfo]] | None = None,
     ):
         """Initialise the planner node.

@@ -72,6 +72,7 @@
 
 ### Changed
 
+- Agent budgets: the tool-error re-pick budget is now 6 (was 3), the per-step non-advancing attempt budget is 6 (was 3), and the automated-replan budget is 8 (was 4), so reading a large file can span more tool rounds before the agent escalates or replans.
 - Terminal UI: Ctrl+C now copies selected text instead of stopping the run; Ctrl+Shift+C stops a run, with F12 as the fallback for terminals that intercept Ctrl+Shift+C.
 - Token usage totals now show cached prompt reads as a subset of input (`<n> cached`) in the web and TUI status lines; cache-creation writes are not counted as cached.
 - Path approval asks now show the full target path and the session approval directory separately, with bounded previews for pathological values, plus the tool-call context, detected token and discovery source. Full values remain the decision keys; guessed values keep session approval and the "Not a path" dismissal.

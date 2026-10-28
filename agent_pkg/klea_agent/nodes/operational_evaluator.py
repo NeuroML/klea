@@ -73,8 +73,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         label: str,
         llm_models: dict[str, Any],
         memory: bool = False,
-        max_step_attempts: int = 3,
-        max_automated_plan_revisions: int = 4,
+        max_step_attempts: int = 6,
+        max_automated_plan_revisions: int = 8,
     ):
         """Initialise the operational evaluator.
 

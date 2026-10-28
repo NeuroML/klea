@@ -362,9 +362,10 @@ fail-closed router** plus a **task-only Planner**: `GoalSetter` is removed, and
   approval now does.)
 * Deterministic budgets bound the loop (counters in state, enforced in the
   acting nodes): tool-error re-picks (`tool_retry_counts` -> triage replan;
-  3 re-picks), repeated non-advancing evaluations (`step_attempt_counts` ->
-  replan), Planner entries (`automated_plan_revisions` -> preserve the plan
-  and ask the human for guidance via `needs_input`).
+  6 re-picks), repeated non-advancing evaluations (`step_attempt_counts` ->
+  replan; 6 attempts), Planner entries (`automated_plan_revisions` -> preserve
+  the plan and ask the human for guidance via `needs_input`; 8 automated
+  replans).
   The plan length itself is deliberately unbounded: long-horizon research
   tasks may need many focused steps, and the per-step/replan budgets bound the
   execution loop.
