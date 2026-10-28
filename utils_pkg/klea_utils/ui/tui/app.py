@@ -487,7 +487,7 @@ class KleaTuiApp(App[None]):
             if preference in self.available_themes:
                 try:
                     self.theme = preference
-                except Exception:  # pragma: no cover - defensive
+                except Exception:  # noqa: BLE001  # pragma: no cover - defensive
                     logger.debug("Could not apply saved theme %r", preference)
             else:
                 logger.debug("Ignoring unknown saved theme %r", preference)
