@@ -6,10 +6,12 @@ A per-role editor for the active chat's models, mirroring the web's model
 dialog: each role (chat / plan / guard / ...) gets provider, model, a
 HuggingFace backend + inference provider, and an optional custom URL; the
 fields join back into a model string via the shared
-:mod:`klea_utils.ui.model_config` helpers.  Save persists every changed role
-as a per-chat override (promoting it into the session defaults), Reset clears
-one role's override, and Use-for-all copies a model onto the other modifiable
-roles of the same kind.  Catalogue providers/models and the stored credentials
+:mod:`klea_utils.ui.model_config` helpers.  The fields are seeded from the
+effective (precedence-resolved) models with their provenance, so an inherited
+model is shown as it will actually be used; Save persists every shown
+modifiable role as a per-chat override (promoting it into the session defaults
+only for a genuine change), Reset clears one role's override, and Use-for-all
+copies a model onto the other modifiable roles of the same kind.  Catalogue providers/models and the stored credentials
 are fetched through the same shared helpers the web dialog uses.
 
 File: klea_utils/ui/tui/components/model_dialog.py
@@ -191,11 +193,24 @@ class ModelDialog(ModalScreen[ModelResult | None]):
                 yield action_button("Save", id="model-save", variant="primary")
 
     def on_mount(self) -> None:
-        """Set field visibility, credential status and load the catalogue."""
+        """Set field visibility, credential status and load the effective models."""
         for role in self._roles:
             self._update_visibility(role)
         self._refresh_credentials()
-        self._load_catalogue()
+        self._initialise()
+
+    @work
+    async def _initialise(self) -> None:
+        """Seed the fields from the effective models, then load the catalogue.
+
+        The constructor's *info* may be a stale snapshot, so the fields are
+        re-seeded from the server's resolved per-role config before the user
+        can edit them.  This is what makes a later save compare against the
+        *effective* model rather than a snapshot that may never have shown the
+        inherited value.
+        """
+        await self._reload_info()
+        await self._load_catalogue()
 
     # -- composition helpers ---------------------------------------------
 
@@ -258,7 +273,8 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             value=origin.url, placeholder="custom URL", id=self._dom_id("url", role)
         )
         cred = SelectableStatic("", id=self._dom_id("cred", role), markup=False)
-        children: list[Any] = [provider, model, backend, inference, url, cred]
+        origin = SelectableStatic("", id=self._dom_id("origin", role), markup=False)
+        children: list[Any] = [provider, model, backend, inference, url, cred, origin]
         if not modifiable:
             for widget in (provider, model, backend, inference, url):
                 widget.disabled = True
@@ -311,7 +327,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
         url.display = not is_hf and provider not in PROVIDERS_WITHOUT_CUSTOM_URL
 
     def _refresh_credentials(self) -> None:
-        """Update every role's credential status label."""
+        """Update every role's credential status and model-provenance label."""
         for role in self._roles:
             text, tone = credential_display(
                 self._current_model(role),
@@ -321,8 +337,26 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             label = self._field("cred", role)
             label.update(text)
             label.set_class(tone == TONE_ERROR, "model-cred-error")
+            self._field("origin", role).update(self._origin_text(role))
 
-    @work
+    def _origin_text(self, role: str) -> str:
+        """Return the label naming the layer the role's model comes from.
+
+        Reports a chat override, an inherited session default, or the plain
+        default, and flags an unsaved edit -- so an inherited value can be
+        told apart from a pinned one.
+        """
+        cfg = self._info.get(role) or {}
+        if cfg.get("overridden"):
+            text = "Chat override"
+        elif cfg.get("session_overridden"):
+            text = "Inherited from session default"
+        else:
+            text = "Default (inherited)"
+        if self._current_model(role) != self._model_of(role):
+            text += " (unsaved change)"
+        return text
+
     async def _load_catalogue(self) -> None:
         """Fetch the catalogue providers/models and the stored credentials."""
         self._providers = await self._catalogue.providers()
@@ -342,6 +376,13 @@ class ModelDialog(ModalScreen[ModelResult | None]):
         info = await fetch_active_models(self._server_url, self._user_id, self._chat_id)
         if info:
             self._info = info
+        else:
+            self.notify(
+                "Could not fetch the active models; showing the last known "
+                "configuration.",
+                severity="warning",
+            )
+            return
         for role in self._roles:
             origin = parse_model_origin(self._model_of(role))
             self._origins[role] = origin
@@ -423,7 +464,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
 
     @work
     async def _save(self) -> None:
-        """Persist every changed role and close the dialog."""
+        """Persist every shown modifiable role and close the dialog."""
         role_values = {
             role: self._current_model(role)
             for role in self._roles

@@ -42,11 +42,11 @@ def _config_dir() -> Path:
     """Return the directory holding the TUI settings file."""
     try:
         from platformdirs import user_config_dir
-    except Exception:  # pragma: no cover - platformdirs is expected to exist
+    except Exception:  # noqa: BLE001  # pragma: no cover - platformdirs is expected to exist
         return _fallback_config_dir()
     try:
         return Path(user_config_dir(_APP_NAME)).expanduser()
-    except Exception:  # pragma: no cover - defensive
+    except Exception:  # noqa: BLE001  # pragma: no cover - defensive
         return _fallback_config_dir()
 
 
