@@ -42,6 +42,22 @@ from pydantic import BaseModel, ValidationError
 logger = logging.getLogger("test")
 
 
+class _HttpStatusError(Exception):
+    """Minimal stand-in for an SDK HTTP status error."""
+
+    def __init__(self, message: str, status_code: int):
+        super().__init__(message)
+        self.status_code = status_code
+
+
+class _ResponseStatusError(Exception):
+    """Stand-in carrying the status on a wrapped response object."""
+
+    def __init__(self, message: str, status_code: int):
+        super().__init__(message)
+        self.response = mock.Mock(status_code=status_code)
+
+
 def _validation_error() -> ValidationError:
     """Return a real ValidationError for ``_OutputSchema`` (a missing field)."""
     try:
@@ -1008,6 +1024,28 @@ class TestIsStructuredOutputFailure:
             RuntimeError("Error code: 429 - rate limit")
         )
 
+    def test_http_400_bodyless_true(self):
+        """A bare HTTP 400 is a per-call structured failure.
+
+        Some OpenAI-compatible gateways return a 400 with no error detail when
+        an upstream cannot process ``response_format``, so the SDK message is
+        only ``"Error code: 400"`` and no text pattern matches.
+        """
+        exc = _HttpStatusError("Error code: 400", 400)
+        assert is_structured_output_failure(exc)
+        # ... but the status alone must not poison the capability cache.
+        assert not is_structured_capability_rejection(exc)
+
+    def test_http_400_via_response_true(self):
+        """The status is also read from a wrapped response object."""
+        exc = _ResponseStatusError("Error code: 400", 400)
+        assert is_structured_output_failure(exc)
+
+    def test_http_500_false(self):
+        assert not is_structured_output_failure(
+            _HttpStatusError("Error code: 500", 500)
+        )
+
     def test_unrelated_error_false(self):
         assert not is_structured_output_failure(RuntimeError("boom"))
 
@@ -1116,6 +1154,38 @@ class TestStructuredOutputCapabilityCache:
             )
         )
 
+        assert not structured_output_known_unsupported("openai", "gpt-4o")
+
+    async def test_http_400_falls_back_to_plain_and_not_cached(self):
+        """A body-less HTTP 400 falls back to plain for this call only.
+
+        Covers gateways whose upstream returns a 400 with no error detail for
+        ``response_format``; the SDK message is just ``"Error code: 400"``.
+        The transient nature means it must not poison the capability cache.
+        """
+        inst = mock.Mock()
+        wrapped = mock.Mock()
+        inst.with_structured_output.return_value = wrapped
+        wrapped.ainvoke = mock.AsyncMock(
+            side_effect=_HttpStatusError("Error code: 400", 400)
+        )
+        inst.ainvoke = mock.AsyncMock(
+            return_value=AIMessage(
+                content='{"answer": "ok"}', response_metadata={"finish_reason": "stop"}
+            )
+        )
+        node = make_node(inst, output_schema=_OutputSchema)
+        out = await node._invoke_llm(
+            LLMNodeContext(
+                output_schema=_OutputSchema,
+                prompt=StringPromptValue(text="hi"),
+                config=make_config(),
+            )
+        )
+
+        assert wrapped.ainvoke.await_count == 1
+        assert inst.ainvoke.await_count == 1
+        assert out.content == '{"answer": "ok"}'
         assert not structured_output_known_unsupported("openai", "gpt-4o")
 
     def test_strict_predicate_excludes_generic_400(self):

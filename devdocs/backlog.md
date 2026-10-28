@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-26.
+Last updated: 2026-10-28.
 
 ## Cancellation / concurrency
 
@@ -111,6 +111,16 @@ Last updated: 2026-10-26.
 
 ## Infrastructure / correctness
 
+- Structured-output ladder: `json_schema` is tried first, and a rejected or
+  failed call falls back to the plain prompt (schema carried as text).  An
+  intermediate `json_object` (JSON mode) step could help endpoints that reject
+  `json_schema` but accept `response_format={"type": "json_object"}` (observed
+  for `beam-free` on opencode-go).  Keep it per-call, not cached, and bind
+  `response_format` directly while reusing the existing tolerant parser, rather
+  than `with_structured_output(method="json_mode")` (which rewrites the prompt
+  with duplicate schema instructions and still enforces nothing server-side).
+  Deferred 2026-10-28: the opencode-go transient 400 that prompted this is
+  handled by treating HTTP 400 as a per-call structured failure.
 - Checkpoint store growth: `checkpoints.db` grows with every super-step (each
   checkpoint stores the full state, so a long agent session reached ~480 MB
   for ~880 checkpoints).  Investigate compaction / retention: does LangGraph

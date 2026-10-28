@@ -773,6 +773,29 @@ def is_empty_structured_parse_error(exc: BaseException) -> bool:
     return not payload.strip()
 
 
+def _exception_chain_has_status(exc: BaseException, status: int) -> bool:
+    """Return True if *exc* or a cause carries the given HTTP status code.
+
+    SDK exceptions expose the code as ``status_code`` and/or on their
+    ``response``; walking the ``__cause__`` / ``__context__`` chain covers
+    wrappers that hide the original status.
+
+    :param exc: The exception to inspect.
+    :param status: The HTTP status code to look for.
+    :returns: True when the code appears anywhere in the cause chain.
+    """
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if getattr(current, "status_code", None) == status:
+            return True
+        if getattr(getattr(current, "response", None), "status_code", None) == status:
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
 def is_structured_output_failure(exc: BaseException) -> bool:
     """Return True if *exc* means the structured call produced no usable output.
 
@@ -784,9 +807,15 @@ def is_structured_output_failure(exc: BaseException) -> bool:
     parser error, so both types are treated as a structured failure.
 
     Detection is by exception type wherever possible, so a provider's new error
-    wording does not need a new pattern; the one message-classified case is
+    wording does not need a new pattern; the message-classified cases are
     :data:`~klea_utils.errors.LLMInvocationErrorCategory.STRUCTURED_OUTPUT_REJECTED`
-    (parameter refusal), which has no distinct exception type.
+    (parameter refusal), which has no distinct exception type, and any HTTP
+    400 from the structured call.  The latter covers OpenAI-compatible
+    gateways that return a bare 400 (e.g. only ``{"model": ...}``) when an
+    upstream cannot process the parameter, leaving the SDK message as just
+    ``"Error code: 400"``.  It is a per-call fallback only: because the same
+    status also covers unrelated bad requests, it must not populate the
+    capability cache.
 
     Empty responses are deliberately included: the caller decides whether to
     retry them on the structured path or fall back to plain.
@@ -795,6 +824,8 @@ def is_structured_output_failure(exc: BaseException) -> bool:
     :returns: True when the structured call should give way to a plain invoke.
     """
     if isinstance(exc, (ValidationError, OutputParserException, json.JSONDecodeError)):
+        return True
+    if _exception_chain_has_status(exc, 400):
         return True
     return (
         classify_llm_invocation_error(exc)
