@@ -107,15 +107,21 @@ Last updated: 2026-10-29.
   always `unverified` (ADR-0030/0036).
 - Independent inline-answer verifier for `chat`-route answers (ADR-0029
   phase).
-- `eval_pkg` harness (see `devdocs/system/agent-evaluation-harness.md`).
 
 ## Evaluation harness (`eval_pkg`)
 
-Ordered phases.  The package scaffold and distribution (`klea-eval`) are done;
-ADR-0056 JSONL case loading is the next task.
+Ordered phases.  The package scaffold and distribution (`klea-eval`) are done,
+and the ADR-0056 JSONL case loader shipped in commit `4c1df875`.  The next
+task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
 
-- JSONL case loader (ADR-0056), **next task**: read case definitions from the
-  ADR-0056 JSONL format and expose them to the harness.
+- JSONL case loader (ADR-0056), **done** (`4c1df875`): `klea_eval.cases`
+  (`load_suite`, `iter_cases`) reads case definitions from the ADR-0056 JSONL
+  format and raises `CaseValidationError` (carrying source path, line number
+  and case id) on invalid input.
+- CLI case-validation command, **next task**: expose the loader in
+  `eval_pkg/klea_eval/ui/cli.py` (today only `version`, `run`, `report` exist,
+  lines 32-81), render the `CaseValidationError` message and map it to exit
+  code 2 as `klea_eval.errors` and ADR-0060 promise.
 - Run manager and run isolation (ADR-0057): give each case an isolated run
   directory and environment, with cleanup.
 - Metrics collector (ADR-0058): collect per-case metrics through the runner
