@@ -5,8 +5,8 @@ Framework-agnostic model-configuration helpers (shared by web and TUI).
 The model-config dialog exists twice (a NiceGUI dialog and a Textual modal)
 but the logic behind it does not: parsing a role's model string into editable
 fields and joining them back, deciding the credential scope and status of a
-(possibly unsaved) model, collecting the roles that changed, and persisting a
-role's override.  This module holds that logic with no frontend imports, so
+(possibly unsaved) model, selecting the roles to write (every shown modifiable
+one, compared against the effective model) and persisting a role's override.  This module holds that logic with no frontend imports, so
 both frontends share one source of truth.  The frontends keep only their own
 widgets and styling (a tone is mapped to a colour class per frontend).
 
@@ -288,10 +288,12 @@ def changed_roles(
 ) -> list[tuple[str, str]]:
     """Return the ``(role, new_model)`` pairs whose value changed.
 
-    Skips locked roles and unchanged values (so an inherited value is not
-    pinned).
+    *info* must be the *effective* (precedence-resolved) config: the baseline
+    is the model each role would actually use, not the dialog's seed or a
+    stored snapshot, so an untouched inherited value is not reported as a
+    change and is not pinned.  Locked roles are skipped.
 
-    :param info: The saved model config (``role -> cfg``).
+    :param info: The effective model config (``role -> cfg``).
     :param role_values: Current input values by role.
     :returns: The changed roles, in iteration order.
     """
@@ -305,6 +307,35 @@ def changed_roles(
             continue
         changed.append((role, new_model))
     return changed
+
+
+def shown_overrides(
+    info: Mapping[str, Any], role_values: Mapping[str, str]
+) -> list[tuple[str, str, bool]]:
+    """Return the roles to persist: every shown modifiable role with a model.
+
+    Unlike :func:`changed_roles`, *info* must be the *effective* config: every
+    shown modifiable role with a non-empty model is written, so "save what is
+    shown" holds even when the dialog's seed was stale.  The third element
+    says whether the value differs from the effective model, so that only a
+    real change is promoted into the session default and an untouched role is
+    not stamped over it.
+
+    :param info: The effective model config (``role -> cfg``).
+    :param role_values: Current input values by role.
+    :returns: ``(role, model, changed)`` triples, in iteration order.
+    """
+    changed = dict(changed_roles(info, role_values))
+    shown: list[tuple[str, str, bool]] = []
+    for role, new_model in role_values.items():
+        cfg = info.get(role, {})
+        if not cfg.get("modifiable", True):
+            continue
+        new_model = (new_model or "").strip()
+        if not new_model:
+            continue
+        shown.append((role, new_model, changed.get(role) == new_model))
+    return shown
 
 
 def use_for_all_targets(
@@ -382,9 +413,9 @@ class CatalogueCache:
 
 @dataclass(frozen=True)
 class SaveOutcome:
-    """The result of persisting a dialog's changed roles.
+    """The result of persisting a dialog's shown modifiable roles.
 
-    :param ok: Whether every changed role saved.
+    :param ok: Whether every shown modifiable role saved.
     :param saved: The ``(role, model)`` pairs persisted before any failure.
     :param failed_role: The role that failed, when ``ok`` is ``False``.
     """
@@ -403,19 +434,26 @@ async def save_roles(
     info: Mapping[str, Any],
     role_values: Mapping[str, str],
 ) -> SaveOutcome:
-    """Persist every changed role, stopping at the first failure.
+    """Persist every shown modifiable role, stopping at the first failure.
+
+    Which roles are written is decided by :func:`shown_overrides`: every shown
+    modifiable role with a non-empty model is written, compared against the
+    *effective* (precedence-resolved) model in *info*; only the roles whose
+    model genuinely differs from that baseline are promoted into the session
+    default, so an untouched inherited role is written but not stamped over
+    the default.
 
     :param server_url: Base URL of the backend API server.
     :param user_id: Opaque persistent user identifier.
     :param chat_id: Active chat id (ignored for a session-scope save).
     :param session_scope: Save per-session defaults instead of per-chat.
-    :param info: The saved model config (``role -> cfg``).
+    :param info: The effective model config (``role -> cfg``).
     :param role_values: Current input values by role.
     :returns: A :class:`SaveOutcome`.
     """
     saved: list[tuple[str, str]] = []
-    for role, new_model in changed_roles(info, role_values):
-        logger.debug(f"model config: saving {role = }\n{new_model = }")
+    for role, new_model, changed in shown_overrides(info, role_values):
+        logger.debug(f"model config: saving {role = }\n{new_model = }\n{changed = }")
         if session_scope:
             ok = await set_session_model_override(
                 server_url, user_id, role, {"model": new_model}
@@ -426,7 +464,7 @@ async def save_roles(
                 user_id,
                 chat_id,
                 role,
-                {"model": new_model, "promote_default": True},
+                {"model": new_model, "promote_default": changed},
             )
         if not ok:
             return SaveOutcome(ok=False, saved=saved, failed_role=role)

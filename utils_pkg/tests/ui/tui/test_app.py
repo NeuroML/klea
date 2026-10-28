@@ -1753,7 +1753,7 @@ async def test_model_dialog_roles_are_compact(fake_backend, make_app):
 
 
 async def test_model_dialog_save_promotes(fake_backend, make_app):
-    """Saving a changed role posts a promoting per-chat override."""
+    """Saving writes every shown role; only a genuine change is promoted."""
     fake_backend.model_info = _model_info()
     app = make_app(chat_id="c1")
     async with app.run_test() as pilot:
@@ -1772,7 +1772,12 @@ async def test_model_dialog_save_promotes(fake_backend, make_app):
             "chat_id": "c1",
             "role": "chat",
             "payload": {"model": "anthropic:claude", "promote_default": True},
-        }
+        },
+        {
+            "chat_id": "c1",
+            "role": "plan",
+            "payload": {"model": "openai:gpt-4o", "promote_default": False},
+        },
     ]
 
 

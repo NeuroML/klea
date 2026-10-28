@@ -28,6 +28,7 @@ from klea_utils.ui.model_config import (
     required_credential_scopes,
     role_label,
     save_roles,
+    shown_overrides,
     use_for_all_targets,
 )
 
@@ -162,13 +163,49 @@ def test_live_info_replaces_model_and_credential():
 
 
 def test_changed_roles_skips_locked_and_unchanged():
-    """Changed roles exclude locked roles and unchanged values."""
+    """Changed roles exclude locked roles and values equal to the effective model."""
     info = {
         "chat": {"model": "a", "modifiable": True},
         "guard": {"model": "b", "modifiable": False},
     }
     assert changed_roles(info, {"chat": "c", "guard": "d"}) == [("chat", "c")]
     assert changed_roles(info, {"chat": "a"}) == []
+
+
+def test_shown_overrides_writes_unchanged_shown_role():
+    """An unchanged but shown modifiable role is still written (not changed)."""
+    info = {"chat": {"model": "a", "modifiable": True}}
+    assert shown_overrides(info, {"chat": "a"}) == [("chat", "a", False)]
+
+
+def test_shown_overrides_skips_locked_and_empty_models():
+    """A locked role or an empty model string is never written."""
+    info = {
+        "chat": {"model": "a", "modifiable": True},
+        "guard": {"model": "b", "modifiable": False},
+    }
+    assert shown_overrides(info, {"chat": "", "guard": "c"}) == []
+
+
+def test_shown_overrides_flags_only_genuine_changes():
+    """The ``changed`` flag is true only against the effective model."""
+    info = {
+        "chat": {"model": "a", "modifiable": True},
+        "plan": {"model": "b", "modifiable": True},
+    }
+    assert shown_overrides(info, {"chat": "a", "plan": "c"}) == [
+        ("chat", "a", False),
+        ("plan", "c", True),
+    ]
+
+
+def test_shown_overrides_saves_value_equal_to_catalogue_default():
+    """A value equal to the catalogue default but differing from the
+    session-overridden effective model is written as a genuine change."""
+    info = {"chat": {"model": "session:override", "modifiable": True}}
+    assert shown_overrides(info, {"chat": "catalogue:default"}) == [
+        ("chat", "catalogue:default", True)
+    ]
 
 
 def test_use_for_all_targets_scoped_by_model_type():
@@ -259,6 +296,36 @@ async def test_save_roles_chat_scope_promotes_and_stops_on_failure(monkeypatch):
     assert calls == [
         ("c1", "chat", {"model": "b", "promote_default": True}),
         ("c1", "guard", {"model": "h", "promote_default": True}),
+    ]
+
+
+async def test_save_roles_writes_unchanged_role_without_promoting(monkeypatch):
+    """A shown role is written even when unchanged; only a change is promoted."""
+    calls = []
+
+    async def _set_chat(server_url, user_id, chat_id, role, payload):
+        calls.append((role, payload))
+        return True
+
+    monkeypatch.setattr(model_config, "set_model_override", _set_chat)
+
+    info = {
+        "chat": {"model": "a", "modifiable": True},
+        "plan": {"model": "b", "modifiable": True},
+    }
+    outcome = await save_roles(
+        "http://server",
+        "u",
+        "c1",
+        session_scope=False,
+        info=info,
+        role_values={"chat": "a", "plan": "c"},
+    )
+    assert outcome.ok
+    assert outcome.saved == [("chat", "a"), ("plan", "c")]
+    assert calls == [
+        ("chat", {"model": "a", "promote_default": False}),
+        ("plan", {"model": "c", "promote_default": True}),
     ]
 
 
