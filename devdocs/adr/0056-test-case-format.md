@@ -94,7 +94,7 @@ Each expected output:
 ```json
 {
   "file_path": "string (relative to case file directory)",
-  "format": "string ('json', 'yaml', 'text', 'binary')",
+  "output_format": "string ('json', 'yaml', 'text', 'binary')",
   "validation_rule": "string (e.g., 'exact_match', 'schema_valid', 'contains')"
 }
 ```
@@ -118,7 +118,7 @@ Each rubric:
 ```json
 {
   "rubric_id": "string (unique within case)",
-  "type": "string ('binary', 'scale', 'categorical')",
+  "rubric_type": "string ('binary', 'scale', 'categorical')",
   "criteria": "array (structured list of evaluation criteria)"
 }
 ```
@@ -253,7 +253,7 @@ The harness includes a validator that checks:
       "expected_outputs": [
         {
           "file_path": "output.txt",
-          "format": "text",
+          "output_format": "text",
           "validation_rule": "exact_match"
         }
       ]
@@ -302,7 +302,7 @@ The harness includes a validator that checks:
       "expected_outputs": [
         {
           "file_path": "summary.txt",
-          "format": "text",
+          "output_format": "text",
           "validation_rule": "contains"
         }
       ]
@@ -325,7 +325,7 @@ The harness includes a validator that checks:
   "rubrics": [
     {
       "rubric_id": "accuracy",
-      "type": "scale",
+      "rubric_type": "scale",
       "criteria": [
         "Summary accurately reflects data contents",
         "No hallucinations or fabricated details"
@@ -333,7 +333,7 @@ The harness includes a validator that checks:
     },
     {
       "rubric_id": "tool_usage",
-      "type": "binary",
+      "rubric_type": "binary",
       "criteria": [
         "Correct tools called with correct arguments"
       ]
