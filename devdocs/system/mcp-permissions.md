@@ -160,6 +160,19 @@ their own containment (e.g. `download_file_to_cache`, the sandboxed code
 execution tools) are not marked: their boundary is their own cache/sandbox,
 not the project root.
 
+A read-only retrieval tool can legitimately declare no `checkpaths`:
+`search_stores` (the bundled store-search tool) reads only the deployment's
+configured stores -- Chroma folders, Qdrant/PGVector URLs and pickled BM25
+corpora named in the stores configuration file -- and its arguments are a
+query string, a domain name, a mode, `top_k`, a rerank flag, a metadata filter
+and a character budget, none of which is a path.  There is therefore nothing
+the client gate could resolve against `project_root`, and its store locations
+come from server-side configuration the model cannot choose.  It is annotated
+`read_only` (and `idempotent`, not `open_world`), so it is available in
+`read_only` mode; its boundary is the configured store set, not the project
+root.  Marking it `checkpaths` would only produce spurious path requests for
+strings that are domains or store URIs.
+
 ## The invocation axis: tool access levels
 
 Permission has two axes (ADR-0007): *may this tool be invoked?* and *may

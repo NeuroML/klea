@@ -69,6 +69,8 @@
 - Terminal UI: a long transcript message is collapsed to a few lines and expands/collapses on click or `Enter`, matching the web UI.
 - Klea's processes set their OS process title to their role (`klea-agent-tui` / `klea-rag-tui`, `klea-agent-web` / `klea-rag-web`, `klea-agent-serve` / `klea-rag-serve`) instead of `python`, so they are identifiable in `ps`/`top`; an auto-spawned server gets it via the `KLEA_PROC_TITLE` environment variable.
 - Status panes: streamed state sections persist across turns instead of being cleared when a new query starts, so earlier progress and tool rounds stay visible.
+- Bundled read-only `search_stores` tool: domain-aware retrieval over the deployment's configured vector and BM25 stores. It lists the configured domains (with their descriptions and filter fields) on request, searches one domain by fusing and re-ranking its stores' results, and returns character-budgeted reference material. The stores file is named by `KLEA_STORES_CONFIG`, and the tool description advertises the deployment's domains when that file is readable.
+- Store domains now carry a `description` in the shared stores schema, so the retrieval tool can describe each domain and the RAG schema inherits the field instead of redeclaring it.
 
 ### Changed
 

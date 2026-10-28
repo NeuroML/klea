@@ -72,6 +72,8 @@ class FilterFieldInfo(BaseModel):
 class PerDomainConfig(BaseModel):
     """Configuration for a single domain."""
 
+    #: Human-readable description of what the domain covers.
+    description: str = ""
     vector_stores: list[VectorStoreInfo] = []
     bm25_stores: list[BM25StoreInfo] = []
     #: Retrieval filter fields the query generator may use for this domain.

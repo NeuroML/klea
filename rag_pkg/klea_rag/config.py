@@ -77,7 +77,6 @@ class GeneralConfig(BaseModel):
 class PerDomainConfig(BasePerDomainConfig):
     """Configuration for a single domain."""
 
-    description: str
     mcp_servers: dict[str, Any] = Field(default_factory=dict)
 
 
