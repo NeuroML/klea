@@ -788,10 +788,31 @@ class KleaTuiApp(App[None]):
         )
 
     def _client_context_extra(self) -> dict[str, Any] | None:
-        """Return the per-query client context payload, or ``None``."""
+        """Return the per-query client context payload, or ``None``.
+
+        The chat's ``/stores`` selection (its ``stores_config`` slot) is merged
+        into a *copy* of the base context, so the shared
+        :attr:`~klea_utils.ui.tui.context.TuiContext.client_context` is never
+        mutated.  ``None``/absent leaves the deployment default in place; a
+        ``None`` base context (non-loopback server or ``--no-client-context``)
+        still sends no payload at all.  The pooled MCP session already keys on
+        the context fingerprint, which includes ``stores_config``, so a changed
+        value respawns the bundled tool server on the next dispatch.
+
+        :returns: The ``extra`` payload for the request, or ``None``.
+        """
         if self.ctx.client_context is None:
             return None
-        return {"client_context": self.ctx.client_context.model_dump()}
+        # Lazy: the state store is only needed when building the payload.
+        from klea_utils.ui.state import ensure_chat
+
+        stores_config = ensure_chat(self.ctx.user_id, self.ctx.chat_id).get(
+            "stores_config"
+        )
+        context = self.ctx.client_context.model_copy(
+            update={"stores_config": stores_config}
+        )
+        return {"client_context": context.model_dump()}
 
     def copy_to_clipboard(self, text: str) -> None:
         """Copy *text* to the app clipboard and, if possible, the OS clipboard.
