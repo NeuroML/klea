@@ -287,6 +287,7 @@ def _stores_description() -> str:
     )
 )
 async def search_stores(
+    ctx: Context,
     query: Annotated[str, Field(description="Search string.")] = "",
     domain: Annotated[
         str,
@@ -322,6 +323,22 @@ async def search_stores(
     # embedding model), so importing the CLI/bundled server stays light.
     from klea_utils.mcp.tool_impls.stores import search_stores as search_stores_impl
 
+    # The client may name the stores configuration for this request in the
+    # tool-call metadata instead of relying on the server's own default.
+    # Every lookup is guarded so an absent request context, absent meta, or a
+    # missing key simply falls back to the configured default.
+    stores_config: str | None = None
+    request_context = getattr(ctx, "request_context", None)
+    meta = (
+        getattr(request_context, "meta", None) if request_context is not None else None
+    )
+    if meta is not None:
+        from klea_utils.stores.utils import STORES_CONFIG_META_KEY
+
+        value = meta.get(STORES_CONFIG_META_KEY) if hasattr(meta, "get") else None
+        if isinstance(value, str) and value:
+            stores_config = value
+
     result = search_stores_impl(
         query=query,
         domain=domain,
@@ -330,6 +347,7 @@ async def search_stores(
         rerank=rerank,
         metadata_filter=metadata_filter,
         max_chars=max_chars,
+        configured=stores_config,
     )
     return to_result(result)
 
