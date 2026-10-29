@@ -1,0 +1,11 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+markers = [
+    "localonly", # test to not be run on GH actions: they require an LLM.
+]
+asyncio_mode = "auto"
+# Show test logger debug records in failure reports (passing tests show nothing).
+log_level = "DEBUG"
