@@ -137,6 +137,7 @@ def search_stores(
     rerank: bool = True,
     metadata_filter: dict[str, Any] | None = None,
     max_chars: int = DEFAULT_MAX_CHARS,
+    configured: str | None = None,
 ) -> dict[str, Any]:
     """Search the deployment's document stores for one domain.
 
@@ -181,6 +182,9 @@ def search_stores(
     :param metadata_filter: Optional metadata filter in the store filter DSL
         (see :func:`klea_utils.stores.filters.validate_metadata_filter`)
     :param max_chars: Character budget for the returned reference material
+    :param configured: Stores-configuration JSON path supplied by the client
+        for this request.  ``None`` (the default) keeps the host default
+        resolved by :func:`klea_utils.stores.utils.resolve_stores_config_path`
     :returns: Dictionary with query, domain, mode, top_k, results, count,
         content, catalogue, truncated, error and note.
     """
@@ -197,6 +201,7 @@ def search_stores(
             rerank=rerank,
             metadata_filter=metadata_filter,
             max_chars=max_chars,
+            configured=configured,
         )
     except StoresSearchError as exc:
         logger.debug(f"Store search refused: {exc}")
@@ -205,7 +210,7 @@ def search_stores(
             domain=requested_domain,
             mode=requested_mode,
             top_k=_safe_int(top_k),
-            catalogue=_catalogue_safe(),
+            catalogue=_catalogue_safe(configured),
             error=str(exc),
         )
     except Exception as exc:
@@ -217,7 +222,7 @@ def search_stores(
             domain=requested_domain,
             mode=requested_mode,
             top_k=_safe_int(top_k),
-            catalogue=_catalogue_safe(),
+            catalogue=_catalogue_safe(configured),
             error=f"Store search failed: {exc}",
         )
 
@@ -258,6 +263,7 @@ def _search(
     rerank: bool,
     metadata_filter: dict[str, Any] | None,
     max_chars: int,
+    configured: str | None = None,
 ) -> dict[str, Any]:
     """Carry out one store search.
 
@@ -275,7 +281,7 @@ def _search(
             "metadata_filter must be a mapping of field name to operand"
         )
 
-    config = _load_config()
+    config = _load_config(configured)
     catalogue = render_catalogue(config)
 
     if mode == CATALOGUE_MODE or not domain:
@@ -410,14 +416,16 @@ def _search(
     )
 
 
-def _load_config() -> RetrieverConfig:
+def _load_config(configured: str | None = None) -> RetrieverConfig:
     """Resolve and load the stores configuration.
 
+    :param configured: Stores-configuration path supplied for this request, or
+        ``None`` to use the host default
     :returns: The parsed configuration
     :raises StoresSearchError: When no path is configured, the file is
         missing, or its contents are invalid
     """
-    path = resolve_stores_config_path()
+    path = resolve_stores_config_path(configured)
     if path is None:
         raise StoresSearchError(
             "No stores configuration is available: no stores JSON file is configured"
@@ -430,17 +438,19 @@ def _load_config() -> RetrieverConfig:
         raise StoresSearchError(f"Invalid stores configuration {path}: {exc}") from exc
 
 
-def _catalogue_safe() -> list[dict[str, Any]]:
+def _catalogue_safe(configured: str | None = None) -> list[dict[str, Any]]:
     """Return the catalogue for the current configuration, or ``[]``.
 
     Used on the error path so a model that named an unknown domain or mode
     can retry with a valid one.  The load is served from the store package's
     mtime cache, so it costs a stat when the configuration is unchanged.
 
+    :param configured: Stores-configuration path supplied for this request, or
+        ``None`` to use the host default
     :returns: The rendered catalogue, or an empty list when unavailable
     """
     try:
-        return render_catalogue(_load_config())
+        return render_catalogue(_load_config(configured))
     except StoresSearchError:
         return []
 
