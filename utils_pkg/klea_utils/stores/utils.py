@@ -851,6 +851,14 @@ def drop_collection(store, store_path: str, collection_name: str) -> None:
 _CONFIG_CACHE: dict[Path, tuple[float, int, RetrieverConfig]] = {}
 
 
+#: Versioned request-metadata key carrying the stores-configuration JSON
+#: path to use for this request.  Its value is exactly one absolute path to
+#: a stores JSON file; its absence in the request metadata means "use the
+#: host default" (the path configured by the agent app).  Versioned so the
+#: payload format can evolve without colliding with an older reader.
+STORES_CONFIG_META_KEY = "klea/stores-config-path/v1"
+
+
 def resolve_stores_config_path(configured: str | Path | None = None) -> Path | None:
     """Resolve the path of the stores configuration JSON file.
 
