@@ -44,6 +44,7 @@ from klea_utils.nodes.abstract import (
 )
 from klea_utils.nodes.base import _current_session_id
 from klea_utils.nodes.context import ToolCallerContext
+from klea_utils.stores.utils import STORES_CONFIG_META_KEY
 
 
 class ToolsCallerNode(
@@ -153,6 +154,19 @@ class ToolsCallerNode(
             )
         session_id = self._session_id_for_dispatch(state)
         client_context = self._client_context_for_dispatch()
+        # Per-request metadata forwarded to the MCP server, kept out of the
+        # tool arguments (``call.args`` stays exactly what the picker bound):
+        # the stores-configuration path the client supplied for this request,
+        # when any.  Absent, no ``meta`` keyword is passed at all, so the
+        # server keeps using its own configured stores file.
+        stores_config = (
+            client_context.stores_config if client_context is not None else None
+        )
+        meta_kwargs: dict[str, Any] = (
+            {"meta": {STORES_CONFIG_META_KEY: str(stores_config)}}
+            if stores_config
+            else {}
+        )
         # The checkpointed project root wins; otherwise the client's cwd is
         # the effective root for this run.  The fallback is deliberately not
         # written back to state, so a TUI relaunched elsewhere is followed.
@@ -182,6 +196,7 @@ class ToolsCallerNode(
             session_id=session_id,
             mcp_session_pool=self._mcp_session_pool,
             client_context=client_context,
+            **meta_kwargs,
         )
         self.logger.debug(f"{results =}")
         ctx.tool_results = results
