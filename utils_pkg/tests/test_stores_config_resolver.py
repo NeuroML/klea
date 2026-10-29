@@ -59,7 +59,8 @@ class TestResolveStoresConfigPath:
         )
 
     def test_blank_configured_path_fails_closed(self):
-        assert resolve_stores_config_path("   ") is None
+        with pytest.raises(ValueError, match="klea/stores-config-path/v1"):
+            resolve_stores_config_path("   ")
 
 
 class TestLoadRetrieverConfig:

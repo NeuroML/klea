@@ -864,18 +864,55 @@ def resolve_stores_config_path(configured: str | Path | None = None) -> Path | N
 
     Precedence:
 
-    1. *configured* --- the path named in the agent app config.
-    2. Fail closed: when it names no file, ``None`` is returned and a
+    1. *configured* --- the path supplied for this request (the
+       :data:`STORES_CONFIG_META_KEY` request-metadata value, or the path
+       named in the app config).  It is validated here rather than trusted:
+       it must resolve to an absolute path to an existing regular file that
+       parses as a stores configuration.  An unusable value raises
+       :class:`ValueError` naming the key and the offending path; it never
+       falls back silently to another configuration, so a bad request is
+       reported instead of being served from the wrong stores.
+    2. Fail closed: when nothing is configured, ``None`` is returned and a
        warning is logged rather than guessing a path.
 
-    :param configured: Path declared by the agent app config, if any
+    :param configured: Stores-configuration path supplied for this request,
+        if any
     :returns: The resolved path, or ``None`` when nothing is configured
+    :raises ValueError: When *configured* is unusable: empty, missing, not a
+        regular file, or not a valid stores configuration
     """
     if configured is not None:
         value = str(configured).strip()
-        if value:
-            logger.debug(f"Stores configuration from app config: {value}")
-            return Path(value).expanduser()
+        if not value:
+            raise ValueError(
+                "Invalid stores configuration path: "
+                f"{STORES_CONFIG_META_KEY} must name a file, not an empty value"
+            )
+        path = Path(value).expanduser()
+        try:
+            resolved = path.resolve(strict=True)
+        except (OSError, RuntimeError) as exc:
+            raise ValueError(
+                "Invalid stores configuration path: "
+                f"{STORES_CONFIG_META_KEY} names {str(path)!r}, which does not "
+                f"exist or cannot be resolved ({exc})"
+            ) from exc
+        if not resolved.is_file():
+            raise ValueError(
+                "Invalid stores configuration path: "
+                f"{STORES_CONFIG_META_KEY} names {str(resolved)!r}, which is "
+                "not a regular file"
+            )
+        try:
+            load_retriever_config(resolved)
+        except (OSError, ValueError) as exc:
+            raise ValueError(
+                "Invalid stores configuration path: "
+                f"{STORES_CONFIG_META_KEY} names {str(resolved)!r}, which is "
+                f"not a valid stores configuration ({exc})"
+            ) from exc
+        logger.debug(f"Stores configuration from request metadata: {resolved}")
+        return resolved
 
     logger.warning("No stores configuration file configured: the app config names none")
     return None
