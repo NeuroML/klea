@@ -22,7 +22,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 import logging
+import os
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from rich.text import Text
@@ -65,10 +67,10 @@ OPEN_MODELS_SERVICE = "open_models"
 #: any active run, then exits.
 EXIT_APP_SERVICE = "exit_app"
 
-#: ``CommandContext.services`` key for the app hook that records this chat's
-#: stores configuration file (used by ``/stores``).  The app registers a
-#: one-argument callable taking the absolute path, or ``None`` for
-#: ``/stores clear``.
+#: ``CommandContext.services`` key reserved for an optional app notification
+#: when ``/stores`` records this chat's configuration file.  The handler writes
+#: the per-chat state directly; a registered one-argument callable receives the
+#: absolute path, or ``None`` for ``/stores clear``.
 STORES_CONFIG_SERVICE = "stores_config"
 
 
@@ -122,6 +124,7 @@ def client_commands() -> CommandRegistry:
             side="client",
             arg_hint="<path>|clear",
             while_streaming="block",
+            handler=_handle_stores,
         )
     )
     registry.register(
@@ -199,6 +202,47 @@ def _handle_models(context: CommandContext, parsed: ParsedCommand) -> CommandRes
     return CommandResult.ok()
 
 
+def _handle_stores(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Set, or clear, this chat's stores configuration file.
+
+    The handler validates the path locally, then records the resolved absolute
+    path on this chat's ``stores_config`` slot (:func:`ensure_chat`), which the
+    app turns into the outgoing tool-call ``_meta``.  ``clear`` sets the slot
+    back to ``None`` so the deployment default applies.  Every check runs
+    before the write, so a failure leaves the chat's state unchanged.
+    """
+    from klea_utils.ui.state import ensure_chat
+
+    if len(parsed.args) != 1 or not parsed.args[0].strip():
+        return CommandResult.fail("Usage: /stores <path>|clear")
+    if not context.user_id or not context.chat_id:
+        return CommandResult.fail("No active chat: /stores needs a chat session.")
+    value = parsed.args[0].strip()
+    if value.lower() == "clear":
+        ensure_chat(context.user_id, context.chat_id)["stores_config"] = None
+        logger.debug("command /stores: cleared the configuration")
+        return CommandResult.ok(
+            "Stores configuration cleared; using the deployment default."
+        )
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        return CommandResult.fail(
+            f"Stores configuration path must be absolute: {value}"
+        )
+    try:
+        absolute = Path(os.path.abspath(path))
+        absolute.stat()
+    except OSError:
+        return CommandResult.fail(f"Stores configuration file does not exist: {path}")
+    if not absolute.is_file():
+        return CommandResult.fail(
+            f"Stores configuration path is not a file: {absolute}"
+        )
+    ensure_chat(context.user_id, context.chat_id)["stores_config"] = str(absolute)
+    logger.debug(f"command /stores: {absolute = }")
+    return CommandResult.ok(f"Stores configuration set to {absolute}.")
+
+
 def _handle_exit(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
     """Quit the application via the app-provided hook.
 
@@ -218,6 +262,8 @@ def handle_command(
     catalogue: CommandRegistry | None,
     capabilities: frozenset[str] = TUI_CAPABILITIES,
     services: Mapping[str, Any] | None = None,
+    user_id: str | None = None,
+    chat_id: str | None = None,
 ) -> CommandResult | None:
     """Handle *text* as a command if it is one.
 
@@ -229,6 +275,8 @@ def handle_command(
     :param catalogue: The merged command catalogue, or ``None`` if not loaded.
     :param capabilities: The TUI's capabilities.
     :param services: Extra frontend/app hooks for the handler context.
+    :param user_id: The active user id, if a chat is open (handlers may need it).
+    :param chat_id: The active chat id, if a chat is open.
     :returns: A local result, or ``None`` to forward the input as a query.
     """
     parsed = parse_command(text)
@@ -252,6 +300,8 @@ def handle_command(
     context = CommandContext(
         capabilities=capabilities,
         services=merged,
+        user_id=user_id or "",
+        chat_id=chat_id or "",
     )
     return catalogue.dispatch(parsed, context)
 

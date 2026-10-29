@@ -650,6 +650,8 @@ class KleaTuiApp(App[None]):
                     OPEN_MODELS_SERVICE: self._open_models_hook,
                     EXIT_APP_SERVICE: self._exit_hook,
                 },
+                user_id=self.ctx.user_id,
+                chat_id=self.ctx.chat_id,
             )
             if result is not None:
                 await self._render_command_result(result)
