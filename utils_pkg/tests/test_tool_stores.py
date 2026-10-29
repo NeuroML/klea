@@ -24,6 +24,7 @@ from pathlib import Path
 import klea_utils.mcp.tool_impls.stores as stores_impl
 import pytest
 from klea_utils.mcp.tool_impls.stores import DEFAULT_MODE, search_stores
+from klea_utils.stores.utils import STORES_CONFIG_META_KEY
 
 
 def _write_config(path: Path, domain: str = "docs") -> Path:
@@ -199,3 +200,114 @@ def test_wrapper_is_admitted_under_read_only():
     assert tool_permits(info.read_only, info.destructive, "full") is True
     assert BUNDLED_TAG in (info.tags or set())
     assert STORES_TAG in (info.tags or set())
+
+
+# ---------------------------------------------------------------------------
+# ``_meta`` precedence
+#
+# The bundled wrapper resolves its stores configuration from, in order, the
+# request ``_meta`` payload sent by an MCP client, the path pinned by the host
+# and the ``KLEA_STORES_CONFIG_FILE`` deployment default.  The three cases
+# below pin down that precedence without touching a corpus: ``catalogue`` mode
+# only echoes the configured domains.
+#
+# The imports sit next to the cases that need them so the existing helpers and
+# tests above stay untouched.
+# ---------------------------------------------------------------------------
+
+import asyncio
+
+from klea_utils.mcp.server import bundled_tools as bundled
+
+
+def _reset_host_sentinel(monkeypatch) -> None:
+    """Return the wrapper's configuration resolution to a pristine state.
+
+    The host may pin a stores path for the lifetime of the process, so every
+    precedence case starts by dropping that pinned state: a dedicated reset
+    hook is called when the module exposes one, and the pinned/reported path
+    attributes are cleared otherwise.
+
+    :param monkeypatch: The active monkeypatch fixture
+    """
+    for name in dir(bundled):
+        hook = getattr(bundled, name)
+        if name.startswith(("_reset", "reset")) and callable(hook):
+            hook()
+            return
+    for name in dir(bundled):
+        lowered = name.lower()
+        if name.startswith("_") and (
+            "sentinel" in lowered or lowered.endswith("_path")
+        ):
+            monkeypatch.setattr(bundled, name, None, raising=False)
+
+
+class _StubRequestContext:
+    """Minimal stand-in for the FastMCP request context carrying ``meta``."""
+
+    def __init__(self, meta: dict[str, str] | None = None) -> None:
+        self.meta = meta or {}
+
+
+class _StubContext:
+    """Minimal stand-in for the FastMCP ``Context`` passed to the tool."""
+
+    def __init__(self, meta: dict[str, str] | None = None) -> None:
+        self.request_context = _StubRequestContext(meta)
+
+
+def _payload(result) -> dict:
+    """Return the structured payload carried by a ``ToolResult``.
+
+    :param result: The ``ToolResult`` returned by the bundled wrapper
+    :returns: The structured payload, parsed from the text block if absent
+    """
+    structured = getattr(result, "structured_content", None)
+    if structured:
+        return structured
+    return json.loads(result.content[0].text)
+
+
+def test_request_meta_path_wins_over_environment_default(tmp_path, monkeypatch):
+    """An explicit ``_meta`` path beats the ``KLEA_STORES_CONFIG_FILE`` default."""
+    meta_config = _write_config(tmp_path / "meta.json", domain="meta-domain")
+    env_config = _write_config(tmp_path / "env.json", domain="env-domain")
+    monkeypatch.setenv("KLEA_STORES_CONFIG_FILE", str(env_config))
+    _reset_host_sentinel(monkeypatch)
+
+    context = _StubContext({STORES_CONFIG_META_KEY: str(meta_config)})
+    result = asyncio.run(bundled.search_stores(ctx=context, mode="catalogue"))
+
+    payload = _payload(result)
+    assert result.is_error is False
+    assert payload["error"] == ""
+    # Only the metadata configuration is echoed, not the environment one.
+    assert [item["domain"] for item in payload["catalogue"]] == ["meta-domain"]
+
+
+def test_meta_only_session_resolves_the_configuration(tmp_path, monkeypatch):
+    """A meta-only session resolves the stores file named in the request."""
+    meta_config = _write_config(tmp_path / "meta.json", domain="session-domain")
+    monkeypatch.delenv("KLEA_STORES_CONFIG_FILE", raising=False)
+    _reset_host_sentinel(monkeypatch)
+
+    context = _StubContext({STORES_CONFIG_META_KEY: str(meta_config)})
+    result = asyncio.run(bundled.search_stores(ctx=context, mode="catalogue"))
+
+    payload = _payload(result)
+    assert payload["error"] == ""
+    assert [item["domain"] for item in payload["catalogue"]] == ["session-domain"]
+
+
+def test_missing_meta_and_environment_fails_closed(monkeypatch):
+    """With no metadata, no env var and no sentinel the tool fails closed."""
+    monkeypatch.delenv("KLEA_STORES_CONFIG_FILE", raising=False)
+    _reset_host_sentinel(monkeypatch)
+
+    result = asyncio.run(bundled.search_stores(ctx=_StubContext(), mode="catalogue"))
+
+    payload = _payload(result)
+    assert result.is_error is True
+    assert "No stores configuration" in payload["error"]
+    assert payload["catalogue"] == []

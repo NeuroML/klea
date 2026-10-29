@@ -175,7 +175,13 @@ def test_context_wrapper_contract():
     fastmcp's tool registration rewrites each signature (moving Context after
     the data params), so membership is checked, not position."""
 
-    for name in ("web_fetch", "web_search", "search_papers", "download_file"):
+    for name in (
+        "web_fetch",
+        "web_search",
+        "search_papers",
+        "search_stores",
+        "download_file",
+    ):
         sig = inspect.signature(getattr(bundled_tools, name))
         assert "ctx" in sig.parameters, name
     for name in (
