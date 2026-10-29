@@ -65,6 +65,12 @@ OPEN_MODELS_SERVICE = "open_models"
 #: any active run, then exits.
 EXIT_APP_SERVICE = "exit_app"
 
+#: ``CommandContext.services`` key for the app hook that records this chat's
+#: stores configuration file (used by ``/stores``).  The app registers a
+#: one-argument callable taking the absolute path, or ``None`` for
+#: ``/stores clear``.
+STORES_CONFIG_SERVICE = "stores_config"
+
 
 def client_commands() -> CommandRegistry:
     """Return the TUI's own client-side commands (ADR-0047).
@@ -107,6 +113,15 @@ def client_commands() -> CommandRegistry:
             side="client",
             while_streaming="block",
             handler=_handle_models,
+        )
+    )
+    registry.register(
+        Command(
+            name="stores",
+            summary="Set, or clear, this chat's stores configuration file",
+            side="client",
+            arg_hint="<path>|clear",
+            while_streaming="block",
         )
     )
     registry.register(
