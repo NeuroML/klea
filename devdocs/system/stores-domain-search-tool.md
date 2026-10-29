@@ -87,8 +87,8 @@ The first sketch had the general-mode tool take a store path (for example
   (`retrieval/base.py`).  A path argument would tempt the model into
   controlling depth and store selection.
 - **Naming collision.**  `tools_info` already groups tools by "domain" in the
-  MCP metadata.  The tool is therefore named `search_domains` (not
-  `search_stores`/`store`) so the two meanings stay separable in prompts.
+  MCP metadata.  The tool is therefore named `search_stores`, keeping the store
+  name distinct from the per-tool domain grouping in prompts.
 
 A domain key is stable across backends, survives re-indexing, and is the same
 unit the scientific-mode node will use.
@@ -121,13 +121,13 @@ follow-up: the app-side subclass field in `rag_pkg/klea_rag/config.py` stops
 shadowing the shared field and relies on it directly, so there is one
 definition and one consumer per path (section 10).
 
-## 4. Locked tool contract: `search_domains`
+## 4. Locked tool contract: `search_stores`
 
 Module layout, mirroring the bundled-tool pattern (superseded by the file
 list in section 10: there is no separate core module, see section 5.1):
 
-- `utils_pkg/klea_utils/mcp/tool_impls/stores.py` -- the `search_domains`
-  wrapper `async def search_domains(ctx: Context, ...) -> ToolResult`
+- `utils_pkg/klea_utils/mcp/tool_impls/stores.py` -- the `search_stores`
+  wrapper `async def search_stores(ctx: Context, ...) -> ToolResult`
   returning `to_result(result)`, built on the existing retrieval layer.
 - Registered in `mcp/server/bundled_tools.py`.
 
@@ -201,12 +201,11 @@ that returned nothing; character truncation sets `truncated=True` with a
 
 ### Store configuration source (resolved; see section 9)
 
-There is no stores key in the FastMCP lifespan context today.  The impl
-resolves `RetrieverConfig` from host-wide deployment configuration rather than
-per session: injected once through the lifespan context, with a
-deployment-configured stores JSON path from an environment variable as the
-fallback, cached per process (section 9).  The path must never become a tool
-parameter.  Tests point it at a temporary JSON in the style of
+The impl resolves `RetrieverConfig` per call: the per-session `_meta` value
+first, then the `KLEA_STORES_CONFIG_FILE` deployment default exported by
+`agent_pkg`, and otherwise it fails closed (section 9).  The reserved FastMCP
+lifespan stores key is not implemented.  The path must never become a tool
+parameter.  Tests point the loader at a temporary JSON in the style of
 `utils_pkg/tests/test_stores_retrieval.py` (`STORES_TEST_CONFIG`).
 
 ## 5. Shared core and reused helpers
@@ -368,16 +367,18 @@ remains the floor whenever no metadata is sent.
 
 Validation: the value is resolved to an **absolute path** against the
 launching client's working directory, must exist and be a regular file that
-parses as a stores JSON (a domains mapping), and any failure fails closed with
-an error naming the metadata key and the offending path -- never a silent
-fallback to the host configuration.
+parses as a stores JSON (a domains mapping).  A configured-but-invalid value
+raises `ValueError` naming both the metadata key and the offending path, and
+there is no fallback to the deployment default: a present key either resolves
+or fails closed.
 
 Trust caveat: `_meta` is client-supplied metadata and therefore untrusted
 input.  The server validates the path, and the value must never influence
 permissions or `read_only` annotations -- those stay fail-closed in
 `access.py`.  `_meta` never appears in the tool schema or listing, so it
-cannot be advertised in a description; it needs a documented, versioned key
-plus a default when absent.
+cannot be advertised in a description; it uses the documented, versioned key
+named in the resolution order, and its absence falls through to the
+deployment default.
 
 ### Reverted: the `--stores-config` flag and its environment forwarding
 
@@ -392,29 +393,39 @@ through an environment variable was the hacky part;
 the per-session override now rides `_meta` as described above, and the host
 file remains the validated default.
 
-The `_meta` transport is part of the decided architecture (section 11.4); no
-code implements it yet in this tree.
+The `_meta` transport is implemented in this tree (section 11.4): the tool
+reads the versioned key from `ctx.request_context.meta` as described in the
+resolution order below.
 
 ### Resolution order (highest precedence first)
 
 Resolved per call by the tool's configuration loader, first hit wins:
 
-1. **FastMCP lifespan context key** for stores (operator/deployment pin).  The
-   key is reserved and currently unset: `make_http_session_lifespan` yields
-   only `{"http_session": ...}`, so this is an additive hook and needs no work
-   for the general-mode cut.
-2. **Per-session metadata value** carried in the MCP request metadata, read
-   server-side as `ctx.request_context.meta` (scoped by the bundled process's
-   single `ctx.session_id`), an absolute path to the stores JSON supplied by
-   the client.  No client environment variable carries this value.
-3. **Host configuration**: the path named in the agent app config, resolved
-   lazily and cached.  When no path is configured the tool fails closed with
-   an error naming that no stores are configured -- never an empty success.
+1. **FastMCP lifespan context key** for stores (operator/deployment pin).  Not
+   implemented: the key stays reserved and unset, since
+   `make_http_session_lifespan` yields only `{"http_session": ...}`, so this
+   is an additive hook that no code path reads yet.
+2. **Per-session metadata value**: `ctx.request_context.meta` carrying the
+   shipped key `klea/stores-config-path/v1`, an absolute path to the stores
+   JSON supplied by the client (scoped by the bundled process's single
+   `ctx.session_id`).  No client environment variable and no tool parameter
+   carries a stores path.
+3. **Deployment default**: `KLEA_STORES_CONFIG_FILE`, exported by the agent
+   package when it spawns the bundled server; the host default is therefore
+   agent-only (see below).
+4. **Fail closed**: with nothing configured the tool returns one error result
+   naming that no stores are configured -- never an empty success.
 
 The host-only resolver in `utils_pkg/klea_utils/stores/utils.py` is unchanged:
-it reads the app config path, with its (path, mtime, size) cache key.  The
-metadata-carried per-session source of item 2 is layered above it inside the
-tool, so the resolver's behaviour is untouched by the revert.
+it reads the deployment-configured stores path, with its (path, mtime, size)
+cache key.  The metadata-carried per-session source of item 2 is layered above
+it inside the tool, so the resolver's behaviour is untouched by the revert.
+
+The deployment default is agent-only: `agent_pkg` exports
+`KLEA_STORES_CONFIG_FILE` when it spawns the bundled server, so the host floor
+lives on the agent path.  `rag_pkg` is unchanged -- it keeps its retrieval node
+and its inline `domains` configuration, and adds no per-session stores override
+and no `_meta` handling.
 
 A stores JSON path is therefore configuration, never a tool parameter (section
 4).  Store edits are pick-up-on-next-call: point the deployment (and each
@@ -459,7 +470,10 @@ attachment lands later.
   current trusted-loopback model, but the `note` field must state it.
 - Domain catalogues may now differ per session by intent, so the tool
   description must render the **resolved** config's domains, not a cached
-global list.
+  global list.  For a meta-only session the description cannot be
+  session-aware: `_meta` rides tool calls only, never the listing, so the
+  catalogue shows the deployment default's domains (or none) and the
+  per-session catalogue is rendered only when the tool actually runs.
 
 ## 10. Revised implementation file list and the description-field move
 
@@ -492,6 +506,9 @@ Files (replacing the `stores/core.py` + `stores.py` split of section 4):
   app-side subclass field so `PerDomainConfig.description` is the single
   definition, and keep consumers reading it defensively,
   `getattr(cfg, "description", "") or ""`.
+- `rag_pkg/` -- unchanged by this cut: it keeps its retrieval node and its
+  inline `domains` configuration, and gains no per-session stores override and
+  no `_meta` handling (section 9).
 - `utils_pkg/tests/` -- new tool tests beside `test_stores_retrieval.py`,
   reusing its temporary-config style, and covering the resolution order of
   section 9 (the `_meta` per-session value beats the host file; nothing
@@ -499,7 +516,7 @@ Files (replacing the `stores/core.py` + `stores.py` split of section 4):
 
 Description-field move, in one line: `description` stops being an app-side RAG
 subclass concern and becomes a shared `PerDomainConfig` field consumed by both
-the RAG query-domain classifier and the `search_domains` catalogue, so the two
+the RAG query-domain classifier and the `search_stores` catalogue, so the two
 cannot diverge.
 
 Still open: the section 6 items (node placement, domain choice for the
@@ -514,7 +531,7 @@ locked contract of sections 4-5.
 
 ### 11.1 Two delivery shapes
 
-- **MCP tool** (the shipped shape, sections 4-10): `search_domains` runs in the
+- **MCP tool** (the shipped shape, sections 4-10): `search_stores` runs in the
   bundled MCP subprocess, is disclosed to the planner as a description, and is
   invoked only when the picker selects it.
 - **In-process node**: a graph node inside the agent process that holds a
@@ -556,7 +573,7 @@ Both call the shared retrieval layer of section 5; only the delivery differs.
 MCP tool for discretionary general-mode retrieval and add an in-process node
 for mandatory scientific-mode retrieval, sharing one resolver.
 
-- **General mode: the MCP tool** `search_domains` stays the discretionary,
+- **General mode: the MCP tool** `search_stores` stays the discretionary,
   prompt-visible, access-filtered retrieval surface; its contract in sections
   4-10 stands unchanged.
 - **Scientific / RAG mode: an in-process graph node** that holds a
@@ -574,7 +591,7 @@ Files this implies:
 
 - `utils_pkg/klea_utils/stores/config.py` -- add the optional
   `description: str = ""` to the shared `PerDomainConfig`.
-- `utils_pkg/klea_utils/mcp/tool_impls/stores.py` -- the `search_domains` tool
+- `utils_pkg/klea_utils/mcp/tool_impls/stores.py` -- the `search_stores` tool
   plus the `_meta` per-session override, layered above the host resolver.
 - `utils_pkg/klea_utils/mcp/server/bundled_tools.py` -- registration with the
   section 4 annotations.
