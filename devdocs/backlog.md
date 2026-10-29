@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-28.
+Last updated: 2026-10-29.
 
 ## Cancellation / concurrency
 
@@ -57,9 +57,6 @@ Last updated: 2026-10-28.
 
 ## Tools
 
-- Retrieval tool: no `search_stores`-style tool wires the RAG vector stores
-  into the agent yet (retrieval is optional/deferred per the control-flow
-  note).
 - `web_search` configuration: the provider pool uses a fixed default order
   (`tavily`, `exa`, `parallel`, `firecrawl`, then any available keyed
   `brave`/`serper`) and provider keys are read from the process environment.
