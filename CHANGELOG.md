@@ -125,6 +125,7 @@
 
 ### Fixed
 
+- OpenRouter model strings with a tag (``openrouter:<model>:<tag>``, e.g. ``openrouter:recursive/flint-v1.0:free``) keep the tag on the model id, like Ollama, instead of treating it as a Klea suffix (issue 222). Catalog model ids that contain ``:`` are listed for OpenRouter again.
 - TUI: the model dialog and its post-save refresh are pinned to the chat they were opened for, so switching sessions while a model fetch is in flight no longer copies one chat's models into another; a chat that saved its own models keeps them when another chat updates the session default (issue 223).
 - `KLEA_AGENT_HOME` now relocates the agent backend's storage root (checkpoints, session database, lockfile, and logs); it was previously ignored. The default and RAG paths are unchanged.
 - Tool path detection now splits shell command strings with a platform-aware tokeniser and recognises Windows backslash paths, so `path_detect` and `parse_command` no longer miss or mangle arguments such as `C:\Users\me\file.txt`.

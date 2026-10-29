@@ -57,20 +57,25 @@ class ParsedModelName(NamedTuple):
     variant: str | None = None
 
 
+#: Providers where ``model:tag`` is part of the model id itself (not a Klea
+#: suffix).  Example: ``ollama:qwen3:0.6b``, ``openrouter:org/model:free``.
+PROVIDERS_WITH_MODEL_TAG: frozenset[str] = frozenset({"ollama", "openrouter"})
+
+
 def parse_model_name(raw: str) -> ParsedModelName:
     """Split a model name into provider, model identifier, and suffix.
 
     Follows the ``provider:model_id`` convention.  The provider is
     expected to be explicitly included; no provider inference is done.
 
-    With three segments the third is treated as a ``suffix``
-    (provider hint, model tag, base URL, etc.) *unless* the provider
-    is ``ollama``, for which the second and third segments form the
-    model name (``model_name:tag``).
+    With three segments the third is usually a ``suffix`` (provider hint,
+    URL, and so on).  For ``ollama`` and ``openrouter`` it is kept on the
+    model name instead, because those providers use ``model:tag`` ids.
 
     Examples:
 
     * ``ollama:bge-m3:latest`` -> provider=ollama, model=bge-m3:latest, suffix=None
+    * ``openrouter:recursive/flint-v1.0:free`` -> provider=openrouter, model=recursive/flint-v1.0:free, suffix=None
     * ``huggingface:org/model:auto`` -> provider=huggingface, model=org/model, suffix=auto
     * ``custom:model:https://example.com/v1`` -> provider=custom, model=model, suffix=https://example.com/v1
     * ``openai:gpt-4o`` -> provider=openai, model=gpt-4o, suffix=None
@@ -93,7 +98,7 @@ def parse_model_name(raw: str) -> ParsedModelName:
     if len(parts) == 2:
         return ParsedModelName(provider=provider, model_name=parts[1], suffix=None)
 
-    if provider == "ollama":
+    if provider in PROVIDERS_WITH_MODEL_TAG:
         return ParsedModelName(
             provider=provider, model_name=f"{parts[1]}:{parts[2]}", suffix=None
         )
@@ -101,11 +106,14 @@ def parse_model_name(raw: str) -> ParsedModelName:
     return ParsedModelName(provider=provider, model_name=parts[1], suffix=parts[2])
 
 
-#: Providers whose third model string segment is not an endpoint URL: for
-#: ``ollama`` it is the model tag (``ollama:qwen3:0.6b``) and for
-#: ``huggingface`` the inference provider (``huggingface:org/model:novita``).
-#: The model selection UIs offer no custom URL for these.
-PROVIDERS_WITHOUT_CUSTOM_URL: frozenset[str] = frozenset({"ollama", "huggingface"})
+#: Providers that do not take a custom URL in the model string.  For
+#: ``ollama`` / ``openrouter`` the third segment is a model tag; for
+#: ``huggingface`` it is the inference provider
+#: (``huggingface:org/model:novita``).  The model UIs hide the URL field
+#: for these.
+PROVIDERS_WITHOUT_CUSTOM_URL: frozenset[str] = frozenset(
+    {"ollama", "openrouter", "huggingface"}
+)
 
 
 def join_model_string(
