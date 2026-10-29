@@ -296,15 +296,15 @@ class TestOperationalEvaluator(unittest.TestCase):
 
     def test_step_incomplete_escalates_at_attempt_budget(self):
         """Repeated ``step_incomplete`` on a step escalates to a replan."""
-        evaluator = self._evaluator()  # max_step_attempts=3
+        evaluator = self._evaluator()  # max_step_attempts=6
         state = self._state()
-        state.step_attempt_counts = {1: 2}
+        state.step_attempt_counts = {1: 5}
         update = evaluator._update_state(
             _verdict(1, "step_incomplete", "still going"), state, LLMNodeContext()
         )
         self.assertEqual(update["evaluation"].evaluations[0].verdict, "need_replan")
         self.assertEqual(update["plan"].step_list[0].status, "failed")
-        self.assertEqual(update["step_attempt_counts"][1], 3)
+        self.assertEqual(update["step_attempt_counts"][1], 6)
 
     def test_progress_clears_step_attempt_budget(self):
         update = self._evaluator()._update_state(
@@ -484,7 +484,7 @@ class TestOperationalEvaluator(unittest.TestCase):
     def test_review_readiness_budget_exhausted_proceeds_to_the_gate(self):
         """At the replan boundary the gate fires instead of failing the run."""
         state = self._state_with_review()
-        state.plan.automated_plan_revisions = 4  # the evaluator's default cap
+        state.plan.automated_plan_revisions = 8  # the evaluator's default cap
         result = EvaluationSchema(
             evaluations=[StepEvaluation(step_number=1, verdict="step_done")],
             review_readiness="not_ready",

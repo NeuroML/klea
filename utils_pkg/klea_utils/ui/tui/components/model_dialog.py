@@ -9,10 +9,11 @@ fields join back into a model string via the shared
 :mod:`klea_utils.ui.model_config` helpers.  The fields are seeded from the
 effective (precedence-resolved) models with their provenance, so an inherited
 model is shown as it will actually be used; Save persists every shown
-modifiable role as a per-chat override (promoting it into the session defaults
-only for a genuine change), Reset clears one role's override, and Use-for-all
-copies a model onto the other modifiable roles of the same kind.  Catalogue providers/models and the stored credentials
-are fetched through the same shared helpers the web dialog uses.
+modifiable role as a per-chat override (promoting a genuine change into the
+session defaults so new chats inherit it), Reset clears one role's override,
+and Use-for-all copies a model onto the other modifiable roles of the same
+kind.  Catalogue providers/models and the stored credentials are fetched
+through the same shared helpers the web dialog uses.
 
 File: klea_utils/ui/tui/components/model_dialog.py
 
@@ -79,10 +80,13 @@ class ModelResult:
         closed.
     :param changed: Whether anything changed (a saved model or a credential),
         so the app re-fetches the active models and re-evaluates gating.
+    :param chat_id: The chat the dialog edited, so the app refreshes that
+        chat's cache even if the active session changed meanwhile.
     """
 
     saved: list[tuple[str, str]] = field(default_factory=list)
     changed: bool = False
+    chat_id: str = ""
 
 
 class _CatalogueSuggester(Suggester):
@@ -460,11 +464,21 @@ class ModelDialog(ModalScreen[ModelResult | None]):
 
     def action_cancel(self) -> None:
         """Dismiss without saving models (credentials may have changed)."""
-        self.dismiss(ModelResult(changed=self._credentials_changed))
+        self.dismiss(
+            ModelResult(
+                changed=self._credentials_changed,
+                chat_id=self._chat_id,
+            )
+        )
 
     @work
     async def _save(self) -> None:
-        """Persist every shown modifiable role and close the dialog."""
+        """Persist every shown modifiable role and close the dialog.
+
+        Every role is written as a per-chat override, so this chat keeps its
+        selection when another chat later changes the session default; only a
+        genuine change is promoted into that default for new chats.
+        """
         role_values = {
             role: self._current_model(role)
             for role in self._roles
@@ -489,6 +503,7 @@ class ModelDialog(ModalScreen[ModelResult | None]):
             ModelResult(
                 saved=outcome.saved,
                 changed=bool(outcome.saved) or self._credentials_changed,
+                chat_id=self._chat_id,
             )
         )
 

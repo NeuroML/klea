@@ -1312,11 +1312,13 @@ async def test_long_message_collapses_and_expands(fake_backend, make_app):
         await _settle(pilot, app)
         block = app.screen.query(MessageBlock).last()
         scroll = block.query_one(".message-scroll", VerticalScroll)
-        assert scroll.virtual_size.height > 4
-        assert scroll.size.height == 4  # clipped to the collapsed height
+        assert scroll.virtual_size.height > block.COLLAPSED_LINES
+        # Clipped to the collapsed height.
+        assert scroll.size.height == block.COLLAPSED_LINES
         block.action_toggle_expand()
         await pilot.pause()
-        assert scroll.size.height > 4  # expanded shows the full text
+        # Expanded shows the full text.
+        assert scroll.size.height > block.COLLAPSED_LINES
 
 
 async def test_message_text_can_be_selected_and_copied(
@@ -1427,7 +1429,7 @@ async def test_short_message_is_not_collapsed(fake_backend, make_app):
         await _settle(pilot, app)
         block = app.screen.query(MessageBlock).last()
         scroll = block.query_one(".message-scroll", VerticalScroll)
-        assert scroll.virtual_size.height <= 4
+        assert scroll.virtual_size.height <= block.COLLAPSED_LINES
         assert not block.can_focus
 
 

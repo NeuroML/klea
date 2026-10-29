@@ -513,8 +513,8 @@ level 2 verifier with provenance.
 | call-level (bad args, permission denied) | binder | re-bind the **same** suggested tool with corrected arguments; the binder may not switch tools and sees every failed call, not just the last error |
 | binder cannot bind any suggested tool | planner | a single empty-``tool`` call becomes a synthetic ``is_error`` observation + ``replan_reason``; the binder does not substitute |
 | repeated failed call (same tool + arguments) | planner | deterministic guard: escalate even for a subset/reordered batch; changed arguments are allowed |
-| repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` 3 re-picks, then escalate |
-| step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
+| repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` 6 re-picks, then escalate |
+| step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap (6 attempts), then escalate |
 | goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
 | plan revision budget exhausted | human guidance | preserve steps, append a blocked guidance step, set ``needs_input`` -> ``AwaitHuman`` (input) |
 | long plan | run continues | no step-count cap; the per-step/replan budgets bound execution |

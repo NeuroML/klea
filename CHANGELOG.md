@@ -74,6 +74,7 @@
 
 ### Changed
 
+- Agent budgets: the tool-error re-pick budget is now 6 (was 3), the per-step non-advancing attempt budget is 6 (was 3), and the automated-replan budget is 8 (was 4), so reading a large file can span more tool rounds before the agent escalates or replans.
 - Terminal UI: Ctrl+C now copies selected text instead of stopping the run; Ctrl+Shift+C stops a run, with F12 as the fallback for terminals that intercept Ctrl+Shift+C.
 - Token usage totals now show cached prompt reads as a subset of input (`<n> cached`) in the web and TUI status lines; cache-creation writes are not counted as cached.
 - Path approval asks now show the full target path and the session approval directory separately, with bounded previews for pathological values, plus the tool-call context, detected token and discovery source. Full values remain the decision keys; guessed values keep session approval and the "Not a path" dismissal.
@@ -124,6 +125,7 @@
 
 ### Fixed
 
+- TUI: the model dialog and its post-save refresh are pinned to the chat they were opened for, so switching sessions while a model fetch is in flight no longer copies one chat's models into another; a chat that saved its own models keeps them when another chat updates the session default (issue 223).
 - `KLEA_AGENT_HOME` now relocates the agent backend's storage root (checkpoints, session database, lockfile, and logs); it was previously ignored. The default and RAG paths are unchanged.
 - Tool path detection now splits shell command strings with a platform-aware tokeniser and recognises Windows backslash paths, so `path_detect` and `parse_command` no longer miss or mangle arguments such as `C:\Users\me\file.txt`.
 - TUI text selection now highlights Rich Markdown/Syntax output, supports drags ending on blank lines, and copies to the OS clipboard through `wl-copy`/`xclip`/`xsel`/`pbcopy`/`clip` when OSC 52 is unavailable; a brief notification confirms the copy.
