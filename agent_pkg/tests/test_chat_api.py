@@ -198,6 +198,7 @@ class TestChat:
                     "cwd": str(cwd.resolve()),
                     "env": {"A": "1"},
                     "interpreter": None,
+                    "stores_config": None,
                 },
             },
         )
