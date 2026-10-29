@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from langchain_core.documents import Document
 
+from klea_utils.stores.config import RetrieverConfig
 from klea_utils.stores.metadata import (
     PERSON_NAME_FILTER_FIELDS,
     SHARED_DOC_METADATA_KEYS,
@@ -842,3 +843,56 @@ def drop_collection(store, store_path: str, collection_name: str) -> None:
                 f"Unsupported vector store scheme '{scheme}' for collection "
                 f"drop. Supported: chroma, qdrant, pgvector"
             )
+
+
+#: Parsed store configurations, keyed by resolved path and holding the
+#: ``(mtime, size, config)`` of the last load, so an edited file is re-read
+#: while an unchanged one is served from memory.
+_CONFIG_CACHE: dict[Path, tuple[float, int, RetrieverConfig]] = {}
+
+
+def resolve_stores_config_path(configured: str | Path | None = None) -> Path | None:
+    """Resolve the path of the stores configuration JSON file.
+
+    Precedence:
+
+    1. *configured* --- the path named in the agent app config.
+    2. Fail closed: when it names no file, ``None`` is returned and a
+       warning is logged rather than guessing a path.
+
+    :param configured: Path declared by the agent app config, if any
+    :returns: The resolved path, or ``None`` when nothing is configured
+    """
+    if configured is not None:
+        value = str(configured).strip()
+        if value:
+            logger.debug(f"Stores configuration from app config: {value}")
+            return Path(value).expanduser()
+
+    logger.warning("No stores configuration file configured: the app config names none")
+    return None
+
+
+def load_retriever_config(path: str | Path) -> RetrieverConfig:
+    """Load (and cache) the :class:`RetrieverConfig` stored in *path*.
+
+    The cache is keyed by the resolved path and invalidated whenever the
+    file's ``mtime`` or size changes, so an edited stores file is re-read
+    on the next call while an unchanged one is served from memory.
+
+    :param path: JSON file holding the stores configuration
+    :returns: The parsed configuration
+    :raises FileNotFoundError: When *path* does not exist
+    """
+    resolved = Path(path).expanduser()
+    stat = resolved.stat()
+
+    cached = _CONFIG_CACHE.get(resolved)
+    if cached is not None and cached[0] == stat.st_mtime and cached[1] == stat.st_size:
+        logger.debug(f"Using cached stores configuration: {resolved}")
+        return cached[2]
+
+    config = RetrieverConfig.model_validate_json(resolved.read_text())
+    _CONFIG_CACHE[resolved] = (stat.st_mtime, stat.st_size, config)
+    logger.debug(f"Loaded stores configuration: {resolved}")
+    return config

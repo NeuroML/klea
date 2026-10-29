@@ -384,11 +384,11 @@ plus a default when absent.
 An earlier iteration added an agent-TUI flag `--stores-config PATH` to the
 shared `tui` command factory in `utils_pkg/klea_utils/ui/cli.py`, with an
 agent-side gate in `agent_pkg/klea_agent/ui/cli.py` keeping it out of
-`klea-rag tui --help`, and forwarded the resolved value as a
-`KLEA_STORES_CONFIG` client-environment entry.  That is gone: the option is
-not defined, the forwarded client environment carries no stores entry, and
-both `klea tui --help` and `klea-rag tui --help` advertise no such flag.
-Passing a session setting through an environment variable was the hacky part;
+`klea-rag tui --help`, and forwarded the resolved value to the client
+environment.  That is gone: the option is not defined, the forwarded client
+environment carries no stores entry, and both `klea tui --help` and
+`klea-rag tui --help` advertise no such flag.  Passing a session setting
+through an environment variable was the hacky part;
 the per-session override now rides `_meta` as described above, and the host
 file remains the validated default.
 
@@ -407,15 +407,12 @@ Resolved per call by the tool's configuration loader, first hit wins:
    server-side as `ctx.request_context.meta` (scoped by the bundled process's
    single `ctx.session_id`), an absolute path to the stores JSON supplied by
    the client.  No client environment variable carries this value.
-3. **Host configuration**: the process environment variable
-   `KLEA_STORES_CONFIG`, else the path named in the agent app config,
-   resolved lazily and cached.
-4. **Nothing configured**: fail closed with an error naming that no stores are
-   configured -- never an empty success.
+3. **Host configuration**: the path named in the agent app config, resolved
+   lazily and cached.  When no path is configured the tool fails closed with
+   an error naming that no stores are configured -- never an empty success.
 
 The host-only resolver in `utils_pkg/klea_utils/stores/utils.py` is unchanged:
-it still reads the process environment variable `KLEA_STORES_CONFIG` and then
-the app config path, with its (path, mtime, size) cache key.  The
+it reads the app config path, with its (path, mtime, size) cache key.  The
 metadata-carried per-session source of item 2 is layered above it inside the
 tool, so the resolver's behaviour is untouched by the revert.
 
@@ -478,19 +475,17 @@ Files (replacing the `stores/core.py` + `stores.py` split of section 4):
 - `utils_pkg/klea_utils/mcp/server/bundled_tools.py` -- registration with the
   annotations of section 4.
 - `utils_pkg/klea_utils/stores/utils.py` -- the host-only configuration
-  resolver and the (path, mtime, size) config cache.  It reads the process
-  environment variable `KLEA_STORES_CONFIG` and then the app config path, and
-  is unchanged by the revert; the metadata-carried per-session source of
-  section 9 is layered above it inside the tool.  It belongs next to the
-  existing loaders, not in a new module.
+  resolver and the (path, mtime, size) config cache.  It reads the app config
+  path, and is unchanged by the revert; the metadata-carried per-session
+  source of section 9 is layered above it inside the tool.  It belongs next to
+  the existing loaders, not in a new module.
 - no client CLI change (reverted): an earlier iteration added a
   `--stores-config PATH` option to the shared `tui` command factory in
   `utils_pkg/klea_utils/ui/cli.py`, with an agent-side gate in
-  `agent_pkg/klea_agent/ui/cli.py`, and forwarded the resolved path as a
-  `KLEA_STORES_CONFIG` client-environment entry.  The option and the
-  environment forwarding were reverted (section 9), so neither file is part of
-  this change; the per-session override rides `_meta` and the host file stays
-  the validated default.
+  `agent_pkg/klea_agent/ui/cli.py`, and forwarded the resolved path to the
+  client environment.  The option and the environment forwarding were reverted
+  (section 9), so neither file is part of this change; the per-session override
+  rides `_meta` and the host file stays the validated default.
 - `utils_pkg/klea_utils/mcp/lifespan.py` -- only when the reserved stores key
   is actually populated; today the hook is additive and no change is needed.
 - `rag_pkg/klea_rag/config.py` -- the description-field move: drop the

@@ -216,9 +216,8 @@ STORES_TAG = "stores"
 def _stores_description() -> str:
     """Render the store-search description from the resolved configuration.
 
-    The domain list is read from the stores configuration named by
-    ``KLEA_STORES_CONFIG`` (see
-    :func:`klea_utils.stores.utils.resolve_stores_config_path`) so the model
+    The domain list is read from the stores configuration resolved by
+    :func:`klea_utils.stores.utils.resolve_stores_config_path` so the model
     sees what it can search without first calling the tool in catalogue
     mode.  A domain is shown with its description when it has one, and as
     its bare key otherwise.  Any resolution or load failure (no
