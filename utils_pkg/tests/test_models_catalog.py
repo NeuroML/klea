@@ -565,9 +565,11 @@ class TestCatalogueLists(unittest.TestCase):
             models_catalog.list_catalog_models("mistralai"), ["mistral-large-latest"]
         )
 
-    def test_model_ids_with_colon_skipped(self):
-        """Ids with ':' would be split by parse_model_name, so are left out."""
-        self.assertEqual(models_catalog.list_catalog_models("openrouter"), [])
+    def test_openrouter_model_ids_with_colon_kept(self):
+        """OpenRouter model ids can include a tag like :free."""
+        self.assertEqual(
+            models_catalog.list_catalog_models("openrouter"), ["vendor/model:free"]
+        )
 
     def test_non_catalog_providers_have_no_models(self):
         """ollama and custom models are free text (custom is not openai's list)."""
