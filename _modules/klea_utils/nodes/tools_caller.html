@@ -1,0 +1,1006 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
+        <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
+
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
+        <title>klea_utils.nodes.tools_caller - Klea</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinxcontrib_typer.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=06e26041" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../index.html"><div class="brand">Klea</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../concepts/index.html">Concepts</a><input aria-label="Toggle navigation of Concepts" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/rag.html">RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/mcp.html">MCP</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/rag.html">Klea RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tools.html">Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/commands.html">Session commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tui.html">Terminal interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/agent.html">Klea Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/utils.html">Klea Utils</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../guides/index.html">Guides</a><input aria-label="Toggle navigation of Guides" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/create-and-use-rag.html">Create and use a RAG system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/huggingface.html">Deploying Klea RAG on HuggingFace Spaces</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../cli/index.html">CLI Reference</a><input aria-label="Toggle navigation of CLI Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-stores-create.html">klea-stores-create</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag-serve.html">klea-rag-serve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag.html">klea-rag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/nml-mcp.html">nml-mcp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea.html">klea</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-serve.html">klea-serve</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Develop</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer-info.html">Developer info</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../developer-guides/index.html">Developer guides</a><input aria-label="Toggle navigation of Developer guides" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../developer-guides/writing-mcp-tools.html">Writing MCP tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/klea_utils.html">klea_utils</a><input aria-label="Toggle navigation of klea_utils" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/graph.html">Orchestrator framework</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/stores.html">Vector stores</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/biblio.html">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/llm.html">LLM utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/mcp.html">MCP utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/models_catalog.html">Model catalog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/api.html">API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/commands.html">Commands</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-tui.html">UI - terminal client</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-cli.html">UI — client CLI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/net.html">Host helpers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/client_context.html">Runtime client context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/tools.html">Tool formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting-help.html">Getting help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../code-of-conduct.html">Code of Conduct</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for klea_utils.nodes.tools_caller</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="sd">"""</span>
+<span class="sd">Shared MCP tools caller node.</span>
+
+<span class="sd">See ``devdocs/system/streams.md`` (chat-renderable ``tool`` events) and</span>
+<span class="sd">``devdocs/system/mcp-permissions.md``; ADRs 0020, 0034 and 0040.</span>
+
+<span class="sd">File: klea_utils/nodes/tools_caller.py</span>
+
+<span class="sd">Copyright 2026 Ankur Sinha</span>
+<span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.client.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">CallToolResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">interrupt</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mcp.types</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AudioContent</span><span class="p">,</span>
+    <span class="n">BlobResourceContents</span><span class="p">,</span>
+    <span class="n">EmbeddedResource</span><span class="p">,</span>
+    <span class="n">ImageContent</span><span class="p">,</span>
+    <span class="n">ResourceLink</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.client_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClientContext</span><span class="p">,</span> <span class="n">client_context_from_context</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.dispatch</span><span class="w"> </span><span class="kn">import</span> <span class="n">dispatch_tool_calls</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.path_detect</span><span class="w"> </span><span class="kn">import</span> <span class="n">PathRequest</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.permission_hitl</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PermissionResolution</span><span class="p">,</span>
+    <span class="n">PermissionResponse</span><span class="p">,</span>
+    <span class="n">build_permission_payload</span><span class="p">,</span>
+    <span class="n">resolve_decisions</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.abstract</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AbstractLangGraphNode</span><span class="p">,</span>
+    <span class="n">NodeStreamData</span><span class="p">,</span>
+    <span class="n">NodeStreamEvent</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.base</span><span class="w"> </span><span class="kn">import</span> <span class="n">_current_session_id</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.nodes.context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallerContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.stores.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">STORES_CONFIG_META_KEY</span>
+
+
+<div class="viewcode-block" id="ToolsCallerNode">
+<a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.tools_caller.ToolsCallerNode">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ToolsCallerNode</span><span class="p">(</span>
+    <span class="n">AbstractLangGraphNode</span><span class="p">[</span><span class="n">BaseModel</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">ToolCallerContext</span><span class="p">]</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Node that gates and dispatches the selected MCP tool calls.</span>
+
+<span class="sd">    Shared by Klea Agent and Klea RAG.  Reads ``state.tool_calls`` (a list of</span>
+<span class="sd">    ``ToolCallSchema``), gates each call client-side through</span>
+<span class="sd">    :func:`klea_utils.mcp.dispatch.dispatch_tool_calls` (permission layer),</span>
+<span class="sd">    emits info/debug stream events, and writes ``state.tool_results``.</span>
+
+<span class="sd">    Applications that need extra post-dispatch state updates (e.g. the</span>
+<span class="sd">    agent's per-plan-step status) pass a *post_dispatch* callback that</span>
+<span class="sd">    receives the state, the results, and a per-result "displayed" flag, and</span>
+<span class="sd">    returns additional state updates.</span>
+<span class="sd">    """</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">logger</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">,</span>
+        <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">mcp_client</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">tool_infos</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">post_dispatch</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bool</span><span class="p">]],</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span>
+        <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">permission_policy</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"deny"</span><span class="p">,</span> <span class="s2">"ask"</span><span class="p">]</span> <span class="o">=</span> <span class="s2">"deny"</span><span class="p">,</span>
+        <span class="n">mcp_session_pool</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">"""Initialise the tools caller node.</span>
+
+<span class="sd">        :param logger: Logger instance</span>
+<span class="sd">        :param label: Human-readable label for UI progress display</span>
+<span class="sd">        :param mcp_client: MCP client instance (None skips tool calls).</span>
+<span class="sd">            Typed as ``Any`` for the same reason as</span>
+<span class="sd">            :func:`klea_utils.mcp.dispatch.dispatch_tool_calls`: fastmcp's</span>
+<span class="sd">            ``call_tool`` signature does not cleanly match a structural</span>
+<span class="sd">            protocol, so tests substitute a fake.</span>
+<span class="sd">        :param tool_infos: Mapping of tool name to its :class:`ToolInfo`, used</span>
+<span class="sd">            for the client-side gates (``meta`` ``checkpaths`` and the</span>
+<span class="sd">            ADR-0037 ``read_only``/``destructive`` capability).  Built by the</span>
+<span class="sd">            orchestrator from ``BaseLangGraph.tools_info``.  ``None`` disables</span>
+<span class="sd">            both gates.</span>
+<span class="sd">        :param post_dispatch: Optional ``(state, results, displayed) -&gt; state_updates``</span>
+<span class="sd">            callback for application-specific updates after dispatch.  The</span>
+<span class="sd">            state is passed untyped so app-specific state schemas fit, and</span>
+<span class="sd">            ``displayed`` is a per-result flag (aligned with *results*) for</span>
+<span class="sd">            results the node streamed a display event for.</span>
+<span class="sd">        :param permission_policy: ``deny`` (default) rejects a call that</span>
+<span class="sd">            touches a path outside the permitted roots; ``ask`` pauses the run</span>
+<span class="sd">            for a per-path allow-now / allow-session / deny decision via the</span>
+<span class="sd">            shared HITL interrupt (ADR-0007).  RAG keeps the default.</span>
+<span class="sd">        :param mcp_session_pool: Optional per-session MCP client pool exposing</span>
+<span class="sd">            ``get(session_id)``.  When given, each dispatch uses the client</span>
+<span class="sd">            pooled for the current chat thread so concurrent chats do not</span>
+<span class="sd">            share one MCP session; ``None`` (the default) keeps the shared</span>
+<span class="sd">            client.</span>
+
+<span class="sd">        The path-permission boundary is the per-session ``state.project_root``</span>
+<span class="sd">        (falling back to the process working directory); the node holds no</span>
+<span class="sd">        root of its own so a shared node instance cannot leak one session's</span>
+<span class="sd">        root into another.</span>
+<span class="sd">        """</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">logger</span><span class="o">=</span><span class="n">logger</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="n">label</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span> <span class="o">=</span> <span class="n">mcp_client</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="o">=</span> <span class="n">tool_infos</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span> <span class="o">=</span> <span class="n">post_dispatch</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_permission_policy</span> <span class="o">=</span> <span class="n">permission_policy</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_session_pool</span> <span class="o">=</span> <span class="n">mcp_session_pool</span>
+
+<div class="viewcode-block" id="ToolsCallerNode.execute">
+<a class="viewcode-back" href="../../../api/utils/nodes.html#klea_utils.nodes.tools_caller.ToolsCallerNode.execute">[docs]</a>
+    <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">execute</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Gate and dispatch the tool calls in ``state.tool_calls``.</span>
+
+<span class="sd">        Skipped entirely -- no dispatch, no streaming, no state update -- when</span>
+<span class="sd">        there is nothing to dispatch (no tool calls, or no MCP client).  An</span>
+<span class="sd">        empty round is routed around upstream (the agent's picker router sends</span>
+<span class="sd">        it to replan; RAG resets ``tool_results`` at graph entry), so a</span>
+<span class="sd">        dispatched round always overwrites ``tool_results`` and no stale batch</span>
+<span class="sd">        survives.</span>
+
+<span class="sd">        :param state: Current graph state (must carry ``tool_calls``).</span>
+<span class="sd">        :returns: ``{"tool_results": [...]}`` plus any callback extras.</span>
+<span class="sd">        """</span>
+        <span class="c1"># Per-run context (values local to the run, not on the shared node).</span>
+        <span class="n">ctx</span> <span class="o">=</span> <span class="n">ToolCallerContext</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"No tool calls to dispatch; skipping"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="p">{}</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_pre_exec_stream</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">access_level</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"access_level"</span><span class="p">,</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tool_calls</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">access_level</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="sa">f</span><span class="s2">"tool_infos_configured = </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+        <span class="c1"># Signal the round start in the status pane (coarse: every call is</span>
+        <span class="c1"># marked ``running`` together); the end-of-round ``_get_status``</span>
+        <span class="c1"># replaces the section with ``ok``/``error``.</span>
+        <span class="n">running</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_running_status</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">running</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span>
+                <span class="n">NodeStreamEvent</span><span class="p">(</span>
+                    <span class="nb">type</span><span class="o">=</span><span class="s2">"state"</span><span class="p">,</span> <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">running</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">model_dump</span><span class="p">()</span>
+            <span class="p">)</span>
+        <span class="n">session_id</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_session_id_for_dispatch</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="n">client_context</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_client_context_for_dispatch</span><span class="p">()</span>
+        <span class="c1"># Per-request metadata forwarded to the MCP server, kept out of the</span>
+        <span class="c1"># tool arguments (``call.args`` stays exactly what the picker bound):</span>
+        <span class="c1"># the stores-configuration path the client supplied for this request,</span>
+        <span class="c1"># when any.  Absent, no ``meta`` keyword is passed at all, so the</span>
+        <span class="c1"># server keeps using its own configured stores file.</span>
+        <span class="n">stores_config</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">client_context</span><span class="o">.</span><span class="n">stores_config</span> <span class="k">if</span> <span class="n">client_context</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">meta_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="p">{</span><span class="s2">"meta"</span><span class="p">:</span> <span class="p">{</span><span class="n">STORES_CONFIG_META_KEY</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">stores_config</span><span class="p">)}}</span>
+            <span class="k">if</span> <span class="n">stores_config</span>
+            <span class="k">else</span> <span class="p">{}</span>
+        <span class="p">)</span>
+        <span class="c1"># The checkpointed project root wins; otherwise the client's cwd is</span>
+        <span class="c1"># the effective root for this run.  The fallback is deliberately not</span>
+        <span class="c1"># written back to state, so a TUI relaunched elsewhere is followed.</span>
+        <span class="n">project_root</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"project_root"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span> <span class="ow">or</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">project_root</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">client_context</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">project_root</span> <span class="o">=</span> <span class="n">client_context</span><span class="o">.</span><span class="n">cwd</span>
+        <span class="n">allowed_dirs</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">directory</span><span class="p">)</span> <span class="k">for</span> <span class="n">directory</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"allowed_dirs"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="p">]</span>
+        <span class="n">allowed_files</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)</span> <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"allowed_files"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[])</span>
+        <span class="p">]</span>
+        <span class="n">resolver</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_make_permission_resolver</span><span class="p">(</span><span class="n">ctx</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_permission_policy</span> <span class="o">==</span> <span class="s2">"ask"</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">results</span> <span class="o">=</span> <span class="k">await</span> <span class="n">dispatch_tool_calls</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span><span class="p">,</span>
+            <span class="n">tool_calls</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="p">,</span>
+            <span class="n">project_root</span><span class="p">,</span>
+            <span class="n">access_level</span><span class="o">=</span><span class="n">access_level</span><span class="p">,</span>
+            <span class="n">allowed_dirs</span><span class="o">=</span><span class="n">allowed_dirs</span><span class="p">,</span>
+            <span class="n">allowed_files</span><span class="o">=</span><span class="n">allowed_files</span><span class="p">,</span>
+            <span class="n">permission_resolver</span><span class="o">=</span><span class="n">resolver</span><span class="p">,</span>
+            <span class="n">session_id</span><span class="o">=</span><span class="n">session_id</span><span class="p">,</span>
+            <span class="n">mcp_session_pool</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_mcp_session_pool</span><span class="p">,</span>
+            <span class="n">client_context</span><span class="o">=</span><span class="n">client_context</span><span class="p">,</span>
+            <span class="o">**</span><span class="n">meta_kwargs</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">results</span><span class="w"> </span><span class="si">=}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">tool_results</span> <span class="o">=</span> <span class="n">results</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_post_exec_stream</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+
+        <span class="n">updates</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"tool_results"</span><span class="p">:</span> <span class="n">results</span><span class="p">}</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span><span class="p">:</span>
+            <span class="n">merged</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">([</span><span class="o">*</span><span class="n">allowed_dirs</span><span class="p">,</span> <span class="o">*</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span><span class="p">]))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Session directories approved</span><span class="se">\n</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">"allowed_dirs"</span><span class="p">]</span> <span class="o">=</span> <span class="n">merged</span>
+        <span class="k">if</span> <span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span><span class="p">:</span>
+            <span class="n">merged_files</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span>
+                <span class="nb">dict</span><span class="o">.</span><span class="n">fromkeys</span><span class="p">([</span><span class="o">*</span><span class="n">allowed_files</span><span class="p">,</span> <span class="o">*</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span><span class="p">])</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Session files approved</span><span class="se">\n</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">updates</span><span class="p">[</span><span class="s2">"allowed_files"</span><span class="p">]</span> <span class="o">=</span> <span class="n">merged_files</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span><span class="p">:</span>
+            <span class="n">updates</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_post_dispatch</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">results</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">display_flags</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">updates</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_session_id_for_dispatch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the chat-thread id used to select a pooled MCP client.</span>
+
+<span class="sd">        Uses the current LangGraph ``thread_id`` (the stable per-conversation</span>
+<span class="sd">        session id) and falls back to a ``thread_id`` attribute on the state.</span>
+<span class="sd">        ``None`` means "no per-session client", so the dispatcher keeps the</span>
+<span class="sd">        shared MCP client.</span>
+<span class="sd">        """</span>
+        <span class="n">session_id</span> <span class="o">=</span> <span class="n">_current_session_id</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">session_id</span><span class="p">:</span>
+            <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">session_id</span><span class="p">)</span>
+        <span class="n">thread_id</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"thread_id"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">str</span><span class="p">(</span><span class="n">thread_id</span><span class="p">)</span> <span class="k">if</span> <span class="n">thread_id</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_client_context_for_dispatch</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ClientContext</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the run's client context, or ``None`` outside a graph run.</span>
+
+<span class="sd">        The context is carried on the LangGraph runtime context (ADR-0033) and</span>
+<span class="sd">        is only present when a frontend supplied one for this run.</span>
+<span class="sd">        """</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="kn">from</span><span class="w"> </span><span class="nn">langgraph.runtime</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_runtime</span>
+
+            <span class="n">runtime_context</span> <span class="o">=</span> <span class="n">get_runtime</span><span class="p">()</span><span class="o">.</span><span class="n">context</span>
+        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">"Could not read the runtime context"</span><span class="p">,</span> <span class="n">exc_info</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">client_context_from_context</span><span class="p">(</span><span class="n">runtime_context</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_make_permission_resolver</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ToolCallerContext</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">]],</span> <span class="n">PermissionResolution</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Return a resolver that pauses the run for per-path user approval.</span>
+
+<span class="sd">        Injected into :func:`dispatch_tool_calls`: it issues the shared HITL</span>
+<span class="sd">        ``interrupt`` (ADR-0046), records session-approved directories on</span>
+<span class="sd">        *ctx* (persisted by :meth:`execute`), and returns the resolution so</span>
+<span class="sd">        dispatch can enforce it.</span>
+<span class="sd">        """</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">resolver</span><span class="p">(</span><span class="n">requests</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">PermissionResolution</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Requesting path permission</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">requests</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+            <span class="n">response</span> <span class="o">=</span> <span class="n">interrupt</span><span class="p">(</span>
+                <span class="n">build_permission_payload</span><span class="p">(</span><span class="n">requests</span><span class="p">),</span>
+                <span class="n">response_schema</span><span class="o">=</span><span class="n">PermissionResponse</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">resolution</span> <span class="o">=</span> <span class="n">resolve_decisions</span><span class="p">(</span><span class="n">requests</span><span class="p">,</span> <span class="n">response</span><span class="p">)</span>
+            <span class="n">kind_by_key</span> <span class="o">=</span> <span class="p">{</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">}</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">key</span>
+                <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">resolution</span><span class="o">.</span><span class="n">allowed_session</span>
+                <span class="k">if</span> <span class="n">kind_by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">!=</span> <span class="s2">"sensitive"</span>
+            <span class="p">]</span>
+            <span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span> <span class="o">=</span> <span class="p">[</span>
+                <span class="n">key</span>
+                <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">resolution</span><span class="o">.</span><span class="n">allowed_session</span>
+                <span class="k">if</span> <span class="n">kind_by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"sensitive"</span>
+            <span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Permission resolved</span><span class="se">\n</span><span class="si">{</span><span class="n">resolution</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_dirs</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ctx</span><span class="o">.</span><span class="n">allowed_session_files</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_emit_permission_inspect</span><span class="p">(</span><span class="n">requests</span><span class="p">,</span> <span class="n">resolution</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">resolution</span>
+
+        <span class="k">return</span> <span class="n">resolver</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_emit_permission_inspect</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">requests</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">],</span> <span class="n">resolution</span><span class="p">:</span> <span class="n">PermissionResolution</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Emit an ``inspect`` entry summarising a resolved permission ask.</span>
+
+<span class="sd">        Gives the inspection pane a record of what was asked and decided</span>
+<span class="sd">        (the chat form is transient), so the user can audit a path decision</span>
+<span class="sd">        after the run continues.</span>
+<span class="sd">        """</span>
+        <span class="n">allowed</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">allowed_now</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">allowed_session</span><span class="p">)</span>
+        <span class="n">summary</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Path permission: </span><span class="si">{</span><span class="n">allowed</span><span class="si">}</span><span class="s2"> allowed, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">denied</span><span class="p">)</span><span class="si">}</span><span class="s2"> denied"</span>
+        <span class="k">if</span> <span class="n">resolution</span><span class="o">.</span><span class="n">not_a_path</span><span class="p">:</span>
+            <span class="n">summary</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">", </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">not_a_path</span><span class="p">)</span><span class="si">}</span><span class="s2"> not a path"</span>
+        <span class="n">details</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"requests"</span><span class="p">:</span> <span class="p">[</span>
+                <span class="p">{</span>
+                    <span class="s2">"kind"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span><span class="p">,</span>
+                    <span class="s2">"key"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">,</span>
+                    <span class="s2">"confidence"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">confidence</span><span class="p">,</span>
+                    <span class="s2">"source"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">source</span><span class="p">,</span>
+                    <span class="s2">"tool"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span>
+                    <span class="s2">"argument"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">argument</span><span class="p">,</span>
+                    <span class="s2">"path"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">path</span><span class="p">,</span>
+                    <span class="s2">"directory"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">directory</span><span class="p">,</span>
+                    <span class="s2">"path_display"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">path_display</span><span class="p">(),</span>
+                    <span class="s2">"directory_display"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">directory_display</span><span class="p">(),</span>
+                    <span class="s2">"path_length"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">path</span><span class="p">),</span>
+                    <span class="s2">"directory_length"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">directory</span><span class="p">),</span>
+                    <span class="s2">"raw_preview"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">raw_preview</span><span class="p">(),</span>
+                    <span class="s2">"raw_length"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">raw</span><span class="p">),</span>
+                    <span class="s2">"argument_preview"</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">argument_preview</span><span class="p">,</span>
+                <span class="p">}</span>
+                <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span>
+            <span class="p">],</span>
+            <span class="s2">"resolution"</span><span class="p">:</span> <span class="n">resolution</span><span class="o">.</span><span class="n">model_dump</span><span class="p">(),</span>
+        <span class="p">}</span>
+        <span class="n">event</span> <span class="o">=</span> <span class="n">NodeStreamEvent</span><span class="p">(</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s2">"inspect"</span><span class="p">,</span>
+            <span class="n">node</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+            <span class="n">data</span><span class="o">=</span><span class="n">NodeStreamData</span><span class="p">(</span>
+                <span class="n">heading</span><span class="o">=</span><span class="s2">"Path permission"</span><span class="p">,</span> <span class="n">summary</span><span class="o">=</span><span class="n">summary</span><span class="p">,</span> <span class="n">details</span><span class="o">=</span><span class="n">details</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span><span class="n">event</span><span class="o">.</span><span class="n">model_dump</span><span class="p">())</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_pre_exec</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ToolCallerContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Run only when there are tool calls and a client to dispatch to."""</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="kc">None</span><span class="p">))</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_mcp_client</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_post_exec_stream</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ToolCallerContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Emit the shared events, then any chat-renderable tool output."""</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">_post_exec_stream</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+        <span class="n">entries</span><span class="p">,</span> <span class="n">flags</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compute_displays</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">ctx</span><span class="p">)</span>
+        <span class="n">ctx</span><span class="o">.</span><span class="n">display_flags</span> <span class="o">=</span> <span class="n">flags</span>
+        <span class="k">if</span> <span class="n">entries</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">write_custom_stream</span><span class="p">(</span>
+                <span class="p">{</span><span class="s2">"type"</span><span class="p">:</span> <span class="s2">"tool"</span><span class="p">,</span> <span class="s2">"node"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="s2">"data"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"tools"</span><span class="p">:</span> <span class="n">entries</span><span class="p">}}</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compute_displays</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ToolCallerContext</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">bool</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">"""Return the display entries and a per-result displayed flag.</span>
+
+<span class="sd">        The entries are the chat-renderable payloads (one per result at most);</span>
+<span class="sd">        the flags are aligned with ``ctx.tool_results`` so a caller can record</span>
+<span class="sd">        which results were streamed to the user.</span>
+<span class="sd">        """</span>
+        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span>
+        <span class="n">per_result</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry_for</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">tc</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">tool_results</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="n">flags</span> <span class="o">=</span> <span class="p">[</span><span class="n">entry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">per_result</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">entry</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">per_result</span> <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">],</span> <span class="n">flags</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_tool_display_entries</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">tool_calls</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">],</span> <span class="n">results</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">"""Return chat-renderable per-tool entries for the last round.</span>
+
+<span class="sd">        Each entry is ``{tool, title, header, mime, data, meta, display}``:</span>
+<span class="sd">        ``mime`` is the single type vocabulary (mirroring MCP's ``mimeType``),</span>
+<span class="sd">        ``data`` the payload (text or base64), ``meta`` extras (path, language,</span>
+<span class="sd">        additions/deletions, uri, ...) and ``display`` a preformatted text</span>
+<span class="sd">        fallback for clients that cannot render ``mime``.</span>
+
+<span class="sd">        Sources, in order: typed MCP content blocks (``ImageContent`` /</span>
+<span class="sd">        ``AudioContent`` / ``EmbeddedResource`` / ``ResourceLink`` - the</span>
+<span class="sd">        standard, third-party-friendly path); then structured conventions</span>
+<span class="sd">        (``diff`` -&gt; ``text/x-diff``, ``code`` -&gt; ``text/x-&lt;language&gt;``,</span>
+<span class="sd">        ``display`` -&gt; ``text/markdown``); then a self-describing</span>
+<span class="sd">        ``display`` dict (``{"mime", "data", "meta"}``); then, for a</span>
+<span class="sd">        destructive tool with none of the above, a minimal ``text/x-shell``</span>
+<span class="sd">        call line so a third-party destructive call is still visible.  Plain</span>
+<span class="sd">        ``TextContent`` is not surfaced (ours is the JSON dump).  An errored</span>
+<span class="sd">        destructive result is still surfaced; other results with nothing to</span>
+<span class="sd">        show (and non-destructive errors) are skipped.</span>
+<span class="sd">        """</span>
+        <span class="n">per_result</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry_for</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="n">result</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">tc</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">,</span> <span class="n">results</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="p">]</span>
+        <span class="k">return</span> <span class="p">[</span><span class="n">entry</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="n">per_result</span> <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">]</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_entry_for</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">tc</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">CallToolResult</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Build a display entry for one call/result, or ``None``.</span>
+
+<span class="sd">        Precedence: a typed MCP content block first, then a structured</span>
+<span class="sd">        display convention (``display``/``diff``/``code``).  Failing both, a</span>
+<span class="sd">        destructive tool (ADR-0037) gets a minimal ``text/x-shell`` fallback</span>
+<span class="sd">        showing the call, so a third-party destructive tool that declares no</span>
+<span class="sd">        display convention is never silently invisible.</span>
+
+<span class="sd">        Errored results are shown for destructive tools (a failed</span>
+<span class="sd">        ``run_command`` is exactly what the user must see) but skipped for</span>
+<span class="sd">        non-destructive ones: their failure is already in the inspect pane</span>
+<span class="sd">        and drives Triage, so rendering every read-only error would only add</span>
+<span class="sd">        chat noise.</span>
+<span class="sd">        """</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">destructive</span> <span class="o">=</span> <span class="n">info</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">destructive</span>
+        <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">is_error</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">destructive</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">title</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">if</span> <span class="n">info</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">else</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span>
+        <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_from_content</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">structured_content</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_from_structured</span><span class="p">(</span>
+                <span class="n">result</span><span class="o">.</span><span class="n">structured_content</span><span class="p">,</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">destructive</span><span class="p">:</span>
+            <span class="n">entry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_from_destructive_call</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="n">title</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">entry</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Carried to the frontend so it can style an errored block.</span>
+            <span class="n">entry</span><span class="p">[</span><span class="s2">"is_error"</span><span class="p">]</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">result</span><span class="o">.</span><span class="n">is_error</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">entry</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_from_destructive_call</span><span class="p">(</span><span class="n">tc</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Build a minimal shell-call entry for a destructive tool.</span>
+
+<span class="sd">        Used as the last-resort display for a destructive tool that provided</span>
+<span class="sd">        no typed content block and no display convention (third-party MCP</span>
+<span class="sd">        servers are not required to follow the Klea convention).  Shows the</span>
+<span class="sd">        call as ``tool(arg=...)`` with each argument value summarised, so the</span>
+<span class="sd">        user can see what was invoked without a long argument dump.</span>
+<span class="sd">        """</span>
+        <span class="n">args</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">tc</span><span class="p">,</span> <span class="s2">"args"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="ow">or</span> <span class="p">{}</span>
+        <span class="n">rendered</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">ToolsCallerNode</span><span class="o">.</span><span class="n">_summarise_arg</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2">"</span>
+            <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">args</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="n">call</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="si">}</span><span class="s2">(</span><span class="si">{</span><span class="n">rendered</span><span class="si">}</span><span class="s2">)"</span> <span class="k">if</span> <span class="n">args</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="si">}</span><span class="s2">()"</span>
+        <span class="k">return</span> <span class="n">ToolsCallerNode</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="s2">"text/x-shell"</span><span class="p">,</span> <span class="n">call</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_summarise_arg</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">80</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a short single-line rendering of one argument value."""</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"</span><span class="se">\\</span><span class="s2">n"</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">limit</span><span class="p">:</span>
+                <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="n">limit</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s1">'"</span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s1">"'</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="p">,</span> <span class="s2">"</span><span class="se">\\</span><span class="s2">n"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">limit</span><span class="p">:</span>
+            <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="p">[:</span><span class="n">limit</span><span class="p">]</span> <span class="o">+</span> <span class="s2">"..."</span>
+        <span class="k">return</span> <span class="n">text</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_from_content</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">result</span><span class="p">:</span> <span class="n">CallToolResult</span><span class="p">,</span> <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Build an entry from a typed MCP content block, if any."""</span>
+        <span class="k">for</span> <span class="n">block</span> <span class="ow">in</span> <span class="n">result</span><span class="o">.</span><span class="n">content</span> <span class="ow">or</span> <span class="p">[]:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="p">(</span><span class="n">ImageContent</span><span class="p">,</span> <span class="n">AudioContent</span><span class="p">)):</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                    <span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">mimeType</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">data</span><span class="p">,</span> <span class="p">{</span><span class="s2">"binary"</span><span class="p">:</span> <span class="kc">True</span><span class="p">}</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">EmbeddedResource</span><span class="p">):</span>
+                <span class="n">resource</span> <span class="o">=</span> <span class="n">block</span><span class="o">.</span><span class="n">resource</span>
+                <span class="n">mime</span> <span class="o">=</span> <span class="n">resource</span><span class="o">.</span><span class="n">mimeType</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">mime</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"uri"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">resource</span><span class="o">.</span><span class="n">uri</span><span class="p">)}</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">resource</span><span class="p">,</span> <span class="n">BlobResourceContents</span><span class="p">):</span>
+                    <span class="n">meta</span><span class="p">[</span><span class="s2">"binary"</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+                    <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">mime</span><span class="p">,</span> <span class="n">resource</span><span class="o">.</span><span class="n">blob</span><span class="p">,</span> <span class="n">meta</span><span class="p">)</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">mime</span><span class="p">,</span> <span class="n">resource</span><span class="o">.</span><span class="n">text</span><span class="p">,</span> <span class="n">meta</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">ResourceLink</span><span class="p">)</span> <span class="ow">and</span> <span class="n">block</span><span class="o">.</span><span class="n">mimeType</span><span class="p">:</span>
+                <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                    <span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">block</span><span class="o">.</span><span class="n">mimeType</span><span class="p">,</span> <span class="s2">""</span><span class="p">,</span> <span class="p">{</span><span class="s2">"uri"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">block</span><span class="o">.</span><span class="n">uri</span><span class="p">)}</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_from_structured</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">structured</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">title</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Build an entry from a structured result's display convention."""</span>
+        <span class="n">declared</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"display"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">declared</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="c1"># Self-describing hook for tools: {"mime", "data", "meta"}.</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                <span class="n">tool</span><span class="p">,</span>
+                <span class="n">title</span><span class="p">,</span>
+                <span class="n">declared</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"mime"</span><span class="p">,</span> <span class="s2">"text/markdown"</span><span class="p">),</span>
+                <span class="n">declared</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"data"</span><span class="p">,</span> <span class="s2">""</span><span class="p">),</span>
+                <span class="n">declared</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"meta"</span><span class="p">,</span> <span class="p">{}),</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"diff"</span><span class="p">):</span>
+            <span class="n">path</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"path"</span><span class="p">,</span> <span class="n">tool</span><span class="p">)</span>
+            <span class="n">adds</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"additions"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">dels</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"deletions"</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                <span class="n">tool</span><span class="p">,</span>
+                <span class="n">title</span><span class="p">,</span>
+                <span class="s2">"text/x-diff"</span><span class="p">,</span>
+                <span class="n">structured</span><span class="p">[</span><span class="s2">"diff"</span><span class="p">],</span>
+                <span class="p">{</span><span class="s2">"path"</span><span class="p">:</span> <span class="n">path</span><span class="p">,</span> <span class="s2">"additions"</span><span class="p">:</span> <span class="n">adds</span><span class="p">,</span> <span class="s2">"deletions"</span><span class="p">:</span> <span class="n">dels</span><span class="p">},</span>
+                <span class="n">header</span><span class="o">=</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2"> (+</span><span class="si">{</span><span class="n">adds</span><span class="si">}</span><span class="s2">/-</span><span class="si">{</span><span class="n">dels</span><span class="si">}</span><span class="s2">)"</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"code"</span><span class="p">):</span>
+            <span class="n">language</span> <span class="o">=</span> <span class="n">structured</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"language"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+            <span class="n">mime</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"text/x-</span><span class="si">{</span><span class="n">language</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">language</span> <span class="k">else</span> <span class="s2">"text/plain"</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span>
+                <span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="n">mime</span><span class="p">,</span> <span class="n">structured</span><span class="p">[</span><span class="s2">"code"</span><span class="p">],</span> <span class="p">{</span><span class="s2">"language"</span><span class="p">:</span> <span class="n">language</span><span class="p">}</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">declared</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">declared</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_display_entry</span><span class="p">(</span><span class="n">tool</span><span class="p">,</span> <span class="n">title</span><span class="p">,</span> <span class="s2">"text/markdown"</span><span class="p">,</span> <span class="n">declared</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_display_entry</span><span class="p">(</span>
+        <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">title</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">mime</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+        <span class="n">meta</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">header</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">"""Assemble one display entry, including the text fallback."""</span>
+        <span class="k">return</span> <span class="p">{</span>
+            <span class="s2">"tool"</span><span class="p">:</span> <span class="n">tool</span><span class="p">,</span>
+            <span class="s2">"title"</span><span class="p">:</span> <span class="n">title</span><span class="p">,</span>
+            <span class="s2">"header"</span><span class="p">:</span> <span class="n">header</span> <span class="k">if</span> <span class="n">header</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">title</span><span class="p">,</span>
+            <span class="s2">"mime"</span><span class="p">:</span> <span class="n">mime</span><span class="p">,</span>
+            <span class="s2">"data"</span><span class="p">:</span> <span class="n">data</span><span class="p">,</span>
+            <span class="s2">"meta"</span><span class="p">:</span> <span class="n">meta</span> <span class="ow">or</span> <span class="p">{},</span>
+            <span class="s2">"display"</span><span class="p">:</span> <span class="n">ToolsCallerNode</span><span class="o">.</span><span class="n">_fallback_display</span><span class="p">(</span><span class="n">mime</span><span class="p">,</span> <span class="n">data</span><span class="p">),</span>
+        <span class="p">}</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_fallback_display</span><span class="p">(</span><span class="n">mime</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return a client-agnostic text rendering of a display entry."""</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="s2">""</span> <span class="k">if</span> <span class="n">data</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">str</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mime</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"text/x-diff"</span><span class="p">,</span> <span class="s2">"text/x-patch"</span><span class="p">):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">"```diff</span><span class="se">\n</span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="se">\n</span><span class="s2">```"</span>
+        <span class="k">if</span> <span class="n">mime</span><span class="o">.</span><span class="n">startswith</span><span class="p">((</span><span class="s2">"image/"</span><span class="p">,</span> <span class="s2">"audio/"</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="n">mime</span><span class="si">}</span><span class="s2"> data, </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="si">}</span><span class="s2"> bytes]"</span> <span class="k">if</span> <span class="n">text</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="n">mime</span><span class="si">}</span><span class="s2">]"</span>
+        <span class="k">if</span> <span class="n">mime</span> <span class="o">==</span> <span class="s2">"text/markdown"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">text</span>
+        <span class="k">if</span> <span class="n">mime</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"text/x-"</span><span class="p">):</span>
+            <span class="n">language</span> <span class="o">=</span> <span class="n">mime</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">"/"</span><span class="p">,</span> <span class="mi">1</span><span class="p">)[</span><span class="mi">1</span><span class="p">][</span><span class="mi">2</span><span class="p">:]</span>
+            <span class="k">return</span> <span class="sa">f</span><span class="s2">"```</span><span class="si">{</span><span class="n">language</span><span class="si">}</span><span class="se">\n</span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="se">\n</span><span class="s2">```"</span>
+        <span class="k">return</span> <span class="n">text</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_inspect</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ToolCallerContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the inspection payload for the completed dispatch.</span>
+
+<span class="sd">        The inspection pane shows the dispatch summary plus the full tool</span>
+<span class="sd">        calls (arguments and reasons) and their results.  The status pane gets</span>
+<span class="sd">        a compact ``ok``/``error`` view from ``_get_status``; renderable</span>
+<span class="sd">        outputs (e.g. diffs) surface in the chat.</span>
+<span class="sd">        """</span>
+        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">tool_names</span> <span class="o">=</span> <span class="p">[</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span> <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">]</span>
+        <span class="n">success_count</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="mi">1</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">ctx</span><span class="o">.</span><span class="n">tool_results</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">r</span><span class="o">.</span><span class="n">is_error</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
+            <span class="n">heading</span><span class="o">=</span><span class="s2">"Tool Execution"</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Called </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_names</span><span class="p">)</span><span class="si">}</span><span class="s2"> tool(s), </span><span class="si">{</span><span class="n">success_count</span><span class="si">}</span><span class="s2"> succeeded"</span><span class="p">,</span>
+            <span class="n">details</span><span class="o">=</span><span class="p">{</span>
+                <span class="s2">"tool_names"</span><span class="p">:</span> <span class="n">tool_names</span><span class="p">,</span>
+                <span class="s2">"total_calls"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_names</span><span class="p">),</span>
+                <span class="s2">"successful_calls"</span><span class="p">:</span> <span class="n">success_count</span><span class="p">,</span>
+                <span class="s2">"failed_calls"</span><span class="p">:</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_names</span><span class="p">)</span> <span class="o">-</span> <span class="n">success_count</span><span class="p">,</span>
+                <span class="s2">"tool_calls"</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="p">{</span><span class="s2">"tool"</span><span class="p">:</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="s2">"arguments"</span><span class="p">:</span> <span class="n">tc</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="s2">"reason"</span><span class="p">:</span> <span class="n">tc</span><span class="o">.</span><span class="n">reason</span><span class="p">}</span>
+                    <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span>
+                <span class="p">],</span>
+                <span class="s2">"tool_results"</span><span class="p">:</span> <span class="p">[</span>
+                    <span class="p">{</span>
+                        <span class="s2">"tool"</span><span class="p">:</span> <span class="n">tool_names</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">tool_names</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"tool_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+                        <span class="s2">"is_error"</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">is_error</span><span class="p">,</span>
+                        <span class="s2">"content"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">r</span><span class="o">.</span><span class="n">content</span><span class="p">)</span> <span class="k">if</span> <span class="n">r</span><span class="o">.</span><span class="n">content</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                        <span class="s2">"structured_content"</span><span class="p">:</span> <span class="n">r</span><span class="o">.</span><span class="n">structured_content</span><span class="p">,</span>
+                    <span class="p">}</span>
+                    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ctx</span><span class="o">.</span><span class="n">tool_results</span><span class="p">)</span>
+                <span class="p">],</span>
+            <span class="p">},</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_running_status</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return the status-pane section for a round that is about to run.</span>
+
+<span class="sd">        Emitted before dispatch so the status pane shows each tool as</span>
+<span class="sd">        ``running``; the end-of-round :meth:`_get_status` replaces the same</span>
+<span class="sd">        section with ``ok``/``error``.  Coarse by design: every dispatched</span>
+<span class="sd">        call is marked running together, so a same-resource call that is</span>
+<span class="sd">        serialised (ADR-0041) or a gated call will read ``running`` until the</span>
+<span class="sd">        round ends.  Calls with no usable name are skipped, matching</span>
+<span class="sd">        :meth:`_get_status`.</span>
+
+<span class="sd">        :returns: A status section, or ``None`` when there is nothing to run.</span>
+<span class="sd">        """</span>
+        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="n">lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tc</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="k">continue</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">title</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">if</span> <span class="n">info</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">else</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- **</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">**: running"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
+            <span class="n">heading</span><span class="o">=</span><span class="s2">"Tool Execution"</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Running </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span><span class="si">}</span><span class="s2"> tool(s)"</span><span class="p">,</span>
+            <span class="n">display</span><span class="o">=</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_status</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">ctx</span><span class="p">:</span> <span class="n">ToolCallerContext</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NodeStreamData</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">"""Return per-tool execution status for the status pane.</span>
+
+<span class="sd">        The status pane shows ground truth -- which tools actually ran and</span>
+<span class="sd">        whether each succeeded -- as a generic ``ok``/``error`` label per tool</span>
+<span class="sd">        (frontends may map the labels to icons).  The selected args, the</span>
+<span class="sd">        picker's reasons and the full results stay in the inspection pane</span>
+<span class="sd">        (``_get_inspect``), and renderable outputs (e.g. diffs) surface in the</span>
+<span class="sd">        chat.  Returns ``None`` for a round with no calls so empty rounds</span>
+<span class="sd">        leave the pane unchanged.</span>
+
+<span class="sd">        :returns: A status section, or ``None`` when nothing was called.</span>
+<span class="sd">        """</span>
+        <span class="n">tool_calls</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="s2">"tool_calls"</span><span class="p">,</span> <span class="p">[])</span> <span class="ow">or</span> <span class="p">[]</span>
+        <span class="c1"># Skip calls with no usable name: rendering the empty title would show</span>
+        <span class="c1"># a meaningless "****: error".  Their failure is still visible in the</span>
+        <span class="c1"># inspection pane and drives Triage.</span>
+        <span class="n">lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">tc</span><span class="p">,</span> <span class="n">result</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">,</span> <span class="n">ctx</span><span class="o">.</span><span class="n">tool_results</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">():</span>
+                <span class="k">continue</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">tc</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_tool_infos</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="n">title</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">if</span> <span class="n">info</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">title</span> <span class="k">else</span> <span class="n">tc</span><span class="o">.</span><span class="n">tool</span>
+            <span class="n">label</span> <span class="o">=</span> <span class="s2">"error"</span> <span class="k">if</span> <span class="n">result</span><span class="o">.</span><span class="n">is_error</span> <span class="k">else</span> <span class="s2">"ok"</span>
+            <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- **</span><span class="si">{</span><span class="n">title</span><span class="si">}</span><span class="s2">**: </span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">lines</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">NodeStreamData</span><span class="p">(</span>
+            <span class="n">heading</span><span class="o">=</span><span class="s2">"Tool Execution"</span><span class="p">,</span>
+            <span class="n">key</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span>
+            <span class="n">summary</span><span class="o">=</span><span class="sa">f</span><span class="s2">"Called </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">tool_calls</span><span class="p">)</span><span class="si">}</span><span class="s2"> tool(s)"</span><span class="p">,</span>
+            <span class="n">display</span><span class="o">=</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">),</span>
+        <span class="p">)</span></div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, NeuroML contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>

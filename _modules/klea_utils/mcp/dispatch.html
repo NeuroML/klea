@@ -1,0 +1,880 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
+        <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
+
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
+        <title>klea_utils.mcp.dispatch - Klea</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinxcontrib_typer.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=06e26041" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../index.html"><div class="brand">Klea</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../concepts/index.html">Concepts</a><input aria-label="Toggle navigation of Concepts" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/rag.html">RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/mcp.html">MCP</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/rag.html">Klea RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tools.html">Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/commands.html">Session commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tui.html">Terminal interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/agent.html">Klea Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/utils.html">Klea Utils</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../guides/index.html">Guides</a><input aria-label="Toggle navigation of Guides" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/create-and-use-rag.html">Create and use a RAG system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/huggingface.html">Deploying Klea RAG on HuggingFace Spaces</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../cli/index.html">CLI Reference</a><input aria-label="Toggle navigation of CLI Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-stores-create.html">klea-stores-create</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag-serve.html">klea-rag-serve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag.html">klea-rag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/nml-mcp.html">nml-mcp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea.html">klea</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-serve.html">klea-serve</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Develop</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer-info.html">Developer info</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../developer-guides/index.html">Developer guides</a><input aria-label="Toggle navigation of Developer guides" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../developer-guides/writing-mcp-tools.html">Writing MCP tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/klea_utils.html">klea_utils</a><input aria-label="Toggle navigation of klea_utils" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/graph.html">Orchestrator framework</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/stores.html">Vector stores</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/biblio.html">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/llm.html">LLM utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/mcp.html">MCP utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/models_catalog.html">Model catalog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/api.html">API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/commands.html">Commands</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-tui.html">UI - terminal client</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-cli.html">UI — client CLI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/net.html">Host helpers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/client_context.html">Runtime client context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/tools.html">Tool formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting-help.html">Getting help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../code-of-conduct.html">Code of Conduct</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for klea_utils.mcp.dispatch</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="sd">"""</span>
+<span class="sd">Client-side MCP tool-call dispatch with permission gating.</span>
+
+<span class="sd">File: klea_utils/mcp/dispatch.py</span>
+
+<span class="sd">Copyright 2026 Ankur Sinha</span>
+<span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
+<span class="sd">"""</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">asyncio</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">,</span> <span class="n">Sequence</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">cast</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.client.client</span><span class="w"> </span><span class="kn">import</span> <span class="n">CallToolResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">mcp.types</span><span class="w"> </span><span class="kn">import</span> <span class="n">TextContent</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.client_context</span><span class="w"> </span><span class="kn">import</span> <span class="n">ClientContext</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.access</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">,</span> <span class="n">AccessLevel</span><span class="p">,</span> <span class="n">check_tool_access</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.path_detect</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PathRequest</span><span class="p">,</span>
+    <span class="n">detect_path_requests</span><span class="p">,</span>
+    <span class="n">resolve_path_arguments</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.permission_hitl</span><span class="w"> </span><span class="kn">import</span> <span class="n">PermissionResolution</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolCallSchema</span><span class="p">,</span> <span class="n">ToolInfo</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1">#: Resolves detected outside-path requests to allow/deny decisions.  The app</span>
+<span class="c1">#: supplies one that pauses the run for user approval (``interrupt``, ADR-0046);</span>
+<span class="c1">#: with no resolver (the default) every request is denied.</span>
+<span class="n">PermissionResolver</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">]],</span> <span class="n">PermissionResolution</span><span class="p">]</span>
+
+<span class="c1">#: Default per-call wall-clock cap for tool calls.  A generous backstop that</span>
+<span class="c1">#: only fires when a tool hangs; individual tools own their semantic timeouts</span>
+<span class="c1">#: (e.g. ``run_command``), so raise this above any tool's own maximum.</span>
+<span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span> <span class="o">=</span> <span class="mf">900.0</span>
+
+<span class="c1">#: Process environment variable overriding the backstop (seconds).  A value</span>
+<span class="c1">#: of ``0`` or less disables it.</span>
+<span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span> <span class="o">=</span> <span class="s2">"KLEA_TOOL_CALL_TIMEOUT"</span>
+
+
+<div class="viewcode-block" id="tool_call_timeout_seconds">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.dispatch.tool_call_timeout_seconds">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">tool_call_timeout_seconds</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the per-call tool timeout in seconds, or ``None`` when disabled.</span>
+
+<span class="sd">    Reads :data:`TOOL_CALL_TIMEOUT_ENV_VAR`; an unset, non-numeric, or</span>
+<span class="sd">    non-finite value falls back to :data:`DEFAULT_TOOL_CALL_TIMEOUT_SECONDS`,</span>
+<span class="sd">    while a non-positive value disables the backstop.</span>
+
+<span class="sd">    :returns: The timeout ceiling, or ``None`` when disabled.</span>
+<span class="sd">    """</span>
+    <span class="n">raw</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">raw</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">ValueError</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid </span><span class="si">{</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">raw</span><span class="si">!r}</span><span class="s2">; "</span>
+            <span class="sa">f</span><span class="s2">"using </span><span class="si">{</span><span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span><span class="si">}</span><span class="s2"> s"</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">value</span><span class="p">):</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid (non-finite) </span><span class="si">{</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">raw</span><span class="si">!r}</span><span class="s2">; "</span>
+            <span class="sa">f</span><span class="s2">"using </span><span class="si">{</span><span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span><span class="si">}</span><span class="s2"> s"</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">DEFAULT_TOOL_CALL_TIMEOUT_SECONDS</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2"> disables the tool-call timeout"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">TOOL_CALL_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2"> = </span><span class="si">{</span><span class="n">value</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_is_timeout_error</span><span class="p">(</span><span class="n">exc</span><span class="p">:</span> <span class="ne">BaseException</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether *exc* represents a tool-call timeout.</span>
+
+<span class="sd">    fastmcp surfaces a read timeout as an ``McpError`` whose text mentions the</span>
+<span class="sd">    timeout, so both ``TimeoutError`` and a text check are covered.</span>
+
+<span class="sd">    :param exc: The exception raised by the tool call.</span>
+<span class="sd">    :returns: True when the exception looks like a timeout.</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="ne">TimeoutError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">return</span> <span class="s2">"timed out"</span> <span class="ow">in</span> <span class="n">text</span> <span class="ow">or</span> <span class="s2">"timeout"</span> <span class="ow">in</span> <span class="n">text</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_denied_result</span><span class="p">(</span><span class="n">denials</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">CallToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build a non-halting error result for a permission-denied tool call."""</span>
+    <span class="k">return</span> <span class="n">CallToolResult</span><span class="p">(</span>
+        <span class="n">content</span><span class="o">=</span><span class="p">[</span><span class="n">TextContent</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="s2">"text"</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">denials</span><span class="p">))],</span>
+        <span class="n">structured_content</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">meta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_error</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_unknown_tool_error</span><span class="p">(</span><span class="n">tool_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CallToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build a non-halting error for an empty or unknown tool name.</span>
+
+<span class="sd">    A weak model can emit a well-formed but empty ``tool`` name, or a name</span>
+<span class="sd">    that is not in the disclosed catalogue.  Such a call is never dispatched</span>
+<span class="sd">    to the server; the error is returned instead so the failure is visible to</span>
+<span class="sd">    the retry/evaluation loop (which can feed it back to the picker).</span>
+
+<span class="sd">    :param tool_name: The offending tool name (possibly empty).</span>
+<span class="sd">    :returns: An ``is_error`` result explaining the rejection.</span>
+<span class="sd">    """</span>
+    <span class="n">shown</span> <span class="o">=</span> <span class="n">tool_name</span> <span class="k">if</span> <span class="n">tool_name</span> <span class="k">else</span> <span class="s2">"(empty)"</span>
+    <span class="k">return</span> <span class="n">_denied_result</span><span class="p">([</span><span class="sa">f</span><span class="s2">"Unknown tool: </span><span class="si">{</span><span class="n">shown</span><span class="si">!r}</span><span class="s2"> (not available to the picker)"</span><span class="p">])</span>
+
+
+<div class="viewcode-block" id="resource_key">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.dispatch.resource_key">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resource_key</span><span class="p">(</span>
+    <span class="n">call</span><span class="p">:</span> <span class="n">ToolCallSchema</span><span class="p">,</span> <span class="n">tool_infos</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the resource identifiers a tool call touches (ADR-0041).</span>
+
+<span class="sd">    Best-effort and deterministic: reads the tool's declared ``checkpaths``</span>
+<span class="sd">    (from ``ToolInfo.checkpaths`` or the folded ``ToolInfo.meta['checkpaths']``)</span>
+<span class="sd">    and normalises the string value of each declared argument lexically with</span>
+<span class="sd">    ``os.path.normpath``.  The caller uses this to serialise calls that share a</span>
+<span class="sd">    resource, so a missed dependency edge cannot cause a lost update.</span>
+
+<span class="sd">    An empty set means no identifiable resource: the tool is unknown, declares</span>
+<span class="sd">    no ``checkpaths``, or the declared argument is absent/not a string.  Such a</span>
+<span class="sd">    call is left to run concurrently.</span>
+
+<span class="sd">    :param call: The bound tool call.</span>
+<span class="sd">    :param tool_infos: Mapping of tool name to :class:`ToolInfo`, or ``None``.</span>
+<span class="sd">    :returns: A frozenset of normalised resource identifiers (possibly empty).</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">tool_infos</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">()</span>
+    <span class="n">info</span> <span class="o">=</span> <span class="n">tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">()</span>
+    <span class="n">checkpaths</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">checkpaths</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">checkpaths</span> <span class="ow">and</span> <span class="n">info</span><span class="o">.</span><span class="n">meta</span><span class="p">:</span>
+        <span class="n">folded</span> <span class="o">=</span> <span class="n">info</span><span class="o">.</span><span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"checkpaths"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">folded</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">checkpaths</span> <span class="o">=</span> <span class="n">folded</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">checkpaths</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">frozenset</span><span class="p">()</span>
+    <span class="n">args</span> <span class="o">=</span> <span class="n">call</span><span class="o">.</span><span class="n">args</span> <span class="ow">or</span> <span class="p">{}</span>
+    <span class="n">resources</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">arg_name</span> <span class="ow">in</span> <span class="n">checkpaths</span><span class="p">:</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">args</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">arg_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">value</span><span class="p">:</span>
+            <span class="n">resources</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">normpath</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">frozenset</span><span class="p">(</span><span class="n">resources</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_as_tool_call</span><span class="p">(</span><span class="n">call</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolCallSchema</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Normalize a dispatch input to a :class:`ToolCallSchema`."""</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">call</span><span class="p">,</span> <span class="n">ToolCallSchema</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">call</span>
+    <span class="n">name</span><span class="p">,</span> <span class="n">args</span> <span class="o">=</span> <span class="n">call</span>
+    <span class="k">return</span> <span class="n">ToolCallSchema</span><span class="p">(</span><span class="n">tool</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">),</span> <span class="n">args</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">args</span> <span class="ow">or</span> <span class="p">{}))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_dedupe_requests</span><span class="p">(</span><span class="n">requests</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Deduplicate requests by approval key, keeping the first (strongest).</span>
+
+<span class="sd">    Coverage is merged across calls: two tool calls that touch different files</span>
+<span class="sd">    in the same approved directory become one ask that lists both paths.</span>
+<span class="sd">    """</span>
+    <span class="n">by_key</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">PathRequest</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="n">existing</span> <span class="o">=</span> <span class="n">by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">existing</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">by_key</span><span class="p">[</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">request</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">existing</span><span class="o">.</span><span class="n">covered_paths</span><span class="p">:</span>
+            <span class="n">existing</span><span class="o">.</span><span class="n">covered_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">existing</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">path</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">covered_paths</span> <span class="ow">or</span> <span class="p">[</span><span class="n">request</span><span class="o">.</span><span class="n">path</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">path</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing</span><span class="o">.</span><span class="n">covered_paths</span><span class="p">:</span>
+                <span class="n">existing</span><span class="o">.</span><span class="n">covered_paths</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">by_key</span><span class="o">.</span><span class="n">values</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">request</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_request_allowed</span><span class="p">(</span>
+    <span class="n">request</span><span class="p">:</span> <span class="n">PathRequest</span><span class="p">,</span> <span class="n">approved_dirs</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="n">approved_files</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return whether an approval for *request* was granted for this dispatch."""</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">"sensitive"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">request</span><span class="o">.</span><span class="n">path</span> <span class="ow">in</span> <span class="n">approved_files</span>
+    <span class="k">return</span> <span class="n">request</span><span class="o">.</span><span class="n">directory</span> <span class="ow">in</span> <span class="n">approved_dirs</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_permission_denied_result</span><span class="p">(</span>
+    <span class="n">tool</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">requests</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">],</span> <span class="n">denied</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CallToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build the non-halting result for a call blocked by the permission gate.</span>
+
+<span class="sd">    A path the user explicitly denied gets a "denied by the user" message; an</span>
+<span class="sd">    unapproved outside path or sensitive file gets the standard message.</span>
+<span class="sd">    """</span>
+    <span class="n">user_denied</span> <span class="o">=</span> <span class="p">[</span><span class="n">request</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span> <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">approval_key</span> <span class="ow">in</span> <span class="n">denied</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">user_denied</span><span class="p">:</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">({</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">user_denied</span><span class="p">}))</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Access to </span><span class="si">{</span><span class="n">paths</span><span class="si">}</span><span class="s2"> was denied by the user. Do not retry it; choose "</span>
+            <span class="s2">"another approach or ask the user."</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">paths</span> <span class="o">=</span> <span class="s2">", "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">({</span><span class="nb">str</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">path</span><span class="p">)</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">}))</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="s2">"Access is denied by the client-side permission gate (outside the "</span>
+            <span class="sa">f</span><span class="s2">"project directory or a sensitive file): </span><span class="si">{</span><span class="n">paths</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Permission denied</span><span class="se">\n</span><span class="si">{</span><span class="n">tool</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">paths</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">user_denied</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">CallToolResult</span><span class="p">(</span>
+        <span class="n">content</span><span class="o">=</span><span class="p">[</span><span class="n">TextContent</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="s2">"text"</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="n">text</span><span class="p">)],</span>
+        <span class="n">structured_content</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">meta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">is_error</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<div class="viewcode-block" id="dispatch_tool_calls">
+<a class="viewcode-back" href="../../../api/utils/mcp.html#klea_utils.mcp.dispatch.dispatch_tool_calls">[docs]</a>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">dispatch_tool_calls</span><span class="p">(</span>
+    <span class="n">mcp_client</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="n">tool_calls</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">ToolCallSchema</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]],</span>
+    <span class="n">tool_infos</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ToolInfo</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">project_root</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">access_level</span><span class="p">:</span> <span class="n">AccessLevel</span> <span class="o">=</span> <span class="n">DEFAULT_ACCESS_LEVEL</span><span class="p">,</span>
+    <span class="n">call_timeout</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">allowed_dirs</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">allowed_files</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">permission_resolver</span><span class="p">:</span> <span class="n">PermissionResolver</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">mcp_session_pool</span><span class="p">:</span> <span class="n">Any</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">client_context</span><span class="p">:</span> <span class="n">ClientContext</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">meta</span><span class="p">:</span> <span class="n">Mapping</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Gate and dispatch tool calls against an MCP server.</span>
+
+<span class="sd">    For each call a gate runs before it reaches the server, each producing a</span>
+<span class="sd">    synthetic non-halting error when rejected:</span>
+
+<span class="sd">    * an invalid tool name (empty, or -- when *tool_infos* is given -- not in</span>
+<span class="sd">      the disclosed catalogue) is rejected without contacting the server, so</span>
+<span class="sd">      a hallucinated name cannot be dispatched; and</span>
+<span class="sd">    * the permission gate</span>
+<span class="sd">      (:func:`klea_utils.mcp.path_detect.detect_path_requests`), which finds</span>
+<span class="sd">      the outside-project paths a call would touch (declared ``checkpaths``,</span>
+<span class="sd">      picker-declared paths, and heuristics); *permission_resolver* turns</span>
+<span class="sd">      those into allow/deny decisions (the app pauses for user approval) and</span>
+<span class="sd">      any request left unapproved blocks the call; and</span>
+<span class="sd">    * the tool access level (ADR-0037): a tool the level does not permit</span>
+<span class="sd">      (``read_only`` permits only explicitly read-only, non-destructive tools)</span>
+<span class="sd">      is rejected by :func:`check_tool_access`.</span>
+
+<span class="sd">    Allowed calls are dispatched in parallel, and the returned list stays</span>
+<span class="sd">    aligned with the input *tool_calls* order.</span>
+
+<span class="sd">    :param mcp_client: MCP client used for ``call_tool``.  Its reentrant</span>
+<span class="sd">        context is entered/exited by this helper.  Typed as ``Any`` because</span>
+<span class="sd">        :class:`fastmcp.Client.call_tool` has a complex signature (optional</span>
+<span class="sd">        ``arguments``, keyword-only ``raise_on_error``, ``CallToolResult |</span>
+<span class="sd">        ToolTask`` return) that a structural protocol would not cleanly</span>
+<span class="sd">        match; tests substitute a fake implementing the subset used here.</span>
+<span class="sd">    :param tool_calls: The calls to invoke, as :class:`ToolCallSchema` (so the</span>
+<span class="sd">        picker's declared ``paths`` travel) or legacy ``(name, args)`` pairs.</span>
+<span class="sd">    :param tool_infos: Mapping of tool name to its :class:`ToolInfo`, carrying</span>
+<span class="sd">        both the annotated ``read_only``/``destructive`` capability and (in</span>
+<span class="sd">        ``meta``) the ``checkpaths`` declarations.  ``None`` disables both</span>
+<span class="sd">        gates (backward compatible); for ``read_only`` a tool missing from the</span>
+<span class="sd">        map is denied (fail-closed).</span>
+<span class="sd">    :param project_root: Boundary directory for the path gate.  Defaults to</span>
+<span class="sd">        the current working directory.</span>
+<span class="sd">    :param access_level: Active tool access level (ADR-0037).</span>
+<span class="sd">    :param call_timeout: Per-call wall-clock timeout in seconds, as a backstop</span>
+<span class="sd">        against a hung tool.  ``None`` (the default) resolves from</span>
+<span class="sd">        :data:`TOOL_CALL_TIMEOUT_ENV_VAR` / :data:`DEFAULT_TOOL_CALL_TIMEOUT_SECONDS`;</span>
+<span class="sd">        ``0`` or less disables the backstop.  A timed-out call becomes a</span>
+<span class="sd">        synthetic non-halting error.</span>
+<span class="sd">    :param allowed_dirs: Directories already approved for the session</span>
+<span class="sd">        (``BaseGraphSchema.allowed_dirs``), checked alongside *project_root*.</span>
+<span class="sd">    :param allowed_files: Sensitive files already approved for the session</span>
+<span class="sd">        (``BaseGraphSchema.allowed_files``).</span>
+<span class="sd">    :param permission_resolver: Called with the detected requests before</span>
+<span class="sd">        dispatch; returns a :class:`PermissionResolution`.  The app supplies</span>
+<span class="sd">        one that pauses for user approval; when it is ``None`` the outside</span>
+<span class="sd">        paths are denied (the pre-ADR-0007 behaviour) and the sensitive second</span>
+<span class="sd">        round is not run.</span>
+<span class="sd">    :param session_id: Chat-thread identifier used to select a pooled MCP</span>
+<span class="sd">        client for this dispatch.  When given together with *mcp_session_pool*</span>
+<span class="sd">        the per-session client from</span>
+<span class="sd">        ``mcp_session_pool.get(session_id, client_context)`` is used instead</span>
+<span class="sd">        of *mcp_client*, so concurrent chats do not share one MCP session.</span>
+<span class="sd">        ``None`` (the default) keeps the shared *mcp_client*, which is what</span>
+<span class="sd">        tests and non-pooled callers use.</span>
+<span class="sd">    :param mcp_session_pool: Optional session pool exposing</span>
+<span class="sd">        ``get(session_id, client_context)``.  Ignored when *session_id* is</span>
+<span class="sd">        ``None``.</span>
+<span class="sd">    :param client_context: Optional client-supplied environment forwarded to</span>
+<span class="sd">        the per-session pooled client.  Ignored without a pool/session id;</span>
+<span class="sd">        the shared *mcp_client* always uses its own spawn configuration.</span>
+<span class="sd">    :param meta: Optional metadata forwarded to ``client.call_tool`` as its</span>
+<span class="sd">        ``meta`` argument.  Only whether a value was supplied is logged, never</span>
+<span class="sd">        the value itself.</span>
+<span class="sd">    :returns: One :class:`CallToolResult` per input call, in input order.</span>
+<span class="sd">    """</span>
+    <span class="n">calls</span> <span class="o">=</span> <span class="p">[</span><span class="n">_as_tool_call</span><span class="p">(</span><span class="n">call</span><span class="p">)</span> <span class="k">for</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">tool_calls</span><span class="p">]</span>
+    <span class="n">n</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span>
+    <span class="n">results</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="kc">None</span><span class="p">]</span> <span class="o">*</span> <span class="n">n</span>
+    <span class="n">timeout</span> <span class="o">=</span> <span class="n">call_timeout</span> <span class="k">if</span> <span class="n">call_timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">tool_call_timeout_seconds</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">timeout</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">timeout</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">base_allowed</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="p">(</span><span class="n">allowed_dirs</span> <span class="ow">or</span> <span class="p">[])]</span>
+    <span class="n">base_allowed_files</span> <span class="o">=</span> <span class="p">[</span><span class="nb">str</span><span class="p">(</span><span class="n">entry</span><span class="p">)</span> <span class="k">for</span> <span class="n">entry</span> <span class="ow">in</span> <span class="p">(</span><span class="n">allowed_files</span> <span class="ow">or</span> <span class="p">[])]</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">calls</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">[</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">call</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">calls</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">access_level</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"tool_gate_enabled = </span><span class="si">{</span><span class="n">tool_infos</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"meta_supplied = </span><span class="si">{</span><span class="n">meta</span><span class="w"> </span><span class="ow">is</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="kc">None</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">timeout</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base_allowed</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">base_allowed_files</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+    <span class="p">)</span>
+
+    <span class="c1"># 1. Static gates (name, access level): no server needed.  Calls that pass</span>
+    <span class="c1"># are candidates for the permission gate and dispatch.</span>
+    <span class="n">gated</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">call</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">calls</span><span class="p">):</span>
+        <span class="c1"># Reject empty/unknown names before any gate or server call.  A</span>
+        <span class="c1"># known-name check is only possible when the catalogue is given; with</span>
+        <span class="c1"># ``tool_infos=None`` only the empty-name case is caught.</span>
+        <span class="n">stripped</span> <span class="o">=</span> <span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">stripped</span> <span class="ow">or</span> <span class="p">(</span><span class="n">tool_infos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">stripped</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">tool_infos</span><span class="p">):</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Rejecting invalid tool name before dispatch</span><span class="se">\n</span><span class="si">{</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">_unknown_tool_error</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">tool_infos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">info</span> <span class="o">=</span> <span class="n">tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span>
+            <span class="n">denial</span> <span class="o">=</span> <span class="n">check_tool_access</span><span class="p">(</span>
+                <span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span>
+                <span class="n">info</span><span class="o">.</span><span class="n">read_only</span> <span class="k">if</span> <span class="n">info</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">info</span><span class="o">.</span><span class="n">destructive</span> <span class="k">if</span> <span class="n">info</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                <span class="n">access_level</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">denial</span><span class="p">:</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Denied tool call before dispatch</span><span class="se">\n</span><span class="si">{</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+                <span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">_denied_result</span><span class="p">([</span><span class="n">denial</span><span class="p">])</span>
+                <span class="k">continue</span>
+        <span class="n">gated</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+
+    <span class="c1"># 1b. Resolve relative path arguments to absolute against the project root</span>
+    <span class="c1"># so the (subprocess) tools operate under the session root regardless of</span>
+    <span class="c1"># their own fixed working directory.  This runs before the permission gate</span>
+    <span class="c1"># so the gate checks the final arguments.</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">gated</span><span class="p">:</span>
+        <span class="n">call</span> <span class="o">=</span> <span class="n">calls</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="n">tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">if</span> <span class="n">tool_infos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">resolved_args</span> <span class="o">=</span> <span class="n">resolve_path_arguments</span><span class="p">(</span>
+            <span class="n">call</span><span class="o">.</span><span class="n">args</span><span class="p">,</span> <span class="n">info</span><span class="p">,</span> <span class="n">project_root</span><span class="o">=</span><span class="n">project_root</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">resolved_args</span> <span class="o">!=</span> <span class="n">call</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="n">call</span><span class="o">.</span><span class="n">args</span> <span class="o">=</span> <span class="n">resolved_args</span>
+
+    <span class="c1"># 2. Permission gate: detect the paths each call would touch -- outside the</span>
+    <span class="c1"># roots, and (when a resolver is given) sensitive files inside them --</span>
+    <span class="c1"># resolve them (an interrupt for user approval), then enforce per call.</span>
+    <span class="c1"># Detection is layered (declared checkpaths + picker-declared paths +</span>
+    <span class="c1"># heuristics); see ``klea_utils.mcp.path_detect``.</span>
+    <span class="n">call_requests</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="n">PathRequest</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="k">if</span> <span class="n">tool_infos</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">gated</span><span class="p">:</span>
+            <span class="n">call</span> <span class="o">=</span> <span class="n">calls</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="n">call_requests</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">detect_path_requests</span><span class="p">(</span>
+                <span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span>
+                <span class="n">call</span><span class="o">.</span><span class="n">args</span><span class="p">,</span>
+                <span class="n">tool_infos</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">),</span>
+                <span class="n">project_root</span><span class="o">=</span><span class="n">project_root</span><span class="p">,</span>
+                <span class="n">allowed_dirs</span><span class="o">=</span><span class="n">base_allowed</span><span class="p">,</span>
+                <span class="n">allowed_files</span><span class="o">=</span><span class="n">base_allowed_files</span><span class="p">,</span>
+                <span class="n">picker_paths</span><span class="o">=</span><span class="n">call</span><span class="o">.</span><span class="n">paths</span><span class="p">,</span>
+                <span class="n">include_sensitive</span><span class="o">=</span><span class="n">permission_resolver</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span>
+            <span class="p">)</span>
+    <span class="n">all_requests</span> <span class="o">=</span> <span class="n">_dedupe_requests</span><span class="p">(</span>
+        <span class="p">[</span><span class="n">request</span> <span class="k">for</span> <span class="n">requests</span> <span class="ow">in</span> <span class="n">call_requests</span><span class="o">.</span><span class="n">values</span><span class="p">()</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">]</span>
+    <span class="p">)</span>
+    <span class="n">resolution</span><span class="p">:</span> <span class="n">PermissionResolution</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">all_requests</span> <span class="ow">and</span> <span class="n">permission_resolver</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">resolution</span> <span class="o">=</span> <span class="n">permission_resolver</span><span class="p">(</span><span class="n">all_requests</span><span class="p">)</span>
+    <span class="n">approved_dirs</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">base_allowed</span><span class="p">)</span>
+    <span class="n">approved_files</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">base_allowed_files</span><span class="p">)</span>
+    <span class="n">denied</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="n">dismissed</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">resolution</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">kind_by_key</span> <span class="o">=</span> <span class="p">{</span><span class="n">request</span><span class="o">.</span><span class="n">approval_key</span><span class="p">:</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">all_requests</span><span class="p">}</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">resolution</span><span class="o">.</span><span class="n">effective_keys</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">kind_by_key</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span> <span class="o">==</span> <span class="s2">"sensitive"</span><span class="p">:</span>
+                <span class="n">approved_files</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">approved_dirs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+        <span class="n">denied</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">denied</span><span class="p">)</span>
+        <span class="c1"># A "not a path" decision dismisses the request for this dispatch: the</span>
+        <span class="c1"># call proceeds (the request was a heuristic false positive; no memory</span>
+        <span class="c1"># is kept, so a genuine path is never silently ungated).</span>
+        <span class="n">dismissed</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">resolution</span><span class="o">.</span><span class="n">not_a_path</span><span class="p">)</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"Permission gate</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">all_requests</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">resolution</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">approved_dirs</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">approved_files</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">denied</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">dismissed</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+    <span class="p">)</span>
+
+    <span class="n">pending</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">ToolCallSchema</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">gated</span><span class="p">:</span>
+        <span class="n">leftover</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">request</span>
+            <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">call_requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">_request_allowed</span><span class="p">(</span><span class="n">request</span><span class="p">,</span> <span class="n">approved_dirs</span><span class="p">,</span> <span class="n">approved_files</span><span class="p">)</span>
+            <span class="ow">and</span> <span class="n">request</span><span class="o">.</span><span class="n">approval_key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">dismissed</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="n">leftover</span><span class="p">:</span>
+            <span class="n">results</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">_permission_denied_result</span><span class="p">(</span><span class="n">calls</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span> <span class="n">leftover</span><span class="p">,</span> <span class="n">denied</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">pending</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">i</span><span class="p">,</span> <span class="n">calls</span><span class="p">[</span><span class="n">i</span><span class="p">]))</span>
+
+    <span class="c1"># 3. Dispatch the permitted calls (needs the MCP client).</span>
+    <span class="k">if</span> <span class="n">pending</span><span class="p">:</span>
+        <span class="c1"># Prefer the per-session pooled client so concurrent chats do not share</span>
+        <span class="c1"># one MCP session; fall back to the shared client when no session or no</span>
+        <span class="c1"># pool is given (tests and non-pooled callers).</span>
+        <span class="n">client</span> <span class="o">=</span> <span class="n">mcp_client</span>
+        <span class="k">if</span> <span class="n">session_id</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">mcp_session_pool</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">client</span> <span class="o">=</span> <span class="k">await</span> <span class="n">mcp_session_pool</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">session_id</span><span class="p">,</span> <span class="n">client_context</span><span class="p">)</span>
+        <span class="k">async</span> <span class="k">with</span> <span class="n">client</span><span class="p">:</span>
+            <span class="c1"># Dispatch concurrently, but run calls that target the same</span>
+            <span class="c1"># resource sequentially in call order (ADR-0041): two writes to one</span>
+            <span class="c1"># file must not race, so a missed dependency edge costs parallelism,</span>
+            <span class="c1"># never a lost update.  Calls with no identifiable resource run</span>
+            <span class="c1"># concurrently, as before.  Wrappers are created in input order so</span>
+            <span class="c1"># the dispatch order stays stable.</span>
+            <span class="n">groups</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">ordered</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">call</span> <span class="ow">in</span> <span class="n">pending</span><span class="p">:</span>
+                <span class="n">extra_kwargs</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="k">if</span> <span class="n">meta</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">extra_kwargs</span><span class="p">[</span><span class="s2">"meta"</span><span class="p">]</span> <span class="o">=</span> <span class="n">meta</span>
+                <span class="n">coro</span> <span class="o">=</span> <span class="n">client</span><span class="o">.</span><span class="n">call_tool</span><span class="p">(</span>
+                    <span class="n">name</span><span class="o">=</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="p">,</span>
+                    <span class="n">arguments</span><span class="o">=</span><span class="n">call</span><span class="o">.</span><span class="n">args</span><span class="p">,</span>
+                    <span class="n">raise_on_error</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span>
+                    <span class="o">**</span><span class="n">extra_kwargs</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">key</span> <span class="o">=</span> <span class="n">resource_key</span><span class="p">(</span><span class="n">call</span><span class="p">,</span> <span class="n">tool_infos</span><span class="p">)</span>
+                <span class="n">ordered</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">idx</span><span class="p">,</span> <span class="n">coro</span><span class="p">,</span> <span class="n">key</span><span class="p">))</span>
+                <span class="k">if</span> <span class="n">key</span><span class="p">:</span>
+                    <span class="n">groups</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">idx</span><span class="p">,</span> <span class="n">coro</span><span class="p">))</span>
+
+            <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_await_one</span><span class="p">(</span><span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">coro</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="k">return</span> <span class="n">idx</span><span class="p">,</span> <span class="k">await</span> <span class="n">coro</span>
+                <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>  <span class="c1"># noqa: BLE001 - surfaced as a result</span>
+                    <span class="k">return</span> <span class="n">idx</span><span class="p">,</span> <span class="n">exc</span>
+
+            <span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">_run_sequential</span><span class="p">(</span>
+                <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Any</span><span class="p">]],</span>
+            <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+                <span class="k">return</span> <span class="p">[</span><span class="k">await</span> <span class="n">_await_one</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">coro</span><span class="p">)</span> <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">coro</span> <span class="ow">in</span> <span class="n">items</span><span class="p">]</span>
+
+            <span class="n">wrappers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">added_groups</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">frozenset</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">coro</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span><span class="p">:</span>
+                    <span class="n">wrappers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_await_one</span><span class="p">(</span><span class="n">idx</span><span class="p">,</span> <span class="n">coro</span><span class="p">))</span>
+                <span class="k">elif</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">added_groups</span><span class="p">:</span>
+                    <span class="n">added_groups</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
+                    <span class="n">wrappers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_run_sequential</span><span class="p">(</span><span class="n">groups</span><span class="p">[</span><span class="n">key</span><span class="p">]))</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Resource grouping</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="w"> </span><span class="p">{</span><span class="nb">tuple</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="n">k</span><span class="p">)):</span><span class="w"> </span><span class="p">[</span><span class="n">i</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">i</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">v</span><span class="p">]</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">k</span><span class="p">,</span><span class="w"> </span><span class="n">v</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">groups</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="p">[</span><span class="n">idx</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">idx</span><span class="p">,</span><span class="w"> </span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">key</span><span class="w"> </span><span class="ow">in</span><span class="w"> </span><span class="n">ordered</span><span class="w"> </span><span class="k">if</span><span class="w"> </span><span class="ow">not</span><span class="w"> </span><span class="n">key</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">wrappers</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="n">gathered</span> <span class="o">=</span> <span class="k">await</span> <span class="n">asyncio</span><span class="o">.</span><span class="n">gather</span><span class="p">(</span><span class="o">*</span><span class="n">wrappers</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">gathered</span><span class="p">:</span>
+                <span class="n">pairs</span> <span class="o">=</span> <span class="n">item</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="p">[</span><span class="n">item</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">res</span> <span class="ow">in</span> <span class="n">pairs</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="ne">BaseException</span><span class="p">):</span>
+                        <span class="n">call</span> <span class="o">=</span> <span class="n">calls</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+                        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                            <span class="sa">f</span><span class="s2">"Tool call failed</span><span class="se">\n</span><span class="si">{</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">idx</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="s2">"</span>
+                            <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">call</span><span class="o">.</span><span class="n">args</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">res</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+                        <span class="p">)</span>
+                        <span class="k">if</span> <span class="n">_is_timeout_error</span><span class="p">(</span><span class="n">res</span><span class="p">)</span> <span class="ow">and</span> <span class="n">timeout</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                            <span class="n">text</span> <span class="o">=</span> <span class="p">(</span>
+                                <span class="sa">f</span><span class="s2">"Tool '</span><span class="si">{</span><span class="n">call</span><span class="o">.</span><span class="n">tool</span><span class="si">}</span><span class="s2">' timed out after </span><span class="si">{</span><span class="n">timeout</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2"> s "</span>
+                                <span class="s2">"and was cancelled; the server-side operation may "</span>
+                                <span class="s2">"still be running."</span>
+                            <span class="p">)</span>
+                        <span class="k">else</span><span class="p">:</span>
+                            <span class="n">text</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">res</span><span class="o">.</span><span class="vm">__class__</span><span class="o">.</span><span class="vm">__name__</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">res</span><span class="si">}</span><span class="s2">"</span>
+                        <span class="n">results</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">CallToolResult</span><span class="p">(</span>
+                            <span class="n">content</span><span class="o">=</span><span class="p">[</span><span class="n">TextContent</span><span class="p">(</span><span class="nb">type</span><span class="o">=</span><span class="s2">"text"</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="n">text</span><span class="p">)],</span>
+                            <span class="n">structured_content</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">meta</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                            <span class="n">is_error</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="p">)</span>
+                    <span class="k">else</span><span class="p">:</span>
+                        <span class="n">results</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="n">res</span>  <span class="c1"># type: ignore[assignment]</span>
+
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">r</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="n">results</span><span class="p">):</span>
+        <span class="n">missing</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">results</span><span class="p">)</span> <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">]</span>
+        <span class="n">offending</span> <span class="o">=</span> <span class="p">[(</span><span class="n">i</span><span class="p">,</span> <span class="n">calls</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">tool</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">missing</span><span class="p">]</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"dispatch left unfilled slots</span><span class="se">\n</span><span class="si">{</span><span class="n">offending</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"dispatch internal error: unfilled results at </span><span class="si">{</span><span class="n">missing</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="n">failed</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">results</span><span class="p">)</span> <span class="k">if</span> <span class="n">r</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">r</span><span class="o">.</span><span class="n">is_error</span><span class="p">]</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Dispatch complete</span><span class="se">\n</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">results</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">failed</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="nb">list</span><span class="p">[</span><span class="n">CallToolResult</span><span class="p">],</span> <span class="n">results</span><span class="p">)</span></div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, NeuroML contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>
