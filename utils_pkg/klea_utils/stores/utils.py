@@ -11,10 +11,11 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 import logging
+import os
 import re
 import unicodedata
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from langchain_core.documents import Document
@@ -858,22 +859,108 @@ _CONFIG_CACHE: dict[Path, tuple[float, int, RetrieverConfig]] = {}
 #: payload format can evolve without colliding with an older reader.
 STORES_CONFIG_META_KEY = "klea/stores-config-path/v1"
 
+#: Environment variable naming the deployment-default stores configuration
+#: file.  Read once from the server process environment and used as the
+#: fallback when a request carries no :data:`STORES_CONFIG_META_KEY` value.
+STORES_CONFIG_ENV_VAR = "KLEA_STORES_CONFIG_FILE"
+
+#: Sentinel marking that the deployment default has not been read yet.
+_UNSET = object()
+
+#: Memoised deployment-default stores path.  ``_UNSET`` until
+#: :func:`_host_stores_config_path` first runs; afterwards a resolved
+#: :class:`~pathlib.Path` or ``None``.  A plain module global (rather than
+#: ``functools.lru_cache``) so tests can reset it via
+#: :func:`_reset_host_stores_config_path`.
+_HOST_STORES_CONFIG_PATH: Path | None | object = _UNSET
+
+
+def _host_stores_config_path() -> Path | None:
+    """Return the deployment-default stores configuration path.
+
+    Reads :data:`STORES_CONFIG_ENV_VAR` from the server process environment
+    on the first call and memoises the result, so the value is stable for
+    the lifetime of the process.  ``None`` is returned when the variable is
+    unset or empty (the fail-closed case in
+    :func:`resolve_stores_config_path`).  The path is not validated here;
+    :func:`resolve_stores_config_path` validates it the same way as a
+    request-supplied path.
+
+    :returns: The configured path, or ``None`` when unset
+    """
+    global _HOST_STORES_CONFIG_PATH
+    if _HOST_STORES_CONFIG_PATH is _UNSET:
+        raw = os.environ.get(STORES_CONFIG_ENV_VAR, "").strip()
+        _HOST_STORES_CONFIG_PATH = Path(raw).expanduser() if raw else None
+    return cast("Path | None", _HOST_STORES_CONFIG_PATH)
+
+
+def _reset_host_stores_config_path() -> None:
+    """Clear the memoised deployment-default stores path.
+
+    Test helper: resets the module-level sentinel so the next call to
+    :func:`_host_stores_config_path` re-reads
+    :data:`STORES_CONFIG_ENV_VAR`.
+    """
+    global _HOST_STORES_CONFIG_PATH
+    _HOST_STORES_CONFIG_PATH = _UNSET
+
+
+def _validate_stores_config_path(value: str | Path, source: str) -> Path:
+    """Validate *value* as a stores-configuration path and resolve it.
+
+    *source* names where the value came from (the request-metadata key
+    :data:`STORES_CONFIG_META_KEY` or the deployment env var
+    :data:`STORES_CONFIG_ENV_VAR`), so error messages point at the right
+    origin.
+
+    :param value: Candidate path value
+    :param source: Human-readable name of the value's origin
+    :returns: The resolved absolute path
+    :raises ValueError: When *value* is empty, missing, not a regular file,
+        or not a valid stores configuration
+    """
+    text = str(value).strip()
+    if not text:
+        raise ValueError(
+            f"Invalid stores configuration path: {source} must name a file, "
+            "not an empty value"
+        )
+    path = Path(text).expanduser()
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(
+            f"Invalid stores configuration path: {source} names {str(path)!r}, "
+            f"which does not exist or cannot be resolved ({exc})"
+        ) from exc
+    if not resolved.is_file():
+        raise ValueError(
+            f"Invalid stores configuration path: {source} names {str(resolved)!r}, "
+            "which is not a regular file"
+        )
+    try:
+        load_retriever_config(resolved)
+    except (OSError, ValueError) as exc:
+        raise ValueError(
+            f"Invalid stores configuration path: {source} names {str(resolved)!r}, "
+            f"which is not a valid stores configuration ({exc})"
+        ) from exc
+    return resolved
+
 
 def resolve_stores_config_path(configured: str | Path | None = None) -> Path | None:
     """Resolve the path of the stores configuration JSON file.
 
     Precedence:
 
-    1. *configured* --- the path supplied for this request (the
-       :data:`STORES_CONFIG_META_KEY` request-metadata value, or the path
-       named in the app config).  It is validated here rather than trusted:
-       it must resolve to an absolute path to an existing regular file that
-       parses as a stores configuration.  An unusable value raises
-       :class:`ValueError` naming the key and the offending path; it never
-       falls back silently to another configuration, so a bad request is
-       reported instead of being served from the wrong stores.
-    2. Fail closed: when nothing is configured, ``None`` is returned and a
-       warning is logged rather than guessing a path.
+    2. The deployment default named by the :data:`STORES_CONFIG_ENV_VAR`
+       environment variable (read once by :func:`_host_stores_config_path`
+       and validated the same way as *configured*).  This is a process-wide
+       default, so it is consulted only when the request carries no path.
+    3. Fail closed: when neither source is configured, ``None`` is returned
+       and a warning naming both the request-metadata key and the env var is
+       logged rather than guessing a path.
 
     :param configured: Stores-configuration path supplied for this request,
         if any
@@ -882,39 +969,24 @@ def resolve_stores_config_path(configured: str | Path | None = None) -> Path | N
         regular file, or not a valid stores configuration
     """
     if configured is not None:
-        value = str(configured).strip()
-        if not value:
-            raise ValueError(
-                "Invalid stores configuration path: "
-                f"{STORES_CONFIG_META_KEY} must name a file, not an empty value"
-            )
-        path = Path(value).expanduser()
-        try:
-            resolved = path.resolve(strict=True)
-        except (OSError, RuntimeError) as exc:
-            raise ValueError(
-                "Invalid stores configuration path: "
-                f"{STORES_CONFIG_META_KEY} names {str(path)!r}, which does not "
-                f"exist or cannot be resolved ({exc})"
-            ) from exc
-        if not resolved.is_file():
-            raise ValueError(
-                "Invalid stores configuration path: "
-                f"{STORES_CONFIG_META_KEY} names {str(resolved)!r}, which is "
-                "not a regular file"
-            )
-        try:
-            load_retriever_config(resolved)
-        except (OSError, ValueError) as exc:
-            raise ValueError(
-                "Invalid stores configuration path: "
-                f"{STORES_CONFIG_META_KEY} names {str(resolved)!r}, which is "
-                f"not a valid stores configuration ({exc})"
-            ) from exc
+        resolved = _validate_stores_config_path(configured, STORES_CONFIG_META_KEY)
         logger.debug(f"Stores configuration from request metadata: {resolved}")
         return resolved
 
-    logger.warning("No stores configuration file configured: the app config names none")
+    host_default = _host_stores_config_path()
+    if host_default is not None:
+        resolved = _validate_stores_config_path(host_default, STORES_CONFIG_ENV_VAR)
+        logger.debug(
+            "Stores configuration from deployment default "
+            f"({STORES_CONFIG_ENV_VAR}): {resolved}"
+        )
+        return resolved
+
+    logger.warning(
+        "No stores configuration file configured: neither the request "
+        f"metadata key {STORES_CONFIG_META_KEY!r} nor the deployment default "
+        f"environment variable {STORES_CONFIG_ENV_VAR!r} names one"
+    )
     return None
 
 

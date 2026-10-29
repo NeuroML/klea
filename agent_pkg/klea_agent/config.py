@@ -61,6 +61,12 @@ class GeneralConfig(BaseModel):
     #: The shared bundled tools server is on by default for the agent
     #: (batteries-included research agent); deployers can disable or filter it.
     bundled_tools: BundledToolsConfig = Field(default_factory=BundledToolsConfig)
+    #: Name of the stores/retriever JSON file used as this deployment's default
+    #: by the store tools.  Per-session request metadata overrides it.
+    stores_config: str | None = Field(
+        default=None,
+        description="Stores/retriever JSON file used as the deployment default",
+    )
     #: Session-command settings (ADR-0047).
     commands: CommandsConfig = Field(default_factory=CommandsConfig)
     #: Conversation-memory settings (summarisation).
