@@ -239,6 +239,7 @@ async def dispatch_tool_calls(
     session_id: str | None = None,
     mcp_session_pool: Any | None = None,
     client_context: ClientContext | None = None,
+    meta: Mapping[str, Any] | None = None,
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
@@ -304,6 +305,9 @@ async def dispatch_tool_calls(
     :param client_context: Optional client-supplied environment forwarded to
         the per-session pooled client.  Ignored without a pool/session id;
         the shared *mcp_client* always uses its own spawn configuration.
+    :param meta: Optional metadata forwarded to ``client.call_tool`` as its
+        ``meta`` argument.  Only whether a value was supplied is logged, never
+        the value itself.
     :returns: One :class:`CallToolResult` per input call, in input order.
     """
     calls = [_as_tool_call(call) for call in tool_calls]
@@ -319,6 +323,7 @@ async def dispatch_tool_calls(
         f"{[call.tool for call in calls] = }\n"
         f"{access_level = }\n"
         f"tool_gate_enabled = {tool_infos is not None}\n"
+        f"meta_supplied = {meta is not None}\n"
         f"{timeout = }\n"
         f"{base_allowed = }\n"
         f"{base_allowed_files = }"
@@ -443,11 +448,15 @@ async def dispatch_tool_calls(
             groups: dict[frozenset[str], list[tuple[int, Any]]] = {}
             ordered: list[tuple[int, Any, frozenset[str]]] = []
             for idx, call in pending:
+                extra_kwargs: dict[str, Any] = {}
+                if meta is not None:
+                    extra_kwargs["meta"] = meta
                 coro = client.call_tool(
                     name=call.tool,
                     arguments=call.args,
                     raise_on_error=False,
                     timeout=timeout,
+                    **extra_kwargs,
                 )
                 key = resource_key(call, tool_infos)
                 ordered.append((idx, coro, key))
