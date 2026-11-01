@@ -26,6 +26,9 @@
 * Remove filler, greetings and irrelevant small talk.
 * Make it a coherent, self-contained record of what the user said, what the
   assistant replied, and what the agent decided next.
+* State the final answer of every completed plan explicitly, do not compress it
+  away: an assistant message prefixed `Final answer for plan query (...)` carries
+  that plan's answer.
 * Do not add commentary, and do not mention requests to summarise the
   conversation.
 * Keep it to 5-10 sentences unless the conversation is very complex.

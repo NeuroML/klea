@@ -27,7 +27,8 @@ async def test_answer_user_reports_assurance(monkeypatch):
     result = await node.execute(state)
 
     assert result["message_for_user"] == "done"
-    assert result["messages"][-1].content == "done"
+    assert result["messages"][-1].content.startswith("Final answer for plan query")
+    assert "done" in result["messages"][-1].content
     info = next(e for e in emitted if e["type"] == "inspect")
     assert info["data"]["details"]["assurance"] == "unverified"
 
@@ -42,4 +43,22 @@ async def test_answer_user_falls_back_on_blank_message(monkeypatch):
     result = await node.execute(state)
 
     assert result["message_for_user"] == EMPTY_RESULT_FALLBACK
-    assert result["messages"][-1].content == EMPTY_RESULT_FALLBACK
+    assert result["messages"][-1].content.startswith("Final answer for plan query")
+    assert EMPTY_RESULT_FALLBACK in result["messages"][-1].content
+
+
+@pytest.mark.asyncio
+async def test_answer_user_truncates_long_query_in_marker(monkeypatch):
+    """A long plan query is truncated in the history marker."""
+    node = AnswerUser(logging.getLogger("test"), "Preparing response")
+    monkeypatch.setattr(node, "write_custom_stream", lambda event: None)
+
+    long_query = "q" * 300
+    state = KleaAgentState(message_for_user="done", query=long_query)
+    result = await node.execute(state)
+
+    content = result["messages"][-1].content
+    assert result["message_for_user"] == "done"
+    assert content.startswith("Final answer for plan query (")
+    assert "q" * 200 + "..." in content
+    assert len(content) < len(long_query) + 100

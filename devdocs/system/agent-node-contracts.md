@@ -537,6 +537,11 @@ goal/plan.
 |---|---|---|---|---|---|
 | `message_for_user` | `str` | `R` | Written or preserved as the final delivery payload. | The user never receives a blank final reply. | `answer_user.py`; `test_general_path_graph.py` |
 
+The assistant message appended to `messages` is prefixed with `Final answer for plan
+query (<query>): ...` so the plan's final answer survives memory compaction; the
+summariser is instructed to preserve it explicitly. `message_for_user`, and hence the
+streamed and persisted user-visible reply, remains the bare answer.
+
 #### Decision and failure behavior
 
 | Condition | Decision or failure result | State effect | Evidence |
@@ -631,7 +636,7 @@ goal/plan.
 
 | Field | Kind | Requiredness | Effect and write timing | Validation, fallback, and lifetime | Evidence |
 |---|---|---|---|---|---|
-| `messages` | Conversation sequence | `O` | Supplies user-visible history eligible for summarization. | Existing messages are not erased by an unusable summary. | `summarise_memory.py`; `test_nodes_memory.py` |
+| `messages` | Conversation sequence | `O` | Supplies the conversation history eligible for summarization. | Existing messages are not erased by an unusable summary. | `summarise_memory.py`; `test_nodes_memory.py` |
 | `internal_messages` | Internal conversation sequence | `O` | Supplies internal history eligible for the internal cursor. | Internal and user cursors advance independently. | `summarise_memory.py`; `test_nodes_memory.py` |
 | `context_summary` | `str` | `C` | Supplies the prior retained summary. | Preserved when the new summary is blank. | `summarise_memory.py`; `test_nodes_memory.py` |
 | `summarised_till` | `int` | `C` | Supplies the prior user-message cursor. | Advanced only after a usable summary. | `summarise_memory.py` |
