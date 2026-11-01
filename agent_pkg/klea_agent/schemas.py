@@ -1129,6 +1129,32 @@ class KleaAgentState(BaseGraphSchema):
             parts.append(f"Step {step_key}:\n{rendered}")
         return "\n\n".join(parts) if parts else "(no observations)"
 
+    def planner_evidence(self) -> str:
+        """Applies the relevance rule documented in
+        ``devdocs/system/agent-planner-evidence-rendering.md``.
+
+        Failed steps, the transitive ``depends_on`` closure of every pending step,
+        Evaluator-flagged steps, the last completed step and the latest abandoned
+        revision render in full with ``StepOutput.render()``; every other recorded
+        step is reduced to ``StepOutput.summary()`` plus a step reference.  The
+        selection lives in ``render_plan_evidence`` (deferred import inside the
+        method); this method only supplies the graph state it reads.
+
+        :returns: The ready-to-use ``observations`` prompt block.
+        """
+        from klea_agent.evidence import render_plan_evidence
+
+        return render_plan_evidence(
+            self.plan,
+            self.step_outputs,
+            flagged={
+                item.step_number
+                for item in self.evaluation.evaluations
+                if item.verdict == "step_incomplete"
+            },
+            abandoned=self.plan_history[-1] if self.plan_history else None,
+        ).text
+
     def work_since_review(self) -> list[tuple[StepSchema, list[StepOutput]]]:
         """Return completed steps and their outputs since the last review.
 
