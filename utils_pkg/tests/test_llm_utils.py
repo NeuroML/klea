@@ -172,6 +172,13 @@ def test_split_output_by_section(
         # provider:model:tag -> provider + model:tag
         ("ollama:bge-m3:latest", "ollama", "bge-m3:latest", None),
         ("ollama:qwen3:0.6b", "ollama", "qwen3:0.6b", None),
+        (
+            "openrouter:recursive/flint-v1.0:free",
+            "openrouter",
+            "recursive/flint-v1.0:free",
+            None,
+        ),
+        ("openrouter:qwen/qwen3-coder", "openrouter", "qwen/qwen3-coder", None),
         # huggingface:org/model:suffix -> provider, model, suffix
         (
             "huggingface:intfloat/multilingual-e5-large:auto",
@@ -204,6 +211,10 @@ def test_parse_model_name(raw, expected_provider, expected_model, expected_suffi
         (("openai", "gpt-4o", None), "openai:gpt-4o"),
         (("openai", "gpt-4o", "https://host/v1"), "openai:gpt-4o:https://host/v1"),
         (("ollama", "qwen3:0.6b", None), "ollama:qwen3:0.6b"),
+        (
+            ("openrouter", "recursive/flint-v1.0:free", None),
+            "openrouter:recursive/flint-v1.0:free",
+        ),
         (("huggingface", "org/model", "novita"), "huggingface:org/model:novita"),
         # no provider: the model field holds the whole string
         ((None, "openai:gpt-4o", None), "openai:gpt-4o"),
@@ -225,6 +236,7 @@ def test_join_model_string(fields, expected):
         "openai:gpt-4o:https://host/v1",
         "custom:model:http://localhost:8000/v1",
         "ollama:qwen3:0.6b",
+        "openrouter:recursive/flint-v1.0:free",
         "huggingface:org/model:novita",
         "bge-m3",
     ],

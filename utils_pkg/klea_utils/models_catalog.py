@@ -302,9 +302,10 @@ def list_catalog_models(provider: str) -> list[str]:
     """Return the catalog model ids for one provider, sorted.
 
     The ids are what goes after ``provider:`` in a model string (e.g.
-    ``gpt-4o`` for ``openai``).  Ids containing ``:`` are skipped, because
-    ``parse_model_name`` would read the part after it as a suffix and the
-    model string would not resolve to the listed model.
+    ``gpt-4o`` for ``openai``).  Ids with a ``:`` are normally skipped,
+    because ``parse_model_name`` would treat the part after ``:`` as a
+    suffix.  OpenRouter and Ollama are the exception: their model ids
+    can include a tag, so those catalog entries are kept.
 
     Returns an empty list for :data:`NON_CATALOG_PROVIDERS` (their models
     are free text), unknown providers, or when the catalog could not be
@@ -313,6 +314,9 @@ def list_catalog_models(provider: str) -> list[str]:
     :param provider: Klea provider id (e.g. ``"openai"``).
     :returns: Sorted list of model ids.
     """
+    # Lazy import: llm.py already imports this module at load time.
+    from klea_utils.llm import PROVIDERS_WITH_MODEL_TAG
+
     if provider.lower() in NON_CATALOG_PROVIDERS:
         return []
     catalog_key = _catalog_provider_key(provider)
@@ -331,10 +335,13 @@ def list_catalog_models(provider: str) -> list[str]:
     provider_models = provider_entry.get("models")
     if not isinstance(provider_models, dict):
         return []
+    allow_colon = provider.lower() in PROVIDERS_WITH_MODEL_TAG
     models = sorted(
         model_id
         for model_id in provider_models
-        if isinstance(model_id, str) and model_id and ":" not in model_id
+        if isinstance(model_id, str)
+        and model_id
+        and (allow_colon or ":" not in model_id)
     )
     logger.debug("list_catalog_models(%s): %d model(s)", provider, len(models))
     return models
