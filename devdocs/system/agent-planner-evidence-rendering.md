@@ -5,8 +5,17 @@ Status: system note. Refines the evidence-rendering part of ADR-0035 and ADR-005
 ## Decision
 
 The Planner's prompt receives prior work through `observations`, rendered by
-`KleaAgentState.observations_text()` and gated to `route == "continue"` for the
+`KleaAgentState.planner_evidence()` and gated to `route == "continue"` for the
 bounded `previous_work` block (`agent_pkg/klea_agent/nodes/planner.py:177-193`).
+
+`planner_evidence()` is a delegate, not a move: it derives the evaluator-flagged
+set from the state's `step_incomplete` verdicts and the latest abandoned plan
+revision from `plan_history`, then passes the plan, the recorded `step_outputs`
+and those two inputs to `render_plan_evidence`, which applies the selection rule
+of this note. The method's docstring defers to this note for that rule. The
+previous `KleaAgentState.observations_text()` is retained unchanged for the
+Evaluator, ReasoningNode, AnswerFromResults and the tools picker, which need the
+flat, step-ordered rendering it provides.
 
 No `references` field is added to `StepSchema` or to any other schema. The
 consumption edge is `depends_on`, read transitively: a step that reuses an
@@ -96,7 +105,7 @@ is why it is withdrawn rather than layered on.
 
 - `agent_pkg/klea_agent/nodes/planner.py:177-193` - `_get_prompt_variables`:
   `previous_work` gated on `route == "continue"`; `observations` via
-  `state.observations_text()`.
+  `state.planner_evidence()`, which delegates to `render_plan_evidence`.
 - `agent_pkg/klea_agent/schemas.py:30-131` - `StepSchema.kind`, `depends_on`,
   `status_label` and `render`.
 - `agent_pkg/klea_agent/schemas.py:296-342` - `validate_plan`.

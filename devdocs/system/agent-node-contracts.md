@@ -330,6 +330,21 @@ goal/plan.
 | `failure_reason` | `str` | `O` | May provide prior failure context during replanning. | It is evidence for planning, not a substitute for a user answer. | `planner.py`; `operational_evaluator.py` |
 | `replan_reason` | `str` | `O` | Explains why planning was re-entered. | The reason is consumed by the planner path. | `operational_evaluator.py`; `triage_router.py` |
 
+#### Observations prompt variable
+
+The Planner's `observations` prompt variable is `KleaAgentState.planner_evidence()`.
+That method is a delegate over `render_plan_evidence`: it passes the plan, the
+recorded `step_outputs`, the steps the Evaluator flagged with a `step_incomplete`
+verdict, and the latest abandoned `plan_history` revision, and
+`render_plan_evidence` applies the relevance selection rule (failed steps, the
+`depends_on` closure of every pending step, Evaluator-flagged steps, the last
+completed step, and the latest abandoned revision). Selected entries render in
+full with `StepOutput.render()`; every other recorded step degrades to
+`StepOutput.summary()` plus a step reference. A `review` step is never a payload
+source: it names no tools, is not judged by the Evaluator, and produces no
+`StepOutput`, so it resolves to an empty render. The full rule is documented in
+[`agent-planner-evidence-rendering.md`](agent-planner-evidence-rendering.md).
+
 #### Outputs
 
 | Field | Kind | Requiredness | Write timing and effect | Validation, fallback, and lifetime | Evidence |
