@@ -194,6 +194,16 @@ Last updated: 2026-10-29.
   local `torch` is available; the maintainer's env has a broken CUDA build
   (`undefined symbol: ncclCommResume`).
 
+- Per-session stores config is TUI-only: only the loopback TUI sends a
+  per-chat `stores_config` (through `client_context` and tool-call `_meta`).
+  The web UI and any remote/non-loopback client still fall back to
+  `KLEA_STORES_CONFIG_FILE`, so adopting the same per-chat stores config in
+  those frontends remains deferred.
+- The FastMCP lifespan stores key is reserved but unimplemented: the
+  resolution order keeps its top slot (higher precedence than request
+  `_meta`) for server-side wiring, but nothing registers or reads it yet
+  (`STORES_CONFIG_SERVICE` stays unregistered).
+
 ## Sessions / working directory
 
 - Per-session project root follow-ups (ADR-0053):
