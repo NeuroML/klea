@@ -13,9 +13,12 @@ set from the state's `step_incomplete` verdicts and the latest abandoned plan
 revision from `plan_history`, then passes the plan, the recorded `step_outputs`
 and those two inputs to `render_plan_evidence`, which applies the selection rule
 of this note. The method's docstring defers to this note for that rule. The
-previous `KleaAgentState.observations_text()` is retained unchanged for the
-Evaluator, ReasoningNode, AnswerFromResults and the tools picker, which need the
-flat, step-ordered rendering it provides.
+previous `KleaAgentState.observations_text()` is retained for the
+ReasoningNode, AnswerFromResults and the tools picker, which need the flat,
+step-ordered rendering it provides. The Evaluator does not use it: its
+observations cover only the current batch plus the batch's transitive
+`depends_on` closure (`OperationalEvaluator._observations_text`,
+`agent_pkg/klea_agent/nodes/operational_evaluator.py:102-118`).
 
 No `references` field is added to `StepSchema` or to any other schema. The
 consumption edge is `depends_on`, read transitively: a step that reuses an

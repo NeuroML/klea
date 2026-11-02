@@ -333,6 +333,13 @@ goal/plan.
 #### Observations prompt variable
 
 The Planner's `observations` prompt variable is `KleaAgentState.planner_evidence()`.
+
+The Evaluator's `observations` is narrower than the flat rendering: it carries
+only the current batch's steps plus their transitive `depends_on` closure,
+rendered by `evidence.render_step_observations` from
+`OperationalEvaluator._observations_text`
+(`agent_pkg/klea_agent/nodes/operational_evaluator.py:102-118`). It does not see
+every recorded observation.
 That method is a delegate over `render_plan_evidence`: it passes the plan, the
 recorded `step_outputs`, the steps the Evaluator flagged with a `step_incomplete`
 verdict, and the latest abandoned `plan_history` revision, and

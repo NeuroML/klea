@@ -592,7 +592,10 @@ Planner, otherwise the next batch by kind.
 
 It judges the goal and each step's criterion against the **outcome**, not
 merely whether tools succeeded; ``executed_tools`` is rendered grouped by step
-and the observations are per step, so a different tool that meets the criteria
+and the observations are scoped to the current batch plus its transitive
+``depends_on`` closure (``OperationalEvaluator._observations_text``,
+``agent_pkg/klea_agent/nodes/operational_evaluator.py:102-118``), so a different
+tool that meets the criteria
 is fine, while a material mismatch is reported in the step's ``reason``.  Its
 user prompt also carries an optional ``recent_tool_failures`` block from the
 failed-batch digest, so a failed call is not mistaken for evidence of success.
@@ -603,7 +606,8 @@ epistemic verifier with the same judge-only contract.
 ### Reachability and ``abort``
 
 ``abort`` is a first-class verdict, not only the tool-round backstop.  When the
-observations already prove the goal is unreachable -- for example a required
+observations (the batch plus its dependency closure) already prove the goal
+is unreachable -- for example a required
 input does not exist and the task is read-only, so it must not be created -- the
 Evaluator returns ``abort`` directly, routing straight to ``AnswerFromResults``
 rather than re-entering the Planner.  Requiring ``need_replan`` for an

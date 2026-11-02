@@ -94,17 +94,21 @@ def _latest_is_error(entries: Sequence[StepOutput]) -> bool:
     return isinstance(latest.result, CallToolResult) and latest.result.is_error
 
 
-def _dependency_closure(
-    plan: PlannerPlanSchema, by_number: Mapping[int, StepSchema]
+def depends_on_closure(
+    by_number: Mapping[int, StepSchema], seeds: Iterable[int]
 ) -> set[int]:
-    """Return the transitive ``depends_on`` closure of every pending step.
+    """Return the transitive ``depends_on`` closure of *seeds*.
 
     ``depends_on`` holds direct edges only, so the walk expands them with a
-    visited set.  Numbers with no matching step are ignored.
+    visited set.  Numbers with no matching step are ignored, and a seed is
+    included only when it is reachable through an edge or names a known step.
+
+    :param by_number: Steps keyed by step number, supplying the edges.
+    :param seeds: Direct ``depends_on`` values to start the walk from.
+    :returns: Every step number reachable from *seeds*.
     """
-    pending = [step for step in plan.step_list if step.status == "pending"]
     visited: set[int] = set()
-    stack = [dep for step in pending for dep in step.depends_on]
+    stack = list(seeds)
     while stack:
         number = stack.pop()
         if number in visited:
@@ -115,6 +119,20 @@ def _dependency_closure(
         visited.add(number)
         stack.extend(step.depends_on)
     return visited
+
+
+def _dependency_closure(
+    plan: PlannerPlanSchema, by_number: Mapping[int, StepSchema]
+) -> set[int]:
+    """Return the transitive ``depends_on`` closure of every pending step.
+
+    The pending steps' direct ``depends_on`` edges seed
+    :func:`depends_on_closure`, so the behaviour is unchanged.
+    """
+    pending = [step for step in plan.step_list if step.status == "pending"]
+    return depends_on_closure(
+        by_number, [dep for step in pending for dep in step.depends_on]
+    )
 
 
 def _last_completed(
@@ -155,6 +173,93 @@ def _render_summary(number: int, entries: Sequence[StepOutput]) -> str:
         f"that depends on {number}"
     )
     return f"### Step {number} (summary)\n" + "\n".join(lines)
+
+
+def _render_observations_full(number: int, entries: Sequence[StepOutput]) -> str:
+    """Render one step exactly as ``observations_text`` groups it."""
+    rendered = "".join(
+        f"\n\n{ind}: {entry.render()}" for ind, entry in enumerate(entries)
+    )
+    return f"Step {number}:\n{rendered}"
+
+
+def _render_observations_reduced(number: int, entries: Sequence[StepOutput]) -> str:
+    """Render one demoted step as entry summaries plus a neutral note.
+
+    No tool-specific wording is used here: unlike the Planner's summary line,
+    the terminal answer node cannot plan a follow-up step, so the omitted
+    payload is simply noted as over budget.
+    """
+    rendered = "".join(
+        f"\n\n{ind}: {entry.summary()}" for ind, entry in enumerate(entries)
+    )
+    rendered += "\n\n(full payload omitted: over the evidence budget)"
+    return f"Step {number}:\n{rendered}"
+
+
+def render_step_observations(
+    step_outputs: Mapping[int, Sequence[StepOutput]],
+    *,
+    numbers: Iterable[int] | None = None,
+    max_chars: int = MAX_EVIDENCE_CHARS,
+) -> str:
+    """Render recorded step outputs as the ``observations_text`` block.
+
+    Renders the same ``Step N:`` grouping and ``{i}: {entry.render()}`` entries
+    as :meth:`KleaAgentState.observations_text`, but admits full renders under
+    *max_chars* in priority order: a step whose latest recorded result is an
+    error first, then the remaining steps newest-first.  The first step whose
+    full render would push the running length plus a separator past *max_chars*
+    is demoted to its entry summaries plus a neutral omission line, together
+    with every later step, so no single payload is clipped mid-text and no step
+    disappears.
+
+    :param step_outputs: Recorded outputs keyed by plan step number.
+    :param numbers: Step numbers to render; ``None`` means every recorded step.
+    :param max_chars: Character budget for the rendered block.
+    :returns: The ready-to-use ``observations`` prompt block, or
+        :data:`NO_EVIDENCE` when nothing is selected.
+    """
+    recorded = sorted(n for n in step_outputs if _entries(step_outputs, n))
+    if numbers is not None:
+        wanted = set(numbers)
+        recorded = [n for n in recorded if n in wanted]
+    if not recorded:
+        return NO_EVIDENCE
+
+    errored = [n for n in recorded if _latest_is_error(_entries(step_outputs, n))]
+    errored_set = set(errored)
+    ordered = errored + [n for n in reversed(recorded) if n not in errored_set]
+
+    full: list[int] = []
+    budget = 0
+    for number in ordered:
+        block = _render_observations_full(number, _entries(step_outputs, number))
+        cost = len(block) + len(_BLOCK_SEPARATOR)
+        if budget + cost > max_chars:
+            break
+        budget += cost
+        full.append(number)
+
+    full_set = set(full)
+    blocks = [
+        _render_observations_full(n, _entries(step_outputs, n))
+        for n in sorted(full_set)
+    ]
+    for number in recorded:
+        if number not in full_set:
+            blocks.append(
+                _render_observations_reduced(number, _entries(step_outputs, number))
+            )
+
+    text = _BLOCK_SEPARATOR.join(blocks)
+    logger.debug(
+        "step observations: full=%d summarised=%d chars=%d",
+        len(full_set),
+        len(recorded) - len(full_set),
+        len(text),
+    )
+    return text
 
 
 def render_plan_evidence(

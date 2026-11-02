@@ -16,7 +16,11 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 
 from typing import Literal
 
-from klea_agent.evidence import NO_EVIDENCE, render_plan_evidence
+from klea_agent.evidence import (
+    NO_EVIDENCE,
+    render_plan_evidence,
+    render_step_observations,
+)
 from klea_agent.schemas import (
     PlannerPlanSchema,
     PlanRevision,
@@ -78,6 +82,38 @@ def test_pending_dependency_closure_includes_transitive_grandparent():
 
     assert result.full_steps == (1, 2)
     assert "grandparent payload" in result.text
+
+
+def test_render_step_observations_scopes_to_selected_numbers():
+    """A ``numbers`` selection leaves every other recorded step out."""
+    step_outputs = {1: [_output("first payload")], 2: [_output("second payload")]}
+
+    text = render_step_observations(step_outputs, numbers=[2])
+
+    assert "Step 2:" in text
+    assert "second payload" in text
+    assert "Step 1:" not in text
+    assert "first payload" not in text
+
+
+def test_render_step_observations_without_matching_output_is_no_evidence():
+    """No recorded output for the selection yields the sentinel, not an empty block."""
+    step_outputs = {1: [_output("payload")]}
+
+    assert render_step_observations(step_outputs, numbers=[7]) == NO_EVIDENCE
+    assert render_step_observations({}) == NO_EVIDENCE
+
+
+def test_render_step_observations_demotes_to_summaries_under_tight_budget():
+    """A tiny ``max_chars`` demotes the step to ``summary()`` plus an omission note."""
+    step_outputs = {1: [_output("a payload that cannot fit")]}
+
+    text = render_step_observations(step_outputs, max_chars=1)
+
+    assert "Step 1:" in text
+    assert "0: reasoning: a payload that cannot fit" in text
+    assert "(full payload omitted: over the evidence budget)" in text
+    assert "displayed_to_user" not in text
 
 
 def test_evaluator_flagged_step_is_rendered_in_full():
