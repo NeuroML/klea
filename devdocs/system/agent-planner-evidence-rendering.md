@@ -21,8 +21,9 @@ No `references` field is added to `StepSchema` or to any other schema. The
 consumption edge is `depends_on`, read transitively: a step that reuses an
 earlier step's payload declares that step in `depends_on`, and the renderer
 selects earlier-step payloads by an ordered relevance rule (below). Anything
-not selected degrades to `StepOutput.summary()` plus a spill pointer rather
-than disappearing.
+not selected degrades to `StepOutput.summary()` plus a step reference rather
+than disappearing; the spill-pointer half of that fallback is designed but not
+implemented (see Fallback).
 
 ## Why depends_on suffices
 
@@ -66,30 +67,65 @@ full with `StepOutput.render()` (`agent_pkg/klea_agent/schemas.py:843-885`):
 5. The latest abandoned plan revision
    (`agent_pkg/klea_agent/schemas.py:436-457`).
 
-The whole block stays bounded by the continuation caps, including
-`MAX_CONTINUATION_RENDER_CHARS = 8000` (`agent_pkg/klea_agent/schemas.py:469-477`)
-and the `ContinuationEvidence.render()` clipping
-(`agent_pkg/klea_agent/schemas.py:508-572`).
+No overall render bound is applied today. `render_plan_evidence` applies no cap
+of its own (`agent_pkg/klea_agent/evidence.py:26`, `:142-213`); the only
+truncation in the render path is the 80-character cap inside
+`StepOutput.summary()`, and it applies to unselected entries only
+(`agent_pkg/klea_agent/schemas.py:811`, `:827-828`). Selected steps go through
+`StepOutput.render()` unbounded, so the aggregate is limited only by the
+record-time retention of `MAX_STEP_RESULTS = 20` results per step
+(`agent_pkg/klea_agent/klea_agent.py:98`; eviction at `:512`, `:569`). The
+continuation caps
+(`agent_pkg/klea_agent/schemas.py:469-477`) and the
+`ContinuationEvidence.render()` clipping (`agent_pkg/klea_agent/schemas.py:508-572`)
+bound `previous_work`, not this `observations` block.
+
+The cap position is the selection loop, not the renderer. The intended mechanism
+is a priority-ordered accumulation over the tier list (failed, `depends_on`
+closure, Evaluator-flagged, last completed, abandoned): add each `_render_full`
+block while the running character total stays inside a configured budget, and
+render every step that does not fit through `_render_summary()`
+(`agent_pkg/klea_agent/evidence.py:180-203`). It never splits a payload, so the
+highest-priority evidence stays intact and each demoted payload is still named
+and recoverable. The precedent is `get_recent_messages(messages, max_chars,
+keep_at_least=1)` (`utils_pkg/klea_utils/llm.py:2027-2051`). Rejected: clipping
+the assembled text with `_clip_text`
+(`agent_pkg/klea_agent/schemas.py:480-485`) or `truncate_middle`
+(`klea_utils/mcp/path_detect.py:55-74`), which cuts the last payload mid-content
+and still leaves the total order-dependent; or a fixed per-entry cap inside
+`_render_full`, which mangles every payload and still does not bound the total.
+The budget value is a configurable safety margin, not a claim about what content
+matters.
 
 Review steps are never payload sources. A `review` step's "execution" is the
 user's approve/revise decision, it names no tools and is not judged by the
 Evaluator (`agent_pkg/klea_agent/schemas.py:30-55`), so it produces no
 `StepOutput` and resolves to an empty render.
 
-## Fallback: summary plus spill pointer
+## Fallback: summary plus step reference
 
-Everything not selected still renders, in compressed form: `StepOutput.summary()`
-(the tool name and ok/error, or the reasoning conclusion's first line;
-(`agent_pkg/klea_agent/schemas.py:887-906`), a stable step id, and a pointer to
-the full payload.
+The implemented fallback is `StepOutput.summary()` (the tool name and ok/error,
+or the reasoning conclusion's first line;
+`agent_pkg/klea_agent/schemas.py:887-906`), a stable step number, and a step
+reference, produced by `_render_summary`
+(`agent_pkg/klea_agent/evidence.py:132-139`), rendered as
+`- Step N: full payload omitted; retrieve it by planning a step that depends on N`.
 
-The pointer is constrained to the project root. It must never name
-`~/.cache/nml_mcp`: that path is outside the read boundary and is wiped at
-shutdown, so a pointer into it would be stale by construction.
+Spill pointer: designed, not implemented. The design would append a pointer to
+the full payload. It is not built, and a render-time pointer cannot be promised
+by the current retention policy: the recorder keeps only the latest
+`MAX_STEP_RESULTS = 20` results per step
+(`agent_pkg/klea_agent/klea_agent.py:98`), evicting older ones at record time,
+so a step number alone does not guarantee that the payload it names still
+exists.
 
-The Planner holds no bound tools, so recovery from a pointer is a *delegated*
-read step in the plan, not an inline load. Artefacts cannot serve as the spill
-store either: they are in-memory only
+If implemented, the pointer must be constrained to the project root. It must
+never name `~/.cache/nml_mcp`: that path is outside the read boundary and is
+wiped at shutdown, so a pointer into it would be stale by construction.
+
+The Planner holds no bound tools, so recovery is a *delegated* read step in the
+plan (a step that declares the number in `depends_on`), not an inline load.
+Artefacts cannot serve as the spill store either: they are in-memory only
 (`agent_pkg/klea_agent/schemas.py:580-608`) and cannot be loaded by id.
 
 ## Residual risk
@@ -97,8 +133,9 @@ store either: they are in-memory only
 One failure mode remains: a Planner writes `depends_on` without the step whose
 output it actually reuses. The effect is bounded, not silent, because the
 missing step still falls to tier 4 (last completed step) or to a delegated read
-step recovered from its spill pointer. Adding a `references` field would fail in
-the same way for the same reason (the model must still declare the edge), which
+step recovered from its step reference (and, if built, its spill pointer).
+Adding a `references` field would fail in the same way for the same reason (the
+model must still declare the edge), which
 is why it is withdrawn rather than layered on.
 
 ## References
