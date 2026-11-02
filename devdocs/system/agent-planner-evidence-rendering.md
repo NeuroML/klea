@@ -67,14 +67,19 @@ full with `StepOutput.render()` (`agent_pkg/klea_agent/schemas.py:843-885`):
 5. The latest abandoned plan revision
    (`agent_pkg/klea_agent/schemas.py:436-457`).
 
-No overall render bound is applied today. `render_plan_evidence` applies no cap
-of its own (`agent_pkg/klea_agent/evidence.py:26`, `:142-213`); the only
-truncation in the render path is the 80-character cap inside
-`StepOutput.summary()`, and it applies to unselected entries only
-(`agent_pkg/klea_agent/schemas.py:811`, `:827-828`). Selected steps go through
-`StepOutput.render()` unbounded, so the aggregate is limited only by the
-record-time retention of `MAX_STEP_RESULTS = 20` results per step
-(`agent_pkg/klea_agent/klea_agent.py:98`; eviction at `:512`, `:569`). The
+The render is bounded by a character budget: `MAX_EVIDENCE_CHARS = 24_000`
+(`agent_pkg/klea_agent/evidence.py:66`), overridable per call. Full renders are
+admitted in tier priority order until the next one would push the block past
+the budget; that step and every later selected step fall back to
+`StepOutput.summary()` plus their step reference
+(`agent_pkg/klea_agent/evidence.py:249-264`), so a demoted step keeps its
+number and reference and no selected step disappears. The 80-character cap
+inside `StepOutput.summary()` (`agent_pkg/klea_agent/schemas.py:811`) bounds
+only the summarised entries; admitted full renders are not truncated.
+Separately, `MAX_STEP_RESULTS = 20`
+(`agent_pkg/klea_agent/klea_agent.py:98`; eviction at `:512`, `:569`) is a
+per-step retention cap on the results recorded for one step, not a plan-wide
+total of tool calls. The
 continuation caps
 (`agent_pkg/klea_agent/schemas.py:469-477`) and the
 `ContinuationEvidence.render()` clipping (`agent_pkg/klea_agent/schemas.py:508-572`)
