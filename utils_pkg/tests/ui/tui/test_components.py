@@ -310,6 +310,52 @@ class TestPermissionPanelHelpers:
     def test_coverage_is_empty_for_one_path(self):
         assert PermissionPanel._coverage({"covered_paths_display": ["/tmp/a"]}) == ""
 
+    def test_hint_renderable_highlights_the_detected_token(self):
+        """The styled hint reverse-styles exactly the detected token span."""
+        request = {
+            "kind": "outside",
+            "tool": "run_command",
+            "argument": "command",
+            "raw": "/dev/null",
+            "argument_preview": "tee x > /dev/null",
+            "preview_token_start": 8,
+            "preview_token_end": 17,
+            "preview_omitted_before": 0,
+            "preview_omitted_after": 0,
+            "argument_length": 18,
+            "token_line": 1,
+            "confidence": "guess",
+            "source": "value:command",
+        }
+        rendered = PermissionPanel._hint_renderable(request)
+
+        assert isinstance(rendered, Text)
+        assert "Detected path" in rendered.plain
+        reverse_spans = [
+            span for span in rendered.spans if str(span.style) == "reverse"
+        ]
+        assert len(reverse_spans) == 1
+        span = reverse_spans[0]
+        assert span.end - span.start == 17 - 8
+        assert rendered.plain[span.start : span.end] == "/dev/null"
+
+    def test_hint_renderable_falls_back_without_offsets(self):
+        """A request without token offsets degrades to the plain hint string."""
+        request = {
+            "kind": "outside",
+            "tool": "read_file",
+            "argument": "path",
+            "raw": "/etc/hosts",
+            "confidence": "guess",
+            "source": "value:path",
+            "preview_token_start": -1,
+            "preview_token_end": -1,
+        }
+        rendered = PermissionPanel._hint_renderable(request)
+
+        assert isinstance(rendered, str)
+        assert rendered == PermissionPanel._hint(request)
+
 
 class TestSessionLabel:
     """Session-picker rows show only the title and chat id."""
