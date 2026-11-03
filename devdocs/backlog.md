@@ -63,6 +63,16 @@ Last updated: 2026-11-03.
   report nearby entries on a missing target, and the picker escalates identical
   failed calls, but `run_command` is still not boundary-checked like the file
   tools, so consider a guard; gather a concrete case before coding.
+- Answer-node output schema (deferred, unverified): `AnswerFromResults`
+  (`agent_pkg/klea_agent/nodes/answer_from_results.py:44`) replies in prose and
+  its default fallback is already prose, so its JSON `AnswerSchema` could be
+  dropped; a genuine drop must touch the node's
+  parse/`_process_output` path, and the claim that schema-constrained output
+  costs more tokens is unverified.
+- `ReasoningNode` keeps `ReasoningSchema`
+  (`agent_pkg/klea_agent/schemas.py:747`,
+  `agent_pkg/klea_agent/nodes/reasoning.py:34`): a downstream consumer branches
+  on its typed `conclusion` field, so that schema is not droppable.
 
 ## Tools
 
@@ -400,37 +410,6 @@ Last updated: 2026-11-03.
   `image/svg+xml` sanitisation) is deferred (ADR-0040, `system/streams.md`).
 - TUI `tool` parity: `tool` stream entries render in the web status/inspect
   panes only; the TUI ignores them (`system/streams.md`).
-- Display every tool call, then retire `displayed_to_user` (deferred; needs a
-  bounded display renderer first).  `StepOutput.displayed` is *derived* from
-  whether the server streamed a display event (`agent_pkg/klea_agent/klea_agent.py:487`,
-  `:506`), so the flag can only go once every tool result produces a bounded
-  `tool`-event payload.  Simplification once that holds: drop the
-  `(displayed_to_user: yes|no)` heading in `StepOutput.render`
-  (`agent_pkg/klea_agent/schemas.py:884-885`) and the flag mention in
-  `StepOutput.summary()`, collapse the two yes/no bullets in
-  `agent_pkg/klea_agent/nodes/prompts/AnswerFromResults_system.md:56-59` to one
-  "already shown inline - summarise, do not reprint" rule (keeping the `:55`
-  "present structured results as the relevant fields" bullet), drop the
-  visibility clause in `devdocs/system/streams.md:205-212`, and simplify the
-  heading assertions at `agent_pkg/tests/test_schemas.py:323,330,363-364`,
-  `agent_pkg/tests/test_reasoning.py:75` and
-  `agent_pkg/tests/test_evidence.py:116`.  The observations rendering already
-  ignores `displayed`, and has no budget logic to change (`evidence.py`).
-  Phased, each shippable:
-  (A) measure per-call display payload size/count; (B) build a bounded display
-  renderer with a display cap far below `DEFAULT_MAX_OUTPUT_CHARS`
-  (`utils_pkg/klea_utils/mcp/tool_impls/run_command.py:41`, applied head-only
-  at `:397-403`, boolean-only with no marker text today), an explicit
-  truncation marker, and per-MIME rules (structured projection for JSON;
-  mime-only for image/audio/embedded resources); (C) flip the emitter to
-  always emit, set `displayed=True`, then delete the flag from `StepOutput`,
-  `_record_results`, the answer prompt and the docs; (D) decide error display
-  separately - do not bundle it.  Risks: chat flooding from the 100k/stream
-  capture cap; base64 or megabyte one-liners for binary and large JSON;
-  duplication without token savings while the raw payloads still sit in
-  observations; raw tracebacks and internal paths in the chat; and a usability
-  regression if the answer composer loses the "the user asked for this output"
-  signal and merely points at scrolled-past output.
 
 ## Testing
 
