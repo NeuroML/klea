@@ -14,8 +14,14 @@ revision from `plan_history`, then passes the plan, the recorded `step_outputs`
 and those two inputs to `render_plan_evidence`, which applies the selection rule
 of this note. The method's docstring defers to this note for that rule. The
 previous `KleaAgentState.observations_text()` is retained for the
-ReasoningNode, AnswerFromResults and the tools picker, which need the flat,
-step-ordered rendering it provides. The Evaluator does not use it: its
+ReasoningNode and the tools picker, which need the flat, step-ordered rendering
+it provides. The answer node does not use it:
+`AnswerFromResults._observations_text` calls `render_step_observations` with
+`MAX_OBSERVATIONS_CHARS = 48_000`
+(`agent_pkg/klea_agent/nodes/answer_from_results.py:46`, `:95-111`), which admits
+steps newest-first with errored steps first; a payload demoted past the budget
+keeps only `StepOutput.summary()` plus its step reference and is not retrievable
+within the run. The Evaluator does not use it: its
 observations cover only the current batch plus the batch's transitive
 `depends_on` closure (`OperationalEvaluator._observations_text`,
 `agent_pkg/klea_agent/nodes/operational_evaluator.py:102-118`).

@@ -702,6 +702,16 @@ entirely on success.  It judges nothing.  Its prompt
 carries the output-formatting rules (verbatim command/list output in fenced
 code blocks, identifiers in backticks, a blank line before lists, no raw JSON
 dumps).  A deterministic fallback covers an empty or failed synthesis.
+
+The observations it receives are budgeted, not the flat, unbudgeted render:
+``_observations_text`` delegates to ``render_step_observations`` with
+``MAX_OBSERVATIONS_CHARS = 48_000``
+(``agent_pkg/klea_agent/nodes/answer_from_results.py:46``, ``:95-111``), which
+admits steps newest-first with errored steps first.  A payload demoted past the
+budget keeps only its summary (``StepOutput.summary``,
+``agent_pkg/klea_agent/schemas.py:887-906``) plus its step reference and is not
+retrievable within the run.
+
 Scientific mode will use a grounded, citation-carrying variant; the Evaluator
 contract is unchanged.
 
