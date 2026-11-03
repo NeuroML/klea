@@ -205,7 +205,7 @@ not IANA.  Plain `TextContent` is never surfaced.  Errors are not displayed
 Note: a tool result is also recorded in graph state as a `StepOutput`
 (`result`, `tool`, `signature`, `displayed`) and rendered into observations by
 `KleaAgentState.observations_text()`, which delegates to
-`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:175`).
+`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:146`).
 Selected steps render in full; there is no character budget (the model's context
 window is the bound), so no payload is replaced by a summary. Each entry carries
 `displayed_to_user: yes|no`, so the synthesised answer can avoid reprinting what

@@ -87,20 +87,6 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             memory=memory,
         )
 
-    def _observations_text(self, state: KleaAgentState) -> str:
-        """Return the rendered per-step tool outputs in full.
-
-        Delegates to :func:`klea_agent.evidence.render_step_observations` so the
-        answer node, Planner and Evaluator see identical observations.  Every
-        step is rendered in full: synthesis needs the actual results, and the
-        model's context window is the only real bound.
-        """
-        # Deferred import: klea_agent.evidence depends on klea_agent.schemas,
-        # so importing it at module level would create an import cycle.
-        from klea_agent.evidence import render_step_observations
-
-        return render_step_observations(state.step_outputs)
-
     @staticmethod
     def _is_failure(state: KleaAgentState) -> bool:
         """Return True when the run ended in failure rather than success."""
@@ -144,7 +130,7 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             ),
             "discovery": state.discovery_persistent.render(),
             "artefacts": state.artefacts_text(),
-            "observations": self._observations_text(state),
+            "observations": state.observations_text(),
         }
         self.logger.debug(f"{variables = }")
         return variables

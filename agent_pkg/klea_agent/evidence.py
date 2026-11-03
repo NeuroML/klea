@@ -39,9 +39,6 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Iterable, Mapping, Sequence
-from typing import NamedTuple
-
-from fastmcp.client.client import CallToolResult
 
 from klea_agent.schemas import (
     PlannerPlanSchema,
@@ -59,28 +56,11 @@ NO_EVIDENCE = "(no observations)"
 _BLOCK_SEPARATOR = "\n\n"
 
 
-class EvidenceRender(NamedTuple):
-    """Outcome of one evidence-selection pass."""
-
-    #: Step numbers rendered in full, ascending and de-duplicated.
-    full_steps: tuple[int, ...]
-    #: Ready-to-use block for the ``observations`` prompt variable.
-    text: str
-
-
 def _entries(
     step_outputs: Mapping[int, Sequence[StepOutput]], number: int
 ) -> tuple[StepOutput, ...]:
     """Return the recorded outputs for *number* as a tuple."""
     return tuple(step_outputs.get(number, ()))
-
-
-def _latest_is_error(entries: Sequence[StepOutput]) -> bool:
-    """Return whether the most recent recorded result is an error."""
-    if not entries:
-        return False
-    latest = entries[-1]
-    return isinstance(latest.result, CallToolResult) and latest.result.is_error
 
 
 def depends_on_closure(
@@ -110,20 +90,6 @@ def depends_on_closure(
     return visited
 
 
-def _dependency_closure(
-    plan: PlannerPlanSchema, by_number: Mapping[int, StepSchema]
-) -> set[int]:
-    """Return the transitive ``depends_on`` closure of every pending step.
-
-    The pending steps' direct ``depends_on`` edges seed
-    :func:`depends_on_closure`, so the behaviour is unchanged.
-    """
-    pending = [step for step in plan.step_list if step.status == "pending"]
-    return depends_on_closure(
-        by_number, [dep for step in pending for dep in step.depends_on]
-    )
-
-
 def _last_completed(
     plan: PlannerPlanSchema, step_outputs: Mapping[int, Sequence[StepOutput]]
 ) -> int | None:
@@ -148,10 +114,18 @@ def _review_numbers(
     return numbers
 
 
+def _render_entries(entries: Sequence[StepOutput], *, indexed: bool) -> str:
+    """Render entries in full, optionally with the per-step index labels."""
+    if indexed:
+        return "".join(
+            f"\n\n{ind}: {entry.render()}" for ind, entry in enumerate(entries)
+        )
+    return "\n\n".join(entry.render() for entry in entries)
+
+
 def _render_full(number: int, entries: Sequence[StepOutput]) -> str:
-    """Render one selected step's entries in full."""
-    body = "\n\n".join(entry.render() for entry in entries)
-    return f"### Step {number}\n{body}"
+    """Render one selected step for the Planner."""
+    return f"### Step {number}\n{_render_entries(entries, indexed=False)}"
 
 
 def _render_summary(number: int, entries: Sequence[StepOutput]) -> str:
@@ -166,10 +140,7 @@ def _render_summary(number: int, entries: Sequence[StepOutput]) -> str:
 
 def _render_observations_full(number: int, entries: Sequence[StepOutput]) -> str:
     """Render one step exactly as ``observations_text`` groups it."""
-    rendered = "".join(
-        f"\n\n{ind}: {entry.render()}" for ind, entry in enumerate(entries)
-    )
-    return f"Step {number}:\n{rendered}"
+    return f"Step {number}:\n{_render_entries(entries, indexed=True)}"
 
 
 def render_step_observations(
@@ -218,7 +189,7 @@ def render_plan_evidence(
     *,
     flagged: Iterable[int] = (),
     abandoned: PlanRevision | None = None,
-) -> EvidenceRender:
+) -> str:
     """Select the plan evidence for the Planner prompt and render it.
 
     Selection is the union of the ordered tiers described in the module
@@ -239,7 +210,7 @@ def render_plan_evidence(
     :param step_outputs: Recorded outputs keyed by plan step number.
     :param flagged: Step numbers the Evaluator judged incomplete.
     :param abandoned: The latest abandoned plan revision, if any.
-    :returns: The full-rendered step numbers and the evidence text.
+    :returns: The ready-to-use ``observations`` prompt block.
     """
     by_number: dict[int, StepSchema] = {
         step.step_number: step for step in plan.step_list
@@ -256,14 +227,19 @@ def render_plan_evidence(
     failed: list[int] = []
     for number in sorted(candidates):
         step = by_number.get(number)
-        if (step is not None and step.status == "failed") or _latest_is_error(
-            _entries(step_outputs, number)
+        entries = _entries(step_outputs, number)
+        if (step is not None and step.status == "failed") or (
+            entries and entries[-1].is_error
         ):
             failed.append(number)
 
+    pending = [step for step in plan.step_list if step.status == "pending"]
+    pending_closure = depends_on_closure(
+        by_number, [dep for step in pending for dep in step.depends_on]
+    )
     tiers: list[list[int]] = [
         failed,
-        sorted(_dependency_closure(plan, by_number) & candidates),
+        sorted(pending_closure & candidates),
         sorted(set(flagged) & candidates),
     ]
     last_completed = _last_completed(plan, step_outputs)
@@ -300,4 +276,4 @@ def render_plan_evidence(
         len(candidates - set(selected)),
         len(text),
     )
-    return EvidenceRender(full_steps=full, text=text)
+    return text

@@ -4,7 +4,7 @@ Tests for the ``KleaAgentState.planner_evidence`` observations delegate.
 
 ``planner_evidence`` is a thin delegate: it supplies the graph state to
 ``klea_agent.evidence.render_plan_evidence`` and returns that render's
-``.text``.  These tests pin the delegation for the no-flag, evaluator-flagged
+return value.  These tests pin the delegation for the no-flag, evaluator-flagged
 and abandoned-revision cases and assert the plain-string return type, so the
 method is checked against the selector instead of duplicating its logic.
 
@@ -98,7 +98,7 @@ def test_no_flag_matches_selector_text():
     outputs = {1: [_output("older")], 2: [_output("newest")]}
     state = _state(plan, outputs)
 
-    assert state.planner_evidence() == render_plan_evidence(plan, outputs).text
+    assert state.planner_evidence() == render_plan_evidence(plan, outputs)
     assert "### Step 2\n" in state.planner_evidence()
 
 
@@ -114,7 +114,7 @@ def test_evaluator_flagged_matches_selector_text():
     outputs = {1: [_output("flagged payload")], 2: [_output("last done")]}
     state = _state(plan, outputs, flagged=(1,))
 
-    expected = render_plan_evidence(plan, outputs, flagged={1}).text
+    expected = render_plan_evidence(plan, outputs, flagged={1})
     assert state.planner_evidence() == expected
     assert "flagged payload" in state.planner_evidence()
 
@@ -130,7 +130,7 @@ def test_abandoned_revision_matches_selector_text():
     )
     state = _state(plan, outputs, abandoned=abandoned)
 
-    expected = render_plan_evidence(plan, outputs, abandoned=abandoned).text
+    expected = render_plan_evidence(plan, outputs, abandoned=abandoned)
     assert state.planner_evidence() == expected
     assert "old attempt payload" in state.planner_evidence()
 

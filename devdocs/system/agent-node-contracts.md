@@ -336,7 +336,7 @@ The Planner's `observations` prompt variable is `KleaAgentState.planner_evidence
 
 The flat `KleaAgentState.observations_text()` used by the ReasoningNode and the
 `tools` picker delegates to `evidence.render_step_observations`
-(`agent_pkg/klea_agent/evidence.py:175`) and renders every selected step in
+(`agent_pkg/klea_agent/evidence.py:146`) and renders every selected step in
 full: there is no character budget, so the model's actual context window is the
 only bound and no payload is replaced by a summary. The caller controls scope;
 the Evaluator narrows it to the current batch plus the batch's transitive

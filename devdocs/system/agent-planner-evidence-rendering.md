@@ -14,7 +14,7 @@ revision from `plan_history`, then passes the plan, the recorded `step_outputs`
 and those two inputs to `render_plan_evidence`, which applies the selection rule
 of this note. The method's docstring defers to this note for that rule. The
 previous `KleaAgentState.observations_text()` delegates to
-`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:175`):
+`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:146`):
 the ReasoningNode, tools picker, Evaluator and answer node all see the same
 `Step N:` grouping and `{i}: {entry.render()}` entries, rendered in full. The
 caller controls the scope: `observations_text()` renders every recorded step,
@@ -66,7 +66,7 @@ pending step), and it must not assume the Planner declared every edge it uses
 ## Selection rule
 
 The selector applies priority-ordered tiers and renders each selected entry in
-full with `StepOutput.render()` (`agent_pkg/klea_agent/schemas.py:843-885`):
+full with `StepOutput.render()` (`agent_pkg/klea_agent/schemas.py:889-1000`):
 
 1. Steps whose latest attempt failed (the most recent errored entry only, not
    superseded failures).
@@ -107,9 +107,9 @@ Evaluator (`agent_pkg/klea_agent/schemas.py:30-55`), so it produces no
 The implemented fallback for a recorded step the Planner's relevance rule does
 not select is `StepOutput.evidence_summary()` (the bounded
 `tool(arg=value, ...)` call signature and ok/full error, or the reasoning
-conclusion's first line; `agent_pkg/klea_agent/schemas.py:889-984`), a stable
+conclusion's first line; `agent_pkg/klea_agent/schemas.py:889-1000`), a stable
 step number, and a step reference, produced by `_render_summary`
-(`agent_pkg/klea_agent/evidence.py:157-166`), rendered as
+(`agent_pkg/klea_agent/evidence.py:131-139`), rendered as
 `- Step N: full payload omitted; retrieve it by planning a step that depends on N`.
 
 Spill pointer: designed, not implemented. The design would append a pointer to
@@ -149,7 +149,7 @@ is why it is withdrawn rather than layered on.
 - `agent_pkg/klea_agent/schemas.py:296-342` - `validate_plan`.
 - `agent_pkg/klea_agent/schemas.py:469-477` - continuation caps.
 - `agent_pkg/klea_agent/schemas.py:508-572` - `ContinuationEvidence.render`.
-- `agent_pkg/klea_agent/schemas.py:889-984` - `StepOutput.render`,
+- `agent_pkg/klea_agent/schemas.py:889-1000` - `StepOutput.render`,
   `StepOutput.summary` and `StepOutput.evidence_summary`.
 - `agent_pkg/tests/test_planner.py:490-512` - existing `previous_work`
   assertions.

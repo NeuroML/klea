@@ -79,9 +79,8 @@ def test_failed_step_is_rendered_in_full():
 
     result = render_plan_evidence(plan, {1: [_output("it broke")]})
 
-    assert result.full_steps == (1,)
-    assert "### Step 1" in result.text
-    assert "it broke" in result.text
+    assert "### Step 1\n" in result
+    assert "it broke" in result
 
 
 def test_pending_dependency_closure_includes_transitive_grandparent():
@@ -102,8 +101,9 @@ def test_pending_dependency_closure_includes_transitive_grandparent():
 
     result = render_plan_evidence(plan, step_outputs)
 
-    assert result.full_steps == (1, 2)
-    assert "grandparent payload" in result.text
+    assert "### Step 1\n" in result
+    assert "### Step 2\n" in result
+    assert "grandparent payload" in result
 
 
 def test_render_step_observations_scopes_to_selected_numbers():
@@ -146,8 +146,8 @@ def test_failed_step_over_the_old_budget_is_still_rendered_in_full():
 
     result = render_plan_evidence(plan, step_outputs)
 
-    assert result.full_steps == (1,)
-    assert large in result.text
+    assert "### Step 1\n" in result
+    assert large in result
 
 
 def test_unselected_step_summary_keeps_the_call_signature():
@@ -162,9 +162,9 @@ def test_unselected_step_summary_keeps_the_call_signature():
 
     result = render_plan_evidence(plan, step_outputs)
 
-    assert result.full_steps == (2,)
-    assert "### Step 1 (summary)" in result.text
-    assert 'grep(pattern="foo", path="."): ok' in result.text
+    assert "### Step 1 (summary)" in result
+    assert "### Step 2\n" in result
+    assert 'grep(pattern="foo", path="."): ok' in result
 
 
 def test_evaluator_flagged_step_is_rendered_in_full():
@@ -181,8 +181,9 @@ def test_evaluator_flagged_step_is_rendered_in_full():
     result = render_plan_evidence(plan, step_outputs, flagged={1})
 
     # Step 2 is the last completed step; step 1 is selected only by the flag.
-    assert result.full_steps == (1, 2)
-    assert "flagged payload" in result.text
+    assert "### Step 1\n" in result
+    assert "### Step 2\n" in result
+    assert "flagged payload" in result
 
 
 def test_last_completed_step_is_rendered_in_full():
@@ -198,8 +199,9 @@ def test_last_completed_step_is_rendered_in_full():
 
     result = render_plan_evidence(plan, step_outputs)
 
-    assert result.full_steps == (2,)
-    assert "newest" in result.text
+    assert "### Step 2\n" in result
+    assert "### Step 1 (summary)" in result
+    assert "newest" in result
 
 
 def test_abandoned_revision_step_is_rendered_in_full():
@@ -216,8 +218,9 @@ def test_abandoned_revision_step_is_rendered_in_full():
 
     # Step 2 is the last completed step; step 1 is selected only by the
     # abandoned revision.
-    assert result.full_steps == (1, 2)
-    assert "old attempt payload" in result.text
+    assert "### Step 1\n" in result
+    assert "### Step 2\n" in result
+    assert "old attempt payload" in result
 
 
 def test_unrelated_completed_step_is_reduced_to_summary_and_pointer():
@@ -233,12 +236,12 @@ def test_unrelated_completed_step_is_reduced_to_summary_and_pointer():
 
     result = render_plan_evidence(plan, step_outputs)
 
-    assert result.full_steps == (2,)
-    assert "### Step 1 (summary)" in result.text
-    assert "retrieve it by planning a step that depends on 1" in result.text
+    assert "### Step 2\n" in result
+    assert "### Step 1 (summary)" in result
+    assert "retrieve it by planning a step that depends on 1" in result
     # The unselected payload is compressed, not rendered as a full block.
-    assert "### Step 1\n" not in result.text
-    assert NO_EVIDENCE not in result.text
+    assert "### Step 1\n" not in result
+    assert NO_EVIDENCE not in result
 
 
 def test_review_step_yields_no_evidence():
@@ -252,6 +255,5 @@ def test_review_step_yields_no_evidence():
 
     result = render_plan_evidence(plan, step_outputs)
 
-    assert result.full_steps == (2,)
-    assert "Step 1" not in result.text
-    assert "### Step 2" in result.text
+    assert "Step 1" not in result
+    assert "### Step 2\n" in result

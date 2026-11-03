@@ -913,6 +913,14 @@ class StepOutput(BaseModel):
     displayed: bool = False
     rationale: str = ""
 
+    @property
+    def is_error(self) -> bool:
+        """Return whether this entry is an errored tool result.
+
+        A reasoning conclusion is a plain ``str`` and is never an error.
+        """
+        return isinstance(self.result, CallToolResult) and bool(self.result.is_error)
+
     def render(self) -> str:
         """Render this result with its tool/displayed metadata.
 
@@ -935,6 +943,30 @@ class StepOutput(BaseModel):
         shown = "yes" if self.displayed else "no"
         return f"### {tool} (displayed_to_user: {shown})\n{body}"
 
+    def _compact(self, *, detailed: bool) -> str:
+        """Return a compact one-line rendering of this entry.
+
+        :param detailed: Keep the recorded call signature and the whole
+            (bounded) error text for LLM evidence; otherwise keep only the
+            tool name and a short error line for the human progress view.
+        """
+        if isinstance(self.result, CallToolResult):
+            if detailed:
+                label = self.signature or self.tool or "(unknown tool)"
+            else:
+                label = self.tool or "(unknown tool)"
+            if self.result.is_error:
+                if detailed:
+                    reason = last_tool_error_text(
+                        [self.result], max_len=_REDUCED_ERROR_MAX_CHARS
+                    ).strip()
+                else:
+                    reason = _first_line(last_tool_error_text([self.result]))
+                return f"{label}: error - {reason}" if reason else f"{label}: error"
+            return f"{label}: ok"
+        conclusion = _first_line(str(self.result))
+        return f"reasoning: {conclusion}" if conclusion else "reasoning"
+
     def summary(self) -> str:
         """Return a concise one-line summary for the human-facing progress view.
 
@@ -947,14 +979,7 @@ class StepOutput(BaseModel):
         :returns: ``"<tool>: ok"`` / ``"<tool>: error - <reason>"`` for a tool
             result, or ``"reasoning: <first line>"``.
         """
-        if isinstance(self.result, CallToolResult):
-            tool = self.tool or "(unknown tool)"
-            if self.result.is_error:
-                reason = _first_line(last_tool_error_text([self.result]))
-                return f"{tool}: error - {reason}" if reason else f"{tool}: error"
-            return f"{tool}: ok"
-        conclusion = _first_line(str(self.result))
-        return f"reasoning: {conclusion}" if conclusion else "reasoning"
+        return self._compact(detailed=False)
 
     def evidence_summary(self) -> str:
         """Return a compact but informative line for summarised evidence.
@@ -971,16 +996,7 @@ class StepOutput(BaseModel):
         :returns: ``"<call signature>: ok"`` / ``"<call signature>: error -
             <reason>"`` for a tool result, or ``"reasoning: <first line>"``.
         """
-        if isinstance(self.result, CallToolResult):
-            label = self.signature or self.tool or "(unknown tool)"
-            if self.result.is_error:
-                reason = last_tool_error_text(
-                    [self.result], max_len=_REDUCED_ERROR_MAX_CHARS
-                ).strip()
-                return f"{label}: error - {reason}" if reason else f"{label}: error"
-            return f"{label}: ok"
-        conclusion = _first_line(str(self.result))
-        return f"reasoning: {conclusion}" if conclusion else "reasoning"
+        return self._compact(detailed=True)
 
 
 class KleaAgentState(BaseGraphSchema):
@@ -1151,11 +1167,7 @@ class KleaAgentState(BaseGraphSchema):
                         summary or "(no recorded output)",
                         MAX_CONTINUATION_STEP_CHARS,
                     ),
-                    is_error=any(
-                        isinstance(entry.result, CallToolResult)
-                        and entry.result.is_error
-                        for entry in entries
-                    ),
+                    is_error=any(entry.is_error for entry in entries),
                 )
             )
         history = [
@@ -1225,7 +1237,7 @@ class KleaAgentState(BaseGraphSchema):
                 if item.verdict == "step_incomplete"
             },
             abandoned=self.plan_history[-1] if self.plan_history else None,
-        ).text
+        )
 
     def work_since_review(self) -> list[tuple[StepSchema, list[StepOutput]]]:
         """Return completed steps and their outputs since the last review.

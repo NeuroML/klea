@@ -514,7 +514,7 @@ class KleaAgent(BaseLangGraph):
             prior = outputs.get(step, [])
             if not getattr(result, "is_error", False):
                 # Progress on this step: drop its earlier errored entries.
-                prior = [e for e in prior if not self._entry_is_error(e)]
+                prior = [e for e in prior if not e.is_error]
             outputs[step] = [*prior, entry][-self.MAX_STEP_RESULTS :]
         has_error = any(getattr(r, "is_error", False) for r in results)
         # A failed batch feeds the Planner's unified replan reason; a clean
@@ -536,14 +536,6 @@ class KleaAgent(BaseLangGraph):
             # batch (or a Triage retry) starts a fresh binding round.
             "binding_calls": [],
         }
-
-    @staticmethod
-    def _entry_is_error(entry: StepOutput) -> bool:
-        """Return True when a recorded step output is an errored tool result.
-
-        A reasoning conclusion is a plain ``str`` and is never an error.
-        """
-        return isinstance(entry.result, CallToolResult) and bool(entry.result.is_error)
 
     def _record_picker_failure(
         self, state: KleaAgentState, reason: str
