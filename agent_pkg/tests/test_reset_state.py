@@ -37,7 +37,7 @@ def _state(
     return KleaAgentState(
         route=RouteSchema(route=route),
         plan=PlanSchema(
-            step_list=[StepSchema(description="old step")],
+            step_list=[StepSchema(summary="old step")],
             plan_version=2,
         ),
         goal=GoalSchema(goal="old goal"),

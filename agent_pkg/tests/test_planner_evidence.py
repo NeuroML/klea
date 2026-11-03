@@ -39,7 +39,7 @@ def _step(
     """Build a plan step for the delegate tests."""
     return StepSchema(
         step_number=number,
-        description=f"step {number}",
+        summary=f"step {number}",
         kind=kind,
         status=status,
         depends_on=list(depends_on or []),

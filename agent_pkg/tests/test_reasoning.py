@@ -44,7 +44,7 @@ class TestReasoningNode(unittest.TestCase):
             step_list=[
                 StepSchema(
                     step_number=1,
-                    description="form a hypothesis from the observations",
+                    summary="form a hypothesis from the observations",
                     success_criteria="the hypothesis is stated",
                     kind="reasoning",
                 )

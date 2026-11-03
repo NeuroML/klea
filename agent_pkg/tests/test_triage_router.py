@@ -38,7 +38,7 @@ def _state(*, error: bool, step: int = 0, counts: dict[int, int] | None = None):
         step_list=[
             StepSchema(
                 step_number=i + 1,
-                description=f"s{i + 1}",
+                summary=f"s{i + 1}",
                 status="done" if i < step else "pending",
             )
             for i in range(step + 1)

@@ -144,7 +144,7 @@ is why it is withdrawn rather than layered on.
 - `agent_pkg/klea_agent/nodes/planner.py:177-193` - `_get_prompt_variables`:
   `previous_work` gated on `route == "continue"`; `observations` via
   `state.planner_evidence()`, which delegates to `render_plan_evidence`.
-- `agent_pkg/klea_agent/schemas.py:30-131` - `StepSchema.kind`, `depends_on`,
+- `agent_pkg/klea_agent/schemas.py:30-145` - `StepSchema.kind`, `depends_on`,
   `status_label` and `render`.
 - `agent_pkg/klea_agent/schemas.py:296-342` - `validate_plan`.
 - `agent_pkg/klea_agent/schemas.py:469-477` - continuation caps.

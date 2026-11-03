@@ -43,7 +43,7 @@ async def test_init_preserves_task_state_for_route_decision(monkeypatch, tmp_pat
         summarised_till=3,
         mode=Mode(resolved="general"),
         plan=PlanSchema(
-            step_list=[StepSchema(description="x")],
+            step_list=[StepSchema(summary="x")],
             plan_version=2,
             human_feedback_rounds=1,
             automated_plan_revisions=1,

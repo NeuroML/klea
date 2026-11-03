@@ -70,7 +70,7 @@ class TestPlanRevision:
     def test_render_includes_reason_and_steps(self):
         revision = PlanRevision(
             version=2,
-            steps=[StepSchema(step_number=1, description="read the input")],
+            steps=[StepSchema(step_number=1, summary="read the input")],
             abandoned_reason="tool failed",
         )
         rendered = revision.render()
@@ -83,7 +83,7 @@ class TestPlanRevision:
         state = KleaAgentState(
             plan_history=history,
             plan=PlanSchema(
-                step_list=[StepSchema(step_number=1, description="try again")],
+                step_list=[StepSchema(step_number=1, summary="try again")],
                 plan_version=2,
             ),
         )
@@ -114,19 +114,19 @@ class TestContinuationEvidence:
             step_list=[
                 StepSchema(
                     step_number=1,
-                    description="read the source",
+                    summary="read the source",
                     success_criteria="source read",
                     suggested_tools=["read_file"],
                     status="done",
                 ),
                 StepSchema(
                     step_number=2,
-                    description="write the plan",
+                    summary="write the plan",
                     success_criteria="plan written",
                     kind="reasoning",
                     status="done",
                 ),
-                StepSchema(step_number=3, description="implement", status="pending"),
+                StepSchema(step_number=3, summary="implement", status="pending"),
             ],
             status="completed",
             plan_version=2,
@@ -256,7 +256,7 @@ class TestStepStatus:
     """The distinct ``skipped`` status resolves a step that is not needed."""
 
     def test_skipped_status_label_and_render(self):
-        step = StepSchema(step_number=1, description="optional", status="skipped")
+        step = StepSchema(step_number=1, summary="optional", status="skipped")
         assert step.status_label() == "[SKIPPED]"
         assert step.status_label(markdown=True) == "[-]"
         assert "[SKIPPED]" in step.render()
@@ -508,9 +508,9 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, kind="review", description="Approve"),
-                    StepSchema(step_number=2, description="fetch"),
-                    StepSchema(step_number=3, description="write"),
+                    StepSchema(step_number=1, kind="review", summary="Approve"),
+                    StepSchema(step_number=2, summary="fetch"),
+                    StepSchema(step_number=3, summary="write"),
                 ]
             )
         )
@@ -527,14 +527,14 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, description="fetch", status="done"),
+                    StepSchema(step_number=1, summary="fetch", status="done"),
                     StepSchema(
                         step_number=2,
                         kind="review",
-                        description="Review progress",
+                        summary="Review progress",
                         depends_on=[1],
                     ),
-                    StepSchema(step_number=3, description="write"),
+                    StepSchema(step_number=3, summary="write"),
                 ]
             ),
             step_outputs={1: [StepOutput(result=self._result(), tool="run_command")]},
@@ -554,9 +554,9 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, description="optional", status="skipped"),
-                    StepSchema(step_number=2, kind="review", description="Review"),
-                    StepSchema(step_number=3, description="write"),
+                    StepSchema(step_number=1, summary="optional", status="skipped"),
+                    StepSchema(step_number=2, kind="review", summary="Review"),
+                    StepSchema(step_number=3, summary="write"),
                 ]
             )
         )
@@ -568,14 +568,14 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, description="fetch", status="done"),
+                    StepSchema(step_number=1, summary="fetch", status="done"),
                     StepSchema(
                         step_number=2,
                         kind="review",
-                        description="Review progress",
+                        summary="Review progress",
                         depends_on=[1],
                     ),
-                    StepSchema(step_number=3, description="write"),
+                    StepSchema(step_number=3, summary="write"),
                 ]
             ),
             review_progress="Changed the config and reran the tests.",
@@ -592,8 +592,8 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, kind="review", description="Approve"),
-                    StepSchema(step_number=2, description="fetch"),
+                    StepSchema(step_number=1, kind="review", summary="Approve"),
+                    StepSchema(step_number=2, summary="fetch"),
                 ]
             )
         )
@@ -608,18 +608,18 @@ class TestReviewSections:
                     StepSchema(
                         step_number=1,
                         kind="review",
-                        description="Approve",
+                        summary="Approve",
                         status="done",
                     ),
-                    StepSchema(step_number=2, description="first", status="done"),
-                    StepSchema(step_number=3, description="second", status="done"),
+                    StepSchema(step_number=2, summary="first", status="done"),
+                    StepSchema(step_number=3, summary="second", status="done"),
                     StepSchema(
                         step_number=4,
                         kind="review",
-                        description="Review progress",
+                        summary="Review progress",
                         depends_on=[3],
                     ),
-                    StepSchema(step_number=5, description="next"),
+                    StepSchema(step_number=5, summary="next"),
                 ]
             ),
             step_outputs={
@@ -638,8 +638,8 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, kind="review", description="Approve"),
-                    StepSchema(step_number=2, description="fetch"),
+                    StepSchema(step_number=1, kind="review", summary="Approve"),
+                    StepSchema(step_number=2, summary="fetch"),
                 ]
             )
         )
@@ -652,7 +652,7 @@ class TestPlanReviewedThrough:
 
     def test_zero_before_any_review(self):
         plan = PlanSchema(
-            step_list=[StepSchema(step_number=1, description="work", status="done")]
+            step_list=[StepSchema(step_number=1, summary="work", status="done")]
         )
         assert plan.reviewed_through() == 0
 
@@ -660,11 +660,11 @@ class TestPlanReviewedThrough:
         plan = PlanSchema(
             step_list=[
                 StepSchema(
-                    step_number=1, kind="review", description="Approve", status="done"
+                    step_number=1, kind="review", summary="Approve", status="done"
                 ),
-                StepSchema(step_number=2, description="work", status="done"),
-                StepSchema(step_number=3, kind="review", description="Review"),
-                StepSchema(step_number=4, description="work"),
+                StepSchema(step_number=2, summary="work", status="done"),
+                StepSchema(step_number=3, kind="review", summary="Review"),
+                StepSchema(step_number=4, summary="work"),
             ]
         )
         assert plan.reviewed_through() == 1
@@ -672,8 +672,8 @@ class TestPlanReviewedThrough:
     def test_pending_gate_is_not_counted(self):
         plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, kind="review", description="Review"),
-                StepSchema(step_number=2, description="work"),
+                StepSchema(step_number=1, kind="review", summary="Review"),
+                StepSchema(step_number=2, summary="work"),
             ]
         )
         assert plan.reviewed_through() == 0
@@ -861,12 +861,12 @@ class TestCheckpointMsgpack:
             "planner_output": PlannerOutput(
                 goal=GoalSchema(goal="g", success_criteria="c"),
                 plan=PlannerPlanSchema(
-                    step_list=[StepSchema(description="s")], status="in_progress"
+                    step_list=[StepSchema(summary="s")], status="in_progress"
                 ),
             ),
             "evaluation": EvaluationSchema(overall="abort"),
             "plan": PlanSchema(
-                step_list=[StepSchema(description="s")],
+                step_list=[StepSchema(summary="s")],
                 status="in_progress",
                 plan_version=2,
                 human_feedback_rounds=1,
@@ -875,7 +875,7 @@ class TestCheckpointMsgpack:
             "plan_history": [
                 PlanRevision(
                     version=1,
-                    steps=[StepSchema(description="old")],
+                    steps=[StepSchema(summary="old")],
                     abandoned_reason="old plan failed",
                 )
             ],

@@ -40,7 +40,7 @@ def _state(evaluation: EvaluationSchema | None = None) -> KleaAgentState:
             step_list=[
                 StepSchema(
                     step_number=1,
-                    description="read the file",
+                    summary="read the file",
                     success_criteria="the content is available",
                     suggested_tools=["read_file"],
                 )

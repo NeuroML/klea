@@ -308,10 +308,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                     # A review step is a human checkpoint (ADR-0051): it names
                     # no tools and is not executed, but must describe what the
                     # user is reviewing.
-                    if not step.description.strip():
+                    if not step.summary.strip():
                         errors.append(
                             f"step {step.step_number} is a review step but has "
-                            "no description"
+                            "no summary"
                         )
                     if step.suggested_tools:
                         errors.append(
@@ -414,7 +414,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         )
         return StepSchema(
             step_number=number,
-            description="Provide guidance to continue",
+            summary="Provide guidance to continue",
             success_criteria="The user provides guidance for the next plan.",
             kind="reasoning",
             needs_input=[question],

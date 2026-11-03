@@ -355,9 +355,10 @@ deferred ADR-0041 open item.
   evidence.
 * ``goal: GoalSchema`` (fixed task goal and success criteria; written only by
   the Planner, and only while unset).
-* ``plan: PlanSchema`` (steps with their ``success_criteria``/``status``/
-  ``kind``/``suggested_tools``/``depends_on``, and the lifecycle ``status``
-  used for routing).  The Planner authors all of it (Design A, above); code only
+* ``plan: PlanSchema`` (steps with their ``summary``/``details``/
+  ``success_criteria``/``status``/``kind``/``suggested_tools``/``depends_on``,
+  and the lifecycle ``status`` used for routing).  The Planner authors all of
+  it (Design A, above); code only
   validates structure.  Execution position is **derived**, not stored: the
   frontier and the next batch are computed from per-step statuses and
   ``depends_on`` (ADR-0041).  ``PlanSchema`` extends the authored

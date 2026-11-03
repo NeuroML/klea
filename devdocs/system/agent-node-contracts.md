@@ -360,6 +360,12 @@ source: it names no tools, is not judged by the Evaluator, and produces no
 `StepOutput`, so it resolves to an empty render. The full rule is documented in
 [`agent-planner-evidence-rendering.md`](agent-planner-evidence-rendering.md).
 
+Each planned step carries `summary` (the short user-facing line), `details`
+(optional internal execution context for the binder, reasoning node and
+evaluator; never shown in the status pane or review), and `success_criteria`
+(the observable check). `description` remains accepted as a validation alias
+for old checkpointed plans; new plans serialize `summary`.
+
 #### Outputs
 
 | Field | Kind | Requiredness | Write timing and effect | Validation, fallback, and lifetime | Evidence |

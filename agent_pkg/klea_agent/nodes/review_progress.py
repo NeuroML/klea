@@ -104,9 +104,7 @@ class ReviewProgress(BaseLLMNode[KleaAgentState, ReviewProgressSchema]):
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
         gate = self._review_step(state)
         review_step = (
-            f"Step {gate.step_number}: {gate.description}"
-            if gate is not None
-            else "(none)"
+            f"Step {gate.step_number}: {gate.summary}" if gate is not None else "(none)"
         )
         variables = {
             "query": state.query,

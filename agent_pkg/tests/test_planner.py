@@ -48,7 +48,7 @@ class TestPlannerState(unittest.TestCase):
                     step_list=[
                         StepSchema(
                             step_number=1,
-                            description="read the model file",
+                            summary="read the model file",
                             success_criteria="file content is available",
                             suggested_tools=["read_file"],
                         )
@@ -71,9 +71,7 @@ class TestPlannerState(unittest.TestCase):
             PlannerOutput(
                 goal=GoalSchema(goal="different"),
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 ),
             ),
             state,
@@ -88,7 +86,7 @@ class TestPlannerState(unittest.TestCase):
             step_list=[
                 StepSchema(
                     step_number=1,
-                    description="read the model file",
+                    summary="read the model file",
                     suggested_tools=["read_file"],
                 )
             ]
@@ -189,7 +187,7 @@ class TestPlannerState(unittest.TestCase):
                 plan=PlannerPlanSchema(
                     status="chat",
                     step_list=[
-                        StepSchema(description="do work", suggested_tools=["read_file"])
+                        StepSchema(summary="do work", suggested_tools=["read_file"])
                     ],
                 )
             ),
@@ -220,13 +218,13 @@ class TestPlannerState(unittest.TestCase):
                     step_list=[
                         StepSchema(
                             step_number=1,
-                            description="a",
+                            summary="a",
                             suggested_tools=["read_file"],
                             status="done",
                         ),
                         StepSchema(
                             step_number=2,
-                            description="b",
+                            summary="b",
                             suggested_tools=["read_file"],
                         ),
                     ],
@@ -262,7 +260,7 @@ class TestPlannerState(unittest.TestCase):
                     step_list=[
                         StepSchema(
                             step_number=1,
-                            description="new",
+                            summary="new",
                             suggested_tools=["read_file"],
                         )
                     ],
@@ -341,10 +339,10 @@ class TestPlannerState(unittest.TestCase):
                 goal=GoalSchema(goal="g"),
                 plan=PlannerPlanSchema(
                     step_list=[
-                        StepSchema(description="Review the plan", kind="review"),
+                        StepSchema(summary="Review the plan", kind="review"),
                         StepSchema(
                             step_number=2,
-                            description="s",
+                            summary="s",
                             suggested_tools=["read_file"],
                             depends_on=[1],
                         ),
@@ -357,10 +355,10 @@ class TestPlannerState(unittest.TestCase):
         )
         self.assertEqual(update["plan"].status, "in_progress")
         self.assertEqual(update["plan"].step_list[0].kind, "review")
-        self.assertEqual(update["plan"].step_list[0].description, "Review the plan")
+        self.assertEqual(update["plan"].step_list[0].summary, "Review the plan")
 
     def test_review_step_must_describe_and_name_no_tools(self):
-        """A review step needs a description and must not name tools."""
+        """A review step needs a summary and must not name tools."""
         errors = self._planner()._validate_result(
             PlannerOutput(
                 goal=GoalSchema(goal="g"),
@@ -383,13 +381,13 @@ class TestPlannerState(unittest.TestCase):
                     step_list=[
                         StepSchema(
                             step_number=1,
-                            description="fetch",
+                            summary="fetch",
                             suggested_tools=["read_file"],
                             status="done",
                         ),
                         StepSchema(
                             step_number=2,
-                            description="Review the plan",
+                            summary="Review the plan",
                             kind="review",
                             depends_on=[1],
                         ),
@@ -413,12 +411,12 @@ class TestPlannerState(unittest.TestCase):
                     step_list=[
                         StepSchema(
                             step_number=1,
-                            description="Review the plan",
+                            summary="Review the plan",
                             kind="review",
                         ),
                         StepSchema(
                             step_number=2,
-                            description="s",
+                            summary="s",
                             suggested_tools=["read_file"],
                             depends_on=[1],
                         ),
@@ -435,16 +433,12 @@ class TestPlannerState(unittest.TestCase):
         """Review feedback is cleared once the Planner has read it."""
         state = KleaAgentState(
             human_feedback="looks good, proceed",
-            plan=PlanSchema(
-                step_list=[StepSchema(description="s")], status="in_progress"
-            ),
+            plan=PlanSchema(step_list=[StepSchema(summary="s")], status="in_progress"),
         )
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ],
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])],
                     status="in_progress",
                 )
             ),
@@ -474,9 +468,7 @@ class TestPlannerState(unittest.TestCase):
         update = planner._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ],
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])],
                     status="in_progress",
                 )
             ),
@@ -521,9 +513,7 @@ class TestPlannerState(unittest.TestCase):
             PlannerOutput(
                 goal=GoalSchema(goal="implement the plan", success_criteria="done"),
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ],
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])],
                     status="in_progress",
                 ),
             ),
@@ -557,7 +547,7 @@ class TestPlannerState(unittest.TestCase):
     def test_previous_plans_block_renders_versions_and_reasons(self):
         state = KleaAgentState(
             plan=PlanSchema(
-                step_list=[StepSchema(description="current approach")],
+                step_list=[StepSchema(summary="current approach")],
                 plan_version=2,
             ),
             plan_history=[
@@ -566,7 +556,7 @@ class TestPlannerState(unittest.TestCase):
                     steps=[
                         StepSchema(
                             step_number=1,
-                            description="old approach",
+                            summary="old approach",
                             suggested_tools=["read_file"],
                         )
                     ],
@@ -611,9 +601,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(replan_reason="tool failed"),
@@ -627,7 +615,7 @@ class TestPlannerState(unittest.TestCase):
             step_list=[
                 StepSchema(
                     step_number=1,
-                    description="read the old file",
+                    summary="read the old file",
                     suggested_tools=["read_file"],
                 )
             ],
@@ -643,9 +631,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             state,
@@ -655,7 +641,7 @@ class TestPlannerState(unittest.TestCase):
         self.assertEqual(update["plan_history"][0].version, 1)
         self.assertEqual(update["plan_history"][0].abandoned_reason, "tool failed")
         self.assertEqual(
-            update["plan_history"][0].steps[0].description, "read the old file"
+            update["plan_history"][0].steps[0].summary, "read the old file"
         )
         self.assertEqual(update["evaluation"], EvaluationSchema())
 
@@ -663,7 +649,7 @@ class TestPlannerState(unittest.TestCase):
         state = KleaAgentState(
             human_feedback="please revise step 1",
             plan=PlanSchema(
-                step_list=[StepSchema(description="s")],
+                step_list=[StepSchema(summary="s")],
                 status="in_progress",
                 plan_version=1,
             ),
@@ -671,9 +657,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             state,
@@ -699,9 +683,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             state,
@@ -714,7 +696,7 @@ class TestPlannerState(unittest.TestCase):
             step_list=[
                 StepSchema(
                     step_number=1,
-                    description="latest attempt",
+                    summary="latest attempt",
                     suggested_tools=["read_file"],
                 )
             ],
@@ -725,9 +707,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(plan=prior, plan_history=history),
@@ -742,9 +722,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(evaluation=EvaluationSchema(overall="abort")),
@@ -757,9 +735,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(binding_calls=[ToolCallSchema(tool="read_file", step=1)]),
@@ -771,9 +747,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(query="q"),
@@ -791,14 +765,12 @@ class TestPlannerState(unittest.TestCase):
             max_automated_plan_revisions=2,
         )
         prior_step = StepSchema(
-            step_number=1, description="s", suggested_tools=["read_file"]
+            step_number=1, summary="s", suggested_tools=["read_file"]
         )
         update = planner._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(
@@ -813,9 +785,9 @@ class TestPlannerState(unittest.TestCase):
         )
         self.assertEqual(update["plan"].status, "needs_input")
         self.assertEqual(update["plan"].automated_plan_revisions, 3)
-        self.assertEqual(update["plan"].step_list[0].description, "s")
+        self.assertEqual(update["plan"].step_list[0].summary, "s")
         guidance = update["plan"].step_list[-1]
-        self.assertEqual(guidance.description, "Provide guidance to continue")
+        self.assertEqual(guidance.summary, "Provide guidance to continue")
         self.assertIn("automated replan budget", guidance.needs_input[0])
         self.assertIn("tool failed", guidance.needs_input[0])
         self.assertIn("plan versions", guidance.needs_input[0].lower())
@@ -826,7 +798,7 @@ class TestPlannerState(unittest.TestCase):
         """A rejected invalid plan keeps the previous plan visible."""
         planner = self._planner()
         prior = PlanSchema(
-            step_list=[StepSchema(step_number=1, description="existing step")],
+            step_list=[StepSchema(step_number=1, summary="existing step")],
             plan_version=2,
         )
         ctx = LLMNodeContext()
@@ -835,13 +807,13 @@ class TestPlannerState(unittest.TestCase):
         update = planner._update_state(PlannerOutput(), KleaAgentState(plan=prior), ctx)
 
         self.assertEqual(update["plan"].status, "unplannable")
-        self.assertEqual(update["plan"].step_list[0].description, "existing step")
+        self.assertEqual(update["plan"].step_list[0].summary, "existing step")
         self.assertIn("plan validation failed", update["failure_reason"])
 
     def test_explicit_unplannable_preserves_prior_plan(self):
         """A Planner-decided impossible task keeps the previous plan visible."""
         prior = PlanSchema(
-            step_list=[StepSchema(step_number=1, description="existing step")],
+            step_list=[StepSchema(step_number=1, summary="existing step")],
             plan_version=2,
         )
 
@@ -854,7 +826,7 @@ class TestPlannerState(unittest.TestCase):
         )
 
         self.assertEqual(update["plan"].status, "unplannable")
-        self.assertEqual(update["plan"].step_list[0].description, "existing step")
+        self.assertEqual(update["plan"].step_list[0].summary, "existing step")
         self.assertEqual(update["failure_reason"], "impossible")
 
     def test_first_plan_does_not_count_as_revision(self):
@@ -862,9 +834,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(),
@@ -878,14 +848,12 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(
                 plan=PlanSchema(
-                    step_list=[StepSchema(step_number=1, description="blocked")],
+                    step_list=[StepSchema(step_number=1, summary="blocked")],
                     status="needs_input",
                     automated_plan_revisions=3,
                 ),
@@ -901,9 +869,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(
@@ -924,9 +890,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(
@@ -945,9 +909,7 @@ class TestPlannerState(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 )
             ),
             KleaAgentState(
@@ -978,7 +940,7 @@ class TestPlannerValidation(unittest.TestCase):
         return [
             StepSchema(
                 step_number=i,
-                description=f"step {i}",
+                summary=f"step {i}",
                 suggested_tools=["read_file"],
             )
             for i in range(1, count + 1)
@@ -1012,7 +974,7 @@ class TestPlannerValidation(unittest.TestCase):
                 step_list=[
                     StepSchema(
                         step_number=1,
-                        description="do work",
+                        summary="do work",
                         suggested_tools=["read_file"],
                         depends_on=[2],
                     )
@@ -1032,7 +994,7 @@ class TestPlannerValidation(unittest.TestCase):
         output = PlannerOutput(
             plan=PlannerPlanSchema(
                 status="unplannable",
-                step_list=[StepSchema(description="s", suggested_tools=["read_file"])],
+                step_list=[StepSchema(summary="s", suggested_tools=["read_file"])],
             )
         )
         error = self._planner()._validate_result(
@@ -1066,7 +1028,7 @@ class TestPlannerValidation(unittest.TestCase):
         output = PlannerOutput(
             plan=PlannerPlanSchema(
                 status="chat",
-                step_list=[StepSchema(description="s", suggested_tools=["read_file"])],
+                step_list=[StepSchema(summary="s", suggested_tools=["read_file"])],
             )
         )
         error = self._planner()._validate_result(
@@ -1081,9 +1043,7 @@ class TestPlannerValidation(unittest.TestCase):
         output = PlannerOutput(
             plan=PlannerPlanSchema(
                 status="needs_input",
-                step_list=[
-                    StepSchema(description="deploy", needs_input=["which env?"])
-                ],
+                step_list=[StepSchema(summary="deploy", needs_input=["which env?"])],
             )
         )
         self.assertIsNone(
@@ -1107,7 +1067,7 @@ class TestPlannerValidation(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[StepSchema(description="deploy", needs_input=["env?"])]
+                    step_list=[StepSchema(summary="deploy", needs_input=["env?"])]
                 )
             ),
             KleaAgentState(query="q"),
@@ -1124,7 +1084,7 @@ class TestPlannerValidation(unittest.TestCase):
                 plan=PlannerPlanSchema(
                     step_list=[
                         StepSchema(
-                            description="deploy",
+                            summary="deploy",
                             needs_input=["which file?", "which mode?"],
                         )
                     ]
@@ -1140,7 +1100,7 @@ class TestPlannerValidation(unittest.TestCase):
 
     def test_rejects_tool_step_without_tools(self):
         output = PlannerOutput(
-            plan=PlannerPlanSchema(step_list=[StepSchema(description="s")])
+            plan=PlannerPlanSchema(step_list=[StepSchema(summary="s")])
         )
         error = self._planner()._validate_result(
             output, KleaAgentState(), LLMNodeContext()
@@ -1153,7 +1113,7 @@ class TestPlannerValidation(unittest.TestCase):
         """A tool step is invalid when there is nothing to bind or dispatch."""
         output = PlannerOutput(
             plan=PlannerPlanSchema(
-                step_list=[StepSchema(description="s", suggested_tools=["read_file"])]
+                step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
             )
         )
         error = self._planner(tools_info={})._validate_result(
@@ -1174,9 +1134,7 @@ class TestPlannerValidation(unittest.TestCase):
         )
         output = PlannerOutput(
             plan=PlannerPlanSchema(
-                step_list=[
-                    StepSchema(description="write", suggested_tools=["write_file"])
-                ]
+                step_list=[StepSchema(summary="write", suggested_tools=["write_file"])]
             )
         )
         error = planner._validate_result(
@@ -1192,7 +1150,7 @@ class TestPlannerValidation(unittest.TestCase):
     def test_rejects_unknown_tool(self):
         output = PlannerOutput(
             plan=PlannerPlanSchema(
-                step_list=[StepSchema(description="s", suggested_tools=["not_a_tool"])]
+                step_list=[StepSchema(summary="s", suggested_tools=["not_a_tool"])]
             )
         )
         error = self._planner()._validate_result(
@@ -1213,9 +1171,7 @@ class TestPlannerValidation(unittest.TestCase):
         )
         output = PlannerOutput(
             plan=PlannerPlanSchema(
-                step_list=[
-                    StepSchema(description="read", suggested_tools=["read_file"])
-                ]
+                step_list=[StepSchema(summary="read", suggested_tools=["read_file"])]
             )
         )
         self.assertIsNone(
@@ -1236,7 +1192,7 @@ class TestPlannerValidation(unittest.TestCase):
                 status="needs_input",
                 step_list=[
                     StepSchema(
-                        description="write",
+                        summary="write",
                         needs_input=["which file?"],
                         suggested_tools=["write_file"],
                     )
@@ -1256,7 +1212,7 @@ class TestPlannerValidation(unittest.TestCase):
             plan=PlannerPlanSchema(
                 step_list=[
                     StepSchema(
-                        description="analyse",
+                        summary="analyse",
                         kind="reasoning",
                         suggested_tools=["read_file"],
                     )
@@ -1273,7 +1229,7 @@ class TestPlannerValidation(unittest.TestCase):
     def test_accepts_reasoning_step_without_tools(self):
         output = PlannerOutput(
             plan=PlannerPlanSchema(
-                step_list=[StepSchema(description="analyse", kind="reasoning")]
+                step_list=[StepSchema(summary="analyse", kind="reasoning")]
             )
         )
         self.assertIsNone(
@@ -1306,9 +1262,7 @@ class TestPlannerValidation(unittest.TestCase):
         update = self._planner()._update_state(
             PlannerOutput(
                 plan=PlannerPlanSchema(
-                    step_list=[
-                        StepSchema(description="s", suggested_tools=["read_file"])
-                    ]
+                    step_list=[StepSchema(summary="s", suggested_tools=["read_file"])]
                 ),
                 reason="single read step",
             ),
@@ -1409,8 +1363,8 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         ctx.state_updates = {
             "plan": PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, description="a"),
-                    StepSchema(step_number=2, description="b"),
+                    StepSchema(step_number=1, summary="a"),
+                    StepSchema(step_number=2, summary="b"),
                 ],
                 status="in_progress",
             )
@@ -1428,9 +1382,7 @@ class TestPlannerToolDisclosure(unittest.TestCase):
     def test_status_falls_back_to_state_plan(self):
         """Without state updates, status falls back to the incoming state plan."""
         planner = self._planner()
-        state = KleaAgentState(
-            plan=PlanSchema(step_list=[StepSchema(description="only")])
-        )
+        state = KleaAgentState(plan=PlanSchema(step_list=[StepSchema(summary="only")]))
 
         status = planner._get_status(state, LLMNodeContext())
 

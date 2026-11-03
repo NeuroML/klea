@@ -51,10 +51,10 @@ async def test_input_batches_step_questions_and_writes_answers():
     plan = PlanSchema(
         status="needs_input",
         step_list=[
-            StepSchema(step_number=1, description="find", success_criteria="found"),
+            StepSchema(step_number=1, summary="find", success_criteria="found"),
             StepSchema(
                 step_number=2,
-                description="deploy",
+                summary="deploy",
                 needs_input=["Which file?", "Which mode?"],
             ),
         ],
@@ -93,7 +93,7 @@ def test_input_ask_includes_abandoned_plan_sections():
             step_list=[
                 StepSchema(
                     step_number=2,
-                    description="Provide guidance to continue",
+                    summary="Provide guidance to continue",
                     needs_input=["How should I proceed?"],
                 )
             ],
@@ -104,7 +104,7 @@ def test_input_ask_includes_abandoned_plan_sections():
                 steps=[
                     StepSchema(
                         step_number=1,
-                        description="old approach",
+                        summary="old approach",
                         suggested_tools=["read_file"],
                     )
                 ],
@@ -133,7 +133,7 @@ async def test_review_approve_runs_the_plan():
     config = {"configurable": {"thread_id": "approve"}}
     plan = PlanSchema(
         status="in_progress",
-        step_list=[StepSchema(step_number=1, kind="review", description="Review")],
+        step_list=[StepSchema(step_number=1, kind="review", summary="Review")],
     )
 
     await graph.ainvoke(_HitlState(plan=plan), config=config)
@@ -164,11 +164,11 @@ async def test_review_checkpoint_carries_sections():
     plan = PlanSchema(
         status="in_progress",
         step_list=[
-            StepSchema(step_number=1, description="fetch", status="done"),
+            StepSchema(step_number=1, summary="fetch", status="done"),
             StepSchema(
                 step_number=2,
                 kind="review",
-                description="Review progress",
+                summary="Review progress",
                 depends_on=[1],
             ),
         ],
@@ -188,7 +188,7 @@ async def test_review_revise_returns_feedback():
     config = {"configurable": {"thread_id": "revise"}}
     plan = PlanSchema(
         status="in_progress",
-        step_list=[StepSchema(step_number=1, kind="review", description="Review")],
+        step_list=[StepSchema(step_number=1, kind="review", summary="Review")],
     )
 
     await graph.ainvoke(_HitlState(plan=plan), config=config)
@@ -214,7 +214,7 @@ async def test_review_revise_without_feedback_sets_signal():
     config = {"configurable": {"thread_id": "revise-empty"}}
     plan = PlanSchema(
         status="in_progress",
-        step_list=[StepSchema(step_number=1, kind="review", description="Review")],
+        step_list=[StepSchema(step_number=1, kind="review", summary="Review")],
     )
 
     await graph.ainvoke(_HitlState(plan=plan), config=config)

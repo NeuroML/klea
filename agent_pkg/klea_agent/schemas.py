@@ -18,7 +18,7 @@ from klea_utils.graph.state import BaseGraphSchema
 from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.tools import last_tool_error_text, textualize_tool_results
 from langchain_core.messages import AnyMessage
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class CodeSchema(BaseModel):
@@ -29,7 +29,17 @@ class CodeSchema(BaseModel):
 
 class StepSchema(BaseModel):
     step_number: int = 1
-    description: str = ""
+    #: Short, user-facing step summary (the status pane and review modal show
+    #: this).  ``description`` is accepted as a validation alias so plans in
+    #: older checkpoints still load; new plans serialize ``summary``.
+    summary: str = Field(
+        default="", validation_alias=AliasChoices("summary", "description")
+    )
+    #: Concise internal execution context for the other LLM nodes (binder,
+    #: reasoning, evaluator): files, identifiers, assumptions, constraints and
+    #: the expected intermediate result.  Prompt-facing only; never rendered in
+    #: the user-facing status pane.
+    details: str = ""
     success_criteria: str = ""
     #: How this step executes (ADR-0035 update 2026-09-19; ADR-0051).  A
     #: ``tool`` step names at least one tool in :attr:`suggested_tools` and
@@ -88,17 +98,18 @@ class StepSchema(BaseModel):
         """Render this step as one line with its status marker.
 
         Two audiences.  Prompts (``markdown=False``) include everything a
-        model may need (description, success criteria, suggested tools,
+        model may need (summary, details, success criteria, suggested tools,
         dependencies).  The status pane (``markdown=True``) stays minimal -
-        marker, number, description and dependencies (execution order) - with
-        the rest left to the inspection pane.
+        marker, number, summary and dependencies (execution order) - with the
+        rest left to the inspection pane.
 
         :param current: Whether this is the plan's current step.
         :param markdown: ``True`` for the status-pane render: ``[marker] Step
-            N: description (depends on: ...)``.  ``False`` for the prompt
-            render: ``[STATUS] N. description (success criteria: ...;
-            suggested tools: ...; depends on: ...)``, or ``...; kind:
-            reasoning; ...`` for a reasoning step (which names no tools).
+            N: summary (depends on: ...)``.  ``False`` for the prompt render:
+            ``[STATUS] N. summary (success criteria: ...; suggested tools: ...;
+            depends on: ...)``, or ``...; kind: reasoning; ...`` for a reasoning
+            step (which names no tools).  A non-review step with ``details``
+            adds an indented ``details:`` line.
         :returns: The prompt line, or the minimal status-pane line.
         """
         depends = (
@@ -109,15 +120,15 @@ class StepSchema(BaseModel):
         marker = self.status_label(current=current, markdown=markdown)
         if markdown:
             return (
-                f"{marker} Step {self.step_number}: {self.description} "
+                f"{marker} Step {self.step_number}: {self.summary} "
                 f"(depends on: {depends})"
             )
         criteria = self.success_criteria or "(none)"
         if self.kind == "review":
-            detail = f"{self.description} (kind: review; depends on: {depends})"
+            detail = f"{self.summary} (kind: review; depends on: {depends})"
         elif self.kind == "reasoning":
             detail = (
-                f"{self.description} (success criteria: {criteria}; "
+                f"{self.summary} (success criteria: {criteria}; "
                 f"kind: reasoning; depends on: {depends})"
             )
         else:
@@ -125,9 +136,11 @@ class StepSchema(BaseModel):
                 ", ".join(self.suggested_tools) if self.suggested_tools else "(none)"
             )
             detail = (
-                f"{self.description} (success criteria: {criteria}; "
+                f"{self.summary} (success criteria: {criteria}; "
                 f"suggested tools: {tools}; depends on: {depends})"
             )
+        if self.kind != "review" and self.details.strip():
+            detail += f"\n  details: {self.details.strip()}"
         return f"{marker} {self.step_number}. {detail}"
 
 
@@ -206,7 +219,7 @@ class PlannerPlanSchema(BaseModel):
                 )
                 lines.append(
                     f"{marker} Step {step.step_number}/{total} "
-                    f"{step.description} (depends on: {depends})"
+                    f"{step.summary} (depends on: {depends})"
                 )
             else:
                 lines.append(step.render(current=is_current, markdown=False))
@@ -1154,9 +1167,7 @@ class KleaAgentState(BaseGraphSchema):
             steps.append(
                 ContinuationStepEvidence(
                     step_number=step.step_number,
-                    description=_clip_text(
-                        step.description, MAX_CONTINUATION_STEP_CHARS
-                    ),
+                    description=_clip_text(step.summary, MAX_CONTINUATION_STEP_CHARS),
                     success_criteria=_clip_text(
                         step.success_criteria, MAX_CONTINUATION_STEP_CHARS
                     ),
@@ -1261,7 +1272,7 @@ class KleaAgentState(BaseGraphSchema):
     def work_since_review_text(self) -> str:
         """Render :meth:`work_since_review` as prompt-ready text.
 
-        Each step is headed by its description so the digest can attach the
+        Each step is headed by its summary so the digest can attach the
         observations to what the step was meant to do; the observations use the
         same :meth:`StepOutput.render` body as the Evaluator and Planner see, so
         the digest can draw on any tool result (including third-party MCP
@@ -1275,7 +1286,7 @@ class KleaAgentState(BaseGraphSchema):
             rendered = "".join(
                 f"\n\n{index}: {entry.render()}" for index, entry in enumerate(outputs)
             )
-            chunks.append(f"Step {step.step_number}: {step.description}{rendered}")
+            chunks.append(f"Step {step.step_number}: {step.summary}{rendered}")
         return "\n\n".join(chunks) if chunks else "(no work since the last review)"
 
     def review_sections(self) -> tuple[str, list[dict[str, str]]]:

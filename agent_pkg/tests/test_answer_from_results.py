@@ -42,7 +42,7 @@ class TestAnswerFromResults(unittest.TestCase):
             step_list=[
                 StepSchema(
                     step_number=1,
-                    description="list files",
+                    summary="list files",
                     success_criteria="files listed",
                     status="done",
                 )
@@ -57,7 +57,7 @@ class TestAnswerFromResults(unittest.TestCase):
         )
         self.assertEqual(update["message_for_user"], "here you go")
 
-    def test_empty_answer_falls_back_to_step_description(self):
+    def test_empty_answer_falls_back_to_step_summary(self):
         update = self._node()._update_state(
             AnswerSchema(), self._state(), LLMNodeContext()
         )

@@ -67,8 +67,8 @@ class TestOperationalEvaluator(unittest.TestCase):
         if with_plan:
             state.plan = PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, description="step one"),
-                    StepSchema(step_number=2, description="step two"),
+                    StepSchema(step_number=1, summary="step one"),
+                    StepSchema(step_number=2, summary="step two"),
                 ],
             )
         return state
@@ -79,14 +79,14 @@ class TestOperationalEvaluator(unittest.TestCase):
         state.goal = GoalSchema(goal="do x", success_criteria="x is done")
         state.plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, description="work"),
+                StepSchema(step_number=1, summary="work"),
                 StepSchema(
                     step_number=2,
                     kind="review",
-                    description="Review the change",
+                    summary="Review the change",
                     depends_on=[1],
                 ),
-                StepSchema(step_number=3, description="deploy", depends_on=[2]),
+                StepSchema(step_number=3, summary="deploy", depends_on=[2]),
             ]
         )
         return state
@@ -164,7 +164,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         evaluator = self._evaluator()
         state = KleaAgentState()
         state.plan = PlanSchema(
-            step_list=[StepSchema(step_number=1, description="only step")],
+            step_list=[StepSchema(step_number=1, summary="only step")],
         )
         update = evaluator._update_state(
             _verdict(1, "step_done", "looks done"), state, LLMNodeContext()
@@ -462,15 +462,15 @@ class TestOperationalEvaluator(unittest.TestCase):
         state.goal = GoalSchema(goal="do x")
         state.plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, description="work"),
-                StepSchema(step_number=2, description="more work"),
+                StepSchema(step_number=1, summary="work"),
+                StepSchema(step_number=2, summary="more work"),
                 StepSchema(
                     step_number=3,
                     kind="review",
-                    description="Review",
+                    summary="Review",
                     depends_on=[2],
                 ),
-                StepSchema(step_number=4, description="deploy", depends_on=[3]),
+                StepSchema(step_number=4, summary="deploy", depends_on=[3]),
             ]
         )
         result = EvaluationSchema(

@@ -180,9 +180,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         ]
         if not reviews:
             return "(none)"
-        return "\n".join(
-            f"Step {step.step_number}: {step.description}" for step in reviews
-        )
+        return "\n".join(f"Step {step.step_number}: {step.summary}" for step in reviews)
 
     @staticmethod
     def _upcoming_review(plan: PlanSchema) -> bool:
