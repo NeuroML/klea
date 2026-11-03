@@ -182,6 +182,27 @@ Last updated: 2026-11-03.
   call so retries/truncations count (today only the final call per node is
   measured).  `TokenUsage` now carries `reasoning_tokens`/`cached_tokens`/
   `role`; a stable node key is still needed.
+- Time-to-first-token (TTFT) logging for all LLM invocations (observability
+  improvement): record per-call first-token latency so slow starts are visible.
+  Currently blocked because streaming is deliberately disabled:
+  `LLMModel.build_config()` sets `overrides["disable_streaming"] = True`
+  (HuggingFace: `streaming = False`) to avoid `astream_events` inflating
+  `usage_metadata` (langchain#30429), so `on_llm_new_token` /
+  `on_chat_model_stream` never fire for node invocations.  Revisit once the
+  LangChain fix lands.  Planned change points: an `AsyncCallbackHandler` (not
+  `BaseCallbackHandler`) keyed by `run_id`, with the per-run start in
+  `on_chat_model_start`, the first-token latency in `on_llm_new_token` /
+  `on_chat_model_stream`, and cleanup in `on_llm_end` / `on_llm_error`, in a new
+  `utils_pkg/klea_utils/callbacks.py`; attach it once via the `callbacks` key of
+  the `RunnableConfig` returned by `LLMModel.build_config()`
+  (`utils_pkg/klea_utils/llm.py`, ~line 2048) so all four
+  `BaseLLMNode._invoke_llm` call sites in `utils_pkg/klea_utils/nodes/base.py`
+  are covered.  Caveats: multiple LLM calls per node (validation-retry loop in
+  `nodes/abstract.py:437-485`, `_invoke_with_retries`, structured->plain
+  fallback); the synchronous structured-output capability probe at `llm.py`
+  ~1274 bypasses `build_config`; update `devdocs/system/streams.md` in the same
+  change.
+
 - Sphinx build: importing `mcp` / `fastmcp` fails only inside the Sphinx
   process (not reproduced in isolation; 2026-10-02 session).  Unresolved;
   revisit if the MCP autodoc paths must build.
