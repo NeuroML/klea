@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-29.
+Last updated: 2026-11-03.
 
 ## Cancellation / concurrency
 
@@ -31,6 +31,15 @@ Last updated: 2026-10-29.
 
 ## Agent general path
 
+- Evaluator batching / cadence: the Evaluator runs after every homogeneous
+  runnable batch, so linear `depends_on` chains evaluate one step at a time
+  because the evaluator is what resolves the frontier.  Deferred until the
+  benchmarking setup can measure evaluator cost against wasted work.  Options:
+  (a) Planner discipline (declare only real data dependencies), (b) deferred
+  evaluation over N provisionally-completed steps with flushes on failure,
+  before write/edit steps, before review gates and at plan end, or (c)
+  deterministic pre-checks advancing the frontier with LLM checkpoints.  Do not
+  hard-code an N without measurement.  See `.agents/2026-11-03-1530.md`.
 - ADR-0041 residual: reasoning steps remain serial (one `ReasoningNode`
   conclusion per round); batching a reasoning prefix into one call (a per-step
   conclusion map) is deferred.
