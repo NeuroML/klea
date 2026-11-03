@@ -72,7 +72,7 @@ class TestReasoningNode(unittest.TestCase):
             LLMNodeContext(),
         )
         rendered = update["step_outputs"][1][0].render()
-        assert rendered.startswith("### reasoning (displayed_to_user: no)")
+        assert rendered.startswith("### reasoning")
         assert "H1: X causes Y" in rendered
 
     def test_rationale_reaches_observations(self):

@@ -69,7 +69,7 @@ class ToolsCallerNode(
         label: str,
         mcp_client: Any | None,
         tool_infos: dict[str, ToolInfo] | None = None,
-        post_dispatch: Callable[[Any, list[CallToolResult], list[bool]], dict[str, Any]]
+        post_dispatch: Callable[[Any, list[CallToolResult]], dict[str, Any]]
         | None = None,
         permission_policy: Literal["deny", "ask"] = "deny",
         mcp_session_pool: Any | None = None,
@@ -217,7 +217,7 @@ class ToolsCallerNode(
             self.logger.info(f"Session files approved\n{ctx.allowed_session_files = }")
             updates["allowed_files"] = merged_files
         if self._post_dispatch:
-            updates.update(self._post_dispatch(state, results, ctx.display_flags))
+            updates.update(self._post_dispatch(state, results))
         return updates
 
     def _session_id_for_dispatch(self, state: BaseModel) -> str | None:
@@ -339,8 +339,7 @@ class ToolsCallerNode(
     def _post_exec_stream(self, state: BaseModel, ctx: ToolCallerContext) -> None:
         """Emit the shared events, then any chat-renderable tool output."""
         super()._post_exec_stream(state, ctx)
-        entries, flags = self._compute_displays(state, ctx)
-        ctx.display_flags = flags
+        entries = self._compute_displays(state, ctx)
         if entries:
             self.write_custom_stream(
                 {"type": "tool", "node": self.label, "data": {"tools": entries}}
@@ -348,20 +347,17 @@ class ToolsCallerNode(
 
     def _compute_displays(
         self, state: BaseModel, ctx: ToolCallerContext
-    ) -> tuple[list[dict[str, Any]], list[bool]]:
-        """Return the display entries and a per-result displayed flag.
+    ) -> list[dict[str, Any]]:
+        """Return the display entries for the last round.
 
-        The entries are the chat-renderable payloads (one per result at most);
-        the flags are aligned with ``ctx.tool_results`` so a caller can record
-        which results were streamed to the user.
+        The entries are the chat-renderable payloads (one per result at most).
         """
         tool_calls = getattr(state, "tool_calls", [])
         per_result = [
             self._display_entry_for(tc, result)
             for tc, result in zip(tool_calls, ctx.tool_results, strict=False)
         ]
-        flags = [entry is not None for entry in per_result]
-        return [entry for entry in per_result if entry is not None], flags
+        return [entry for entry in per_result if entry is not None]
 
     def _tool_display_entries(
         self, tool_calls: list[Any], results: list[CallToolResult]

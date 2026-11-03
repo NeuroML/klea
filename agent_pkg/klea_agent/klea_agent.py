@@ -452,7 +452,6 @@ class KleaAgent(BaseLangGraph):
         self,
         state: KleaAgentState,
         results: list[CallToolResult],
-        displayed: list[bool],
     ) -> dict[str, Any]:
         """Record a dispatched tool round: retry counter + per-step outputs.
 
@@ -463,8 +462,8 @@ class KleaAgent(BaseLangGraph):
         maintained here and :class:`TriageRouter` reads it to decide retry vs
         replan; incremented on any ``is_error`` result and cleared when the
         round (ADR-0035), appends the round's results to
-        ``step_outputs`` as :class:`StepOutput` entries (tool name + whether the
-        interface displayed it) so the Evaluator and Planner see every
+        ``step_outputs`` as :class:`StepOutput` entries (tool name + call
+        signature) so the Evaluator and Planner see every
         observation for the step (bounded to the most recent
         ``MAX_STEP_RESULTS``).  Each
         result is recorded under its call's originating step (``call.step``),
@@ -485,8 +484,6 @@ class KleaAgent(BaseLangGraph):
 
         :param state: Current graph state.
         :param results: Tool call results (one per call in ``tool_calls``).
-        :param displayed: Per-result flag: the server streamed a display event
-            for that result (aligned with *results*).
         :returns: State updates carrying the updated retry counts, outputs and
             the replan reason.
         """
@@ -509,7 +506,6 @@ class KleaAgent(BaseLangGraph):
                     if call is not None
                     else ""
                 ),
-                displayed=displayed[i] if i < len(displayed) else False,
             )
             prior = outputs.get(step, [])
             if not getattr(result, "is_error", False):
@@ -563,7 +559,7 @@ class KleaAgent(BaseLangGraph):
             is_error=True,
         )
         outputs = dict(state.step_outputs or {})
-        entry = StepOutput(result=synthetic, tool="", displayed=False)
+        entry = StepOutput(result=synthetic, tool="")
         outputs[step] = [*outputs.get(step, []), entry][-self.MAX_STEP_RESULTS :]
         self.logger.debug(
             f"picker failure recorded: {step = }\n{reason = }\n{len(outputs[step]) = }"

@@ -43,7 +43,7 @@ def test_accumulates_step_outputs():
     state = KleaAgentState(plan=PlanSchema())
     state.step_outputs = {1: [StepOutput(result=_result())]}
     state.binding_calls = [ToolCallSchema(tool="read_file", step=1)]
-    update = agent._record_tool_round(state, [_result(), _result()], [False, False])
+    update = agent._record_tool_round(state, [_result(), _result()])
     assert len(update["step_outputs"][1]) == 3
     assert update["tool_retry_counts"] == {}
     assert update["binding_calls"] == []
@@ -53,7 +53,7 @@ def test_caps_step_outputs():
     agent = _agent()
     state = KleaAgentState(plan=PlanSchema())
     batch = [_result() for _ in range(KleaAgent.MAX_STEP_RESULTS + 5)]
-    update = agent._record_tool_round(state, batch, [False] * len(batch))
+    update = agent._record_tool_round(state, batch)
     assert len(update["step_outputs"][1]) == KleaAgent.MAX_STEP_RESULTS
 
 
@@ -68,7 +68,7 @@ def test_error_round_increments_tool_retry_counts():
             ]
         )
     )
-    update = agent._record_tool_round(state, [_result(is_error=True)], [False])
+    update = agent._record_tool_round(state, [_result(is_error=True)])
     assert update["tool_retry_counts"] == {2: 1}
     assert update["step_outputs"][2]
 
@@ -82,7 +82,7 @@ def test_failed_round_sets_replan_reason():
             ToolCallSchema(tool="read_file", step=1, args={"path": "missing.txt"})
         ],
     )
-    update = agent._record_tool_round(state, [_error_result("no such file")], [False])
+    update = agent._record_tool_round(state, [_error_result("no such file")])
     reason = update["replan_reason"]
     assert "read_file" in reason
     assert "path=missing.txt" in reason
@@ -111,7 +111,6 @@ def test_failed_round_lists_every_failed_call_in_replan_reason():
     update = agent._record_tool_round(
         state,
         [_error_result("HTTP 404"), _error_result("old_string matched 2 times")],
-        [False, False],
     )
 
     reason = update["replan_reason"]
@@ -126,7 +125,7 @@ def test_clean_round_clears_replan_reason():
     """A clean batch clears a stale replan reason (progress)."""
     agent = _agent()
     state = KleaAgentState(plan=PlanSchema(), replan_reason="old failure")
-    update = agent._record_tool_round(state, [_result()], [False])
+    update = agent._record_tool_round(state, [_result()])
     assert update["replan_reason"] == ""
 
 
@@ -148,7 +147,7 @@ def test_clean_round_prunes_earlier_errors():
     agent = _agent()
     state = KleaAgentState(plan=PlanSchema())
     state.step_outputs = {1: [StepOutput(result=_error_result("old failure"))]}
-    update = agent._record_tool_round(state, [_result()], [False])
+    update = agent._record_tool_round(state, [_result()])
     entries = update["step_outputs"][1]
     assert len(entries) == 1
     assert not entries[0].result.is_error
@@ -159,12 +158,12 @@ def test_error_round_keeps_earlier_errors():
     agent = _agent()
     state = KleaAgentState(plan=PlanSchema())
     state.step_outputs = {1: [StepOutput(result=_error_result("first"))]}
-    update = agent._record_tool_round(state, [_error_result("second")], [False])
+    update = agent._record_tool_round(state, [_error_result("second")])
     assert len(update["step_outputs"][1]) == 2
 
 
-def test_records_tool_name_and_displayed_flag():
-    """Each StepOutput carries the tool name and the displayed flag."""
+def test_records_tool_names():
+    """Each StepOutput carries its call's tool name."""
     agent = _agent()
     state = KleaAgentState(
         plan=PlanSchema(),
@@ -173,13 +172,10 @@ def test_records_tool_name_and_displayed_flag():
             ToolCallSchema(tool="run_command"),
         ],
     )
-    update = agent._record_tool_round(state, [_result(), _result()], [True, False])
+    update = agent._record_tool_round(state, [_result(), _result()])
 
     entries = update["step_outputs"][1]
-    assert [(e.tool, e.displayed) for e in entries] == [
-        ("edit_file", True),
-        ("run_command", False),
-    ]
+    assert [e.tool for e in entries] == ["edit_file", "run_command"]
 
 
 def test_results_attributed_to_call_step():
@@ -197,7 +193,7 @@ def test_results_attributed_to_call_step():
             ToolCallSchema(tool="read_file", step=1),
         ],
     )
-    update = agent._record_tool_round(state, [_result(), _result()], [False, False])
+    update = agent._record_tool_round(state, [_result(), _result()])
 
     assert update["step_outputs"][2][0].tool == "edit_file"
     assert update["step_outputs"][1][0].tool == "read_file"

@@ -53,8 +53,5 @@
   inline in backticks.
 * Leave a blank line before any list, table or heading.
 * Present structured tool results as the relevant fields; do not dump raw JSON.
-* Results marked `displayed_to_user: yes` have already been shown by the
-  interface (for example a file edit's diff): do not reprint them, summarise
-  them instead.  Results marked `displayed_to_user: no` (for example command
-  output the user asked for) have not been shown, so present them as needed.
+* Every tool result is already shown inline in the chat: summarise it rather than reprinting it, and quote at most the short excerpt the user asked for.
 * Keep the reply focused and concise; put the reply text in `answer`.

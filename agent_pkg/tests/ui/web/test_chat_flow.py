@@ -216,8 +216,6 @@ async def test_review_interrupt_renders_headline_and_sections(fake_backend, agen
     await agent_user.should_see("Step 1: copy the file", retries=50)
     await agent_user.should_see("run_command: ok", retries=50)
     await agent_user.should_see("Remaining (1 step)", retries=50)
-    # The prompt-facing detail must not reach the user.
-    await agent_user.should_not_see("displayed_to_user")
 
 
 async def test_generic_tool_event_renders_header_and_payload(fake_backend, agent_user):

@@ -318,17 +318,17 @@ class TestStepOutputRender:
             meta=None,
         )
 
-    def test_render_includes_tool_and_displayed(self):
-        entry = StepOutput(result=self._result(), tool="edit_file", displayed=True)
+    def test_render_includes_tool(self):
+        entry = StepOutput(result=self._result(), tool="edit_file")
         rendered = entry.render()
-        assert rendered.startswith("### edit_file (displayed_to_user: yes)")
+        assert rendered.startswith("### edit_file")
         assert '{"a": 1}' in rendered
 
     def test_render_reasoning_string_result(self):
         """A str result (reasoning conclusion) renders without a tool name."""
-        entry = StepOutput(result="H1: X causes Y", tool="", displayed=False)
+        entry = StepOutput(result="H1: X causes Y", tool="")
         rendered = entry.render()
-        assert rendered.startswith("### reasoning (displayed_to_user: no)")
+        assert rendered.startswith("### reasoning")
         assert "H1: X causes Y" in rendered
 
     def test_render_reasoning_includes_rationale(self):
@@ -336,7 +336,6 @@ class TestStepOutputRender:
         entry = StepOutput(
             result="H1: X causes Y",
             tool="",
-            displayed=False,
             rationale="grounded in the observations",
         )
         rendered = entry.render()
@@ -345,30 +344,28 @@ class TestStepOutputRender:
 
     def test_render_tool_result_omits_empty_rationale(self):
         """A tool result has no rationale, so none is rendered."""
-        entry = StepOutput(result=self._result(), tool="edit_file", displayed=True)
+        entry = StepOutput(result=self._result(), tool="edit_file")
         assert "Rationale:" not in entry.render()
 
     def test_observations_text_groups_by_step(self):
         state = KleaAgentState(
             step_outputs={
                 2: [
-                    StepOutput(result=self._result(), tool="edit_file", displayed=True),
-                    StepOutput(
-                        result=self._result(), tool="run_command", displayed=False
-                    ),
+                    StepOutput(result=self._result(), tool="edit_file"),
+                    StepOutput(result=self._result(), tool="run_command"),
                 ]
             }
         )
         text = state.observations_text()
         assert text.startswith("Step 2:")
-        assert "### edit_file (displayed_to_user: yes)" in text
-        assert "### run_command (displayed_to_user: no)" in text
+        assert "### edit_file" in text
+        assert "### run_command" in text
 
     def test_observations_text_empty(self):
         assert KleaAgentState().observations_text() == "(no observations)"
 
     def test_summary_tool_ok(self):
-        entry = StepOutput(result=self._result(), tool="edit_file", displayed=True)
+        entry = StepOutput(result=self._result(), tool="edit_file")
         assert entry.summary() == "edit_file: ok"
 
     def test_summary_tool_error_includes_reason(self):
@@ -890,10 +887,9 @@ class TestCheckpointMsgpack:
                             meta=None,
                         ),
                         tool="list_files",
-                        displayed=False,
                     ),
                     # Reasoning conclusions are plain strings in the union.
-                    StepOutput(result="H1: X causes Y", tool="", displayed=False),
+                    StepOutput(result="H1: X causes Y", tool=""),
                 ]
             },
             "usage_metrics": TokenUsage(

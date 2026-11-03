@@ -914,16 +914,11 @@ class StepOutput(BaseModel):
     bounded at record time so a summarised evidence view can name what a
     Planner-unselected step actually ran without retaining (and checkpointing)
     the full argument values again.
-    :attr:`displayed` records that the server streamed a display event for this
-    result.  That is *intent-to-display*, not a render guarantee: a client may
-    not have shown it.  The answer node uses the flag to avoid reprinting
-    results the interface already showed.
     """
 
     result: CallToolResult | str
     tool: str = ""
     signature: str = ""
-    displayed: bool = False
     rationale: str = ""
 
     @property
@@ -940,10 +935,9 @@ class StepOutput(BaseModel):
         The body is the shared single-result text (no batch header) for a tool
         result, or the conclusion text for a reasoning step; a reasoning step's
         ``rationale`` is appended so the justification is visible in
-        ``observations``.  The ``### <tool> (displayed_to_user: ...)`` heading
-        replaces the generic ``Result i/n`` label so the consumer knows which
-        tool ran (or that the entry is reasoning) and whether the interface
-        already showed it.
+        ``observations``.  The ``### <tool>`` heading replaces the generic
+        ``Result i/n`` label so the consumer knows which tool ran (or that the
+        entry is reasoning).
         """
         if isinstance(self.result, CallToolResult):
             body = textualize_tool_results([self.result], include_header=False).strip()
@@ -953,8 +947,7 @@ class StepOutput(BaseModel):
             tool = self.tool or "reasoning"
         if self.rationale.strip():
             body = f"{body}\n\nRationale: {self.rationale.strip()}"
-        shown = "yes" if self.displayed else "no"
-        return f"### {tool} (displayed_to_user: {shown})\n{body}"
+        return f"### {tool}\n{body}"
 
     def _compact(self, *, detailed: bool) -> str:
         """Return a compact one-line rendering of this entry.
@@ -983,8 +976,8 @@ class StepOutput(BaseModel):
     def summary(self) -> str:
         """Return a concise one-line summary for the human-facing progress view.
 
-        Unlike :meth:`render` (the full, LLM-facing body with the
-        ``displayed_to_user`` flag), this keeps only the tool name and whether
+        Unlike :meth:`render` (the full, LLM-facing body), this keeps only
+        the tool name and whether
         the call succeeded (with a short error reason), so the plan-review
         ``progress`` stays readable; the full result is a click away in the
         inspection pane.  A reasoning step renders its conclusion's first line.

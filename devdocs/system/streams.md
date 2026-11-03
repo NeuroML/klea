@@ -211,14 +211,14 @@ too and carry `is_error`, which the web uses to style the block: a failed call
 is evidence the user can read in the chat instead of only in `inspect`.  See
 ADR-0040 for the full rules.
 
-Note: a tool result is also recorded in graph state as a `StepOutput`
-(`result`, `tool`, `signature`, `displayed`) and rendered into observations by
-`KleaAgentState.observations_text()`, which delegates to
-`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:146`).
+Note: a tool result is also recorded in graph state as a StepOutput (result,
+tool, signature) and rendered into observations by
+KleaAgentState.observations_text(), which delegates to
+evidence.render_step_observations (agent_pkg/klea_agent/evidence.py:146).
 Selected steps render in full; there is no character budget (the model's context
-window is the bound), so no payload is replaced by a summary. Each entry carries
-`displayed_to_user: yes|no`, so the synthesised answer can avoid reprinting what
-the chat already showed.
+window is the bound), so no payload is replaced by a summary. Every tool result
+is shown inline in the chat, so the synthesised answer summarises it rather than
+reprinting it.
 
 ### `token` (gated)
 

@@ -542,7 +542,7 @@ async def test_access_level_gate_full_allows():
 async def test_post_dispatch_callback_extras():
     client = FakeMCPClient()
 
-    def post_dispatch(state, results, displayed):
+    def post_dispatch(state, results):
         return {"plan_status": "done"}
 
     node = _make_node(client=client, post_dispatch=post_dispatch)
@@ -568,7 +568,7 @@ async def test_post_dispatch_can_update_plan_step():
 
     client = FakeMCPClient()
 
-    def post_dispatch(state, results, displayed):
+    def post_dispatch(state, results):
         step = state.plan.step_list[state.plan.current_step_index]
         step.status = "done"
         state.plan.current_step_index += 1
@@ -925,8 +925,8 @@ def test_post_exec_stream_emits_tool_event():
     assert tool_events[0]["data"]["tools"][0]["mime"] == "text/x-diff"
 
 
-def test_compute_displays_flags_aligned_with_results():
-    """The displayed flags align 1:1 with results; diffs and always-display results are entries."""
+def test_compute_displays_aligned_with_results():
+    """Each result yields a display entry; diffs and always-display results are included."""
     node = _make_node(tool_infos={"edit_file": ToolInfo(title="Edit file")})
     state = MiniState(
         tool_calls=[
@@ -952,9 +952,8 @@ def test_compute_displays_flags_aligned_with_results():
         ),
     ]
 
-    entries, flags = node._compute_displays(state, _ctx(results))
+    entries = node._compute_displays(state, _ctx(results))
 
-    assert flags == [True, True]
     assert len(entries) == 2
     assert entries[0]["mime"] == "text/x-diff"
 
