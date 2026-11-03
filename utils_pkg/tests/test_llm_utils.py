@@ -546,5 +546,27 @@ def test_parse_output_with_thought_reraises_original_error_when_repair_empty(
     assert "The prose answer." in str(excinfo.value)
 
 
+def test_parse_output_with_thought_rejects_lossy_repair():
+    """A repair that truncates a value at an unescaped quote is rejected.
+
+    Regression: an unescaped ``"`` inside ``answer`` (the logged payload with
+    ``rendered = ""``) let ``repair_json`` silently drop the rest of the value;
+    the hardened parser must raise instead of returning the truncated answer.
+    """
+    content = '{"answer": "1126:             rendered = ""\n1127:             for ind, entry in enumerate(entries):\n1128:                 shown = "yes" if self.displayed else "no"}'
+    with pytest.raises(OutputParserException):
+        parse_output_with_thought(AIMessage(content=content), _ParseSchema)
+
+
+def test_parse_output_with_thought_keeps_escaped_quotes():
+    """Properly escaped quotes round-trip to the full untruncated answer."""
+    content = '{"answer": "1126:             rendered = \\"\\"value\\"\\""}'
+    result, thought = parse_output_with_thought(
+        AIMessage(content=content), _ParseSchema
+    )
+    assert thought == ""
+    assert result == {"answer": '1126:             rendered = ""value""'}
+
+
 if __name__ == "__main__":
     unittest.main()

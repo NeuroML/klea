@@ -497,6 +497,110 @@ def check_ollama_model(logger, model, exit=False):
             sys.exit(-1)
 
 
+def _reject_lossy_answer(
+    raw: str,
+    result: object,
+    original_exc: OutputParserException | None = None,
+) -> None:
+    """Reject a repair whose ``answer`` value was silently truncated.
+
+    The repaired ``answer`` is compared with the raw JSON string span in the
+    unrepaired text.  If the parsed value matches the raw span but the raw
+    JSON string was not properly terminated (the next significant character
+    is neither ``,`` nor ``}`` nor ``]``), the repair dropped content.
+
+    Raises:
+        OutputParserException: if a lossy/truncated answer is detected.
+    """
+    if not isinstance(result, dict):
+        return
+    answer = result.get("answer")
+    if not isinstance(answer, str):
+        return
+
+    match = re.search(r'"answer"\s*:\s*"', raw)
+    if match is None:
+        return
+
+    # Scan the JSON string, honouring backslash escapes, to its closing quote.
+    i = match.end()
+    span_start = i
+    escaped = False
+    while i < len(raw):
+        ch = raw[i]
+        if escaped:
+            escaped = False
+        elif ch == "\\":
+            escaped = True
+        elif ch == '"':
+            break
+        i += 1
+    else:
+        if original_exc is None:
+            raise OutputParserException(
+                "repair_json produced a lossy/truncated answer; refusing repair"
+            )
+        raise OutputParserException(
+            "repair_json produced a lossy/truncated answer; refusing repair"
+        ) from original_exc
+
+    raw_value = raw[span_start:i]
+    next_char = ""
+    j = i + 1
+    while j < len(raw) and raw[j].isspace():
+        j += 1
+    if j < len(raw):
+        next_char = raw[j]
+
+    if answer == raw_value and next_char not in ("", ",", "}", "]"):
+        if original_exc is None:
+            raise OutputParserException(
+                "repair_json produced a lossy/truncated answer; refusing repair"
+            )
+        raise OutputParserException(
+            "repair_json produced a lossy/truncated answer; refusing repair"
+        ) from original_exc
+
+
+def _repair_and_parse(
+    raw: str,
+    schema: type[BaseModel],
+    parser,
+    original_exc: OutputParserException,
+):
+    """Repair, re-parse and validate a malformed JSON answer.
+
+    Raises:
+        OutputParserException: if repair fails, validation fails, or the
+            repair appears to have truncated the ``answer`` value.
+    """
+    from pydantic import ValidationError
+
+    logger.debug(f"JSON parse failed; attempting repair. {raw = }")
+    cleaned = repair_json(raw)
+    logger.debug(f"{cleaned = }")
+    if not cleaned.strip():
+        logger.debug("repair_json produced no JSON; re-raising the parse error")
+        raise original_exc
+
+    try:
+        result = parser.parse(cleaned)
+    except OutputParserException:
+        raise OutputParserException(
+            f"repair_json produced unparseable JSON; original error: {original_exc}"
+        ) from original_exc
+
+    try:
+        schema.model_validate(result)
+    except ValidationError:
+        raise OutputParserException(
+            f"repair_json produced a schema-invalid result; original error: {original_exc}"
+        ) from original_exc
+
+    _reject_lossy_answer(raw, result, original_exc)
+    return result
+
+
 def parse_output_with_thought[TSchema: BaseModel](
     message: AIMessage, schema: type[TSchema]
 ) -> tuple[TSchema, str]:
@@ -519,14 +623,10 @@ def parse_output_with_thought[TSchema: BaseModel](
         parser.pydantic_object = schema()
         try:
             result = parser.parse(answer)
-        except OutputParserException:
-            logger.debug(f"JSON parse failed; attempting repair. {answer = }")
-            cleaned = repair_json(answer)
-            logger.debug(f"{cleaned = }")
-            if not cleaned.strip():
-                logger.debug("repair_json produced no JSON; re-raising the parse error")
-                raise
-            result = parser.parse(cleaned)
+        except OutputParserException as exc:
+            result = _repair_and_parse(answer, schema, parser, exc)
+        else:
+            _reject_lossy_answer(answer, result, None)
 
     else:
         message.content = content_to_str(message.content)
@@ -542,14 +642,10 @@ def parse_output_with_thought[TSchema: BaseModel](
         parser.pydantic_object = schema()
         try:
             result = parser.parse(answer)
-        except OutputParserException:
-            logger.debug(f"JSON parse failed; attempting repair. {answer = }")
-            cleaned = repair_json(answer)
-            logger.debug(f"{cleaned = }")
-            if not cleaned.strip():
-                logger.debug("repair_json produced no JSON; re-raising the parse error")
-                raise
-            result = parser.parse(cleaned)
+        except OutputParserException as exc:
+            result = _repair_and_parse(answer, schema, parser, exc)
+        else:
+            _reject_lossy_answer(answer, result, None)
 
     logger.debug(f"{thought = }")
     logger.debug(f"{answer = }")
