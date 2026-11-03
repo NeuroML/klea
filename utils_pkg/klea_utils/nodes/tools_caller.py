@@ -379,12 +379,14 @@ class ToolsCallerNode(
         standard, third-party-friendly path); then structured conventions
         (``diff`` -> ``text/x-diff``, ``code`` -> ``text/x-<language>``,
         ``display`` -> ``text/markdown``); then a self-describing
-        ``display`` dict (``{"mime", "data", "meta"}``); then, for a
-        destructive tool with none of the above, a minimal ``text/x-shell``
-        call line so a third-party destructive call is still visible.  Plain
-        ``TextContent`` is not surfaced (ours is the JSON dump).  An errored
-        destructive result is still surfaced; other results with nothing to
-        show (and non-destructive errors) are skipped.
+        ``display`` dict (``{"mime", "data", "meta"}``); then, for any
+        result still without an entry, a bounded generic ``text/x-shell``
+        entry (call line plus a bounded text projection) so a third-party
+        tool that declares no display convention is never silently invisible.
+        Plain ``TextContent`` is not surfaced as the primary payload (ours is
+        the JSON dump).  A result with a tool name is therefore never skipped,
+        errored or not: an errored result shows whatever it declared, else the
+        bounded generic entry.
         """
         per_result = [
             self._display_entry_for(tc, result)
@@ -398,51 +400,122 @@ class ToolsCallerNode(
         """Build a display entry for one call/result, or ``None``.
 
         Precedence: a typed MCP content block first, then a structured
-        display convention (``display``/``diff``/``code``).  Failing both, a
-        destructive tool (ADR-0037) gets a minimal ``text/x-shell`` fallback
-        showing the call, so a third-party destructive tool that declares no
-        display convention is never silently invisible.
+        display convention (``display``/``diff``/``code``).  Failing both,
+        every result that carries a tool name gets a bounded generic
+        ``text/x-shell`` entry: the call line plus a bounded text projection
+        of the output, so no tool result is silently invisible in the chat
+        (third-party tools are not required to follow the Klea convention).
 
-        Errored results are shown for destructive tools (a failed
-        ``run_command`` is exactly what the user must see) but skipped for
-        non-destructive ones: their failure is already in the inspect pane
-        and drives Triage, so rendering every read-only error would only add
-        chat noise.
+        Errored results follow the same precedence, so a failed call shows
+        whatever it declared and otherwise falls back to the bounded generic
+        entry: a failed ``run_command`` is exactly what the user must see,
+        and a failed read-only call is evidence the user should be able to
+        read without opening the inspect pane.
         """
         info = self._tool_infos.get(tc.tool) if self._tool_infos else None
-        destructive = info is not None and info.destructive
-        if result.is_error and not destructive:
-            return None
         title = info.title if info and info.title else tc.tool
         entry = self._display_from_content(result, tc.tool, title)
         if entry is None and isinstance(result.structured_content, dict):
             entry = self._display_from_structured(
                 result.structured_content, tc.tool, title
             )
-        if entry is None and destructive:
-            entry = self._display_from_destructive_call(tc, title)
+        if entry is None:
+            entry = self._display_from_call(tc, result, title)
         if entry is not None:
             # Carried to the frontend so it can style an errored block.
             entry["is_error"] = bool(result.is_error)
         return entry
 
-    @staticmethod
-    def _display_from_destructive_call(tc: Any, title: str) -> dict[str, Any]:
-        """Build a minimal shell-call entry for a destructive tool.
+    #: Cap for the generic fallback's text projection.  Deliberately well below
+    #: the tools' own output budget (``DEFAULT_MAX_OUTPUT_CHARS``) so a single
+    #: huge result cannot flood the chat transcript.
+    _FALLBACK_TEXT_MAX_CHARS = 800
+    #: Appended when the generic fallback truncates a long output.
+    _FALLBACK_TRUNCATION_MARKER = "[truncated]"
 
-        Used as the last-resort display for a destructive tool that provided
-        no typed content block and no display convention (third-party MCP
-        servers are not required to follow the Klea convention).  Shows the
-        call as ``tool(arg=...)`` with each argument value summarised, so the
-        user can see what was invoked without a long argument dump.
+    def _display_from_call(
+        self, tc: Any, result: CallToolResult, title: str
+    ) -> dict[str, Any] | None:
+        """Build the bounded generic entry for any tool result.
+
+        The last-resort display for a result that provided no typed content
+        block and no display convention (third-party MCP servers are not
+        required to follow the Klea convention).  The entry keeps a
+        ``text/x-shell`` call line ``tool(arg=...)`` with each argument value
+        summarised, so the user can see what was invoked without a long
+        argument dump, and appends a bounded plain-text projection of the
+        result (see :meth:`_bounded_result_text`), truncated with an explicit
+        marker.
+
+        A result carrying a typed media/binary payload keeps its typed MIME
+        (handled earlier by :meth:`_display_from_content`); if one reaches
+        this fallback it shows the call line only, since base64 must never be
+        dumped into the chat as text.  ``None`` is returned only when the call
+        carries no tool name to label the entry with.
         """
+        name = getattr(tc, "tool", "") or ""
+        if not name:
+            return None
         args = getattr(tc, "args", None) or {}
         rendered = ", ".join(
             f"{key}={ToolsCallerNode._summarise_arg(value)}"
             for key, value in args.items()
         )
-        call = f"{tc.tool}({rendered})" if args else f"{tc.tool}()"
-        return ToolsCallerNode._display_entry(tc.tool, title, "text/x-shell", call)
+        call = f"{name}({rendered})" if args else f"{name}()"
+        text = (
+            ""
+            if ToolsCallerNode._has_binary_payload(result)
+            else ToolsCallerNode._bounded_result_text(result)
+        )
+        data = f"{call}\n{text}" if text else call
+        self.logger.debug(f"{name = }\n{result.is_error = }")
+        return ToolsCallerNode._display_entry(name, title, "text/x-shell", data)
+
+    @classmethod
+    def _bounded_result_text(cls, result: CallToolResult) -> str:
+        """Return a bounded text projection of one tool result.
+
+        Text content blocks are concatenated; failing those, a non-empty
+        ``structured_content`` is rendered compactly.  The projection is
+        capped at :data:`_FALLBACK_TEXT_MAX_CHARS` and ends with an explicit
+        truncation marker.
+        """
+        parts: list[str] = []
+        for block in result.content or []:
+            text = getattr(block, "text", None)
+            if isinstance(text, str) and text.strip():
+                parts.append(text.strip())
+        if not parts:
+            structured = result.structured_content
+            if isinstance(structured, dict) and structured:
+                parts.append(
+                    ToolsCallerNode._summarise_arg(
+                        structured, limit=cls._FALLBACK_TEXT_MAX_CHARS
+                    )
+                )
+        text = "\n".join(parts).strip()
+        if len(text) > cls._FALLBACK_TEXT_MAX_CHARS:
+            text = (
+                text[: cls._FALLBACK_TEXT_MAX_CHARS].rstrip()
+                + "\n"
+                + cls._FALLBACK_TRUNCATION_MARKER
+            )
+        return text
+
+    @staticmethod
+    def _has_binary_payload(result: CallToolResult) -> bool:
+        """Return whether the result carries a typed media/binary payload."""
+        for block in result.content or []:
+            if isinstance(block, (ImageContent, AudioContent)):
+                return True
+            if isinstance(block, BlobResourceContents):
+                return True
+            if isinstance(block, EmbeddedResource) and isinstance(
+                block.resource, BlobResourceContents
+            ):
+                return True
+        structured = result.structured_content
+        return isinstance(structured, dict) and bool(structured.get("binary"))
 
     @staticmethod
     def _summarise_arg(value: Any, limit: int = 80) -> str:

@@ -220,6 +220,36 @@ async def test_review_interrupt_renders_headline_and_sections(fake_backend, agen
     await agent_user.should_not_see("displayed_to_user")
 
 
+async def test_generic_tool_event_renders_header_and_payload(fake_backend, agent_user):
+    """A non-run_command tool entry renders its header and payload in chat."""
+    fake_backend.stream_events = [
+        {
+            "type": "tool",
+            "node": "Running tools",
+            "data": {
+                "tools": [
+                    {
+                        "tool": "read_file",
+                        "title": "Read file",
+                        "header": "Read file",
+                        "mime": "text/x-shell",
+                        "data": 'read_file(path="notes.txt")\nhello from notes',
+                        "meta": {},
+                        "display": 'read_file(path="notes.txt")\nhello from notes',
+                        "is_error": False,
+                    }
+                ]
+            },
+        },
+        {"type": "complete", "message_for_user": "Done"},
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Read file", retries=50)
+    await agent_user.should_see("hello from notes", retries=50)
+
+
 def _permission_event(request: dict) -> dict:
     return {
         "type": "interrupt",

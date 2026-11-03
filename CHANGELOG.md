@@ -10,6 +10,7 @@
 
 ### Added
 
+- Every tool result is now shown in the web chat, not only `run_command` output: each call appears as its own collapsible block with a bounded preview of its output, including calls that failed.
 - TUI project context: the terminal client sends its working directory, full environment and Python interpreter with each query (loopback only), so one backend can run different chats in different projects or virtual environments. `--cwd`, repeatable `--env KEY=VALUE`, `--interpreter` and `--no-client-context` control it; the client cwd is also the default project root when `/cwd` is unset. A changed context respawns that session's bundled MCP tools (ADR-0055).
 - `/stores` session command (TUI): sets the chat's stores config from an absolute JSON path, or `clear` to drop it; the value lives in the per-chat `ChatData.stores_config` slot and is validated locally (absolute, existing regular file) before it is recorded.
 - TUI client context: a chat's stores config rides the existing `client_context` payload (loopback only) on submit, retry and HITL resume, merged into a copied context so the shared base context is never mutated; a changed value respawns that session's bundled MCP tools via the context fingerprint.
