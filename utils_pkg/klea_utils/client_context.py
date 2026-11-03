@@ -61,6 +61,10 @@ class ClientContext(BaseModel):
         caller's values win over the inherited environment.
     :param interpreter: Python interpreter used to run the bundled MCP
         server.  Must be an absolute, executable file once validated.
+    :param stores_config: Stores configuration JSON file the bundled MCP
+        server should search for this run, overriding the deployment
+        default.  Must resolve to an absolute path to an existing regular
+        file; a relative value is resolved against :attr:`cwd`.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -68,6 +72,12 @@ class ClientContext(BaseModel):
     cwd: str | None = None
     env: dict[str, str] = Field(default_factory=dict)
     interpreter: str | None = None
+    #: Per-session stores configuration file (a stores JSON document) the
+    #: bundled MCP server should search instead of the deployment default.
+    #: The client supplies the path for one run; the server carries it in the
+    #: MCP request metadata, never as a tool argument, and re-validates it as
+    #: untrusted input.  ``None`` keeps the host configuration.
+    stores_config: str | None = None
 
 
 def _normalise_context(raw: Any) -> ClientContext:
@@ -117,6 +127,39 @@ def _validate_interpreter(interpreter: str) -> str:
         raise ClientContextError("client context interpreter is not a file")
     if not os.access(absolute, os.X_OK):
         raise ClientContextError("client context interpreter is not executable")
+    return str(absolute)
+
+
+def _validate_stores_config(stores_config: str, cwd: str | None) -> str:
+    """Return the absolute *stores_config* path, or raise when it is unusable.
+
+    A relative value is resolved against the run's working directory (*cwd*,
+    falling back to the process working directory), matching how the client
+    names the file it wants searched.  The server re-validates the value
+    before reading it, so nothing here is trusted downstream.
+
+    :param stores_config: Path supplied by the client.
+    :param cwd: The context's working directory, when it supplied one.
+    :returns: The absolute path, symlinks left in place.
+    :raises ClientContextError: When the value is blank, cannot be resolved,
+        does not exist, or is not a regular file.
+    """
+    value = stores_config.strip()
+    if not value:
+        raise ClientContextError("client context stores_config must not be empty")
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        base = Path(cwd) if cwd is not None else Path.cwd()
+        path = base / path
+    try:
+        absolute = Path(os.path.abspath(path))
+        absolute.stat()
+    except OSError as exc:
+        raise ClientContextError(
+            f"client context stores_config does not exist: {path}"
+        ) from exc
+    if not absolute.is_file():
+        raise ClientContextError("client context stores_config is not a file")
     return str(absolute)
 
 
@@ -173,7 +216,12 @@ def validate_client_context(
         )
 
     context = _normalise_context(raw)
-    if context.cwd is None and context.interpreter is None and not context.env:
+    if (
+        context.cwd is None
+        and context.interpreter is None
+        and context.stores_config is None
+        and not context.env
+    ):
         return None
 
     cwd = _validate_cwd(context.cwd) if context.cwd is not None else None
@@ -183,8 +231,15 @@ def validate_client_context(
         else None
     )
     env = _validate_env(context.env)
+    stores_config = (
+        _validate_stores_config(context.stores_config, cwd)
+        if context.stores_config is not None
+        else None
+    )
 
-    validated = ClientContext(cwd=cwd, env=env, interpreter=interpreter)
+    validated = ClientContext(
+        cwd=cwd, env=env, interpreter=interpreter, stores_config=stores_config
+    )
     logger.debug(
         "Validated client context: cwd=%s interpreter=%s env_keys=%d",
         validated.cwd,
@@ -209,11 +264,17 @@ def client_context_fingerprint(
     if context is None:
         return ""
     normalised = _normalise_context(context)
-    if normalised.cwd is None and normalised.interpreter is None and not normalised.env:
+    if (
+        normalised.cwd is None
+        and normalised.interpreter is None
+        and normalised.stores_config is None
+        and not normalised.env
+    ):
         return ""
     payload = {
         "cwd": normalised.cwd or "",
         "interpreter": normalised.interpreter or "",
+        "stores_config": normalised.stores_config or "",
         "env": dict(sorted(normalised.env.items())),
     }
     canonical = json.dumps(

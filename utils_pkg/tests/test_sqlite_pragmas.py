@@ -17,10 +17,7 @@ import sqlite3
 import subprocess
 import sys
 
-from klea_utils.graph.base import (
-    _apply_sqlite_pragmas,
-    _apply_sqlite_pragmas_async,
-)
+from klea_utils.graph.base import _apply_sqlite_pragmas, _apply_sqlite_pragmas_async
 
 # A writer process that applies the same connection policy as the backend
 # (WAL + busy timeout + NORMAL synchronous) and commits row by row, so two of

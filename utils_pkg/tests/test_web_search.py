@@ -30,10 +30,7 @@ from klea_utils.mcp.tool_impls.search.transport import (
     _mcp_call,
     _user_agent,
 )
-from klea_utils.mcp.tool_impls.web_search import (
-    DEFAULT_MAX_RESULTS,
-    web_search,
-)
+from klea_utils.mcp.tool_impls.web_search import DEFAULT_MAX_RESULTS, web_search
 
 
 class _FakeResponse:

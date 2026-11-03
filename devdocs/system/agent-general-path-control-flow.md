@@ -355,9 +355,10 @@ deferred ADR-0041 open item.
   evidence.
 * ``goal: GoalSchema`` (fixed task goal and success criteria; written only by
   the Planner, and only while unset).
-* ``plan: PlanSchema`` (steps with their ``success_criteria``/``status``/
-  ``kind``/``suggested_tools``/``depends_on``, and the lifecycle ``status``
-  used for routing).  The Planner authors all of it (Design A, above); code only
+* ``plan: PlanSchema`` (steps with their ``summary``/``details``/
+  ``success_criteria``/``status``/``kind``/``suggested_tools``/``depends_on``,
+  and the lifecycle ``status`` used for routing).  The Planner authors all of
+  it (Design A, above); code only
   validates structure.  Execution position is **derived**, not stored: the
   frontier and the next batch are computed from per-step statuses and
   ``depends_on`` (ADR-0041).  ``PlanSchema`` extends the authored
@@ -513,8 +514,8 @@ level 2 verifier with provenance.
 | call-level (bad args, permission denied) | binder | re-bind the **same** suggested tool with corrected arguments; the binder may not switch tools and sees every failed call, not just the last error |
 | binder cannot bind any suggested tool | planner | a single empty-``tool`` call becomes a synthetic ``is_error`` observation + ``replan_reason``; the binder does not substitute |
 | repeated failed call (same tool + arguments) | planner | deterministic guard: escalate even for a subset/reordered batch; changed arguments are allowed |
-| repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` 3 re-picks, then escalate |
-| step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap, then escalate |
+| repeated tool error on the same step | planner | ADaPT: ``tool_retry_counts`` 6 re-picks, then escalate |
+| step makes no progress (criterion unmet, no new information) | planner | ``step_attempt_counts`` cap (6 attempts), then escalate |
 | goal proven unreachable (missing input, read-only) | failure answer | Evaluator ``abort`` (no replan) |
 | plan revision budget exhausted | human guidance | preserve steps, append a blocked guidance step, set ``needs_input`` -> ``AwaitHuman`` (input) |
 | long plan | run continues | no step-count cap; the per-step/replan budgets bound execution |
@@ -592,7 +593,10 @@ Planner, otherwise the next batch by kind.
 
 It judges the goal and each step's criterion against the **outcome**, not
 merely whether tools succeeded; ``executed_tools`` is rendered grouped by step
-and the observations are per step, so a different tool that meets the criteria
+and the observations are scoped to the current batch plus its transitive
+``depends_on`` closure (``OperationalEvaluator._observations_text``,
+``agent_pkg/klea_agent/nodes/operational_evaluator.py:102-118``), so a different
+tool that meets the criteria
 is fine, while a material mismatch is reported in the step's ``reason``.  Its
 user prompt also carries an optional ``recent_tool_failures`` block from the
 failed-batch digest, so a failed call is not mistaken for evidence of success.
@@ -603,7 +607,8 @@ epistemic verifier with the same judge-only contract.
 ### Reachability and ``abort``
 
 ``abort`` is a first-class verdict, not only the tool-round backstop.  When the
-observations already prove the goal is unreachable -- for example a required
+observations (the batch plus its dependency closure) already prove the goal
+is unreachable -- for example a required
 input does not exist and the task is read-only, so it must not be created -- the
 Evaluator returns ``abort`` directly, routing straight to ``AnswerFromResults``
 rather than re-entering the Planner.  Requiring ``need_replan`` for an
@@ -698,6 +703,13 @@ entirely on success.  It judges nothing.  Its prompt
 carries the output-formatting rules (verbatim command/list output in fenced
 code blocks, identifiers in backticks, a blank line before lists, no raw JSON
 dumps).  A deterministic fallback covers an empty or failed synthesis.
+
+The observations it receives are rendered in full, not budgeted:
+``_observations_text`` delegates to ``render_step_observations``
+(``agent_pkg/klea_agent/nodes/answer_from_results.py:90-104``), which renders
+every recorded step.  There is no character cap; the model's context window is
+the only bound.
+
 Scientific mode will use a grounded, citation-carrying variant; the Evaluator
 contract is unchanged.
 

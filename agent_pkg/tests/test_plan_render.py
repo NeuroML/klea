@@ -22,10 +22,10 @@ class TestPlanRender(unittest.TestCase):
     def test_status_markers_words_for_prompts(self):
         plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, description="a", status="done"),
-                StepSchema(step_number=2, description="b", status="failed"),
-                StepSchema(step_number=3, description="c"),
-                StepSchema(step_number=4, description="d"),
+                StepSchema(step_number=1, summary="a", status="done"),
+                StepSchema(step_number=2, summary="b", status="failed"),
+                StepSchema(step_number=3, summary="c"),
+                StepSchema(step_number=4, summary="d"),
             ],
         )
         rendered = plan.render()
@@ -37,10 +37,10 @@ class TestPlanRender(unittest.TestCase):
     def test_status_markers_symbols_for_status_pane(self):
         plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, description="a", status="done"),
-                StepSchema(step_number=2, description="b", status="failed"),
-                StepSchema(step_number=3, description="c"),
-                StepSchema(step_number=4, description="d"),
+                StepSchema(step_number=1, summary="a", status="done"),
+                StepSchema(step_number=2, summary="b", status="failed"),
+                StepSchema(step_number=3, summary="c"),
+                StepSchema(step_number=4, summary="d"),
             ],
         )
         rendered = plan.render(markdown=True)
@@ -51,15 +51,15 @@ class TestPlanRender(unittest.TestCase):
 
     def test_success_criteria_included(self):
         plan = PlanSchema(
-            step_list=[StepSchema(description="x", success_criteria="x done")],
+            step_list=[StepSchema(summary="x", success_criteria="x done")],
         )
         self.assertIn("success criteria: x done", plan.render())
 
     def test_markdown_steps_separated_by_blank_line(self):
         plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, description="a"),
-                StepSchema(step_number=2, description="b"),
+                StepSchema(step_number=1, summary="a"),
+                StepSchema(step_number=2, summary="b"),
             ]
         )
         rendered = plan.render(markdown=True)
@@ -69,7 +69,7 @@ class TestPlanRender(unittest.TestCase):
     def test_step_render(self):
         step = StepSchema(
             step_number=2,
-            description="edit the file",
+            summary="edit the file",
             success_criteria="tests pass",
         )
         self.assertEqual(
@@ -87,7 +87,7 @@ class TestPlanRender(unittest.TestCase):
     def test_step_render_includes_tools_and_deps(self):
         step = StepSchema(
             step_number=2,
-            description="edit the file",
+            summary="edit the file",
             success_criteria="tests pass",
             suggested_tools=["edit", "write"],
             depends_on=[1],
@@ -100,7 +100,7 @@ class TestPlanRender(unittest.TestCase):
         """The status render omits criteria/tools; keeps deps (execution order)."""
         step = StepSchema(
             step_number=2,
-            description="edit the file",
+            summary="edit the file",
             success_criteria="tests pass",
             suggested_tools=["edit", "write"],
             depends_on=[1],
@@ -111,19 +111,57 @@ class TestPlanRender(unittest.TestCase):
         self.assertNotIn("suggested tools", rendered)
 
     def test_step_render_done_marker(self):
-        step = StepSchema(description="x", status="done")
+        step = StepSchema(summary="x", status="done")
         self.assertTrue(step.render().startswith("[DONE]"))
+
+    def test_details_included_in_prompt_render(self):
+        """Internal details reach prompt-facing renders, not the summary line."""
+        step = StepSchema(
+            step_number=2,
+            summary="edit the file",
+            details="Use the existing retry helper in klea_utils.tools.",
+        )
+
+        rendered = step.render()
+
+        self.assertIn("[PENDING] 2. edit the file", rendered)
+        self.assertIn(
+            "\n  details: Use the existing retry helper in klea_utils.tools.",
+            rendered,
+        )
+
+    def test_details_omitted_from_status_render(self):
+        """The status pane keeps the user-facing summary only."""
+        step = StepSchema(
+            step_number=2,
+            summary="edit the file",
+            details="internal execution notes",
+        )
+
+        rendered = step.render(current=True, markdown=True)
+
+        self.assertEqual(rendered, "[*] Step 2: edit the file (depends on: (none))")
+        self.assertNotIn("internal execution notes", rendered)
+
+    def test_legacy_description_maps_to_summary(self):
+        """Plans checkpointed before the rename still load."""
+        step = StepSchema.model_validate(
+            {"step_number": 1, "description": "legacy step"}
+        )
+
+        self.assertEqual(step.summary, "legacy step")
+        self.assertEqual(step.model_dump()["summary"], "legacy step")
 
     def test_current_step_helper(self):
         plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, description="a", status="done"),
-                StepSchema(step_number=2, description="b"),
+                StepSchema(step_number=1, summary="a", status="done"),
+                StepSchema(step_number=2, summary="b"),
             ],
         )
         current = plan.current_step()
         assert current is not None
-        self.assertEqual(current.description, "b")
+        self.assertEqual(current.summary, "b")
         self.assertIsNone(PlanSchema().current_step())
 
 

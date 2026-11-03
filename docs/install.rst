@@ -305,7 +305,10 @@ Model names are prefixed according to their provider:
 * ``<provider>:<model_name>`` for providers listed in the
   `models.dev <https://models.dev>`_ catalog whose endpoint Klea can resolve
   (for example ``openrouter:qwen/qwen3-coder`` or ``deepseek:deepseek-chat``).
-  Klea reads the provider's endpoint from the catalog, so no URL is needed.
+  OpenRouter model ids may include a tag
+  (``openrouter:<model_id>:<tag>``, e.g. ``openrouter:recursive/flint-v1.0:free``);
+  the tag stays on the model id, like Ollama.  Klea reads the provider's
+  endpoint from the catalog, so no URL is needed.
   The provider's (or, for gateways that mix surfaces, the model's) wire
   protocol decides the surface: OpenAI Chat Completions (most of the catalog,
   including OpenRouter) and the OpenAI Responses API both use the OpenAI

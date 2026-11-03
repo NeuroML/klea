@@ -70,7 +70,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         label: str,
         llm_models: dict[str, Any],
         memory: bool = False,
-        max_automated_plan_revisions: int = 4,
+        max_automated_plan_revisions: int = 8,
         tools_info: dict[str, dict[str, ToolInfo]] | None = None,
     ):
         """Initialise the planner node.
@@ -190,7 +190,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             "previous_work": previous_work,
             "feedback_block": feedback_block,
             "discovery": state.discovery_persistent.render(),
-            "observations": state.observations_text(),
+            "observations": state.planner_evidence(),
             "tools_description": self._get_tool_descriptions(state),
         }
 
@@ -308,10 +308,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                     # A review step is a human checkpoint (ADR-0051): it names
                     # no tools and is not executed, but must describe what the
                     # user is reviewing.
-                    if not step.description.strip():
+                    if not step.summary.strip():
                         errors.append(
                             f"step {step.step_number} is a review step but has "
-                            "no description"
+                            "no summary"
                         )
                     if step.suggested_tools:
                         errors.append(
@@ -414,7 +414,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         )
         return StepSchema(
             step_number=number,
-            description="Provide guidance to continue",
+            summary="Provide guidance to continue",
             success_criteria="The user provides guidance for the next plan.",
             kind="reasoning",
             needs_input=[question],

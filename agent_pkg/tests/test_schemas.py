@@ -32,6 +32,7 @@ from klea_agent.schemas import (
     StepEvaluation,
     StepOutput,
     StepSchema,
+    format_call_signature,
     trim_plan_history,
 )
 from klea_utils.graph.schemas import TokenUsage
@@ -69,7 +70,7 @@ class TestPlanRevision:
     def test_render_includes_reason_and_steps(self):
         revision = PlanRevision(
             version=2,
-            steps=[StepSchema(step_number=1, description="read the input")],
+            steps=[StepSchema(step_number=1, summary="read the input")],
             abandoned_reason="tool failed",
         )
         rendered = revision.render()
@@ -82,7 +83,7 @@ class TestPlanRevision:
         state = KleaAgentState(
             plan_history=history,
             plan=PlanSchema(
-                step_list=[StepSchema(step_number=1, description="try again")],
+                step_list=[StepSchema(step_number=1, summary="try again")],
                 plan_version=2,
             ),
         )
@@ -113,19 +114,19 @@ class TestContinuationEvidence:
             step_list=[
                 StepSchema(
                     step_number=1,
-                    description="read the source",
+                    summary="read the source",
                     success_criteria="source read",
                     suggested_tools=["read_file"],
                     status="done",
                 ),
                 StepSchema(
                     step_number=2,
-                    description="write the plan",
+                    summary="write the plan",
                     success_criteria="plan written",
                     kind="reasoning",
                     status="done",
                 ),
-                StepSchema(step_number=3, description="implement", status="pending"),
+                StepSchema(step_number=3, summary="implement", status="pending"),
             ],
             status="completed",
             plan_version=2,
@@ -255,7 +256,7 @@ class TestStepStatus:
     """The distinct ``skipped`` status resolves a step that is not needed."""
 
     def test_skipped_status_label_and_render(self):
-        step = StepSchema(step_number=1, description="optional", status="skipped")
+        step = StepSchema(step_number=1, summary="optional", status="skipped")
         assert step.status_label() == "[SKIPPED]"
         assert step.status_label(markdown=True) == "[-]"
         assert "[SKIPPED]" in step.render()
@@ -317,17 +318,17 @@ class TestStepOutputRender:
             meta=None,
         )
 
-    def test_render_includes_tool_and_displayed(self):
-        entry = StepOutput(result=self._result(), tool="edit_file", displayed=True)
+    def test_render_includes_tool(self):
+        entry = StepOutput(result=self._result(), tool="edit_file")
         rendered = entry.render()
-        assert rendered.startswith("### edit_file (displayed_to_user: yes)")
+        assert rendered.startswith("### edit_file")
         assert '{"a": 1}' in rendered
 
     def test_render_reasoning_string_result(self):
         """A str result (reasoning conclusion) renders without a tool name."""
-        entry = StepOutput(result="H1: X causes Y", tool="", displayed=False)
+        entry = StepOutput(result="H1: X causes Y", tool="")
         rendered = entry.render()
-        assert rendered.startswith("### reasoning (displayed_to_user: no)")
+        assert rendered.startswith("### reasoning")
         assert "H1: X causes Y" in rendered
 
     def test_render_reasoning_includes_rationale(self):
@@ -335,7 +336,6 @@ class TestStepOutputRender:
         entry = StepOutput(
             result="H1: X causes Y",
             tool="",
-            displayed=False,
             rationale="grounded in the observations",
         )
         rendered = entry.render()
@@ -344,30 +344,28 @@ class TestStepOutputRender:
 
     def test_render_tool_result_omits_empty_rationale(self):
         """A tool result has no rationale, so none is rendered."""
-        entry = StepOutput(result=self._result(), tool="edit_file", displayed=True)
+        entry = StepOutput(result=self._result(), tool="edit_file")
         assert "Rationale:" not in entry.render()
 
     def test_observations_text_groups_by_step(self):
         state = KleaAgentState(
             step_outputs={
                 2: [
-                    StepOutput(result=self._result(), tool="edit_file", displayed=True),
-                    StepOutput(
-                        result=self._result(), tool="run_command", displayed=False
-                    ),
+                    StepOutput(result=self._result(), tool="edit_file"),
+                    StepOutput(result=self._result(), tool="run_command"),
                 ]
             }
         )
         text = state.observations_text()
         assert text.startswith("Step 2:")
-        assert "### edit_file (displayed_to_user: yes)" in text
-        assert "### run_command (displayed_to_user: no)" in text
+        assert "### edit_file" in text
+        assert "### run_command" in text
 
     def test_observations_text_empty(self):
         assert KleaAgentState().observations_text() == "(no observations)"
 
     def test_summary_tool_ok(self):
-        entry = StepOutput(result=self._result(), tool="edit_file", displayed=True)
+        entry = StepOutput(result=self._result(), tool="edit_file")
         assert entry.summary() == "edit_file: ok"
 
     def test_summary_tool_error_includes_reason(self):
@@ -389,6 +387,46 @@ class TestStepOutputRender:
         summary = entry.summary()
         assert summary.endswith("...")
         assert len(summary) == len("reasoning: ") + 80
+
+    def test_format_call_signature_names_all_arguments(self):
+        signature = format_call_signature(
+            "grep", {"pattern": "foo", "path": "src", "include": "*.py"}
+        )
+        assert signature == 'grep(pattern="foo", path="src", include="*.py")'
+
+    def test_format_call_signature_clips_long_values(self):
+        signature = format_call_signature("write_file", {"content": "x" * 500})
+        assert signature.startswith('write_file(content="')
+        assert signature.endswith('...")')
+        assert len(signature) < 300
+
+    def test_evidence_summary_keeps_success_signature(self):
+        entry = StepOutput(
+            result=self._result(),
+            tool="grep",
+            signature='grep(pattern="foo", path="src")',
+        )
+        assert entry.evidence_summary() == 'grep(pattern="foo", path="src"): ok'
+
+    def test_evidence_summary_keeps_full_error_text(self):
+        error = (
+            '{"pattern": "foo", "path": ".", "matches": [], "error": '
+            '"Search timed out after 30 s"}'
+        )
+        result = CallToolResult(
+            content=[TextContent(type="text", text=error)],
+            structured_content=None,
+            meta=None,
+            is_error=True,
+        )
+        entry = StepOutput(
+            result=result,
+            tool="grep",
+            signature='grep(pattern="foo", path=".")',
+        )
+        summary = entry.evidence_summary()
+        assert summary.startswith('grep(pattern="foo", path="."): error - ')
+        assert "Search timed out after 30 s" in summary
 
     def test_artefacts_text_empty(self):
         assert KleaAgentState().artefacts_text() == "(no artefacts)"
@@ -467,9 +505,9 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, kind="review", description="Approve"),
-                    StepSchema(step_number=2, description="fetch"),
-                    StepSchema(step_number=3, description="write"),
+                    StepSchema(step_number=1, kind="review", summary="Approve"),
+                    StepSchema(step_number=2, summary="fetch"),
+                    StepSchema(step_number=3, summary="write"),
                 ]
             )
         )
@@ -486,14 +524,14 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, description="fetch", status="done"),
+                    StepSchema(step_number=1, summary="fetch", status="done"),
                     StepSchema(
                         step_number=2,
                         kind="review",
-                        description="Review progress",
+                        summary="Review progress",
                         depends_on=[1],
                     ),
-                    StepSchema(step_number=3, description="write"),
+                    StepSchema(step_number=3, summary="write"),
                 ]
             ),
             step_outputs={1: [StepOutput(result=self._result(), tool="run_command")]},
@@ -513,9 +551,9 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, description="optional", status="skipped"),
-                    StepSchema(step_number=2, kind="review", description="Review"),
-                    StepSchema(step_number=3, description="write"),
+                    StepSchema(step_number=1, summary="optional", status="skipped"),
+                    StepSchema(step_number=2, kind="review", summary="Review"),
+                    StepSchema(step_number=3, summary="write"),
                 ]
             )
         )
@@ -527,14 +565,14 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, description="fetch", status="done"),
+                    StepSchema(step_number=1, summary="fetch", status="done"),
                     StepSchema(
                         step_number=2,
                         kind="review",
-                        description="Review progress",
+                        summary="Review progress",
                         depends_on=[1],
                     ),
-                    StepSchema(step_number=3, description="write"),
+                    StepSchema(step_number=3, summary="write"),
                 ]
             ),
             review_progress="Changed the config and reran the tests.",
@@ -551,8 +589,8 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, kind="review", description="Approve"),
-                    StepSchema(step_number=2, description="fetch"),
+                    StepSchema(step_number=1, kind="review", summary="Approve"),
+                    StepSchema(step_number=2, summary="fetch"),
                 ]
             )
         )
@@ -567,18 +605,18 @@ class TestReviewSections:
                     StepSchema(
                         step_number=1,
                         kind="review",
-                        description="Approve",
+                        summary="Approve",
                         status="done",
                     ),
-                    StepSchema(step_number=2, description="first", status="done"),
-                    StepSchema(step_number=3, description="second", status="done"),
+                    StepSchema(step_number=2, summary="first", status="done"),
+                    StepSchema(step_number=3, summary="second", status="done"),
                     StepSchema(
                         step_number=4,
                         kind="review",
-                        description="Review progress",
+                        summary="Review progress",
                         depends_on=[3],
                     ),
-                    StepSchema(step_number=5, description="next"),
+                    StepSchema(step_number=5, summary="next"),
                 ]
             ),
             step_outputs={
@@ -597,8 +635,8 @@ class TestReviewSections:
         state = KleaAgentState(
             plan=PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, kind="review", description="Approve"),
-                    StepSchema(step_number=2, description="fetch"),
+                    StepSchema(step_number=1, kind="review", summary="Approve"),
+                    StepSchema(step_number=2, summary="fetch"),
                 ]
             )
         )
@@ -611,7 +649,7 @@ class TestPlanReviewedThrough:
 
     def test_zero_before_any_review(self):
         plan = PlanSchema(
-            step_list=[StepSchema(step_number=1, description="work", status="done")]
+            step_list=[StepSchema(step_number=1, summary="work", status="done")]
         )
         assert plan.reviewed_through() == 0
 
@@ -619,11 +657,11 @@ class TestPlanReviewedThrough:
         plan = PlanSchema(
             step_list=[
                 StepSchema(
-                    step_number=1, kind="review", description="Approve", status="done"
+                    step_number=1, kind="review", summary="Approve", status="done"
                 ),
-                StepSchema(step_number=2, description="work", status="done"),
-                StepSchema(step_number=3, kind="review", description="Review"),
-                StepSchema(step_number=4, description="work"),
+                StepSchema(step_number=2, summary="work", status="done"),
+                StepSchema(step_number=3, kind="review", summary="Review"),
+                StepSchema(step_number=4, summary="work"),
             ]
         )
         assert plan.reviewed_through() == 1
@@ -631,8 +669,8 @@ class TestPlanReviewedThrough:
     def test_pending_gate_is_not_counted(self):
         plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, kind="review", description="Review"),
-                StepSchema(step_number=2, description="work"),
+                StepSchema(step_number=1, kind="review", summary="Review"),
+                StepSchema(step_number=2, summary="work"),
             ]
         )
         assert plan.reviewed_through() == 0
@@ -820,12 +858,12 @@ class TestCheckpointMsgpack:
             "planner_output": PlannerOutput(
                 goal=GoalSchema(goal="g", success_criteria="c"),
                 plan=PlannerPlanSchema(
-                    step_list=[StepSchema(description="s")], status="in_progress"
+                    step_list=[StepSchema(summary="s")], status="in_progress"
                 ),
             ),
             "evaluation": EvaluationSchema(overall="abort"),
             "plan": PlanSchema(
-                step_list=[StepSchema(description="s")],
+                step_list=[StepSchema(summary="s")],
                 status="in_progress",
                 plan_version=2,
                 human_feedback_rounds=1,
@@ -834,7 +872,7 @@ class TestCheckpointMsgpack:
             "plan_history": [
                 PlanRevision(
                     version=1,
-                    steps=[StepSchema(description="old")],
+                    steps=[StepSchema(summary="old")],
                     abandoned_reason="old plan failed",
                 )
             ],
@@ -849,10 +887,9 @@ class TestCheckpointMsgpack:
                             meta=None,
                         ),
                         tool="list_files",
-                        displayed=False,
                     ),
                     # Reasoning conclusions are plain strings in the union.
-                    StepOutput(result="H1: X causes Y", tool="", displayed=False),
+                    StepOutput(result="H1: X causes Y", tool=""),
                 ]
             },
             "usage_metrics": TokenUsage(

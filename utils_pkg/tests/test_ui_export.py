@@ -10,11 +10,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 
 from datetime import datetime
 
-from klea_utils.ui.export import (
-    export_filename,
-    export_timestamp,
-    transcript_markdown,
-)
+from klea_utils.ui.export import export_filename, export_timestamp, transcript_markdown
 
 
 def test_transcript_markdown_renders_roles_and_tools():

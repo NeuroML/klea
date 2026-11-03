@@ -169,7 +169,7 @@ class MessageBlock(Vertical):
     """
 
     #: Rows shown while collapsed.
-    COLLAPSED_LINES = 4
+    COLLAPSED_LINES = 8
 
     can_focus = True
 
@@ -177,29 +177,29 @@ class MessageBlock(Vertical):
         Binding("enter,space", "toggle_expand", "Expand/collapse", show=False)
     ]
 
-    DEFAULT_CSS = """
-    MessageBlock {
+    DEFAULT_CSS = f"""
+    MessageBlock {{
         height: auto;
         width: 100%;
         padding: 1 1;
-    }
-    MessageBlock.message-user {
+    }}
+    MessageBlock.message-user {{
         background: $primary 15%;
-    }
-    MessageBlock .message-scroll {
+    }}
+    MessageBlock .message-scroll {{
         height: auto;
-        max-height: 4;
+        max-height: {COLLAPSED_LINES};
         overflow-y: hidden;
-    }
-    MessageBlock .message-scroll.-expanded {
+    }}
+    MessageBlock .message-scroll.-expanded {{
         max-height: 10000;
         overflow-y: hidden;
-    }
-    MessageBlock .message-more {
+    }}
+    MessageBlock .message-more {{
         height: 1;
         color: $text-muted;
         display: none;
-    }
+    }}
     """
 
     def __init__(

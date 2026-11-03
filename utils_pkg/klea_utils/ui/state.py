@@ -225,6 +225,9 @@ class ChatData(TypedDict):
     #: App-defined context-control preferences (mode / access level).
     mode_pref: NotRequired[str]
     access_pref: NotRequired[str]
+    #: Absolute stores-JSON path selected for this chat (``/stores <path>``);
+    #: ``None`` means the deployment default (``KLEA_STORES_CONFIG_FILE``).
+    stores_config: NotRequired[str | None]
 
 
 # Per-chat data store.  External modules may read/write this dict
@@ -261,6 +264,7 @@ def ensure_chat(user_id: str, chat_id: str) -> ChatData:
                 "total_tokens": 0,
                 "cached_tokens": 0,
             },
+            "stores_config": None,
         }
     else:
         logger.debug("found existing %s", key)

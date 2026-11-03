@@ -193,6 +193,14 @@ enforcement point for each:
   a loopback server (I5).  The identity key is the server app
   (`klea-agent` / `klea-rag`), shared with the web UI, so a local session
   opened in either frontend appears in both (ADR-0052).
+* Model resolution keeps the three layers (ADR-0042).  The `Ctrl+M` /
+  `/model` dialog seeds its fields from the active chat's effective models and
+  Save writes **all shown roles** as per-chat overrides; only a genuine change
+  is promoted into the session default ("last used"), so a new chat inherits
+  the latest selection while an existing chat that has saved its own models
+  keeps them.  The dialog and its post-save refresh are pinned to the chat
+  they were opened for, so switching sessions while a fetch is in flight
+  cannot copy one chat's models into another (issue 223).
 
 ## Commands (ADR-0047)
 

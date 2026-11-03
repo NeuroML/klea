@@ -10,7 +10,11 @@
 
 ### Added
 
+- Every tool result is now shown in the web chat, not only `run_command` output: each call appears as its own collapsible block with a bounded preview of its output, including calls that failed.
 - TUI project context: the terminal client sends its working directory, full environment and Python interpreter with each query (loopback only), so one backend can run different chats in different projects or virtual environments. `--cwd`, repeatable `--env KEY=VALUE`, `--interpreter` and `--no-client-context` control it; the client cwd is also the default project root when `/cwd` is unset. A changed context respawns that session's bundled MCP tools (ADR-0055).
+- `/stores` session command (TUI): sets the chat's stores config from an absolute JSON path, or `clear` to drop it; the value lives in the per-chat `ChatData.stores_config` slot and is validated locally (absolute, existing regular file) before it is recorded.
+- TUI client context: a chat's stores config rides the existing `client_context` payload (loopback only) on submit, retry and HITL resume, merged into a copied context so the shared base context is never mutated; a changed value respawns that session's bundled MCP tools via the context fingerprint.
+- Stores config transport (tool-call `_meta`): the versioned key `klea/stores-config-path/v1` carries one absolute stores JSON path to the bundled `search_stores` tool, resolved with precedence lifespan key > request `_meta` > `KLEA_STORES_CONFIG_FILE` > fail closed; a configured-but-invalid path raises `ValueError` instead of falling back.
 - `/paths` session command: list, add or remove the thread-scoped path approvals, or open a batch editor for allowed directories and sensitive files. A bare `/paths` uses the new generic `state_edit` HITL editor; the reusable path-approval helpers live in `klea_utils.mcp.path_approval`.
 - Path permission asks now show every distinct path covered by a directory approval (`covered_paths`), show the detected token for shell-command guesses, and split shell operators with shlex punctuation mode so `/dev/null;` is detected as `/dev/null` rather than a path with a trailing separator.
 - Terminal UI: all free-standing text (transcript, status/inspector panes, dialogs, HITL prompts and app chrome) can be selected with the mouse and copied with Ctrl+C; copying uses OSC 52, so terminals without support may need their native selection.
@@ -69,9 +73,13 @@
 - Terminal UI: a long transcript message is collapsed to a few lines and expands/collapses on click or `Enter`, matching the web UI.
 - Klea's processes set their OS process title to their role (`klea-agent-tui` / `klea-rag-tui`, `klea-agent-web` / `klea-rag-web`, `klea-agent-serve` / `klea-rag-serve`) instead of `python`, so they are identifiable in `ps`/`top`; an auto-spawned server gets it via the `KLEA_PROC_TITLE` environment variable.
 - Status panes: streamed state sections persist across turns instead of being cleared when a new query starts, so earlier progress and tool rounds stay visible.
+- Bundled read-only `search_stores` tool: domain-aware retrieval over the deployment's configured vector and BM25 stores. It lists the configured domains (with their descriptions and filter fields) on request, searches one domain by fusing and re-ranking its stores' results, and returns character-budgeted reference material. The tool description advertises the deployment's domains when the stores file is readable.
+- Store domains now carry a `description` in the shared stores schema, so the retrieval tool can describe each domain and the RAG schema inherits the field instead of redeclaring it.
 
 ### Changed
 
+- The final answer now summarises tool output instead of reprinting it, since every tool call is shown in the chat.
+- Agent budgets: the tool-error re-pick budget is now 6 (was 3), the per-step non-advancing attempt budget is 6 (was 3), and the automated-replan budget is 8 (was 4), so reading a large file can span more tool rounds before the agent escalates or replans.
 - Terminal UI: Ctrl+C now copies selected text instead of stopping the run; Ctrl+Shift+C stops a run, with F12 as the fallback for terminals that intercept Ctrl+Shift+C.
 - Token usage totals now show cached prompt reads as a subset of input (`<n> cached`) in the web and TUI status lines; cache-creation writes are not counted as cached.
 - Path approval asks now show the full target path and the session approval directory separately, with bounded previews for pathological values, plus the tool-call context, detected token and discovery source. Full values remain the decision keys; guessed values keep session approval and the "Not a path" dismissal.
@@ -122,6 +130,8 @@
 
 ### Fixed
 
+- OpenRouter model strings with a tag (``openrouter:<model>:<tag>``, e.g. ``openrouter:recursive/flint-v1.0:free``) keep the tag on the model id, like Ollama, instead of treating it as a Klea suffix (issue 222). Catalog model ids that contain ``:`` are listed for OpenRouter again.
+- TUI: the model dialog and its post-save refresh are pinned to the chat they were opened for, so switching sessions while a model fetch is in flight no longer copies one chat's models into another; a chat that saved its own models keeps them when another chat updates the session default (issue 223).
 - `KLEA_AGENT_HOME` now relocates the agent backend's storage root (checkpoints, session database, lockfile, and logs); it was previously ignored. The default and RAG paths are unchanged.
 - Tool path detection now splits shell command strings with a platform-aware tokeniser and recognises Windows backslash paths, so `path_detect` and `parse_command` no longer miss or mangle arguments such as `C:\Users\me\file.txt`.
 - TUI text selection now highlights Rich Markdown/Syntax output, supports drags ending on blank lines, and copies to the OS clipboard through `wl-copy`/`xclip`/`xsel`/`pbcopy`/`clip` when OSC 52 is unavailable; a brief notification confirms the copy.

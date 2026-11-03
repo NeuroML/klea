@@ -87,14 +87,6 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             memory=memory,
         )
 
-    def _observations_text(self, state: KleaAgentState) -> str:
-        """Return the rendered per-step tool outputs (tool + displayed flag).
-
-        Delegates to :meth:`KleaAgentState.observations_text` so the answer
-        node, Planner and Evaluator see identical observations.
-        """
-        return state.observations_text()
-
     @staticmethod
     def _is_failure(state: KleaAgentState) -> bool:
         """Return True when the run ended in failure rather than success."""
@@ -138,7 +130,7 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             ),
             "discovery": state.discovery_persistent.render(),
             "artefacts": state.artefacts_text(),
-            "observations": self._observations_text(state),
+            "observations": state.observations_text(),
         }
         self.logger.debug(f"{variables = }")
         return variables

@@ -23,9 +23,7 @@ from klea_utils.mcp.path_detect import (
     truncate_middle,
 )
 from klea_utils.mcp.schemas import ToolInfo
-from klea_utils.mcp.tool_impls.permission import (
-    check_path_access,
-)
+from klea_utils.mcp.tool_impls.permission import check_path_access
 
 logger = logging.getLogger(__name__)
 

@@ -193,19 +193,32 @@ usable.
 
 ### `tool` (chat-renderable output)
 
-One event per dispatch round; one entry per renderable result.  `mime` is the
-type vocabulary, sourced from typed MCP content blocks (`ImageContent` /
+One event per dispatch round; one entry per result.  `mime` is the type
+vocabulary, sourced from typed MCP content blocks (`ImageContent` /
 `AudioContent` / `EmbeddedResource` / `ResourceLink` carry `mimeType`) or from
 structured conventions (`diff` -> `text/x-diff`, `code` -> `text/x-<language>`,
 self-describing `display` dict).  The web renders by MIME; `display` is a text
 fallback for clients that cannot.  `text/x-diff` / `text/x-patch` are de-facto,
-not IANA.  Plain `TextContent` is never surfaced.  Errors are not displayed
-(their diagnosis is in `inspect`).  See ADR-0040 for the full rules.
+not IANA.  Plain `TextContent` is not the primary payload (the JSON dump is).
 
-Note: a tool result is also recorded in graph state as a `StepOutput`
-(`result`, `tool`, `displayed`) and rendered into observations by
-`KleaAgentState.observations_text()` with `displayed_to_user: yes|no`, so the
-synthesised answer can avoid reprinting what the chat already showed.
+Every result now yields at least a bounded generic entry, so no tool result is
+silently invisible: a `text/x-shell` call line (`tool(arg=...)`, each argument
+value summarised) plus a bounded plain-text projection of the output, cut with
+an explicit `[truncated]` marker well below the tools' own output budget.
+Typed MIME/media results keep their typed block and show the call line only,
+so base64 is never dumped into the chat as text.  Errored results are included
+too and carry `is_error`, which the web uses to style the block: a failed call
+is evidence the user can read in the chat instead of only in `inspect`.  See
+ADR-0040 for the full rules.
+
+Note: a tool result is also recorded in graph state as a StepOutput (result,
+tool, signature) and rendered into observations by
+KleaAgentState.observations_text(), which delegates to
+evidence.render_step_observations (agent_pkg/klea_agent/evidence.py:146).
+Selected steps render in full; there is no character budget (the model's context
+window is the bound), so no payload is replaced by a summary. Every tool result
+is shown inline in the chat, so the synthesised answer summarises it rather than
+reprinting it.
 
 ### `token` (gated)
 

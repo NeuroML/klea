@@ -152,8 +152,9 @@ async def test_dispatches_and_returns_tool_results():
     assert [r.is_error for r in updates["tool_results"]] == [False, False]
     assert client.calls == [("a", {"x": 1}), ("b", {"y": 2})]
     event_types = [e["type"] for e in events]
-    # A running ``state`` event precedes dispatch; the end ``state`` follows.
-    assert event_types == ["progress", "state", "inspect", "state"]
+    # A running ``state`` event precedes dispatch; the end ``state`` and the
+    # trailing chat-renderable ``tool`` event follow.
+    assert event_types == ["progress", "state", "inspect", "state", "tool"]
 
     running = events[1]["data"]
     assert running["display"] == "- **a**: running\n- **b**: running"
@@ -541,7 +542,7 @@ async def test_access_level_gate_full_allows():
 async def test_post_dispatch_callback_extras():
     client = FakeMCPClient()
 
-    def post_dispatch(state, results, displayed):
+    def post_dispatch(state, results):
         return {"plan_status": "done"}
 
     node = _make_node(client=client, post_dispatch=post_dispatch)
@@ -567,7 +568,7 @@ async def test_post_dispatch_can_update_plan_step():
 
     client = FakeMCPClient()
 
-    def post_dispatch(state, results, displayed):
+    def post_dispatch(state, results):
         step = state.plan.step_list[state.plan.current_step_index]
         step.status = "done"
         state.plan.current_step_index += 1
@@ -746,7 +747,7 @@ def test_tool_display_entries_from_image_content_block():
     assert entries[0]["meta"] == {"binary": True}
 
 
-def test_tool_display_entries_skip_errors_and_empty():
+def test_tool_display_entries_include_errors_and_empty():
     node = _make_node()
     tool_calls = [ToolCallSchema(tool="a"), ToolCallSchema(tool="b")]
     results = [
@@ -756,7 +757,14 @@ def test_tool_display_entries_skip_errors_and_empty():
         CallToolResult(content=[], structured_content=None, meta=None),
     ]
 
-    assert node._tool_display_entries(tool_calls, results) == []
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert len(entries) == 2
+    assert entries[0]["mime"] == "text/x-diff"
+    assert entries[0]["is_error"] is True
+    assert entries[1]["mime"] == "text/x-shell"
+    assert entries[1]["data"] == "b()"
+    assert entries[1]["is_error"] is False
 
 
 def test_destructive_tool_without_convention_gets_shell_fallback():
@@ -793,13 +801,19 @@ def test_destructive_fallback_summarises_long_arguments():
     assert "\n" not in entries[0]["data"]
 
 
-def test_non_destructive_tool_without_convention_is_skipped():
-    """A non-destructive tool with nothing renderable stays out of chat."""
+def test_non_destructive_tool_without_convention_gets_call_line_entry():
+    """A non-destructive tool with no display convention still gets an entry."""
     node = _make_node(tool_infos={"safe": ToolInfo(title="Safe")})
     tool_calls = [ToolCallSchema(tool="safe", args={"x": 1})]
     results = [CallToolResult(content=[], structured_content=None, meta=None)]
 
-    assert node._tool_display_entries(tool_calls, results) == []
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert len(entries) == 1
+    assert entries[0]["mime"] == "text/x-shell"
+    assert entries[0]["header"] == "Safe"
+    assert entries[0]["data"] == "safe(x=1)"
+    assert entries[0]["is_error"] is False
 
 
 def test_destructive_declared_display_takes_precedence():
@@ -864,8 +878,8 @@ def test_errored_destructive_without_display_shows_fallback():
     assert entries[0]["is_error"] is True
 
 
-def test_errored_non_destructive_result_is_skipped():
-    """A non-destructive error stays out of the chat (inspect only)."""
+def test_errored_non_destructive_result_is_displayed_with_is_error():
+    """An errored non-destructive result still gets an entry flagged is_error."""
     node = _make_node(tool_infos={"read_file": ToolInfo(title="Read file")})
     tool_calls = [ToolCallSchema(tool="read_file", args={"path": "x"})]
     results = [
@@ -877,7 +891,12 @@ def test_errored_non_destructive_result_is_skipped():
         )
     ]
 
-    assert node._tool_display_entries(tool_calls, results) == []
+    entries = node._tool_display_entries(tool_calls, results)
+
+    assert len(entries) == 1
+    assert entries[0]["mime"] == "text/x-shell"
+    assert entries[0]["data"].startswith('read_file(path="x")')
+    assert entries[0]["is_error"] is True
 
 
 def test_post_exec_stream_emits_tool_event():
@@ -906,8 +925,8 @@ def test_post_exec_stream_emits_tool_event():
     assert tool_events[0]["data"]["tools"][0]["mime"] == "text/x-diff"
 
 
-def test_compute_displays_flags_aligned_with_results():
-    """The displayed flags align 1:1 with results; only diffs are entries."""
+def test_compute_displays_aligned_with_results():
+    """Each result yields a display entry; diffs and always-display results are included."""
     node = _make_node(tool_infos={"edit_file": ToolInfo(title="Edit file")})
     state = MiniState(
         tool_calls=[
@@ -933,10 +952,9 @@ def test_compute_displays_flags_aligned_with_results():
         ),
     ]
 
-    entries, flags = node._compute_displays(state, _ctx(results))
+    entries = node._compute_displays(state, _ctx(results))
 
-    assert flags == [True, False]
-    assert len(entries) == 1
+    assert len(entries) == 2
     assert entries[0]["mime"] == "text/x-diff"
 
 

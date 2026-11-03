@@ -330,6 +330,42 @@ goal/plan.
 | `failure_reason` | `str` | `O` | May provide prior failure context during replanning. | It is evidence for planning, not a substitute for a user answer. | `planner.py`; `operational_evaluator.py` |
 | `replan_reason` | `str` | `O` | Explains why planning was re-entered. | The reason is consumed by the planner path. | `operational_evaluator.py`; `triage_router.py` |
 
+#### Observations prompt variable
+
+The Planner's `observations` prompt variable is `KleaAgentState.planner_evidence()`.
+
+The flat `KleaAgentState.observations_text()` used by the ReasoningNode and the
+`tools` picker delegates to `evidence.render_step_observations`
+(`agent_pkg/klea_agent/evidence.py:146`) and renders every selected step in
+full: there is no character budget, so the model's actual context window is the
+only bound and no payload is replaced by a summary. The caller controls scope;
+the Evaluator narrows it to the current batch plus the batch's transitive
+`depends_on` closure (below).
+
+The Evaluator's `observations` is narrower than the flat rendering: it carries
+only the current batch's steps plus their transitive `depends_on` closure,
+rendered by `evidence.render_step_observations` from
+`OperationalEvaluator._observations_text`
+(`agent_pkg/klea_agent/nodes/operational_evaluator.py:102-118`). It does not see
+every recorded observation.
+That method is a delegate over `render_plan_evidence`: it passes the plan, the
+recorded `step_outputs`, the steps the Evaluator flagged with a `step_incomplete`
+verdict, and the latest abandoned `plan_history` revision, and
+`render_plan_evidence` applies the relevance selection rule (failed steps, the
+`depends_on` closure of every pending step, Evaluator-flagged steps, the last
+completed step, and the latest abandoned revision). Selected entries render in
+full with `StepOutput.render()`; every other recorded step degrades to
+`StepOutput.summary()` plus a step reference. A `review` step is never a payload
+source: it names no tools, is not judged by the Evaluator, and produces no
+`StepOutput`, so it resolves to an empty render. The full rule is documented in
+[`agent-planner-evidence-rendering.md`](agent-planner-evidence-rendering.md).
+
+Each planned step carries `summary` (the short user-facing line), `details`
+(optional internal execution context for the binder, reasoning node and
+evaluator; never shown in the status pane or review), and `success_criteria`
+(the observable check). `description` remains accepted as a validation alias
+for old checkpointed plans; new plans serialize `summary`.
+
 #### Outputs
 
 | Field | Kind | Requiredness | Write timing and effect | Validation, fallback, and lifetime | Evidence |
@@ -537,6 +573,11 @@ goal/plan.
 |---|---|---|---|---|---|
 | `message_for_user` | `str` | `R` | Written or preserved as the final delivery payload. | The user never receives a blank final reply. | `answer_user.py`; `test_general_path_graph.py` |
 
+The assistant message appended to `messages` is prefixed with `Final answer for plan
+query (<query>): ...` so the plan's final answer survives memory compaction; the
+summariser is instructed to preserve it explicitly. `message_for_user`, and hence the
+streamed and persisted user-visible reply, remains the bare answer.
+
 #### Decision and failure behavior
 
 | Condition | Decision or failure result | State effect | Evidence |
@@ -631,7 +672,7 @@ goal/plan.
 
 | Field | Kind | Requiredness | Effect and write timing | Validation, fallback, and lifetime | Evidence |
 |---|---|---|---|---|---|
-| `messages` | Conversation sequence | `O` | Supplies user-visible history eligible for summarization. | Existing messages are not erased by an unusable summary. | `summarise_memory.py`; `test_nodes_memory.py` |
+| `messages` | Conversation sequence | `O` | Supplies the conversation history eligible for summarization. | Existing messages are not erased by an unusable summary. | `summarise_memory.py`; `test_nodes_memory.py` |
 | `internal_messages` | Internal conversation sequence | `O` | Supplies internal history eligible for the internal cursor. | Internal and user cursors advance independently. | `summarise_memory.py`; `test_nodes_memory.py` |
 | `context_summary` | `str` | `C` | Supplies the prior retained summary. | Preserved when the new summary is blank. | `summarise_memory.py`; `test_nodes_memory.py` |
 | `summarised_till` | `int` | `C` | Supplies the prior user-message cursor. | Advanced only after a usable summary. | `summarise_memory.py` |

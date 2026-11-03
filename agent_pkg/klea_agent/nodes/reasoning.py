@@ -137,7 +137,6 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         entry = StepOutput(
             result=conclusion,
             tool="",
-            displayed=False,
             rationale=result.rationale.strip(),
         )
         outputs = dict(state.step_outputs or {})

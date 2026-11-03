@@ -67,8 +67,8 @@ class TestOperationalEvaluator(unittest.TestCase):
         if with_plan:
             state.plan = PlanSchema(
                 step_list=[
-                    StepSchema(step_number=1, description="step one"),
-                    StepSchema(step_number=2, description="step two"),
+                    StepSchema(step_number=1, summary="step one"),
+                    StepSchema(step_number=2, summary="step two"),
                 ],
             )
         return state
@@ -79,14 +79,14 @@ class TestOperationalEvaluator(unittest.TestCase):
         state.goal = GoalSchema(goal="do x", success_criteria="x is done")
         state.plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, description="work"),
+                StepSchema(step_number=1, summary="work"),
                 StepSchema(
                     step_number=2,
                     kind="review",
-                    description="Review the change",
+                    summary="Review the change",
                     depends_on=[1],
                 ),
-                StepSchema(step_number=3, description="deploy", depends_on=[2]),
+                StepSchema(step_number=3, summary="deploy", depends_on=[2]),
             ]
         )
         return state
@@ -164,7 +164,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         evaluator = self._evaluator()
         state = KleaAgentState()
         state.plan = PlanSchema(
-            step_list=[StepSchema(step_number=1, description="only step")],
+            step_list=[StepSchema(step_number=1, summary="only step")],
         )
         update = evaluator._update_state(
             _verdict(1, "step_done", "looks done"), state, LLMNodeContext()
@@ -296,15 +296,15 @@ class TestOperationalEvaluator(unittest.TestCase):
 
     def test_step_incomplete_escalates_at_attempt_budget(self):
         """Repeated ``step_incomplete`` on a step escalates to a replan."""
-        evaluator = self._evaluator()  # max_step_attempts=3
+        evaluator = self._evaluator()  # max_step_attempts=6
         state = self._state()
-        state.step_attempt_counts = {1: 2}
+        state.step_attempt_counts = {1: 5}
         update = evaluator._update_state(
             _verdict(1, "step_incomplete", "still going"), state, LLMNodeContext()
         )
         self.assertEqual(update["evaluation"].evaluations[0].verdict, "need_replan")
         self.assertEqual(update["plan"].step_list[0].status, "failed")
-        self.assertEqual(update["step_attempt_counts"][1], 3)
+        self.assertEqual(update["step_attempt_counts"][1], 6)
 
     def test_progress_clears_step_attempt_budget(self):
         update = self._evaluator()._update_state(
@@ -462,15 +462,15 @@ class TestOperationalEvaluator(unittest.TestCase):
         state.goal = GoalSchema(goal="do x")
         state.plan = PlanSchema(
             step_list=[
-                StepSchema(step_number=1, description="work"),
-                StepSchema(step_number=2, description="more work"),
+                StepSchema(step_number=1, summary="work"),
+                StepSchema(step_number=2, summary="more work"),
                 StepSchema(
                     step_number=3,
                     kind="review",
-                    description="Review",
+                    summary="Review",
                     depends_on=[2],
                 ),
-                StepSchema(step_number=4, description="deploy", depends_on=[3]),
+                StepSchema(step_number=4, summary="deploy", depends_on=[3]),
             ]
         )
         result = EvaluationSchema(
@@ -484,7 +484,7 @@ class TestOperationalEvaluator(unittest.TestCase):
     def test_review_readiness_budget_exhausted_proceeds_to_the_gate(self):
         """At the replan boundary the gate fires instead of failing the run."""
         state = self._state_with_review()
-        state.plan.automated_plan_revisions = 4  # the evaluator's default cap
+        state.plan.automated_plan_revisions = 8  # the evaluator's default cap
         result = EvaluationSchema(
             evaluations=[StepEvaluation(step_number=1, verdict="step_done")],
             review_readiness="not_ready",

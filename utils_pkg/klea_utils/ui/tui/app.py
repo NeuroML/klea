@@ -37,11 +37,7 @@ from textual.widgets import TextArea
 from textual.worker import Worker
 
 from klea_utils.client_context import ClientContext
-from klea_utils.commands.common import (
-    CommandRegistry,
-    CommandResult,
-    unescape_command,
-)
+from klea_utils.commands.common import CommandRegistry, CommandResult, unescape_command
 from klea_utils.ui.tui.clipboard import copy_to_system_clipboard
 from klea_utils.ui.tui.components.commands import (
     EXIT_APP_SERVICE,
@@ -71,10 +67,7 @@ from klea_utils.ui.tui.components.transcript import Transcript
 from klea_utils.ui.tui.components.turn_status import TurnStatus
 from klea_utils.ui.tui.context import TuiContext
 from klea_utils.ui.tui.events import SubmitQuery
-from klea_utils.ui.tui.settings import (
-    load_theme_preference,
-    save_theme_preference,
-)
+from klea_utils.ui.tui.settings import load_theme_preference, save_theme_preference
 
 if TYPE_CHECKING:
     from klea_utils.ui.state import MessageData
@@ -657,6 +650,8 @@ class KleaTuiApp(App[None]):
                     OPEN_MODELS_SERVICE: self._open_models_hook,
                     EXIT_APP_SERVICE: self._exit_hook,
                 },
+                user_id=self.ctx.user_id,
+                chat_id=self.ctx.chat_id,
             )
             if result is not None:
                 await self._render_command_result(result)
@@ -793,10 +788,31 @@ class KleaTuiApp(App[None]):
         )
 
     def _client_context_extra(self) -> dict[str, Any] | None:
-        """Return the per-query client context payload, or ``None``."""
+        """Return the per-query client context payload, or ``None``.
+
+        The chat's ``/stores`` selection (its ``stores_config`` slot) is merged
+        into a *copy* of the base context, so the shared
+        :attr:`~klea_utils.ui.tui.context.TuiContext.client_context` is never
+        mutated.  ``None``/absent leaves the deployment default in place; a
+        ``None`` base context (non-loopback server or ``--no-client-context``)
+        still sends no payload at all.  The pooled MCP session already keys on
+        the context fingerprint, which includes ``stores_config``, so a changed
+        value respawns the bundled tool server on the next dispatch.
+
+        :returns: The ``extra`` payload for the request, or ``None``.
+        """
         if self.ctx.client_context is None:
             return None
-        return {"client_context": self.ctx.client_context.model_dump()}
+        # Lazy: the state store is only needed when building the payload.
+        from klea_utils.ui.state import ensure_chat
+
+        stores_config = ensure_chat(self.ctx.user_id, self.ctx.chat_id).get(
+            "stores_config"
+        )
+        context = self.ctx.client_context.model_copy(
+            update={"stores_config": stores_config}
+        )
+        return {"client_context": context.model_dump()}
 
     def copy_to_clipboard(self, text: str) -> None:
         """Copy *text* to the app clipboard and, if possible, the OS clipboard.
@@ -879,13 +895,17 @@ class KleaTuiApp(App[None]):
         from klea_utils.api.sse import fetch_active_models
         from klea_utils.ui.state import ensure_chat
 
-        chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
-        info = chat.get("model_info") or {}
-        if not info:
-            info = await fetch_active_models(
-                self.ctx.server_url, self.ctx.user_id, self.ctx.chat_id
-            )
+        # Pin the chat: an await below must never let a session switch retarget
+        # this dialog (or the cache write) at another chat.
+        chat_id = self.ctx.chat_id
+        chat = ensure_chat(self.ctx.user_id, chat_id)
+        # Always resolve the effective models afresh so the dialog opens with
+        # the chat's real config, even if its cached snapshot is stale.
+        info = await fetch_active_models(self.ctx.server_url, self.ctx.user_id, chat_id)
+        if info:
             chat["model_info"] = info
+        else:
+            info = chat.get("model_info") or {}
         if not info:
             self.notify("No model roles available to configure.", severity="warning")
             return
@@ -893,33 +913,36 @@ class KleaTuiApp(App[None]):
             ModelDialog(
                 server_url=self.ctx.server_url,
                 user_id=self.ctx.user_id,
-                chat_id=self.ctx.chat_id,
+                chat_id=chat_id,
                 info=info,
             ),
             callback=self._on_models_closed,
         )
 
     def _on_models_closed(self, result: ModelResult | None) -> None:
-        """Refresh the chat after the model dialog closes with changes.
+        """Refresh the chat the dialog edited (not necessarily the active one).
 
         :param result: The dialog's :class:`ModelResult`, or ``None``.
         """
         if result and result.changed:
-            self._refresh_models()
+            self._refresh_models(result.chat_id or self.ctx.chat_id)
 
     @work
-    async def _refresh_models(self) -> None:
-        """Re-fetch the active models for the current chat."""
+    async def _refresh_models(self, chat_id: str) -> None:
+        """Re-fetch the active models for *chat_id*.
+
+        The fetch result is stored under the chat it was requested for, so a
+        session switch during the request cannot copy one chat's models into
+        another chat's cache.
+        """
         # Lazy: httpx and the server client are only needed for a live server.
         from klea_utils.api.sse import fetch_active_models
         from klea_utils.ui.state import ensure_chat
 
-        info = await fetch_active_models(
-            self.ctx.server_url, self.ctx.user_id, self.ctx.chat_id
-        )
-        chat = ensure_chat(self.ctx.user_id, self.ctx.chat_id)
+        info = await fetch_active_models(self.ctx.server_url, self.ctx.user_id, chat_id)
+        chat = ensure_chat(self.ctx.user_id, chat_id)
         chat["model_info"] = info
-        if self._screen is not None:
+        if chat_id == self.ctx.chat_id and self._screen is not None:
             await self._screen.refresh_status(chat)
 
     def _on_session_choice(self, action: SessionAction | None) -> None:

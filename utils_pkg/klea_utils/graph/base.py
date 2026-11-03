@@ -843,7 +843,11 @@ class BaseLangGraph(ABC):
         exclude_tags = list(bundled.exclude_tags) if bundled.exclude_tags else None
         # An explicitly empty env is treated as "unset" so a cwd/interpreter
         # override alone keeps the inherited environment unchanged.
-        env = client_context.env if client_context and client_context.env else None
+        stores_config = getattr(general, "stores_config", None)
+        env = {
+            **(client_context.env if client_context and client_context.env else {}),
+            **({"KLEA_STORES_CONFIG_FILE": stores_config} if stores_config else {}),
+        } or None
         config: dict[str, Any] = spawn.bundled_server_config(
             include_tags=include_tags,
             exclude_tags=exclude_tags,

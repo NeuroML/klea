@@ -21,6 +21,15 @@ The bundled web tools that do not touch the filesystem (`web_fetch`,
 `search_papers`) are out of scope here; their network safety is covered in
 `mcp-permissions.md`.
 
+The bundled store-search tool (`search_stores`,
+`klea_utils/mcp/tool_impls/stores.py`) is also out of scope: it is a retrieval
+tool, not a filesystem tool.  It reads the deployment's configured vector and
+BM25 stores through their own URIs (Chroma folders, Qdrant/PGVector URLs,
+pickled BM25 corpora) and takes no path argument, so it is **not path-gated** by
+the client-side project-root gate and declares no `checkpaths`; its only inputs
+are a query, a domain, a mode and tuning knobs.  Its classification is covered
+in `mcp-permissions.md`.
+
 Recording the contract here keeps the definition in one place (the tools were
 originally written without an enumerated edge-case contract, which let
 `read_file` misreport truncated reads).

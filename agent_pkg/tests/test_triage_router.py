@@ -38,7 +38,7 @@ def _state(*, error: bool, step: int = 0, counts: dict[int, int] | None = None):
         step_list=[
             StepSchema(
                 step_number=i + 1,
-                description=f"s{i + 1}",
+                summary=f"s{i + 1}",
                 status="done" if i < step else "pending",
             )
             for i in range(step + 1)
@@ -98,11 +98,11 @@ class TestTriageDecide:
 
     def test_error_within_budget_retries(self):
         assert self.router.decide(_state(error=True, counts={1: 1})) == "retry"
-        assert self.router.decide(_state(error=True, counts={1: 2})) == "retry"
         assert self.router.decide(_state(error=True, counts={1: 3})) == "retry"
+        assert self.router.decide(_state(error=True, counts={1: 6})) == "retry"
 
     def test_error_over_budget_replans(self):
-        assert self.router.decide(_state(error=True, counts={1: 4})) == "replan"
+        assert self.router.decide(_state(error=True, counts={1: 7})) == "replan"
 
     def test_error_without_counter_retries(self):
         # Counter not yet maintained: treat as first failure.

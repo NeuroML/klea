@@ -57,7 +57,7 @@ When the next pending step after the judged batch is a `review` step, also set
 `review_readiness`:
 
 * `ready`: the plan already produces the evidence the reviewer needs -- the
-  completed or pending steps cover what the review step's description and the
+  completed or pending steps cover what the review step's summary and the
   user's request call for.
 * `not_ready`: a concrete evidence step is missing (for example a diff or test
   output the user asked to review but no step produces).  Name the missing

@@ -37,6 +37,7 @@ def test_all_bundled_wrappers_carry_bundled_tag():
         "web_fetch",
         "web_search",
         "search_papers",
+        "search_stores",
         "list_files",
         "find_files",
         "read_file",
@@ -69,6 +70,16 @@ def test_search_papers_tags():
     assert info.checkpaths is None
     assert info.read_only is True
     assert info.open_world is True
+
+
+def test_search_stores_tags_and_no_checkpaths():
+    """The store-search tool is read-only, idempotent and path-agnostic."""
+    info = _tool_info(bundled_tools.search_stores)
+    assert _tags(bundled_tools.search_stores) == {BUNDLED, "local", "stores"}
+    assert info.checkpaths is None
+    assert info.read_only is True
+    assert info.idempotent is True
+    assert info.open_world is False
 
 
 def test_list_files_tags_and_checkpaths():
@@ -164,7 +175,13 @@ def test_context_wrapper_contract():
     fastmcp's tool registration rewrites each signature (moving Context after
     the data params), so membership is checked, not position."""
 
-    for name in ("web_fetch", "web_search", "search_papers", "download_file"):
+    for name in (
+        "web_fetch",
+        "web_search",
+        "search_papers",
+        "search_stores",
+        "download_file",
+    ):
         sig = inspect.signature(getattr(bundled_tools, name))
         assert "ctx" in sig.parameters, name
     for name in (
@@ -187,6 +204,7 @@ async def test_bundle_server_registers_expected_tools():
         "web_fetch",
         "web_search",
         "search_papers",
+        "search_stores",
         "list_files",
         "find_files",
         "read_file",
@@ -211,6 +229,7 @@ async def test_bundle_server_registers_expected_tools():
     assert by_name["web_fetch"].meta is None
     assert by_name["web_search"].meta is None
     assert by_name["search_papers"].meta is None
+    assert by_name["search_stores"].meta is None
 
 
 async def test_bundle_server_annotation_hints():
@@ -276,6 +295,7 @@ async def test_bundle_server_serves_via_inprocess_client():
         "web_fetch",
         "web_search",
         "search_papers",
+        "search_stores",
         "list_files",
         "find_files",
         "read_file",

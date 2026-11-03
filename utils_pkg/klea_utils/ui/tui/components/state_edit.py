@@ -23,15 +23,7 @@ from typing import Any
 
 from textual.app import ComposeResult
 from textual.containers import Horizontal
-from textual.widgets import (
-    Button,
-    Input,
-    Label,
-    ListItem,
-    ListView,
-    Select,
-    Switch,
-)
+from textual.widgets import Button, Input, Label, ListItem, ListView, Select, Switch
 
 from klea_utils.ui.tui.components.buttons import action_button
 from klea_utils.ui.tui.components.hitl import HitlDecision, HitlDecisionPanel

@@ -23,11 +23,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from klea_utils.api.sessions_db import SessionStore
-from klea_utils.llm import (
-    credential_scope,
-    provider_api_key_env,
-    requires_api_key,
-)
+from klea_utils.llm import credential_scope, provider_api_key_env, requires_api_key
 
 logger = logging.getLogger(__name__)
 

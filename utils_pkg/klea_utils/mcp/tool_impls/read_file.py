@@ -18,10 +18,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from klea_utils.mcp.errors import DocumentConversionError
-from klea_utils.mcp.tool_impls.file_ops import (
-    split_bom,
-    split_lines,
-)
+from klea_utils.mcp.tool_impls.file_ops import split_bom, split_lines
 from klea_utils.mcp.tool_impls.list_files import missing_target_note, nearby_entries
 from klea_utils.mcp.tool_impls.web_fetch import _html_to_text
 

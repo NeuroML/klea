@@ -52,9 +52,7 @@ from klea_utils.ui.model_config import (
     save_roles,
     use_for_all_targets,
 )
-from klea_utils.ui.model_config import (
-    role_label as _role_label,
-)
+from klea_utils.ui.model_config import role_label as _role_label
 from klea_utils.ui.state import ensure_chat
 from klea_utils.ui.web.nicegui.components.context import PageContext
 

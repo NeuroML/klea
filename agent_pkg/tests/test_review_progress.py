@@ -37,14 +37,14 @@ def _state(*, with_work: bool) -> KleaAgentState:
     state.goal = GoalSchema(goal="update the config", success_criteria="updated")
     state.plan = PlanSchema(
         step_list=[
-            StepSchema(step_number=1, description="edit the config", status="done"),
+            StepSchema(step_number=1, summary="edit the config", status="done"),
             StepSchema(
                 step_number=2,
                 kind="review",
-                description="Review the config change",
+                summary="Review the config change",
                 depends_on=[1],
             ),
-            StepSchema(step_number=3, description="deploy"),
+            StepSchema(step_number=3, summary="deploy"),
         ]
     )
     if with_work:

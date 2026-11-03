@@ -16,11 +16,13 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 from __future__ import annotations
 
 import asyncio
+import os
+from pathlib import Path
 from typing import Any
 
 import pytest
 from klea_utils.client_context import ClientContext
-from klea_utils.ui.state import chats
+from klea_utils.ui.state import chats, ensure_chat
 from klea_utils.ui.tui.components.commands import CommandSuggestions
 from klea_utils.ui.tui.components.confirm import ExitConfirm
 from klea_utils.ui.tui.components.credentials_dialog import CredentialsDialog
@@ -146,6 +148,102 @@ async def test_no_client_context_sends_no_extra(fake_backend, make_app):
         await _settle(pilot, app)
 
     assert fake_backend.calls[-1]["extra"] is None
+
+
+async def test_stores_command_rides_the_query_payload(
+    fake_backend, make_app, tmp_path: Path
+):
+    """A ``/stores`` selection is merged into the outgoing request extra."""
+    config = tmp_path / "stores.json"
+    config.write_text("{}", encoding="utf-8")
+    expected = str(Path(os.path.abspath(config)))
+    client_context = ClientContext(cwd="/tmp/project")
+    # A real user id: ``_handle_stores`` refuses an empty chat identity.
+    app = make_app(user_id="stores-user", client_context=client_context)
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, f"/stores {config}")
+        await _settle(pilot, app)
+        chat = ensure_chat(app.ctx.user_id, app.ctx.chat_id)
+        assert chat["stores_config"] == expected
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+
+    extra = fake_backend.calls[-1]["extra"]
+    assert extra["client_context"]["stores_config"] == expected
+    # The merge works on a copy: the shared base context is left untouched.
+    assert app.ctx.client_context.stores_config is None
+
+
+async def test_stores_clear_sends_none_in_payload(
+    fake_backend, make_app, tmp_path: Path
+):
+    """``/stores clear`` sends ``stores_config=None`` and keeps the context."""
+    config = tmp_path / "stores.json"
+    config.write_text("{}", encoding="utf-8")
+    expected = str(Path(os.path.abspath(config)))
+    client_context = ClientContext(cwd="/tmp/project")
+    app = make_app(user_id="stores-user", client_context=client_context)
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, f"/stores {config}")
+        await _settle(pilot, app)
+        chat = ensure_chat(app.ctx.user_id, app.ctx.chat_id)
+        # Seed non-vacuously: the selection must have landed first.
+        assert chat["stores_config"] == expected
+        await _submit(pilot, app, "/stores clear")
+        await _settle(pilot, app)
+        assert chat["stores_config"] is None
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+
+    extra = fake_backend.calls[-1]["extra"]
+    assert extra["client_context"]["stores_config"] is None
+    # The base context still makes the payload non-empty.
+    assert extra["client_context"]["cwd"] == "/tmp/project"
+
+
+async def test_stores_slot_without_base_context_sends_no_extra(
+    fake_backend, make_app, tmp_path: Path
+):
+    """A stores selection alone does not conjure a client-context payload."""
+    config = tmp_path / "stores.json"
+    config.write_text("{}", encoding="utf-8")
+    app = make_app(user_id="stores-user")
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, f"/stores {config}")
+        await _settle(pilot, app)
+        chat = ensure_chat(app.ctx.user_id, app.ctx.chat_id)
+        assert chat["stores_config"] == str(Path(os.path.abspath(config)))
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["extra"] is None
+
+
+async def test_retry_resends_stores_config(fake_backend, make_app, tmp_path: Path):
+    """A retry/resume carries the same ``stores_config`` selection."""
+    config = tmp_path / "stores.json"
+    config.write_text("{}", encoding="utf-8")
+    expected = str(Path(os.path.abspath(config)))
+    client_context = ClientContext(cwd="/tmp/project")
+    fake_backend.scripts = [
+        [{"type": "error", "message": "boom", "resumable": True}],
+        [{"type": "complete", "message_for_user": "recovered"}],
+    ]
+    app = make_app(user_id="stores-user", client_context=client_context)
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, f"/stores {config}")
+        await _settle(pilot, app)
+        chat = ensure_chat(app.ctx.user_id, app.ctx.chat_id)
+        assert chat["stores_config"] == expected
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        await pilot.press("ctrl+r")
+        await _settle(pilot, app)
+
+    extras = [call["extra"] for call in fake_backend.calls]
+    assert len(extras) == 2
+    assert all(extra["client_context"]["stores_config"] == expected for extra in extras)
+    assert fake_backend.calls[-1]["resume"] is True
 
 
 @pytest.mark.parametrize("stop_key", ["ctrl+g"])
@@ -1312,11 +1410,13 @@ async def test_long_message_collapses_and_expands(fake_backend, make_app):
         await _settle(pilot, app)
         block = app.screen.query(MessageBlock).last()
         scroll = block.query_one(".message-scroll", VerticalScroll)
-        assert scroll.virtual_size.height > 4
-        assert scroll.size.height == 4  # clipped to the collapsed height
+        assert scroll.virtual_size.height > block.COLLAPSED_LINES
+        # Clipped to the collapsed height.
+        assert scroll.size.height == block.COLLAPSED_LINES
         block.action_toggle_expand()
         await pilot.pause()
-        assert scroll.size.height > 4  # expanded shows the full text
+        # Expanded shows the full text.
+        assert scroll.size.height > block.COLLAPSED_LINES
 
 
 async def test_message_text_can_be_selected_and_copied(
@@ -1427,7 +1527,7 @@ async def test_short_message_is_not_collapsed(fake_backend, make_app):
         await _settle(pilot, app)
         block = app.screen.query(MessageBlock).last()
         scroll = block.query_one(".message-scroll", VerticalScroll)
-        assert scroll.virtual_size.height <= 4
+        assert scroll.virtual_size.height <= block.COLLAPSED_LINES
         assert not block.can_focus
 
 

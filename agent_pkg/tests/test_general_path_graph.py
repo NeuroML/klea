@@ -201,8 +201,8 @@ async def test_binder_router_binds_groups_before_dispatch(monkeypatch):
     state = KleaAgentState()
     state.plan = PlanSchema(
         step_list=[
-            StepSchema(step_number=1, description="read a"),
-            StepSchema(step_number=2, description="read b"),
+            StepSchema(step_number=1, summary="read a"),
+            StepSchema(step_number=2, summary="read b"),
         ],
         status="in_progress",
     )
@@ -222,7 +222,7 @@ def _plan_with_step(
 ) -> KleaAgentState:
     state = KleaAgentState()
     state.plan = PlanSchema(
-        step_list=[StepSchema(step_number=1, description="s", kind=kind)],
+        step_list=[StepSchema(step_number=1, summary="s", kind=kind)],
         status=status,
     )
     return state
@@ -238,8 +238,8 @@ async def test_planner_router_dispatches_by_step_kind():
     review = KleaAgentState()
     review.plan = PlanSchema(
         step_list=[
-            StepSchema(step_number=1, description="Review the plan", kind="review"),
-            StepSchema(step_number=2, description="work", kind="tool"),
+            StepSchema(step_number=1, summary="Review the plan", kind="review"),
+            StepSchema(step_number=2, summary="work", kind="tool"),
         ],
         status="in_progress",
     )
@@ -268,10 +268,8 @@ async def test_review_router_routes_on_the_review_step():
     approved = KleaAgentState()
     approved.plan = PlanSchema(
         step_list=[
-            StepSchema(
-                step_number=1, description="review", kind="review", status="done"
-            ),
-            StepSchema(step_number=2, description="work", kind="tool"),
+            StepSchema(step_number=1, summary="review", kind="review", status="done"),
+            StepSchema(step_number=2, summary="work", kind="tool"),
         ],
         status="in_progress",
     )

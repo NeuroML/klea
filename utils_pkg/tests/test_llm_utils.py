@@ -172,6 +172,13 @@ def test_split_output_by_section(
         # provider:model:tag -> provider + model:tag
         ("ollama:bge-m3:latest", "ollama", "bge-m3:latest", None),
         ("ollama:qwen3:0.6b", "ollama", "qwen3:0.6b", None),
+        (
+            "openrouter:recursive/flint-v1.0:free",
+            "openrouter",
+            "recursive/flint-v1.0:free",
+            None,
+        ),
+        ("openrouter:qwen/qwen3-coder", "openrouter", "qwen/qwen3-coder", None),
         # huggingface:org/model:suffix -> provider, model, suffix
         (
             "huggingface:intfloat/multilingual-e5-large:auto",
@@ -204,6 +211,10 @@ def test_parse_model_name(raw, expected_provider, expected_model, expected_suffi
         (("openai", "gpt-4o", None), "openai:gpt-4o"),
         (("openai", "gpt-4o", "https://host/v1"), "openai:gpt-4o:https://host/v1"),
         (("ollama", "qwen3:0.6b", None), "ollama:qwen3:0.6b"),
+        (
+            ("openrouter", "recursive/flint-v1.0:free", None),
+            "openrouter:recursive/flint-v1.0:free",
+        ),
         (("huggingface", "org/model", "novita"), "huggingface:org/model:novita"),
         # no provider: the model field holds the whole string
         ((None, "openai:gpt-4o", None), "openai:gpt-4o"),
@@ -225,6 +236,7 @@ def test_join_model_string(fields, expected):
         "openai:gpt-4o:https://host/v1",
         "custom:model:http://localhost:8000/v1",
         "ollama:qwen3:0.6b",
+        "openrouter:recursive/flint-v1.0:free",
         "huggingface:org/model:novita",
         "bge-m3",
     ],
@@ -532,6 +544,28 @@ def test_parse_output_with_thought_reraises_original_error_when_repair_empty(
     with pytest.raises(OutputParserException) as excinfo:
         parse_output_with_thought(AIMessage(content="The prose answer."), _ParseSchema)
     assert "The prose answer." in str(excinfo.value)
+
+
+def test_parse_output_with_thought_rejects_lossy_repair():
+    """A repair that truncates a value at an unescaped quote is rejected.
+
+    Regression: an unescaped ``"`` inside ``answer`` (the logged payload with
+    ``rendered = ""``) let ``repair_json`` silently drop the rest of the value;
+    the hardened parser must raise instead of returning the truncated answer.
+    """
+    content = '{"answer": "1126:             rendered = ""\n1127:             for ind, entry in enumerate(entries):\n1128:                 shown = "yes" if self.displayed else "no"}'
+    with pytest.raises(OutputParserException):
+        parse_output_with_thought(AIMessage(content=content), _ParseSchema)
+
+
+def test_parse_output_with_thought_keeps_escaped_quotes():
+    """Properly escaped quotes round-trip to the full untruncated answer."""
+    content = '{"answer": "1126:             rendered = \\"\\"value\\"\\""}'
+    result, thought = parse_output_with_thought(
+        AIMessage(content=content), _ParseSchema
+    )
+    assert thought == ""
+    assert result == {"answer": '1126:             rendered = ""value""'}
 
 
 if __name__ == "__main__":

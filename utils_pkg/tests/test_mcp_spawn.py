@@ -14,11 +14,7 @@ from pathlib import Path
 
 import pytest
 from klea_utils.mcp import spawn
-from klea_utils.mcp.spawn import (
-    SERVER_MODULE,
-    STRIPPED_ENV_VARS,
-    bundled_server_config,
-)
+from klea_utils.mcp.spawn import SERVER_MODULE, STRIPPED_ENV_VARS, bundled_server_config
 
 # ---------------------------------------------------------------------------
 # Behaviour-preserving defaults

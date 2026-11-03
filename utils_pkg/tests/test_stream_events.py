@@ -291,6 +291,38 @@ class TestApplyStreamEvent:
         assert block["text"] == "```diff\n+hello\n```"
         assert block["is_error"] is True
 
+    def test_tool_event_reduces_generic_entry_to_tool_message(self, chat):
+        """A non-run_command tool entry becomes a role=\"tool\" message."""
+        result = apply_stream_event(
+            chat,
+            {
+                "type": "tool",
+                "node": "Running tools",
+                "data": {
+                    "tools": [
+                        {
+                            "tool": "read_file",
+                            "title": "Read file",
+                            "header": "Read file",
+                            "mime": "text/x-shell",
+                            "data": 'read_file(path="notes.txt")\nhello from notes',
+                            "meta": {},
+                            "display": 'read_file(path="notes.txt")\nhello from notes',
+                            "is_error": False,
+                        }
+                    ]
+                },
+            },
+        )
+        assert result == "tool"
+        assert len(chat["messages"]) == 1
+        block = chat["messages"][0]
+        assert block["role"] == "tool"
+        assert block["header"] == "Read file"
+        assert block["mime"] == "text/x-shell"
+        assert block["data"] == 'read_file(path="notes.txt")\nhello from notes'
+        assert block["is_error"] is False
+
     def test_unknown_type_ignored(self, chat):
         """Unknown event types mutate nothing and return None."""
         assert apply_stream_event(chat, {"type": "mystery"}) is None

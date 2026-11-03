@@ -20,12 +20,7 @@ from langchain_core.messages import HumanMessage
 from langgraph.runtime import get_runtime
 
 from klea_agent.discovery import refresh_project_files
-from klea_agent.schemas import (
-    CodeSchema,
-    Discovery,
-    KleaAgentState,
-    RouteSchema,
-)
+from klea_agent.schemas import CodeSchema, Discovery, KleaAgentState, RouteSchema
 
 
 class InitGraphState(

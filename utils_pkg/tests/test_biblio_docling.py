@@ -19,10 +19,7 @@ from docling_core.types.doc.document import (
     ProvenanceItem,
     Size,
 )
-from klea_utils.biblio.docling import (
-    extract_docling_structured,
-    extract_layout_region,
-)
+from klea_utils.biblio.docling import extract_docling_structured, extract_layout_region
 from pydantic import AnyUrl
 
 logger = logging.getLogger(__name__)

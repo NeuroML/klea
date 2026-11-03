@@ -12,10 +12,7 @@ import logging
 from textwrap import dedent
 from typing import Any, ClassVar, override
 
-from klea_utils.llm import (
-    extract_llm_output_content,
-    prompt_value_to_messages,
-)
+from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext

@@ -18,7 +18,7 @@ from klea_utils.graph.state import BaseGraphSchema
 from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.tools import last_tool_error_text, textualize_tool_results
 from langchain_core.messages import AnyMessage
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class CodeSchema(BaseModel):
@@ -29,7 +29,17 @@ class CodeSchema(BaseModel):
 
 class StepSchema(BaseModel):
     step_number: int = 1
-    description: str = ""
+    #: Short, user-facing step summary (the status pane and review modal show
+    #: this).  ``description`` is accepted as a validation alias so plans in
+    #: older checkpoints still load; new plans serialize ``summary``.
+    summary: str = Field(
+        default="", validation_alias=AliasChoices("summary", "description")
+    )
+    #: Concise internal execution context for the other LLM nodes (binder,
+    #: reasoning, evaluator): files, identifiers, assumptions, constraints and
+    #: the expected intermediate result.  Prompt-facing only; never rendered in
+    #: the user-facing status pane.
+    details: str = ""
     success_criteria: str = ""
     #: How this step executes (ADR-0035 update 2026-09-19; ADR-0051).  A
     #: ``tool`` step names at least one tool in :attr:`suggested_tools` and
@@ -88,17 +98,18 @@ class StepSchema(BaseModel):
         """Render this step as one line with its status marker.
 
         Two audiences.  Prompts (``markdown=False``) include everything a
-        model may need (description, success criteria, suggested tools,
+        model may need (summary, details, success criteria, suggested tools,
         dependencies).  The status pane (``markdown=True``) stays minimal -
-        marker, number, description and dependencies (execution order) - with
-        the rest left to the inspection pane.
+        marker, number, summary and dependencies (execution order) - with the
+        rest left to the inspection pane.
 
         :param current: Whether this is the plan's current step.
         :param markdown: ``True`` for the status-pane render: ``[marker] Step
-            N: description (depends on: ...)``.  ``False`` for the prompt
-            render: ``[STATUS] N. description (success criteria: ...;
-            suggested tools: ...; depends on: ...)``, or ``...; kind:
-            reasoning; ...`` for a reasoning step (which names no tools).
+            N: summary (depends on: ...)``.  ``False`` for the prompt render:
+            ``[STATUS] N. summary (success criteria: ...; suggested tools: ...;
+            depends on: ...)``, or ``...; kind: reasoning; ...`` for a reasoning
+            step (which names no tools).  A non-review step with ``details``
+            adds an indented ``details:`` line.
         :returns: The prompt line, or the minimal status-pane line.
         """
         depends = (
@@ -109,15 +120,15 @@ class StepSchema(BaseModel):
         marker = self.status_label(current=current, markdown=markdown)
         if markdown:
             return (
-                f"{marker} Step {self.step_number}: {self.description} "
+                f"{marker} Step {self.step_number}: {self.summary} "
                 f"(depends on: {depends})"
             )
         criteria = self.success_criteria or "(none)"
         if self.kind == "review":
-            detail = f"{self.description} (kind: review; depends on: {depends})"
+            detail = f"{self.summary} (kind: review; depends on: {depends})"
         elif self.kind == "reasoning":
             detail = (
-                f"{self.description} (success criteria: {criteria}; "
+                f"{self.summary} (success criteria: {criteria}; "
                 f"kind: reasoning; depends on: {depends})"
             )
         else:
@@ -125,9 +136,11 @@ class StepSchema(BaseModel):
                 ", ".join(self.suggested_tools) if self.suggested_tools else "(none)"
             )
             detail = (
-                f"{self.description} (success criteria: {criteria}; "
+                f"{self.summary} (success criteria: {criteria}; "
                 f"suggested tools: {tools}; depends on: {depends})"
             )
+        if self.kind != "review" and self.details.strip():
+            detail += f"\n  details: {self.details.strip()}"
         return f"{marker} {self.step_number}. {detail}"
 
 
@@ -206,7 +219,7 @@ class PlannerPlanSchema(BaseModel):
                 )
                 lines.append(
                     f"{marker} Step {step.step_number}/{total} "
-                    f"{step.description} (depends on: {depends})"
+                    f"{step.summary} (depends on: {depends})"
                 )
             else:
                 lines.append(step.render(current=is_current, markdown=False))
@@ -810,6 +823,17 @@ EVALUATION_OVERALL_LABELS: dict[str, str] = {
 #: the full result is available in the inspection pane.
 _SUMMARY_MAX_LEN = 80
 
+#: Per-argument value cap for the compact call signature.  The signature names
+#: every argument of a call so a summarised evidence line can say which read,
+#: search or command a step actually ran; only very long values (file contents,
+#: edit strings) are clipped so one call cannot dominate the line.
+_SIGNATURE_MAX_VALUE_CHARS = 160
+
+#: Character cap for a failed call's error text in a compact evidence line.
+#: This is deliberately larger than the 80-character human progress line: the
+#: reason (for example a timeout) often sits at the end of a JSON error body.
+_REDUCED_ERROR_MAX_CHARS = 500
+
 
 def _first_line(text: str) -> str:
     """Return the first non-empty line of *text*, truncated to one line.
@@ -828,6 +852,41 @@ def _first_line(text: str) -> str:
             return stripped[: _SUMMARY_MAX_LEN - 3].rstrip() + "..."
         return stripped
     return ""
+
+
+def _format_signature_value(value: Any) -> str:
+    """Return a compact, single-line rendering of one call argument."""
+    if isinstance(value, str):
+        text = value.replace("\r", "\\r").replace("\n", "\\n")
+        if len(text) > _SIGNATURE_MAX_VALUE_CHARS:
+            text = text[: _SIGNATURE_MAX_VALUE_CHARS - 3].rstrip() + "..."
+        return f'"{text}"'
+    text = repr(value).replace("\r", "\\r").replace("\n", "\\n")
+    if len(text) > _SIGNATURE_MAX_VALUE_CHARS:
+        text = text[: _SIGNATURE_MAX_VALUE_CHARS - 3].rstrip() + "..."
+    return text
+
+
+def format_call_signature(tool: str, args: dict[str, Any] | None) -> str:
+    """Render a tool call as ``tool(arg=value, ...)`` for compact evidence.
+
+    A summarised evidence line must say *what* a step actually called, not just
+    which tool ran: ``grep: ok`` does not tell the Planner which pattern or path
+    was searched.  Every argument is included; only long values are clipped per
+    :data:`_SIGNATURE_MAX_VALUE_CHARS` so a file-content argument cannot
+    dominate the line.
+
+    :param tool: The called tool's name.
+    :param args: The call's bound arguments.
+    :returns: A single-line call signature.
+    """
+    name = tool or "(unknown tool)"
+    if not args:
+        return f"{name}()"
+    rendered = ", ".join(
+        f"{key}={_format_signature_value(value)}" for key, value in args.items()
+    )
+    return f"{name}({rendered})"
 
 
 def _count(n: int, noun: str) -> str:
@@ -851,16 +910,24 @@ class StepOutput(BaseModel):
     Evaluator and Planner, which read ``observations`` and never see the node's
     raw ``rationale`` field otherwise.  :attr:`tool` is the selected tool's name
     (``CallToolResult`` does not carry it) and is empty for a reasoning step.
-    :attr:`displayed` records that the server streamed a display event for this
-    result.  That is *intent-to-display*, not a render guarantee: a client may
-    not have shown it.  The answer node uses the flag to avoid reprinting
-    results the interface already showed.
+    :attr:`signature` is the pre-rendered ``tool(arg=value, ...)`` call form,
+    bounded at record time so a summarised evidence view can name what a
+    Planner-unselected step actually ran without retaining (and checkpointing)
+    the full argument values again.
     """
 
     result: CallToolResult | str
     tool: str = ""
-    displayed: bool = False
+    signature: str = ""
     rationale: str = ""
+
+    @property
+    def is_error(self) -> bool:
+        """Return whether this entry is an errored tool result.
+
+        A reasoning conclusion is a plain ``str`` and is never an error.
+        """
+        return isinstance(self.result, CallToolResult) and bool(self.result.is_error)
 
     def render(self) -> str:
         """Render this result with its tool/displayed metadata.
@@ -868,10 +935,9 @@ class StepOutput(BaseModel):
         The body is the shared single-result text (no batch header) for a tool
         result, or the conclusion text for a reasoning step; a reasoning step's
         ``rationale`` is appended so the justification is visible in
-        ``observations``.  The ``### <tool> (displayed_to_user: ...)`` heading
-        replaces the generic ``Result i/n`` label so the consumer knows which
-        tool ran (or that the entry is reasoning) and whether the interface
-        already showed it.
+        ``observations``.  The ``### <tool>`` heading replaces the generic
+        ``Result i/n`` label so the consumer knows which tool ran (or that the
+        entry is reasoning).
         """
         if isinstance(self.result, CallToolResult):
             body = textualize_tool_results([self.result], include_header=False).strip()
@@ -881,14 +947,37 @@ class StepOutput(BaseModel):
             tool = self.tool or "reasoning"
         if self.rationale.strip():
             body = f"{body}\n\nRationale: {self.rationale.strip()}"
-        shown = "yes" if self.displayed else "no"
-        return f"### {tool} (displayed_to_user: {shown})\n{body}"
+        return f"### {tool}\n{body}"
+
+    def _compact(self, *, detailed: bool) -> str:
+        """Return a compact one-line rendering of this entry.
+
+        :param detailed: Keep the recorded call signature and the whole
+            (bounded) error text for LLM evidence; otherwise keep only the
+            tool name and a short error line for the human progress view.
+        """
+        if isinstance(self.result, CallToolResult):
+            if detailed:
+                label = self.signature or self.tool or "(unknown tool)"
+            else:
+                label = self.tool or "(unknown tool)"
+            if self.result.is_error:
+                if detailed:
+                    reason = last_tool_error_text(
+                        [self.result], max_len=_REDUCED_ERROR_MAX_CHARS
+                    ).strip()
+                else:
+                    reason = _first_line(last_tool_error_text([self.result]))
+                return f"{label}: error - {reason}" if reason else f"{label}: error"
+            return f"{label}: ok"
+        conclusion = _first_line(str(self.result))
+        return f"reasoning: {conclusion}" if conclusion else "reasoning"
 
     def summary(self) -> str:
         """Return a concise one-line summary for the human-facing progress view.
 
-        Unlike :meth:`render` (the full, LLM-facing body with the
-        ``displayed_to_user`` flag), this keeps only the tool name and whether
+        Unlike :meth:`render` (the full, LLM-facing body), this keeps only
+        the tool name and whether
         the call succeeded (with a short error reason), so the plan-review
         ``progress`` stays readable; the full result is a click away in the
         inspection pane.  A reasoning step renders its conclusion's first line.
@@ -896,14 +985,24 @@ class StepOutput(BaseModel):
         :returns: ``"<tool>: ok"`` / ``"<tool>: error - <reason>"`` for a tool
             result, or ``"reasoning: <first line>"``.
         """
-        if isinstance(self.result, CallToolResult):
-            tool = self.tool or "(unknown tool)"
-            if self.result.is_error:
-                reason = _first_line(last_tool_error_text([self.result]))
-                return f"{tool}: error - {reason}" if reason else f"{tool}: error"
-            return f"{tool}: ok"
-        conclusion = _first_line(str(self.result))
-        return f"reasoning: {conclusion}" if conclusion else "reasoning"
+        return self._compact(detailed=False)
+
+    def evidence_summary(self) -> str:
+        """Return a compact but informative line for summarised evidence.
+
+        Unlike :meth:`summary` (the human-facing progress line, capped at 80
+        characters so the review modal stays readable), this view is what the
+        Planner sees for a recorded step the relevance rule did not select.
+        It therefore keeps the full call signature (which arguments the step
+        actually used) and, for a failure, the whole error text up to
+        :data:`_REDUCED_ERROR_MAX_CHARS` rather than only its first line.  The
+        reason can sit at the end of a JSON error body, so cutting at the first
+        line would drop it entirely.
+
+        :returns: ``"<call signature>: ok"`` / ``"<call signature>: error -
+            <reason>"`` for a tool result, or ``"reasoning: <first line>"``.
+        """
+        return self._compact(detailed=True)
 
 
 class KleaAgentState(BaseGraphSchema):
@@ -1061,9 +1160,7 @@ class KleaAgentState(BaseGraphSchema):
             steps.append(
                 ContinuationStepEvidence(
                     step_number=step.step_number,
-                    description=_clip_text(
-                        step.description, MAX_CONTINUATION_STEP_CHARS
-                    ),
+                    description=_clip_text(step.summary, MAX_CONTINUATION_STEP_CHARS),
                     success_criteria=_clip_text(
                         step.success_criteria, MAX_CONTINUATION_STEP_CHARS
                     ),
@@ -1074,11 +1171,7 @@ class KleaAgentState(BaseGraphSchema):
                         summary or "(no recorded output)",
                         MAX_CONTINUATION_STEP_CHARS,
                     ),
-                    is_error=any(
-                        isinstance(entry.result, CallToolResult)
-                        and entry.result.is_error
-                        for entry in entries
-                    ),
+                    is_error=any(entry.is_error for entry in entries),
                 )
             )
         history = [
@@ -1110,24 +1203,45 @@ class KleaAgentState(BaseGraphSchema):
         )
 
     def observations_text(self) -> str:
-        """Render all recorded step outputs as one text block.
+        """Render recorded step outputs as the shared ``observations`` block.
 
-        Groups by step (``Step N:``) and renders each :class:`StepOutput` via
-        its :meth:`StepOutput.render`.  Used by the Planner, Evaluator and
-        AnswerFromResults so all three see identical observations, including
-        the tool that produced each result and whether it was displayed to the
-        user.
+        Delegates to :func:`render_step_observations`, so the Planner, Evaluator
+        and AnswerFromResults all see the same ``Step N:`` grouping and the
+        same ``{i}: {entry.render()}`` entries.  Every selected step is rendered
+        in full, and an empty recording yields the ``(no observations)``
+        sentinel from the helper.
         """
-        parts: list[str] = []
-        for step_key, entries in self.step_outputs.items():
-            if not entries:
-                continue
+        # Deferred import: evidence.py imports schemas at module level.
+        from .evidence import render_step_observations
 
-            rendered = ""
-            for ind, entry in enumerate(entries):
-                rendered += f"\n\n{ind}: {entry.render()}"
-            parts.append(f"Step {step_key}:\n{rendered}")
-        return "\n\n".join(parts) if parts else "(no observations)"
+        return render_step_observations(self.step_outputs)
+
+    def planner_evidence(self) -> str:
+        """Applies the relevance rule documented in
+        ``devdocs/system/agent-planner-evidence-rendering.md``.
+
+        Failed steps, the transitive ``depends_on`` closure of every pending step,
+        Evaluator-flagged steps, the last completed step and the latest abandoned
+        revision render in full with ``StepOutput.render()``; every other recorded
+        step is reduced to ``StepOutput.evidence_summary()`` plus a step
+        reference.  The selection lives in ``render_plan_evidence`` (deferred
+        import inside the method); this method only supplies the graph state it
+        reads.
+
+        :returns: The ready-to-use ``observations`` prompt block.
+        """
+        from klea_agent.evidence import render_plan_evidence
+
+        return render_plan_evidence(
+            self.plan,
+            self.step_outputs,
+            flagged={
+                item.step_number
+                for item in self.evaluation.evaluations
+                if item.verdict == "step_incomplete"
+            },
+            abandoned=self.plan_history[-1] if self.plan_history else None,
+        )
 
     def work_since_review(self) -> list[tuple[StepSchema, list[StepOutput]]]:
         """Return completed steps and their outputs since the last review.
@@ -1151,7 +1265,7 @@ class KleaAgentState(BaseGraphSchema):
     def work_since_review_text(self) -> str:
         """Render :meth:`work_since_review` as prompt-ready text.
 
-        Each step is headed by its description so the digest can attach the
+        Each step is headed by its summary so the digest can attach the
         observations to what the step was meant to do; the observations use the
         same :meth:`StepOutput.render` body as the Evaluator and Planner see, so
         the digest can draw on any tool result (including third-party MCP
@@ -1165,7 +1279,7 @@ class KleaAgentState(BaseGraphSchema):
             rendered = "".join(
                 f"\n\n{index}: {entry.render()}" for index, entry in enumerate(outputs)
             )
-            chunks.append(f"Step {step.step_number}: {step.description}{rendered}")
+            chunks.append(f"Step {step.step_number}: {step.summary}{rendered}")
         return "\n\n".join(chunks) if chunks else "(no work since the last review)"
 
     def review_sections(self) -> tuple[str, list[dict[str, str]]]:

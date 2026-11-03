@@ -47,7 +47,10 @@ The TUI merges this into the existing request-extra channel:
   "client_context": {
     "cwd": "/home/user/project",
     "interpreter": "/home/user/project/.venv/bin/python",
-    "env": {"VIRTUAL_ENV": "/home/user/project/.venv", "PROJECT_ENV": "dev"}
+    "env": {
+      "VIRTUAL_ENV": "/home/user/project/.venv",
+      "PROJECT_ENV": "dev"
+    }
   }
 }
 ```

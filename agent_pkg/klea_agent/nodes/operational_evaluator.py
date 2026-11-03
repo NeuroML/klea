@@ -73,8 +73,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         label: str,
         llm_models: dict[str, Any],
         memory: bool = False,
-        max_step_attempts: int = 3,
-        max_automated_plan_revisions: int = 4,
+        max_step_attempts: int = 6,
+        max_automated_plan_revisions: int = 8,
     ):
         """Initialise the operational evaluator.
 
@@ -100,12 +100,23 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         self.max_automated_plan_revisions = max_automated_plan_revisions
 
     def _observations_text(self, state: KleaAgentState) -> str:
-        """Return the rendered per-step tool outputs (tool + displayed flag).
+        """Render the batch's step outputs plus their dependency closure.
 
-        Delegates to :meth:`KleaAgentState.observations_text` so the Evaluator,
-        Planner and AnswerFromResults all see identical observations.
+        The Evaluator judges only the current batch, so earlier results matter
+        just for the steps that batch transitively depends on; every other
+        recorded step is omitted to keep the prompt bounded
+        (ADR-0041/ADR-0051).  The rendering itself is shared with the other
+        consumers through :func:`klea_agent.evidence.render_step_observations`
+        (deferred import to avoid a module-level cycle with ``schemas``).
         """
-        return state.observations_text()
+        from klea_agent.evidence import depends_on_closure, render_step_observations
+
+        batch_numbers = {
+            step.step_number for step in state.plan.next_batch(MAX_BATCH_STEPS)
+        }
+        by_number = {step.step_number: step for step in state.plan.step_list}
+        numbers = batch_numbers | depends_on_closure(by_number, batch_numbers)
+        return render_step_observations(state.step_outputs, numbers=numbers)
 
     @override
     def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
@@ -169,9 +180,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         ]
         if not reviews:
             return "(none)"
-        return "\n".join(
-            f"Step {step.step_number}: {step.description}" for step in reviews
-        )
+        return "\n".join(f"Step {step.step_number}: {step.summary}" for step in reviews)
 
     @staticmethod
     def _upcoming_review(plan: PlanSchema) -> bool:

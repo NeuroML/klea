@@ -22,6 +22,11 @@ from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import KleaAgentState
 
+#: Maximum number of characters of the plan query echoed in the history
+#: marker.  It keeps the marker small against the conversation-history budget
+#: while leaving a one-sentence plan query intact.
+_HISTORY_MARKER_QUERY_CHARS = 200
+
 
 class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]):
     """Node that returns the final message to the user."""
@@ -67,7 +72,19 @@ class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeConte
             NodeStreamEvent(type="inspect", node=self.label, data=info).model_dump()
         )
 
+        # The assistant message appended to the conversation history carries the
+        # plan query as a marker so the memory summariser keeps the plan's final
+        # answer instead of compressing it away.  Only ``message_for_user`` --
+        # and hence the streamed and persisted user-visible reply -- stays bare.
+        query_excerpt = state.query.strip()
+        if len(query_excerpt) > _HISTORY_MARKER_QUERY_CHARS:
+            query_excerpt = query_excerpt[:_HISTORY_MARKER_QUERY_CHARS] + "..."
+        if query_excerpt:
+            history_answer = f"Final answer for plan query ({query_excerpt}): {answer}"
+        else:
+            history_answer = f"Final answer for plan query: {answer}"
+
         return {
             "message_for_user": answer,
-            "messages": [*state.messages, AIMessage(content=answer)],
+            "messages": [*state.messages, AIMessage(content=history_answer)],
         }

@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-10-29.
+Last updated: 2026-11-03.
 
 ## Cancellation / concurrency
 
@@ -31,6 +31,15 @@ Last updated: 2026-10-29.
 
 ## Agent general path
 
+- Evaluator batching / cadence: the Evaluator runs after every homogeneous
+  runnable batch, so linear `depends_on` chains evaluate one step at a time
+  because the evaluator is what resolves the frontier.  Deferred until the
+  benchmarking setup can measure evaluator cost against wasted work.  Options:
+  (a) Planner discipline (declare only real data dependencies), (b) deferred
+  evaluation over N provisionally-completed steps with flushes on failure,
+  before write/edit steps, before review gates and at plan end, or (c)
+  deterministic pre-checks advancing the frontier with LLM checkpoints.  Do not
+  hard-code an N without measurement.  See `.agents/2026-11-03-1530.md`.
 - ADR-0041 residual: reasoning steps remain serial (one `ReasoningNode`
   conclusion per round); batching a reasoning prefix into one call (a per-step
   conclusion map) is deferred.
@@ -49,18 +58,24 @@ Last updated: 2026-10-29.
   and only the `context_snapshot` projection is exposed today -- so it needs a
   new endpoint and a serialisation design.  Research whether LangChain/LangGraph
   checkpoint/state serialisation (or replay) can produce it directly.
-- Revisit the `max_automated_plan_revisions` default (4 automated replans).
 - Absence handling as a class: bound search escalation when a requested path
   is missing (an agent may reach for `find /`).  `read_file`/`edit_file` now
   report nearby entries on a missing target, and the picker escalates identical
   failed calls, but `run_command` is still not boundary-checked like the file
   tools, so consider a guard; gather a concrete case before coding.
+- Answer-node output schema (deferred, unverified): `AnswerFromResults`
+  (`agent_pkg/klea_agent/nodes/answer_from_results.py:44`) replies in prose and
+  its default fallback is already prose, so its JSON `AnswerSchema` could be
+  dropped; a genuine drop must touch the node's
+  parse/`_process_output` path, and the claim that schema-constrained output
+  costs more tokens is unverified.
+- `ReasoningNode` keeps `ReasoningSchema`
+  (`agent_pkg/klea_agent/schemas.py:747`,
+  `agent_pkg/klea_agent/nodes/reasoning.py:34`): a downstream consumer branches
+  on its typed `conclusion` field, so that schema is not droppable.
 
 ## Tools
 
-- Retrieval tool: no `search_stores`-style tool wires the RAG vector stores
-  into the agent yet (retrieval is optional/deferred per the control-flow
-  note).
 - `web_search` configuration: the provider pool uses a fixed default order
   (`tavily`, `exa`, `parallel`, `firecrawl`, then any available keyed
   `brave`/`serper`) and provider keys are read from the process environment.
@@ -191,6 +206,27 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
   call so retries/truncations count (today only the final call per node is
   measured).  `TokenUsage` now carries `reasoning_tokens`/`cached_tokens`/
   `role`; a stable node key is still needed.
+- Time-to-first-token (TTFT) logging for all LLM invocations (observability
+  improvement): record per-call first-token latency so slow starts are visible.
+  Currently blocked because streaming is deliberately disabled:
+  `LLMModel.build_config()` sets `overrides["disable_streaming"] = True`
+  (HuggingFace: `streaming = False`) to avoid `astream_events` inflating
+  `usage_metadata` (langchain#30429), so `on_llm_new_token` /
+  `on_chat_model_stream` never fire for node invocations.  Revisit once the
+  LangChain fix lands.  Planned change points: an `AsyncCallbackHandler` (not
+  `BaseCallbackHandler`) keyed by `run_id`, with the per-run start in
+  `on_chat_model_start`, the first-token latency in `on_llm_new_token` /
+  `on_chat_model_stream`, and cleanup in `on_llm_end` / `on_llm_error`, in a new
+  `utils_pkg/klea_utils/callbacks.py`; attach it once via the `callbacks` key of
+  the `RunnableConfig` returned by `LLMModel.build_config()`
+  (`utils_pkg/klea_utils/llm.py`, ~line 2048) so all four
+  `BaseLLMNode._invoke_llm` call sites in `utils_pkg/klea_utils/nodes/base.py`
+  are covered.  Caveats: multiple LLM calls per node (validation-retry loop in
+  `nodes/abstract.py:437-485`, `_invoke_with_retries`, structured->plain
+  fallback); the synchronous structured-output capability probe at `llm.py`
+  ~1274 bypasses `build_config`; update `devdocs/system/streams.md` in the same
+  change.
+
 - Sphinx build: importing `mcp` / `fastmcp` fails only inside the Sphinx
   process (not reproduced in isolation; 2026-10-02 session).  Unresolved;
   revisit if the MCP autodoc paths must build.
@@ -221,6 +257,16 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
 - Verify the HuggingFace local (`:local`) backend end to end once a working
   local `torch` is available; the maintainer's env has a broken CUDA build
   (`undefined symbol: ncclCommResume`).
+
+- Per-session stores config is TUI-only: only the loopback TUI sends a
+  per-chat `stores_config` (through `client_context` and tool-call `_meta`).
+  The web UI and any remote/non-loopback client still fall back to
+  `KLEA_STORES_CONFIG_FILE`, so adopting the same per-chat stores config in
+  those frontends remains deferred.
+- The FastMCP lifespan stores key is reserved but unimplemented: the
+  resolution order keeps its top slot (higher precedence than request
+  `_meta`) for server-side wiring, but nothing registers or reads it yet
+  (`STORES_CONFIG_SERVICE` stays unregistered).
 
 ## Sessions / working directory
 
@@ -283,6 +329,13 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
   persist it.
 - `chat_events` retention/pruning: the per-chat UI-event store grows with
   every run; add a retention/size policy (cf. the checkpoint-growth item).
+- Chat/inspect pagination (later, if needed): the transcript hydrates every
+  persisted message and the inspector replays every stored event, with no
+  display cap yet.  If long chats become slow, add cursor/keyset pagination
+  (for example the last 100 messages / 20 queries plus a load-earlier action)
+  at the API/hydration boundary, keeping the complete history in SQLite.
+  Web UIs commonly use load-earlier/infinite scroll; the TUI can use a
+  load-earlier binding or rely on `/export`.  Deferred until a measured need.
 - Cross-frontend sessions / shared identity follow-ups (ADR-0052): (a) a
   remote/multi-user deployment still uses the per-browser NiceGUI session
   cookie, so chats can "disappear" on a new window/browser/profile; a stable

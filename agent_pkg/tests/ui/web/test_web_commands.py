@@ -8,11 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from klea_utils.commands.common import (
-    CommandContext,
-    ParsedCommand,
-    parse_command,
-)
+from klea_utils.commands.common import CommandContext, ParsedCommand, parse_command
 from klea_utils.ui.state import chats, ensure_chat
 from klea_utils.ui.web.nicegui.components.commands import client_commands
 from nicegui import ui

@@ -17,11 +17,7 @@ from unittest import mock
 import httpx
 import pytest
 import typer
-from klea_utils.api.server import (
-    configure_profile,
-    is_loopback_host,
-    spawn_server,
-)
+from klea_utils.api.server import configure_profile, is_loopback_host, spawn_server
 
 logger = logging.getLogger(__name__)
 

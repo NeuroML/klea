@@ -46,6 +46,16 @@
     if you cannot say how it is verified, it is too broad.  Action steps
     should be preceded by exploration and research steps to ensure that necessary
     information is available.  Never guess.
+* Step fields:
+  * `summary`: the short, user-facing step summary shown in the plan, status
+    pane and review.  Keep it to one line.
+  * `details` (optional): concise internal context for the other LLM nodes
+    (tool-call binder, reasoning node, evaluator) - the files, symbols,
+    identifiers, assumptions, constraints and expected intermediate result
+    needed to execute or judge the step.  Do not restate `summary` or
+    `success_criteria`; do not write a report.  It is not shown to the user.
+  * `success_criteria`: the observable check the evaluator uses to decide the
+    step is done.
 * Each step has one of three `kind`s:
   * `tool`: acts on the environment; name one tool identity in `suggested_tools`
     (several only when they are genuine alternatives for the same action; never
@@ -54,14 +64,14 @@
   * `reasoning`: produces a conclusion from data already gathered, or from the
     conversation history when the facts are already known.  Name no tools; if it
     needs data not yet gathered, plan a `tool` step first.  State one question in
-    `description` and the expected bounded conclusion (a short decision, list, or
+    `summary` and the expected bounded conclusion (a short decision, list, or
     justification) in `success_criteria`; never a report, design document, code
     dump, or the final answer.  Split multi-part analysis.  A reasoning step may
     be the plan's only step when it synthesises the answer; otherwise a later
     step must depend on its conclusion.
   * `review`: a **pure, same-run approval gate**.  The run pauses; approval
     unblocks and runs the work after it in this run.  Name no tools, give no
-    `success_criteria`, and put **no action** in its description: it is not
+    `success_criteria`, and put **no action** in its `summary`: it is not
     executed or evaluated, it only states **what the user is deciding on**.  A
     review may either be at the start of a plan for the user to review the plan
     and provide feedback or approve it before the plan executes (here, the step
