@@ -13,9 +13,13 @@ set from the state's `step_incomplete` verdicts and the latest abandoned plan
 revision from `plan_history`, then passes the plan, the recorded `step_outputs`
 and those two inputs to `render_plan_evidence`, which applies the selection rule
 of this note. The method's docstring defers to this note for that rule. The
-previous `KleaAgentState.observations_text()` is retained for the
-ReasoningNode and the tools picker, which need the flat, step-ordered rendering
-it provides. The answer node does not use it:
+previous `KleaAgentState.observations_text()` now delegates to
+`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:200`)
+under the shared `MAX_EVIDENCE_CHARS` budget: the ReasoningNode and the tools
+picker that call it get the same newest-first, errored-steps-first rendering as
+the rest of the evidence surface, with steps past the budget demoted to
+`StepOutput.summary()` at the demotion site in `evidence.py:236-244` rather than
+an unbudgeted flat dump. The answer node does not use it:
 `AnswerFromResults._observations_text` calls `render_step_observations` with
 `MAX_OBSERVATIONS_CHARS = 48_000`
 (`agent_pkg/klea_agent/nodes/answer_from_results.py:46`, `:95-111`), which admits

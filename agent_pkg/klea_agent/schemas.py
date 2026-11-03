@@ -1110,24 +1110,19 @@ class KleaAgentState(BaseGraphSchema):
         )
 
     def observations_text(self) -> str:
-        """Render all recorded step outputs as one text block.
+        """Render recorded step outputs as the shared ``observations`` block.
 
-        Groups by step (``Step N:``) and renders each :class:`StepOutput` via
-        its :meth:`StepOutput.render`.  Used by the Planner, Evaluator and
-        AnswerFromResults so all three see identical observations, including
-        the tool that produced each result and whether it was displayed to the
-        user.
+        Delegates to :func:`render_step_observations`, so the Planner, Evaluator
+        and AnswerFromResults all see the same ``Step N:`` grouping, the same
+        ``{i}: {entry.render()}`` entries and the same character budget.  Steps
+        that overflow the shared budget are demoted to entry summaries rather
+        than clipped mid-text, and an empty recording yields the
+        ``(no observations)`` sentinel from the helper.
         """
-        parts: list[str] = []
-        for step_key, entries in self.step_outputs.items():
-            if not entries:
-                continue
+        # Deferred import: evidence.py imports schemas at module level.
+        from .evidence import render_step_observations
 
-            rendered = ""
-            for ind, entry in enumerate(entries):
-                rendered += f"\n\n{ind}: {entry.render()}"
-            parts.append(f"Step {step_key}:\n{rendered}")
-        return "\n\n".join(parts) if parts else "(no observations)"
+        return render_step_observations(self.step_outputs)
 
     def planner_evidence(self) -> str:
         """Applies the relevance rule documented in

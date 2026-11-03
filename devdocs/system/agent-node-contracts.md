@@ -334,6 +334,14 @@ goal/plan.
 
 The Planner's `observations` prompt variable is `KleaAgentState.planner_evidence()`.
 
+The flat `KleaAgentState.observations_text()` used by the ReasoningNode and the
+`tools` picker is no longer an uncapped dump: it delegates to
+`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:200`)
+under the shared `MAX_EVIDENCE_CHARS` budget, admitting errored steps first and
+then the remaining steps newest-first. A step whose full render would overflow
+the budget is demoted to `StepOutput.summary()` plus its step reference at
+`evidence.py:236-244`, so no payload is clipped mid-text and no step disappears.
+
 The Evaluator's `observations` is narrower than the flat rendering: it carries
 only the current batch's steps plus their transitive `depends_on` closure,
 rendered by `evidence.render_step_observations` from

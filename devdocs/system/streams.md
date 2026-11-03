@@ -204,7 +204,11 @@ not IANA.  Plain `TextContent` is never surfaced.  Errors are not displayed
 
 Note: a tool result is also recorded in graph state as a `StepOutput`
 (`result`, `tool`, `displayed`) and rendered into observations by
-`KleaAgentState.observations_text()` with `displayed_to_user: yes|no`, so the
+`KleaAgentState.observations_text()`, which delegates to
+`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:200`)
+under the shared `MAX_EVIDENCE_CHARS` budget (errored steps first, then the rest
+newest-first; overflow demotes to `StepOutput.summary()` at
+`evidence.py:236-244`). Each entry carries `displayed_to_user: yes|no`, so the
 synthesised answer can avoid reprinting what the chat already showed.
 
 ### `token` (gated)
