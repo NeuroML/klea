@@ -88,6 +88,32 @@ class PermissionResolution(BaseModel):
         return [*self.allowed_now, *self.allowed_session]
 
 
+def _confidence_reason(request: PathRequest) -> str:
+    """Explain how a request's path was discovered, for the approval prompt.
+
+    The reason is derived from the request's ``source`` so the client can show
+    why a path is being gated: a checkpaths declaration, a picker path, a
+    path-like argument name, or a heuristic match in an argument value.  Any
+    other source falls back to the raw ``confidence``.
+
+    :param request: The path request to describe.
+    :returns: A short, ASCII-only explanation string.
+    """
+    source = request.source
+    if source.startswith("checkpaths:"):
+        reason = "declared by the tool"
+    elif source == "picker":
+        reason = "declared by the path picker"
+    elif source.startswith("name:"):
+        reason = "path-like argument name"
+    elif source.startswith("value:"):
+        reason = "heuristic: found in the argument value"
+    else:
+        reason = request.confidence
+    logger.debug(f"Describing path confidence\n{source = }\n{reason = }")
+    return reason
+
+
 def build_permission_payload(
     requests: Sequence[PathRequest], *, question: str = ""
 ) -> dict[str, Any]:
@@ -121,6 +147,7 @@ def build_permission_payload(
             directory_display=request.directory_display(),
             covered_paths=covered,
             covered_paths_display=[truncate_middle(path) for path in covered],
+            confidence_reason=_confidence_reason(request),
         )
         payload_requests.append(item)
     return {

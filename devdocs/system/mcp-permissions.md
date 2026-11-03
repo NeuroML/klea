@@ -10,7 +10,9 @@ Last updated: 2026-10-22 (path approval asks show the paths covered by a
 directory approval and clean shell operators; `/paths` manages thread-scoped
 approvals; layered path discovery, interactive approval, and the
 sensitive-file second round at ADR-0007; invocation axis / tool access level
-at ADR-0037).
+at ADR-0037).  Update: the heuristic value tier is strict (anchored prefixes,
+`file:` URIs and drive letters only), the approval payload gained
+`confidence_reason` and preview offset/length fields.
 
 See also `file-tools.md` for the file-tool text/binary/encoding contract and
 the `read_file` paging contract, which sit on top of this boundary.
@@ -45,7 +47,14 @@ The single enforcement point is the pre-dispatch gate in
   marker (`path_display`/`directory_display`).  It also shows the tool call
   context (`tool: argument = argument_preview (confidence)`), the detected
   token when distinct, and the discovery source.  Full path/directory values
-  remain the decision keys; previews are display-only.  *not a path* is offered
+  remain the decision keys; previews are display-only.  The ask also carries
+  `confidence_reason` (why the path was discovered: declared by the tool,
+  picker, path-like argument name, or heuristic value match) and the preview
+  geometry that locates the detected token inside `argument_preview`:
+  `preview_token_start`/`preview_token_end` (character offsets),
+  `preview_omitted_before`/`preview_omitted_after` (characters elided at each
+  end), `argument_length` (the full argument value's length) and `token_line`
+  (the 1-based line the token sits on).  *not a path* is offered
   only for a `guess`-tier value and keeps no memory (a genuine path is never
   silently ungated); `session` remains available for guesses because a
   third-party server may have no declared/expected path.  The gate runs in the
@@ -79,11 +88,19 @@ It unions, per call, three confidence tiers:
 
 - `declared` -- the tool's declared `checkpaths` argument values;
 - `expected` -- paths the binder/picker declared for the call;
-- `guess` -- heuristic: path-ish argument names, plus path-like values
-  (shell command strings are first split by a platform-aware tokeniser that
-  honours POSIX quoting and Windows backslash paths, and non-`file` URLs,
-  flags, operators and pure globs are skipped; `file:` URIs are unwrapped to
-  their path).
+- `guess` -- heuristic: path-ish argument names, plus path-like values.
+  A value is only considered when it is *anchored*: it begins with `/`, `~`,
+  a drive letter (`C:`), or `file:` (a `file:` URI is unwrapped to its path).
+  Only command-like argument names (such as `command`) are split by the
+  platform-aware tokeniser that honours POSIX quoting and Windows backslash
+  paths.  A non-command value is never shell-split: a multi-line value, a
+  value longer than `MAX_VALUE_SCAN_CHARS`, or prose containing `/` (for
+  example `and/or`, a relative `src/main.py`, or an `https://` URL) is
+  skipped, so a file body passed as `content`/`new_string` is not reported as
+  paths.  Non-`file` URLs, flags, operators and pure globs are skipped in both
+  modes.  This strict value tier is the only change to the tiers: `declared`
+  (`checkpaths`), `expected` (picker) and `name:` (path-like argument name)
+  discovery remain permissive and unchanged.
 
 Only paths that resolve outside `project_root` plus any session-approved
 `allowed_dirs` become requests; they are de-duplicated by resolved directory,

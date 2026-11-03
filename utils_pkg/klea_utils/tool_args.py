@@ -57,6 +57,22 @@ def _name_parts(name: str) -> list[str]:
     return [part for part in re.split(r"[_\-\s]+", name.lower()) if part]
 
 
+#: Name words that mark an argument as carrying a shell command line.
+_COMMAND_NAME_WORDS = frozenset({"command", "cmd", "shell", "script", "argv", "args"})
+
+
+def is_command_argument_name(name: str) -> bool:
+    """Return whether an argument name looks like a shell command argument.
+
+    Used by value-based path discovery: only such an argument is shell-split,
+    so a file body or a note is never chopped into pseudo shell tokens.
+
+    :param name: The argument name.
+    :returns: ``True`` when the name looks command-like.
+    """
+    return any(part in _COMMAND_NAME_WORDS for part in _name_parts(name))
+
+
 def is_path_argument_name(name: str) -> bool:
     """Return whether *name* looks like it holds a filesystem path."""
     return any(part in PATH_ARGUMENT_NAME_WORDS for part in _name_parts(name))
