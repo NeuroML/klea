@@ -405,9 +405,9 @@ Last updated: 2026-10-29.
   visibility clause in `devdocs/system/streams.md:205-212`, and simplify the
   heading assertions at `agent_pkg/tests/test_schemas.py:323,330,363-364`,
   `agent_pkg/tests/test_reasoning.py:75` and
-  `agent_pkg/tests/test_evidence.py:116`.  The observations priority ordering
-  already ignores `displayed` (errored-first, then newest-first,
-  `evidence.py:230-244`), so no budget logic changes.  Phased, each shippable:
+  `agent_pkg/tests/test_evidence.py:116`.  The observations rendering already
+  ignores `displayed`, and has no budget logic to change (`evidence.py`).
+  Phased, each shippable:
   (A) measure per-call display payload size/count; (B) build a bounded display
   renderer with a display cap far below `DEFAULT_MAX_OUTPUT_CHARS`
   (`utils_pkg/klea_utils/mcp/tool_impls/run_command.py:41`, applied head-only

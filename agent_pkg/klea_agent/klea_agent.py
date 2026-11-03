@@ -73,6 +73,7 @@ from .schemas import (
     StepEvaluation,
     StepOutput,
     StepSchema,
+    format_call_signature,
 )
 
 
@@ -503,6 +504,11 @@ class KleaAgent(BaseLangGraph):
             entry = StepOutput(
                 result=result,
                 tool=call.tool if call is not None else "",
+                signature=(
+                    format_call_signature(call.tool, call.args)
+                    if call is not None
+                    else ""
+                ),
                 displayed=displayed[i] if i < len(displayed) else False,
             )
             prior = outputs.get(step, [])

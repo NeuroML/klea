@@ -9,7 +9,8 @@ transitively.
 
 Rule order (highest priority first).  Selected steps are rendered in full with
 ``StepOutput.render()``; every other recorded step is rendered with
-``StepOutput.summary()`` plus a step reference:
+``StepOutput.evidence_summary()`` (the bounded call signature and the failure
+reason) plus a step reference:
 
 1. Steps whose latest attempt failed -- status ``failed``, or the most recent
    recorded result is an error (superseded failures are not selected).
@@ -23,14 +24,10 @@ so it is never a payload source, and a step number with no recorded output
 contributes nothing.  The rule applies to the ``observations`` prompt variable;
 ``previous_work`` keeps its clipped continuation summaries.
 
-Full renders are admitted under a character budget (:data:`MAX_EVIDENCE_CHARS`,
-overridable per call): the first selected step that would push the block past
-the budget is demoted to the summary form, together with every selected step
-after it, so a lower-priority payload is never admitted once a higher-priority
-one was demoted, and no step disappears -- a demoted step keeps its number and
-its step reference.  This module is pure: no IO, no prompt mutation, and no
-truncation of a single payload (a step is either rendered in full or
-summarised).
+Selected payloads are never length-capped here: the caller controls the scope
+(the Evaluator passes only its current batch plus the ``depends_on`` closure),
+and tool implementations bound their own output.  This module is pure: no IO,
+no prompt mutation, and no truncation of a payload.
 
 File: agent_pkg/klea_agent/evidence.py
 
@@ -58,22 +55,14 @@ logger = logging.getLogger(__name__)
 #: Sentinel rendered when the run recorded no step output at all.
 NO_EVIDENCE = "(no observations)"
 
-#: Character budget for the Planner evidence block.  Full renders are admitted
-#: in priority order until the next one would exceed this; the remaining
-#: selected steps (and every unselected recorded step) use the one-line summary
-#: form plus a step reference.  A plain constant, like the other prompt caps: a
-#: safety margin against a small model window, not a judgement about content.
-MAX_EVIDENCE_CHARS = 24_000
-
-#: Separator between rendered evidence blocks.  The budget reserves its length
-#: per block, so the joined text stays within :data:`MAX_EVIDENCE_CHARS`.
+#: Separator between rendered evidence blocks.
 _BLOCK_SEPARATOR = "\n\n"
 
 
 class EvidenceRender(NamedTuple):
     """Outcome of one evidence-selection pass."""
 
-    #: Step numbers rendered in full (post-budget), ascending and de-duplicated.
+    #: Step numbers rendered in full, ascending and de-duplicated.
     full_steps: tuple[int, ...]
     #: Ready-to-use block for the ``observations`` prompt variable.
     text: str
@@ -167,7 +156,7 @@ def _render_full(number: int, entries: Sequence[StepOutput]) -> str:
 
 def _render_summary(number: int, entries: Sequence[StepOutput]) -> str:
     """Render one unselected step as summaries plus a step reference."""
-    lines = [f"- {entry.summary()}" for entry in entries]
+    lines = [f"- {entry.evidence_summary()}" for entry in entries]
     lines.append(
         f"- Step {number}: full payload omitted; retrieve it by planning a step "
         f"that depends on {number}"
@@ -183,40 +172,23 @@ def _render_observations_full(number: int, entries: Sequence[StepOutput]) -> str
     return f"Step {number}:\n{rendered}"
 
 
-def _render_observations_reduced(number: int, entries: Sequence[StepOutput]) -> str:
-    """Render one demoted step as entry summaries plus a neutral note.
-
-    No tool-specific wording is used here: unlike the Planner's summary line,
-    the terminal answer node cannot plan a follow-up step, so the omitted
-    payload is simply noted as over budget.
-    """
-    rendered = "".join(
-        f"\n\n{ind}: {entry.summary()}" for ind, entry in enumerate(entries)
-    )
-    rendered += "\n\n(full payload omitted: over the evidence budget)"
-    return f"Step {number}:\n{rendered}"
-
-
 def render_step_observations(
     step_outputs: Mapping[int, Sequence[StepOutput]],
     *,
     numbers: Iterable[int] | None = None,
-    max_chars: int = MAX_EVIDENCE_CHARS,
 ) -> str:
     """Render recorded step outputs as the ``observations_text`` block.
 
     Renders the same ``Step N:`` grouping and ``{i}: {entry.render()}`` entries
-    as :meth:`KleaAgentState.observations_text`, but admits full renders under
-    *max_chars* in priority order: a step whose latest recorded result is an
-    error first, then the remaining steps newest-first.  The first step whose
-    full render would push the running length plus a separator past *max_chars*
-    is demoted to its entry summaries plus a neutral omission line, together
-    with every later step, so no single payload is clipped mid-text and no step
-    disappears.
+    as :meth:`KleaAgentState.observations_text`.  Every selected step is
+    rendered in full: the caller decides what to show (for example the
+    Evaluator's current batch plus its ``depends_on`` closure), and the model's
+    context window -- not a fixed character cap -- is the only real bound.
+    Tool implementations already bound their own output (``read_file`` pages,
+    ``run_command`` stream caps, ``grep`` result limits).
 
     :param step_outputs: Recorded outputs keyed by plan step number.
     :param numbers: Step numbers to render; ``None`` means every recorded step.
-    :param max_chars: Character budget for the rendered block.
     :returns: The ready-to-use ``observations`` prompt block, or
         :data:`NO_EVIDENCE` when nothing is selected.
     """
@@ -227,36 +199,14 @@ def render_step_observations(
     if not recorded:
         return NO_EVIDENCE
 
-    errored = [n for n in recorded if _latest_is_error(_entries(step_outputs, n))]
-    errored_set = set(errored)
-    ordered = errored + [n for n in reversed(recorded) if n not in errored_set]
-
-    full: list[int] = []
-    budget = 0
-    for number in ordered:
-        block = _render_observations_full(number, _entries(step_outputs, number))
-        cost = len(block) + len(_BLOCK_SEPARATOR)
-        if budget + cost > max_chars:
-            break
-        budget += cost
-        full.append(number)
-
-    full_set = set(full)
     blocks = [
-        _render_observations_full(n, _entries(step_outputs, n))
-        for n in sorted(full_set)
+        _render_observations_full(number, _entries(step_outputs, number))
+        for number in recorded
     ]
-    for number in recorded:
-        if number not in full_set:
-            blocks.append(
-                _render_observations_reduced(number, _entries(step_outputs, number))
-            )
-
     text = _BLOCK_SEPARATOR.join(blocks)
     logger.debug(
-        "step observations: full=%d summarised=%d chars=%d",
-        len(full_set),
-        len(recorded) - len(full_set),
+        "step observations: steps=%d chars=%d",
+        len(recorded),
         len(text),
     )
     return text
@@ -268,7 +218,6 @@ def render_plan_evidence(
     *,
     flagged: Iterable[int] = (),
     abandoned: PlanRevision | None = None,
-    max_chars: int = MAX_EVIDENCE_CHARS,
 ) -> EvidenceRender:
     """Select the plan evidence for the Planner prompt and render it.
 
@@ -282,23 +231,15 @@ def render_plan_evidence(
     5. the steps of *abandoned* (the latest superseded plan revision).
 
     Selected steps are rendered in full and every other recorded step as
-    ``summary()`` plus a step reference; both sections are emitted in ascending
-    step order.  Review steps and step numbers with no recorded output
-    contribute nothing.
-
-    The full renders are admitted in tier order under *max_chars*: the first
-    selected step whose full render would push the block past the budget is
-    demoted to the summary form, together with every selected step after it, so
-    a lower-priority payload is never admitted once a higher-priority one was
-    demoted.  A demoted step keeps its number and its step reference, so the
-    budget changes a step's presentation, never its visibility.
+    ``evidence_summary()`` plus a step reference; both sections are emitted in
+    ascending step order.  Review steps and step numbers with no recorded
+    output contribute nothing.
 
     :param plan: The active plan whose steps supply the ``depends_on`` edges.
     :param step_outputs: Recorded outputs keyed by plan step number.
     :param flagged: Step numbers the Evaluator judged incomplete.
     :param abandoned: The latest abandoned plan revision, if any.
-    :param max_chars: Character budget for the rendered evidence block.
-    :returns: The post-budget full-rendered step numbers and the evidence text.
+    :returns: The full-rendered step numbers and the evidence text.
     """
     by_number: dict[int, StepSchema] = {
         step.step_number: step for step in plan.step_list
@@ -320,8 +261,6 @@ def render_plan_evidence(
         ):
             failed.append(number)
 
-    # The tiers are a list, not a set union: the budget below admits full
-    # renders in exactly this priority order.
     tiers: list[list[int]] = [
         failed,
         sorted(_dependency_closure(plan, by_number) & candidates),
@@ -349,29 +288,16 @@ def render_plan_evidence(
             seen.add(number)
             selected.append(number)
 
-    # Admit full renders in priority order until the budget would be exceeded;
-    # that step and every later one fall back to the summary form.
-    full_list: list[int] = []
-    budget = 0
-    for number in selected:
-        block = _render_full(number, _entries(step_outputs, number))
-        cost = len(block) + len(_BLOCK_SEPARATOR)
-        if budget + cost > max_chars:
-            break
-        budget += cost
-        full_list.append(number)
-
-    full = tuple(sorted(full_list))
+    full = tuple(sorted(selected))
     blocks = [_render_full(number, _entries(step_outputs, number)) for number in full]
-    for number in sorted(candidates - set(full_list)):
+    for number in sorted(candidates - set(selected)):
         blocks.append(_render_summary(number, _entries(step_outputs, number)))
 
     text = _BLOCK_SEPARATOR.join(blocks) if blocks else NO_EVIDENCE
     logger.debug(
-        "plan evidence: full_steps=%s full=%d summarized=%d chars=%d",
+        "plan evidence: full_steps=%s summarized=%d chars=%d",
         full,
-        len(full),
-        len(candidates - set(full_list)),
+        len(candidates - set(selected)),
         len(text),
     )
     return EvidenceRender(full_steps=full, text=text)

@@ -41,11 +41,6 @@ def _slug(text: str, max_len: int = 60) -> str:
     return slug[:max_len].strip("-")
 
 
-#: Safety margin for the terminal answer prompt: the rendered observation
-#: text is capped to this many characters before it reaches the answer model.
-MAX_OBSERVATIONS_CHARS = 48_000
-
-
 class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
     """Synthesise the final user-facing reply (ADR-0035).
 
@@ -93,22 +88,18 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         )
 
     def _observations_text(self, state: KleaAgentState) -> str:
-        """Return the rendered per-step tool outputs within the prompt budget.
+        """Return the rendered per-step tool outputs in full.
 
         Delegates to :func:`klea_agent.evidence.render_step_observations` so the
-        answer node, Planner and Evaluator see identical observations.  The
-        rendered text is capped at :data:`MAX_OBSERVATIONS_CHARS`: steps are
-        admitted newest-first with errored steps first, so the most relevant
-        payloads survive the budget; any demoted payload is not retrievable
-        within the run.
+        answer node, Planner and Evaluator see identical observations.  Every
+        step is rendered in full: synthesis needs the actual results, and the
+        model's context window is the only real bound.
         """
         # Deferred import: klea_agent.evidence depends on klea_agent.schemas,
         # so importing it at module level would create an import cycle.
         from klea_agent.evidence import render_step_observations
 
-        return render_step_observations(
-            state.step_outputs, max_chars=MAX_OBSERVATIONS_CHARS
-        )
+        return render_step_observations(state.step_outputs)
 
     @staticmethod
     def _is_failure(state: KleaAgentState) -> bool:

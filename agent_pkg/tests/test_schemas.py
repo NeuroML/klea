@@ -32,6 +32,7 @@ from klea_agent.schemas import (
     StepEvaluation,
     StepOutput,
     StepSchema,
+    format_call_signature,
     trim_plan_history,
 )
 from klea_utils.graph.schemas import TokenUsage
@@ -389,6 +390,46 @@ class TestStepOutputRender:
         summary = entry.summary()
         assert summary.endswith("...")
         assert len(summary) == len("reasoning: ") + 80
+
+    def test_format_call_signature_names_all_arguments(self):
+        signature = format_call_signature(
+            "grep", {"pattern": "foo", "path": "src", "include": "*.py"}
+        )
+        assert signature == 'grep(pattern="foo", path="src", include="*.py")'
+
+    def test_format_call_signature_clips_long_values(self):
+        signature = format_call_signature("write_file", {"content": "x" * 500})
+        assert signature.startswith('write_file(content="')
+        assert signature.endswith('...")')
+        assert len(signature) < 300
+
+    def test_evidence_summary_keeps_success_signature(self):
+        entry = StepOutput(
+            result=self._result(),
+            tool="grep",
+            signature='grep(pattern="foo", path="src")',
+        )
+        assert entry.evidence_summary() == 'grep(pattern="foo", path="src"): ok'
+
+    def test_evidence_summary_keeps_full_error_text(self):
+        error = (
+            '{"pattern": "foo", "path": ".", "matches": [], "error": '
+            '"Search timed out after 30 s"}'
+        )
+        result = CallToolResult(
+            content=[TextContent(type="text", text=error)],
+            structured_content=None,
+            meta=None,
+            is_error=True,
+        )
+        entry = StepOutput(
+            result=result,
+            tool="grep",
+            signature='grep(pattern="foo", path=".")',
+        )
+        summary = entry.evidence_summary()
+        assert summary.startswith('grep(pattern="foo", path="."): error - ')
+        assert "Search timed out after 30 s" in summary
 
     def test_artefacts_text_empty(self):
         assert KleaAgentState().artefacts_text() == "(no artefacts)"

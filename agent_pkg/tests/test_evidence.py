@@ -16,6 +16,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 
 from typing import Literal
 
+from fastmcp.client.client import CallToolResult
 from klea_agent.evidence import (
     NO_EVIDENCE,
     render_plan_evidence,
@@ -27,6 +28,7 @@ from klea_agent.schemas import (
     StepOutput,
     StepSchema,
 )
+from mcp.types import TextContent
 
 
 def _step(
@@ -49,6 +51,26 @@ def _step(
 def _output(text: str) -> StepOutput:
     """A text step output (a reasoning-style result)."""
     return StepOutput(result=text)
+
+
+def _tool_output(
+    tool: str,
+    signature: str,
+    text: str,
+    *,
+    is_error: bool = False,
+) -> StepOutput:
+    """A tool step output carrying its recorded call signature."""
+    return StepOutput(
+        result=CallToolResult(
+            content=[TextContent(type="text", text=text)],
+            structured_content=None,
+            meta=None,
+            is_error=is_error,
+        ),
+        tool=tool,
+        signature=signature,
+    )
 
 
 def test_failed_step_is_rendered_in_full():
@@ -104,16 +126,45 @@ def test_render_step_observations_without_matching_output_is_no_evidence():
     assert render_step_observations({}) == NO_EVIDENCE
 
 
-def test_render_step_observations_demotes_to_summaries_under_tight_budget():
-    """A tiny ``max_chars`` demotes the step to ``summary()`` plus an omission note."""
-    step_outputs = {1: [_output("a payload that cannot fit")]}
+def test_render_step_observations_renders_every_selected_step_in_full():
+    """There is no evidence budget: even a very large payload is not demoted."""
+    large = "x" * 200_000
+    step_outputs = {1: [_output(large)], 2: [_output("second payload")]}
 
-    text = render_step_observations(step_outputs, max_chars=1)
+    text = render_step_observations(step_outputs)
 
-    assert "Step 1:" in text
-    assert "0: reasoning: a payload that cannot fit" in text
-    assert "(full payload omitted: over the evidence budget)" in text
-    assert "displayed_to_user" not in text
+    assert large in text
+    assert "second payload" in text
+    assert "(full payload omitted" not in text
+
+
+def test_failed_step_over_the_old_budget_is_still_rendered_in_full():
+    """A failed step is never demoted, even when its full render is very large."""
+    large = "x" * 200_000
+    plan = PlannerPlanSchema(step_list=[_step(1, status="failed")])
+    step_outputs = {1: [_output(large)]}
+
+    result = render_plan_evidence(plan, step_outputs)
+
+    assert result.full_steps == (1,)
+    assert large in result.text
+
+
+def test_unselected_step_summary_keeps_the_call_signature():
+    """The Planner fallback still names the call a summarised step ran."""
+    plan = PlannerPlanSchema(
+        step_list=[_step(1, status="done"), _step(2, status="done")]
+    )
+    step_outputs = {
+        1: [_tool_output("grep", 'grep(pattern="foo", path=".")', "[]")],
+        2: [_output("last completed")],
+    }
+
+    result = render_plan_evidence(plan, step_outputs)
+
+    assert result.full_steps == (2,)
+    assert "### Step 1 (summary)" in result.text
+    assert 'grep(pattern="foo", path="."): ok' in result.text
 
 
 def test_evaluator_flagged_step_is_rendered_in_full():

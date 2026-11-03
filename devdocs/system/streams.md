@@ -203,13 +203,13 @@ not IANA.  Plain `TextContent` is never surfaced.  Errors are not displayed
 (their diagnosis is in `inspect`).  See ADR-0040 for the full rules.
 
 Note: a tool result is also recorded in graph state as a `StepOutput`
-(`result`, `tool`, `displayed`) and rendered into observations by
+(`result`, `tool`, `signature`, `displayed`) and rendered into observations by
 `KleaAgentState.observations_text()`, which delegates to
-`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:200`)
-under the shared `MAX_EVIDENCE_CHARS` budget (errored steps first, then the rest
-newest-first; overflow demotes to `StepOutput.summary()` at
-`evidence.py:236-244`). Each entry carries `displayed_to_user: yes|no`, so the
-synthesised answer can avoid reprinting what the chat already showed.
+`evidence.render_step_observations` (`agent_pkg/klea_agent/evidence.py:175`).
+Selected steps render in full; there is no character budget (the model's context
+window is the bound), so no payload is replaced by a summary. Each entry carries
+`displayed_to_user: yes|no`, so the synthesised answer can avoid reprinting what
+the chat already showed.
 
 ### `token` (gated)
 

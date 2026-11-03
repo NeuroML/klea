@@ -810,6 +810,17 @@ EVALUATION_OVERALL_LABELS: dict[str, str] = {
 #: the full result is available in the inspection pane.
 _SUMMARY_MAX_LEN = 80
 
+#: Per-argument value cap for the compact call signature.  The signature names
+#: every argument of a call so a summarised evidence line can say which read,
+#: search or command a step actually ran; only very long values (file contents,
+#: edit strings) are clipped so one call cannot dominate the line.
+_SIGNATURE_MAX_VALUE_CHARS = 160
+
+#: Character cap for a failed call's error text in a compact evidence line.
+#: This is deliberately larger than the 80-character human progress line: the
+#: reason (for example a timeout) often sits at the end of a JSON error body.
+_REDUCED_ERROR_MAX_CHARS = 500
+
 
 def _first_line(text: str) -> str:
     """Return the first non-empty line of *text*, truncated to one line.
@@ -828,6 +839,41 @@ def _first_line(text: str) -> str:
             return stripped[: _SUMMARY_MAX_LEN - 3].rstrip() + "..."
         return stripped
     return ""
+
+
+def _format_signature_value(value: Any) -> str:
+    """Return a compact, single-line rendering of one call argument."""
+    if isinstance(value, str):
+        text = value.replace("\r", "\\r").replace("\n", "\\n")
+        if len(text) > _SIGNATURE_MAX_VALUE_CHARS:
+            text = text[: _SIGNATURE_MAX_VALUE_CHARS - 3].rstrip() + "..."
+        return f'"{text}"'
+    text = repr(value).replace("\r", "\\r").replace("\n", "\\n")
+    if len(text) > _SIGNATURE_MAX_VALUE_CHARS:
+        text = text[: _SIGNATURE_MAX_VALUE_CHARS - 3].rstrip() + "..."
+    return text
+
+
+def format_call_signature(tool: str, args: dict[str, Any] | None) -> str:
+    """Render a tool call as ``tool(arg=value, ...)`` for compact evidence.
+
+    A summarised evidence line must say *what* a step actually called, not just
+    which tool ran: ``grep: ok`` does not tell the Planner which pattern or path
+    was searched.  Every argument is included; only long values are clipped per
+    :data:`_SIGNATURE_MAX_VALUE_CHARS` so a file-content argument cannot
+    dominate the line.
+
+    :param tool: The called tool's name.
+    :param args: The call's bound arguments.
+    :returns: A single-line call signature.
+    """
+    name = tool or "(unknown tool)"
+    if not args:
+        return f"{name}()"
+    rendered = ", ".join(
+        f"{key}={_format_signature_value(value)}" for key, value in args.items()
+    )
+    return f"{name}({rendered})"
 
 
 def _count(n: int, noun: str) -> str:
@@ -851,6 +897,10 @@ class StepOutput(BaseModel):
     Evaluator and Planner, which read ``observations`` and never see the node's
     raw ``rationale`` field otherwise.  :attr:`tool` is the selected tool's name
     (``CallToolResult`` does not carry it) and is empty for a reasoning step.
+    :attr:`signature` is the pre-rendered ``tool(arg=value, ...)`` call form,
+    bounded at record time so a summarised evidence view can name what a
+    Planner-unselected step actually ran without retaining (and checkpointing)
+    the full argument values again.
     :attr:`displayed` records that the server streamed a display event for this
     result.  That is *intent-to-display*, not a render guarantee: a client may
     not have shown it.  The answer node uses the flag to avoid reprinting
@@ -859,6 +909,7 @@ class StepOutput(BaseModel):
 
     result: CallToolResult | str
     tool: str = ""
+    signature: str = ""
     displayed: bool = False
     rationale: str = ""
 
@@ -902,6 +953,32 @@ class StepOutput(BaseModel):
                 reason = _first_line(last_tool_error_text([self.result]))
                 return f"{tool}: error - {reason}" if reason else f"{tool}: error"
             return f"{tool}: ok"
+        conclusion = _first_line(str(self.result))
+        return f"reasoning: {conclusion}" if conclusion else "reasoning"
+
+    def evidence_summary(self) -> str:
+        """Return a compact but informative line for summarised evidence.
+
+        Unlike :meth:`summary` (the human-facing progress line, capped at 80
+        characters so the review modal stays readable), this view is what the
+        Planner sees for a recorded step the relevance rule did not select.
+        It therefore keeps the full call signature (which arguments the step
+        actually used) and, for a failure, the whole error text up to
+        :data:`_REDUCED_ERROR_MAX_CHARS` rather than only its first line.  The
+        reason can sit at the end of a JSON error body, so cutting at the first
+        line would drop it entirely.
+
+        :returns: ``"<call signature>: ok"`` / ``"<call signature>: error -
+            <reason>"`` for a tool result, or ``"reasoning: <first line>"``.
+        """
+        if isinstance(self.result, CallToolResult):
+            label = self.signature or self.tool or "(unknown tool)"
+            if self.result.is_error:
+                reason = last_tool_error_text(
+                    [self.result], max_len=_REDUCED_ERROR_MAX_CHARS
+                ).strip()
+                return f"{label}: error - {reason}" if reason else f"{label}: error"
+            return f"{label}: ok"
         conclusion = _first_line(str(self.result))
         return f"reasoning: {conclusion}" if conclusion else "reasoning"
 
@@ -1113,11 +1190,10 @@ class KleaAgentState(BaseGraphSchema):
         """Render recorded step outputs as the shared ``observations`` block.
 
         Delegates to :func:`render_step_observations`, so the Planner, Evaluator
-        and AnswerFromResults all see the same ``Step N:`` grouping, the same
-        ``{i}: {entry.render()}`` entries and the same character budget.  Steps
-        that overflow the shared budget are demoted to entry summaries rather
-        than clipped mid-text, and an empty recording yields the
-        ``(no observations)`` sentinel from the helper.
+        and AnswerFromResults all see the same ``Step N:`` grouping and the
+        same ``{i}: {entry.render()}`` entries.  Every selected step is rendered
+        in full, and an empty recording yields the ``(no observations)``
+        sentinel from the helper.
         """
         # Deferred import: evidence.py imports schemas at module level.
         from .evidence import render_step_observations
@@ -1131,9 +1207,10 @@ class KleaAgentState(BaseGraphSchema):
         Failed steps, the transitive ``depends_on`` closure of every pending step,
         Evaluator-flagged steps, the last completed step and the latest abandoned
         revision render in full with ``StepOutput.render()``; every other recorded
-        step is reduced to ``StepOutput.summary()`` plus a step reference.  The
-        selection lives in ``render_plan_evidence`` (deferred import inside the
-        method); this method only supplies the graph state it reads.
+        step is reduced to ``StepOutput.evidence_summary()`` plus a step
+        reference.  The selection lives in ``render_plan_evidence`` (deferred
+        import inside the method); this method only supplies the graph state it
+        reads.
 
         :returns: The ready-to-use ``observations`` prompt block.
         """
