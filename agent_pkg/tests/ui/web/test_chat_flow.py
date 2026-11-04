@@ -467,6 +467,55 @@ async def test_permission_guess_offers_not_a_path(fake_backend, agent_user):
     ]
 
 
+async def test_permission_hint_escapes_html_and_marks_the_token(
+    fake_backend, agent_user
+):
+    """The context hint escapes model text and marks only the detected token.
+
+    The argument preview is model-provided, so an embedded ``<script>`` must
+    reach the page escaped; the token span from
+    ``preview_token_start``/``preview_token_end`` is wrapped in ``<mark>``.
+    """
+    preview = "echo <script> /tmp/out.txt"
+    token = "/tmp/out.txt"
+    start = preview.index(token)
+    fake_backend.stream_events = [
+        _permission_event(
+            {
+                "kind": "outside",
+                "tool": "run_command",
+                "argument": "command",
+                "raw": token,
+                "argument_preview": preview,
+                "preview_token_start": start,
+                "preview_token_end": start + len(token),
+                "preview_omitted_before": 0,
+                "preview_omitted_after": 0,
+                "argument_length": len(preview),
+                "token_line": 1,
+                "path": token,
+                "directory": "/tmp",
+                "confidence": "guess",
+                "confidence_reason": "heuristic: found in the argument value",
+                "source": "value:command",
+            }
+        )
+    ]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Permission required", retries=50)
+    await agent_user.should_see("heuristic: found in the argument value")
+
+    markup = "\n".join(
+        str(element.content) for element in agent_user.find(ui.html).elements
+    )
+
+    assert "<mark><code>/tmp/out.txt</code></mark>" in markup
+    assert "&lt;script&gt;" in markup
+    assert "<script>" not in markup
+
+
 async def test_permission_interrupt_sensitive_renders_file(fake_backend, agent_user):
     """A sensitive-file ask names the file; the default decision is deny."""
     fake_backend.stream_events = [
