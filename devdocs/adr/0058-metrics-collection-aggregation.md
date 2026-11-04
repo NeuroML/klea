@@ -194,10 +194,11 @@ Each metric category has a versioned schema:
 {
   "per_turn": "object (turn_number -> {rubric_id -> score})",
   "per_rubric": "object (rubric_id -> {scores: array, pass: boolean})",
-  "task_success": "boolean (all turns passed)",
-  "pass_at_k": "object (pass@1, pass^k over N repetitions)"
+  "task_success": "boolean (all turns passed)"
 }
 ```
+
+`pass_at_k` is deliberately absent: it is a suite-level aggregate over k runs, computed by the ADR-0060 Aggregate stage, not a per-run record field.
 
 ### Collection Flow
 
@@ -726,7 +727,7 @@ The harness includes a validator that checks:
 ### Related Decisions
 
 - **ADR-0056 (Test Case Format)**: Supplies the JSONL conventions (one JSON document per line, explicit schema_version) that ADR-0058 reuses for metrics records.
-- **ADR-0057 (Run Manager & Isolation)**: Instantiates one RunMetricsCollector per run and feeds it the run-scoped identifiers (run_id, case_id, case_id's run_dir); ADR-0058 defines the behaviour of that collector.
+- **ADR-0057 (Run Manager & Isolation)**: Instantiates one RunMetricsCollector per run and feeds it the run-scoped identity `(run_id, case_id)`, with `run_id` derived from `case_id` + `harness_seed` (alongside ADR-0057's `(run_id, user_id, chat_id)` identity tuple) and the run root `<eval_workspace_root>/runs/<run_id>/`; ADR-0058 defines the behaviour of that collector.
 - **ADR-0059 (Result Storage)**: Owns persistence of the metrics file, the write protocol (append-only JSONL, COMPLETE marker) and retention; ADR-0058 defines only what is recorded and how it is aggregated.
 - **ADR-0060 (Harness Execution & Orchestration)**: Owns orchestration and the suite-level aggregation stage, including pass@k over k runs; it consumes the per-run records defined here.
 

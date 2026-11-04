@@ -346,7 +346,7 @@ The harness includes a validator that checks:
 
 ### Related Decisions
 
-- **ADR-0057 (Run Manager & Isolation)**: Resolves the `user`, `plan`, `execute`, `eval` and `chat` roles declared in `turns` to concrete model configurations and copies each case's fixtures into the run's `workspace/fixtures/` before execution begins.
+- **ADR-0057 (Run Manager & Isolation)**: Resolves only the model-backed roles `plan`, `execute`, `eval` and `chat` declared in `turns` to concrete model configurations; the `user` role is human input taken from the case and is never model-resolved. It also copies each case's fixtures into the run's `workspace/fixtures/` before execution begins.
 - **ADR-0058 (Metrics Collection & Aggregation)**: Keys each per-run metrics record by the test case's `case_id` and reuses the JSONL conventions defined here for `metrics.jsonl` persistence.
 - **ADR-0059 (Result Storage)**: Persists `case_id` in `run.json` and in the suite index `runs/index.jsonl`, and reuses this ADR's JSONL and schema-versioning conventions for stored results.
 - **ADR-0060 (Harness Execution & Orchestration)**: Its loader consumes this format and enforces the validation rules and invariants defined here before any run starts.

@@ -12,7 +12,7 @@ The evaluation harness must initialize and manage isolated execution contexts ("
 
 - **Run Context Creation**: Each run requires a unique identifier, user context, and chat session tracking for reproducibility and debugging.
 - **Fixture Workspace Isolation**: Test cases may include fixtures (input files, configurations). These must be copied into isolated workspaces to prevent cross-case contamination and enable parallel execution.
-- **Model Resolution**: Test cases specify roles (e.g., "assistant", "evaluator") that must be resolved to concrete model configurations (e.g., "gpt-4-turbo", "claude-3-opus"). Resolution must support both harness-level defaults and case-level overrides.
+- **Model Resolution**: Test cases specify turns whose roles are `user`, `plan`, `execute`, `eval` and `chat`, and the model-backed ones must be resolved to concrete model configurations (e.g., "gpt-4-turbo", "claude-3-opus"). Resolution must support both harness-level defaults and case-level overrides. `role_model_map` and `run_config.model_overrides` cover only the model-backed roles `plan`, `execute`, `eval` and `chat`; the `user` role is human input taken from the case and is never model-resolved.
 - **Metrics Initialization**: Each run instantiates the ADR-0058 RunMetricsCollector to track tool calls, latency, token usage and evaluation results. The metric record schema, collection and per-run aggregation are owned by ADR-0058, and the on-disk layout, write protocol and retention by ADR-0059; this ADR only requires that each run gets its own collector.
 - **Reproducibility**: Runs must be deterministic and reproducible. Seeds, model parameters, and fixture state must be captured and versioned.
 
