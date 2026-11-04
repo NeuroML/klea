@@ -80,12 +80,14 @@ Each turn in the `turns` array:
 ```json
 {
   "turn_number": "integer (1-indexed, sequential, no gaps)",
-  "role": "string ('user', 'assistant', 'system')",
+  "role": "string ('user', 'plan', 'execute', 'eval', 'chat')",
   "content": "string (turn content)",
   "expected_outputs": "array (optional, expected outputs)",
   "tool_expectations": "array (optional, tool call expectations)"
 }
 ```
+
+Roles mirror the agent graph's model-backed LLM roles (plan, execute, eval, chat) plus the human user role. role_model_map and run_config.model_overrides keys use the same names. system is not a case role: system behaviour comes from the graph's node prompts.
 
 #### Expected Outputs Sub-Schema
 
@@ -93,7 +95,7 @@ Each expected output:
 
 ```json
 {
-  "file_path": "string (relative to case file directory)",
+  "file_path": "string (relative to the case file directory, i.e. the directory holding the case JSONL)",
   "output_format": "string ('json', 'yaml', 'text', 'binary')",
   "validation_rule": "string (e.g., 'exact_match', 'schema_valid', 'contains')"
 }
@@ -129,7 +131,7 @@ The schema enforces the following invariants:
 
 1. **Immutability**: Cases are read-only post-creation. The validator rejects any attempt to modify a case in-place; new versions are appended as new lines.
 2. **Schema Versioning**: Each case has an immutable `schema_version` field (e.g., "1.0"). The validator checks compatibility; unknown required fields are rejected.
-3. **Fixture Path Resolution**: Fixture paths are relative to the case file directory. Absolute paths are rejected. The harness resolves paths at load time.
+3. **Fixture Path Resolution**: Fixture paths resolve against the case file directory (the directory containing the case/suite JSONL), resolved at load time and never against the run workspace (ADR-0057); absolute paths are rejected; the harness copies resolved fixtures into runs/<run_id>/workspace/fixtures/ and treats them as read-only.
 4. **Run Config Merge Semantics**: Case-level `run_config` overrides harness-level defaults via shallow merge. Case defaults take precedence.
 5. **Reproducibility**: No timestamps or random elements in case definitions. Deterministic turn ordering (sequential, no gaps). Seeds are in `run_config` only.
 6. **Case ID Uniqueness**: Each `case_id` is unique within a test suite. Duplicates are rejected at load time.
@@ -224,7 +226,7 @@ The harness includes a validator that checks:
 - **Required Fields**: Ensures `case_id`, `schema_version`, `turns` are present.
 - **Case ID Uniqueness**: Rejects duplicate `case_id` values within a test suite.
 - **Turn Ordering**: Ensures turns are sequential (1-indexed, no gaps).
-- **Fixture Path Resolution**: Resolves relative paths against the case file directory; rejects absolute paths.
+- **Fixture Path Resolution**: Resolves relative paths against the case file directory (the directory holding the case JSONL, not the run workspace), rejects absolute paths, and copies resolved fixtures into runs/<run_id>/workspace/fixtures/ (ADR-0057).
 - **Run Config Merge**: Validates that case-level `run_config` is a valid override object.
 - **Tool Expectations**: Validates `call_count` ranges and argument constraints.
 - **Rubric Criteria**: Ensures rubric types and criteria are well-formed.
@@ -297,7 +299,7 @@ The harness includes a validator that checks:
     },
     {
       "turn_number": 2,
-      "role": "assistant",
+      "role": "chat",
       "content": "The data contains...",
       "expected_outputs": [
         {
@@ -344,8 +346,10 @@ The harness includes a validator that checks:
 
 ### Related Decisions
 
-- **ADR-0057 (Run Manager & Isolation)**: Depends on this format for loading and executing turns.
+- **ADR-0057 (Run Manager & Isolation)**: Resolves the `user`, `plan`, `execute`, `eval` and `chat` roles declared in `turns` to concrete model configurations and copies each case's fixtures into the run's `workspace/fixtures/` before execution begins.
 - **ADR-0058 (Metrics Collection & Aggregation)**: Keys each per-run metrics record by the test case's `case_id` and reuses the JSONL conventions defined here for `metrics.jsonl` persistence.
+- **ADR-0059 (Result Storage)**: Persists `case_id` in `run.json` and in the suite index `runs/index.jsonl`, and reuses this ADR's JSONL and schema-versioning conventions for stored results.
+- **ADR-0060 (Harness Execution & Orchestration)**: Its loader consumes this format and enforces the validation rules and invariants defined here before any run starts.
 
 ### References
 

@@ -1,6 +1,6 @@
 ---
 status: "accepted"
-date: 2026-10-28
+date: 2026-10-27
 decision-makers: [Architecture Team]
 ---
 
@@ -24,7 +24,7 @@ Without a declared storage layout, each consumer (reporting, comparison, debuggi
 
 * **Durability and completeness**: a stored run must be provably complete; a crashed run must be distinguishable from a finished one rather than appearing as a truncated-but-valid result.
 * **Aggregation cost**: summarising thousands or millions of runs must not require opening every run directory; a cheap index is needed for suite-level reporting.
-* **Isolation and locality**: all data for one run must live under that run's workspace (ADR-0057), so deletion, copying and parallel execution are per-directory operations.
+* **Isolation and locality**: all data for one run must live in that run's directory (ADR-0057), so deletion, copying and parallel execution are per-directory operations.
 * **Schema evolution**: every persisted record must carry the version of the schema it was written under (ADR-0058), so old results stay interpretable after the schema changes.
 * **Simplicity of operation**: only standard filesystem operations and JSON libraries may be required  ---  no databases, servers or services (ADR-0057 drivers).
 * **Debuggability**: results must be human-readable with ordinary tools (`cat`, `jq`, an editor) and comparable across runs by diffing files.
@@ -44,31 +44,33 @@ Without a declared storage layout, each consumer (reporting, comparison, debuggi
 
 ### Storage layout
 
-Each completed run is stored under its isolated workspace as `runs/<run_id>/`, containing:
+Each completed run is stored under the evaluation workspace root as `runs/<run_id>/`, containing:
 
 ```
 runs/<run_id>/
 ├-- run.json           # envelope: run_id, case_id, case_version, timestamps, status,
 |                      # resolved models, seed/model parameters, schema_version
-├-- metrics.jsonl      # one RunMetrics record per line, as defined by ADR-0058
+├-- metrics.jsonl      # one JSON object per line, each carrying schema_version and
+|                      # record_type; the final line is the {run_id, case_id,
+|                      # schema_version, record_type, metrics{...}} envelope (ADR-0058)
 ├-- transcript.jsonl   # conversation turns and tool-call records
-├-- artifacts/         # workspace snapshot or diff, plus any produced files
+├-- workspace/         # live isolated working directory: fixtures/ plus outputs/
 └-- COMPLETE           # zero-byte marker written last; presence means the run is final
 ```
 
-A single suite-level index, `runs/index.jsonl`, holds exactly one line per completed run: `run_id`, `case_id`, `status`, `timestamp`, `schema_version`, and the directory-relative path to `metrics.jsonl`. The index is the aggregation entry point; report generation reads the index first and only opens individual run directories when per-record detail is requested.
+A single suite-level index, `runs/index.jsonl`, holds exactly one line per completed run: `run_id`, `case_id`, `status`, `timestamp`, `schema_version`, and the directory-relative path to `metrics.jsonl`. The index is a lookup and listing entry point only: it locates a run, lists runs and answers cheap suite queries without opening run directories. It is not an aggregation store: per-run aggregation is owned by ADR-0058, and suite-level aggregation (per-case pass/fail, pass@k, token totals, cost) is the Aggregate stage of ADR-0060, which reads the index first and only opens individual run directories when per-record detail is requested.
 
 ### Write protocol
 
-Results are written at the end of the run (ADR-0057 lifecycle) into a temporary directory `runs/<run_id>.tmp/`, every file is flushed and `fsync`ed, the `COMPLETE` marker is written last, and the directory is then renamed to `runs/<run_id>/` in one atomic operation. The index line is appended with a single `O_APPEND` write after the rename. A reader therefore sees either no run or a complete run; a leftover `.tmp` directory is unambiguously an interrupted run.
+This ADR is the single owner of the on-disk write protocol; no other component writes into a run directory. Results are written as the run proceeds (ADR-0057 lifecycle, ADR-0058 collection flow): per-turn records are written to `metrics.jsonl` inside the temporary directory `runs/<run_id>.tmp/` while the run executes, every file is flushed and `fsync`ed at completion, the `COMPLETE` marker is written last, and the directory is then renamed to `runs/<run_id>/` in one atomic operation. The index line is appended with a single `O_APPEND` write after the rename. Nothing is therefore visible in the final `runs/<run_id>/` directory before the rename: a reader sees either no run or a complete run, and a leftover `.tmp` directory is unambiguously an interrupted run.
 
 ### Schema versioning
 
-The `schema_version` field appears both in `run.json` and in every `metrics.jsonl` record, taken from the ADR-0058 `RunMetrics` schema. Readers must reject or explicitly upcast records whose version they do not understand; they must never silently reinterpret them.
+The `schema_version` field is required by ADR-0058 and appears both in `run.json` and in every `metrics.jsonl` record, which therefore also carry the ADR-0058 required envelope fields (`run_id`, `case_id`, `schema_version`, `record_type`, `metrics`) in exactly the form that schema defines. Readers must reject or explicitly upcast records whose version they do not understand; they must never silently reinterpret them.
 
 ### Retention
 
-Artifact retention is configurable (default: keep full artifacts for the most recent N runs per case and store only metrics plus `run.json` for older runs). A purge operation deletes whole run directories and rewrites the index atomically; it never edits a run directory in place.
+Retention is defined here as the canonical default that ADR-0057 defers to: the full run directory (including the `workspace/` contents) is kept for the most recent N runs per case, while older runs keep only `run.json` plus `metrics.jsonl`. N is read from run configuration. A purge operation deletes whole run directories and rewrites the index atomically; it never edits a run directory in place.
 
 ### Consequences
 
@@ -88,7 +90,7 @@ Bad, because per-run directory inodes and small files multiply at millions of ca
 
 ### Option 1: Directory-per-run + append-only JSONL index (chosen)
 
-* Good, because it aligns exactly with the `runs/<run_id>/` layout fixed by ADR-0057 and the `metrics.jsonl` target fixed by ADR-0058  ---  no redefinition of neighbouring interfaces.
+* Good, because this ADR defines the run-directory file set and the write protocol, while ADR-0057 owns run identity and isolation and defers the storage layout here, and ADR-0058 owns the metrics record schema  ---  no redefinition of neighbouring interfaces.
 * Good, because a run is a unit of atomicity, deletion and copying.
 * Good, because it requires nothing beyond the standard filesystem and JSON libraries.
 * Good, because the index gives O(1) suite-level listing without opening run directories.
@@ -122,13 +124,16 @@ Bad, because per-run directory inodes and small files multiply at millions of ca
 * Bad, because it makes the harness unusable offline and adds credential and availability failure modes to every run.
 * Bad, because local debugging and reproduction would depend on remote state, undermining the reproducibility goal.
 
+## Out of scope
+
+Harness orchestration, the CLI surface and run scheduling are out of scope here and belong to a separate, later decision (ADR-0060, Harness Execution & Orchestration). Suite-level aggregation is likewise out of scope: this ADR supplies the layout and write protocol that ADR-0060's aggregate stage reads.
+
 ## Related Decisions
 
 - **ADR-0056 (Test Case Format)**: Supplies `case_id` as the join key stored in `run.json` and the index, and establishes the JSONL conventions this ADR reuses for `metrics.jsonl` and `index.jsonl`.
-- **ADR-0057 (Run Manager & Isolation)**: Fixes `run_id` (UUID v5) as the directory and primary key, places storage inside the isolated per-run workspace, and defines persistence as the final run lifecycle step; this ADR specifies what that final step writes.
+- **ADR-0057 (Run Manager & Isolation)**: Fixes `run_id` (UUID v5) and `chat_id` as the directory and primary keys, places each run in its own isolated run directory, and defines persistence as the final run lifecycle step; that ADR defers the run-directory file set and the write protocol to this ADR.
 - **ADR-0058 (Metrics Collection & Aggregation)**: Defines the versioned `RunMetrics` schema and the collector that produces it; this ADR persists its output verbatim and stamps the schema version alongside every record rather than redefining any metric field.
-
-Harness orchestration, the CLI surface and run scheduling are out of scope here and belong to a separate, later decision.
+- **ADR-0060 (Harness Execution & Orchestration)**: Owns the orchestration left out of scope here (case loading, scheduling, execution and scoring) and reads `runs/index.jsonl` to produce suite-level aggregates such as per-case pass/fail, pass@k, token totals and cost.
 
 ## References
 

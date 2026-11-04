@@ -13,21 +13,21 @@ The evaluation harness must initialize and manage isolated execution contexts ("
 - **Run Context Creation**: Each run requires a unique identifier, user context, and chat session tracking for reproducibility and debugging.
 - **Fixture Workspace Isolation**: Test cases may include fixtures (input files, configurations). These must be copied into isolated workspaces to prevent cross-case contamination and enable parallel execution.
 - **Model Resolution**: Test cases specify roles (e.g., "assistant", "evaluator") that must be resolved to concrete model configurations (e.g., "gpt-4-turbo", "claude-3-opus"). Resolution must support both harness-level defaults and case-level overrides.
-- **Metrics Initialization**: Each run must initialize a metrics collector to track tool calls, latency, token usage, and evaluation results. Collectors must be isolated per run and aggregatable across runs.
+- **Metrics Initialization**: Each run instantiates the ADR-0058 RunMetricsCollector to track tool calls, latency, token usage and evaluation results. The metric record schema, collection and per-run aggregation are owned by ADR-0058, and the on-disk layout, write protocol and retention by ADR-0059; this ADR only requires that each run gets its own collector.
 - **Reproducibility**: Runs must be deterministic and reproducible. Seeds, model parameters, and fixture state must be captured and versioned.
 
 Without a clear run initialization and isolation strategy, the harness will lack reproducibility, enable cross-case interference, and complicate debugging and metrics aggregation.
 
 ## Decision Drivers
 
-* **Reproducibility**: runs must be deterministic and reproducible; seeds, model parameters and fixture state must be captured and versioned so the same case + seed always produces identical outputs and metrics.
+* **Reproducibility**: runs must be reproducible; seeds, model parameters and fixture state must be captured and versioned so the same case + user + seed always produces the same run identity, model resolution and ordering. Model output itself is stochastic, so identical turn content is not promised.
 * **Isolation**: each run must execute in its own workspace so that cross-case contamination is impossible and parallel execution is safe.
 * **Debuggability**: intermediate state, run metadata and metrics must be human-readable and inspectable so developers can compare runs and trace execution.
 * **Scalability**: isolation must scale to large test suites (millions of cases) within disk-space limits.
 * **Extensibility**: new isolation strategies, workspace backends and metrics collectors must be addable without modifying a core class.
 * **Operational simplicity**: no external infrastructure (databases, message queues) may be required; standard filesystem operations and JSON libraries suffice.
 * **Model-resolution determinism**: role-to-model resolution must be deterministic and fail clearly when a role cannot be resolved.
-* **Metrics isolation and aggregation**: collectors must be isolated per run yet aggregatable across runs.
+* **Metrics isolation**: each run must carry its own metrics collector so records cannot mix across runs; the schema and aggregation are owned by ADR-0058.
 
 ## Considered Options
 
@@ -37,12 +37,10 @@ Without a clear run initialization and isolation strategy, the harness will lack
 * Filesystem isolation
 * Eager model resolution
 * Lazy model resolution
-* Centralized metrics collection
-* Distributed metrics collection
 
 ## Decision Outcome
 
-Chosen option: "Modular run manager", because modular design enables independent testing, easier debugging, and future extensibility (e.g., cloud-based workspaces, custom metrics collectors). It is combined with the companion choices of filesystem isolation, eager model resolution and centralized metrics collection, as detailed below.
+Chosen option: "Modular run manager", because modular design enables independent testing, easier debugging, and future extensibility (e.g., cloud-based workspaces, custom metrics collectors). It is combined with the companion choices of filesystem isolation and eager model resolution, as detailed below.
 
 We adopt a **modular, filesystem-based isolation strategy** for run initialization and management:
 
@@ -54,43 +52,46 @@ Each run is identified by a tuple of immutable, deterministic identifiers:
 {
   "run_id": "string (UUID v5, derived from case_id + harness_seed)",
   "user_id": "string (from run_config or harness default)",
-  "chat_id": "string (UUID v5, derived from run_id + turn_number)"
+  "chat_id": "string (UUID v5, derived from run_id + user_id; one chat session per run)"
 }
 ```
 
-**Rationale**: UUID v5 (SHA-1 based) ensures deterministic, reproducible IDs without requiring external state. `run_id` is derived from `case_id` and harness seed; `chat_id` is derived from `run_id` and turn number. This enables reproducible tracing and debugging.
+**Rationale**: UUID v5 (SHA-1 based) gives deterministic, reproducible IDs without requiring external state. `run_id` stays stable for a given `case_id` and harness seed, so re-running a suite with the same seed is idempotent: the same `run_id` is derived and the same stored run is reused. `run_id` plus seed alone can repeat across users, so `chat_id` folds in `user_id`; the tuple (`run_id`, `user_id`, `chat_id`) is therefore collision-free even when two users evaluate the same case with the same seed, and one run is always exactly one chat session. This enables reproducible tracing and debugging.
 
 ### Workspace Isolation
 
-Each run gets an isolated filesystem workspace:
+Each evaluation run gets its own isolated directory under a dedicated, configurable evaluation workspace root that lives outside the source tree, so run data never mixes with code:
 
 ```
-<harness_root>/runs/<run_id>/
+<eval_workspace_root>/runs/<run_id>/
+├-- run.json            # Run metadata (case_id, user_id, seed, timestamps, status)
+├-- metrics.jsonl       # Metrics log, at the run root, never under workspace/
+├-- transcript.jsonl    # Conversation turns and tool-call records
 ├-- workspace/          # Isolated working directory for the run
-|   ├-- fixtures/       # Copied from case fixtures (if present)
+|   ├-- fixtures/       # Copied from the case fixtures (if present)
 |   └-- outputs/        # Generated files (tool outputs)
-├-- metadata.json       # Run metadata (case_id, user_id, seed, timestamps)
-├-- metrics.jsonl       # Metrics log (tool calls, latency, tokens)
-└-- trace.jsonl         # Execution trace (turns, tool calls, outputs)
+└-- COMPLETE            # Zero-byte marker written last; presence means the run is final
 ```
+
+The run-directory file set, the write protocol (temporary directory plus atomic rename) and the retention policy are defined by ADR-0059 and only referenced here.
 
 **Fixture Copying Semantics**:
-- If a case specifies `fixtures`, the harness copies the fixture directory into `workspace/fixtures/` at run initialization.
-- Fixture paths in the case are resolved relative to `workspace/fixtures/`.
+- Case fixture paths resolve against the case file directory (the directory holding the case JSONL, ADR-0056), never against the run workspace.
+- The resolved fixture files are copied into `runs/<run_id>/workspace/fixtures/` at run initialization.
 - Absolute paths in fixtures are rejected; only relative paths are allowed.
 - Copying is shallow (no symlink resolution); fixtures are immutable post-copy.
 
 **Workspace Cleanup**:
-- Workspaces are retained for debugging and metrics aggregation.
-- A separate cleanup policy (e.g., retention period, explicit deletion) is defined in run configuration.
+- Run directories are retained subject to the retention policy defined in ADR-0059.
+- This ADR only requires that a run directory be deletable as one unit.
 
 ### Model Resolution
 
-Model resolution follows a **role -> model map** strategy:
+Model resolution follows a **role -> model map** strategy covering only the model-backed roles: `plan`, `execute`, `eval`, and `chat`. The `user` role is human input taken from the case and is never model-resolved.
 
-1. **Harness-Level Defaults**: The harness defines a default role-to-model mapping (e.g., `{"assistant": "gpt-4-turbo", "evaluator": "claude-3-opus"}`).
-2. **Case-Level Overrides**: A case's `run_config` can override the mapping for specific roles (e.g., `{"assistant": "gpt-4"}`).
-3. **Resolution Order**: For each role in a turn, resolve as follows:
+1. **Harness-Level Defaults**: The harness defines a default role-to-model mapping for the model-backed roles only (e.g., `{"plan": "gpt-4-turbo", "execute": "gpt-4-turbo", "eval": "claude-3-opus", "chat": "gpt-4-turbo"}`).
+2. **Case-Level Overrides**: A case's `run_config.model_overrides` can override the mapping for specific model-backed roles; for example, `{"chat": "gpt-4"}` is one entry of that `run_config.model_overrides` map.
+3. **Resolution Order**: For each model-backed role in a turn, resolve as follows:
    - Check case-level `run_config.model_overrides[role]`.
    - Fall back to harness-level default `role_model_map[role]`.
    - If neither exists, reject the turn with a clear error.
@@ -107,44 +108,30 @@ Each resolved model includes:
 
 ### Metrics Initialization
 
-Each run initializes a metrics collector:
-
-```json
-{
-  "run_id": "string (UUID v5, from ADR-0057)",
-  "case_id": "string (from test case)",
-  "metrics": "RunMetrics (schema defined in ADR-0058; intentionally not duplicated here)"
-}
-```
-
-**Collector Lifecycle**:
-- Initialized at run start.
-- Updated after each tool call and turn execution.
-- Finalized and persisted to `metrics.jsonl` at run completion.
-- Aggregatable across runs via simple JSONL concatenation and aggregation scripts.
+Each run instantiates its own ADR-0058 `RunMetricsCollector`, fed with the run's `run_id`, `case_id` and run directory. The record schema, collection points and per-run aggregation are owned by ADR-0058, while the on-disk layout, write protocol and retention are owned by ADR-0059. This ADR defines neither a metrics schema nor a write protocol and does not itself persist `metrics.jsonl`.
 
 ### Invariants
 
 The run manager enforces the following invariants:
 
-1. **Run ID Uniqueness**: Each `run_id` is unique within a harness execution. Duplicate runs are rejected.
+1. **Run Identity Uniqueness**: The tuple `(run_id, user_id, chat_id)` is unique within a harness execution. Duplicate identities are rejected.
 2. **Workspace Isolation**: Each run's workspace is independent; no cross-run file access is allowed.
 3. **Fixture Immutability**: Fixtures are copied at run initialization and treated as read-only. Modifications are not persisted.
 4. **Model Resolution Determinism**: Model resolution is deterministic; the same case + harness config always resolves to the same model.
-5. **Metrics Completeness**: All tool calls and turns are recorded in metrics; no metrics are dropped or lost.
-6. **Reproducibility**: Runs with the same `case_id`, `user_id`, and harness seed are reproducible; outputs and metrics are identical.
+5. **Metrics Completeness**: Every tool call and turn is recorded by the ADR-0058 `RunMetricsCollector`; the record schema, collection points and completeness guarantees are owned by ADR-0058, and metric persistence by ADR-0059.
+6. **Reproducibility**: Runs with the same `case_id`, `user_id` and harness seed resolve to the same identifiers (`run_id`, `chat_id`), the same models and the same ordering. Model output is stochastic, so turn content is not byte-identical across runs; only the derived metrics of a given transcript are reproducible.
 
 ### Consequences
 
-* Good, because runs are deterministic and reproducible; the same case + seed always produces identical outputs and metrics.
+* Good, because run identity and model resolution are deterministic: the same case + user + seed always produces the same `run_id`, `chat_id` and resolved models, while turn content and latency vary because LLM sampling is stochastic.
 * Good, because complete filesystem isolation prevents cross-case contamination, so parallel execution is safe.
-* Good, because workspace directories and metrics logs are human-readable; developers can inspect intermediate state, compare runs, and trace execution.
-* Good, because filesystem isolation scales to millions of cases, and metrics are stored in JSONL format, enabling efficient aggregation.
+* Good, because workspace directories and metric logs (layout owned by ADR-0059) are human-readable; developers can inspect intermediate state, compare runs, and trace execution.
+* Good, because filesystem isolation scales to millions of cases, and the resulting per-run metric files (layout in ADR-0059) aggregate efficiently with the tooling in ADR-0058.
 * Good, because the modular design enables future enhancements without major refactoring.
 * Bad, because copying fixtures and creating workspace directories adds I/O overhead, which may be noticeable for very large test suites (millions of cases with large fixtures).
 * Bad, because if a role is not defined in the harness-level or case-level model map the run fails with an error, requiring careful configuration management.
 * Bad, because workspaces are retained for debugging and consume disk space, so a cleanup policy must be defined and enforced.
-* Bad, because metrics are stored in separate JSONL files per run, so aggregation requires external tools (jq, pandas) or custom scripts.
+* Bad, because per-run metric storage (ADR-0059) means cross-run aggregation requires external tools (jq, pandas) or custom scripts, as set out in ADR-0058.
 
 ## Pros and Cons of the Options
 
@@ -203,34 +190,16 @@ Resolve models on-demand during turn execution.
 * Neutral, because it has slightly lower initialization overhead.
 * Bad, because errors are caught during execution and are harder to debug.
 
-### Centralized metrics collection
-
-Single `MetricsCollector` instance per harness.
-
-* Good, because aggregation is simple; all metrics are in one place.
-* Good, because consistency is strong; all metrics are synchronized.
-* Good, because it is simpler to implement and debug; for typical evaluation harnesses (sequential or moderate concurrency) the bottleneck is negligible.
-* Neutral, because it is a potential bottleneck for high-concurrency scenarios.
-
-### Distributed metrics collection
-
-Each component (executor, tool caller) maintains local metrics.
-
-* Good, because scalability is better; each component is independent.
-* Neutral, because distributed metrics can be added later if needed.
-* Bad, because aggregation is complex; requires aggregation logic.
-* Bad, because consistency is eventual; requires reconciliation.
-
 ## More Information
 
 ### Rationale
 
 The chosen strategy aligns with the evaluation harness's core requirements:
 
-1. **Reproducibility**: UUID v5-based IDs and deterministic model resolution ensure runs are reproducible. The same case + seed always produces the same run ID and model configuration.
+1. **Reproducibility**: UUID v5-based IDs and deterministic model resolution make run identity reproducible. The same case + user + seed always produces the same `run_id`, `chat_id`, resolved models and ordering, while LLM sampling makes turn content non-identical across runs.
 2. **Isolation**: Filesystem-based workspaces provide complete isolation; cross-case interference is impossible. Fixtures are copied, not shared.
-3. **Debuggability**: Workspace directories and metrics logs are human-readable and inspectable. Developers can easily compare runs, trace execution, and identify issues.
-4. **Scalability**: Filesystem isolation scales to millions of cases. Metrics are stored in JSONL format (from ADR-0056), enabling efficient aggregation and querying.
+3. **Debuggability**: Workspace directories and metric logs (layout owned by ADR-0059) are human-readable and inspectable. Developers can easily compare runs, trace execution, and identify issues.
+4. **Scalability**: Filesystem isolation scales to millions of cases. Metric persistence and the aggregation tooling that keeps large volumes queryable are defined in ADR-0059 and ADR-0058 respectively.
 5. **Extensibility**: Modular design enables future enhancements (e.g., cloud-based workspaces, custom metrics collectors, distributed execution).
 6. **Operational Simplicity**: No external infrastructure (databases, message queues) is required. The harness uses standard filesystem operations and JSON libraries.
 
@@ -239,22 +208,23 @@ The chosen strategy aligns with the evaluation harness's core requirements:
 #### Run Initialization Flow
 
 1. **Load Case**: Read case from JSONL file (ADR-0056).
-2. **Generate Run ID**: Compute UUID v5 from `case_id` and harness seed.
-3. **Create Workspace**: Create `runs/<run_id>/workspace/` directory.
-4. **Copy Fixtures**: If case specifies fixtures, copy to `workspace/fixtures/`.
-5. **Resolve Models**: For each role in the case, resolve to a concrete model using the role-to-model map.
-6. **Initialize Metrics**: Create a metrics collector for the run.
-7. **Return Run Context**: Return a `RunContext` object with run ID, workspace path, resolved models, and metrics collector.
+2. **Derive Identifiers**: Compute `run_id` as a UUID v5 over `case_id` and the harness seed, then compute `chat_id` as a UUID v5 over `run_id` and `user_id`.
+3. **Create Run Directory**: Create `runs/<run_id>/` with its `workspace/` subdirectory; the full run-directory file set is defined in ADR-0059.
+4. **Copy Fixtures**: If the case specifies fixtures, resolve them against the case file's directory and copy them into `workspace/fixtures/`.
+5. **Resolve Models**: For each model-backed role (`plan`, `execute`, `eval`, `chat`) in the case, resolve to a concrete model using the role-to-model map.
+6. **Initialize Metrics**: Instantiate the ADR-0058 `RunMetricsCollector` for this run.
+7. **Return Run Context**: Return a `RunContext` object carrying the run directory, derived identifiers, resolved models and metrics collector.
 
 #### RunContext Object
 
 ```python
 class RunContext:
     run_id: str
+    chat_id: str
     case_id: str
     user_id: str
-    workspace_path: Path
-    fixtures_path: Path
+    run_dir: Path
+    fixtures_path: Path  # run_dir/workspace/fixtures
     resolved_models: Dict[str, ModelConfig]
     metrics_collector: MetricsCollector
     metadata: Dict[str, Any]  # case_id, seed, timestamps, etc.
@@ -264,12 +234,13 @@ class RunContext:
 
 ```
 runs/<run_id>/
+├-- run.json               # Run metadata (ADR-0059)
+├-- metrics.jsonl          # Metrics log (ADR-0058)
+├-- transcript.jsonl       # Execution trace (ADR-0059)
 ├-- workspace/
 |   ├-- fixtures/          # Copied from case (if present)
 |   └-- outputs/           # Generated by tools
-├-- metadata.json          # Run metadata
-├-- metrics.jsonl          # Metrics log
-└-- trace.jsonl            # Execution trace
+└-- COMPLETE               # Completion marker (ADR-0059)
 ```
 
 ### Examples
@@ -290,7 +261,7 @@ runs/<run_id>/
     },
     {
       "turn_number": 2,
-      "role": "assistant",
+      "role": "chat",
       "content": "I'll write the file now."
     }
   ]
@@ -301,8 +272,10 @@ runs/<run_id>/
 ```json
 {
   "role_model_map": {
-    "user": "gpt-4-turbo",
-    "assistant": "gpt-4-turbo"
+    "plan": "gpt-4-turbo",
+    "execute": "gpt-4-turbo",
+    "eval": "gpt-4-turbo",
+    "chat": "gpt-4-turbo"
   },
   "seed": 42
 }
@@ -315,10 +288,12 @@ runs/<run_id>/
   "case_id": "simple-001",
   "user_id": "default",
   "chat_id": "550e8400-e29b-41d4-a716-446655440001",
-  "workspace_path": "runs/550e8400-e29b-41d4-a716-446655440000/workspace",
+  "run_dir": "runs/550e8400-e29b-41d4-a716-446655440000",
   "resolved_models": {
-    "user": {"model_name": "gpt-4-turbo", "provider": "openai"},
-    "assistant": {"model_name": "gpt-4-turbo", "provider": "openai"}
+    "plan": {"model_name": "gpt-4-turbo", "provider": "openai"},
+    "execute": {"model_name": "gpt-4-turbo", "provider": "openai"},
+    "eval": {"model_name": "gpt-4-turbo", "provider": "openai"},
+    "chat": {"model_name": "gpt-4-turbo", "provider": "openai"}
   },
   "metadata": {
     "case_id": "simple-001",
@@ -344,7 +319,7 @@ runs/<run_id>/
     "timeout": 30,
     "seed": 123,
     "model_overrides": {
-      "evaluator": "claude-3-opus"
+      "eval": "claude-3-opus"
     }
   },
   "turns": [
@@ -355,12 +330,12 @@ runs/<run_id>/
     },
     {
       "turn_number": 2,
-      "role": "assistant",
+      "role": "chat",
       "content": "Summary: ..."
     },
     {
       "turn_number": 3,
-      "role": "evaluator",
+      "role": "eval",
       "content": "Evaluate the summary"
     }
   ]
@@ -371,9 +346,10 @@ runs/<run_id>/
 ```json
 {
   "role_model_map": {
-    "user": "gpt-4-turbo",
-    "assistant": "gpt-4-turbo",
-    "evaluator": "gpt-4-turbo"
+    "plan": "gpt-4-turbo",
+    "execute": "gpt-4-turbo",
+    "eval": "gpt-4-turbo",
+    "chat": "gpt-4-turbo"
   },
   "seed": 42
 }
@@ -386,12 +362,13 @@ runs/<run_id>/
   "case_id": "complex-001",
   "user_id": "default",
   "chat_id": "660e8400-e29b-41d4-a716-446655440001",
-  "workspace_path": "runs/660e8400-e29b-41d4-a716-446655440000/workspace",
+  "run_dir": "runs/660e8400-e29b-41d4-a716-446655440000",
   "fixtures_path": "runs/660e8400-e29b-41d4-a716-446655440000/workspace/fixtures",
   "resolved_models": {
-    "user": {"model_name": "gpt-4-turbo", "provider": "openai"},
-    "assistant": {"model_name": "gpt-4-turbo", "provider": "openai"},
-    "evaluator": {"model_name": "claude-3-opus", "provider": "anthropic"}
+    "plan": {"model_name": "gpt-4-turbo", "provider": "openai"},
+    "execute": {"model_name": "gpt-4-turbo", "provider": "openai"},
+    "eval": {"model_name": "claude-3-opus", "provider": "anthropic"},
+    "chat": {"model_name": "gpt-4-turbo", "provider": "openai"}
   },
   "metadata": {
     "case_id": "complex-001",
@@ -405,20 +382,24 @@ runs/<run_id>/
 **Workspace Structure**:
 ```
 runs/660e8400-e29b-41d4-a716-446655440000/
+├-- run.json
+├-- metrics.jsonl
+├-- transcript.jsonl
 ├-- workspace/
 |   ├-- fixtures/
 |   |   ├-- data.json
 |   |   └-- config.yaml
 |   └-- outputs/
-├-- metadata.json
-├-- metrics.jsonl
-└-- trace.jsonl
+└-- COMPLETE
 ```
 
 ### Related Decisions
 
 - **ADR-0056 (Test Case Format)**: Defines the JSONL format for test cases; ADR-0057 loads and initializes runs from this format.
-- **ADR-0058 (Metrics Collection & Aggregation)**: Defines the versioned `RunMetrics` schema and the centralized `RunMetricsCollector`; ADR-0057 instantiates one collector per run, feeds it the run-scoped identifiers (`run_id`, `case_id`) and persists its output to `metrics.jsonl` at run completion.
+- **ADR-0058 (Metrics Collection & Aggregation)**: Owns the versioned `RunMetrics` schema, the collection of metrics and their per-run aggregation; ADR-0057 only instantiates one `RunMetricsCollector` per run and feeds it the run-scoped identifiers (`run_id`, `case_id`) and the run root `run_dir`. This ADR does not define the schema, does not aggregate metrics and does not persist them itself; layout, write protocol and retention belong to ADR-0059.
+
+* ADR-0059 (Result Storage & Persistence): Owns the run-directory file set, the single on-disk write protocol and the retention policy; ADR-0057 defers to it for how run artefacts are laid out, written and retained.
+* ADR-0060 (Harness Execution & Orchestration): Owns orchestration of the runs defined here -- loading, scheduling, execution, scoring, persistence and suite-level aggregation (pass@k).
 
 ### References
 

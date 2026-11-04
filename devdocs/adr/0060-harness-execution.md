@@ -1,6 +1,6 @@
 ---
 status: "accepted"
-date: 2026-10-28
+date: 2026-10-27
 decision-makers: [Architecture Team]
 ---
 
@@ -8,12 +8,12 @@ decision-makers: [Architecture Team]
 
 ## Context and Problem Statement
 
-ADR-0059 (Result Storage) closes with an explicit deferral: "Harness orchestration, the CLI surface and run scheduling are out of scope here and belong to a separate, later decision" (`0059:131`). The four preceding decisions therefore define contracts but no driver for them:
+ADR-0059 (Result Storage) closes with an explicit deferral: "Harness orchestration, the CLI surface and run scheduling are out of scope here and belong to a separate, later decision" (ADR-0059 'Out of scope' subsection). The four preceding decisions therefore define contracts but no driver for them:
 
 - **ADR-0056 (Test Case Storage Format)**: test cases are JSONL lines keyed by `case_id`, validated at load time, immutable and schema-versioned.
-- **ADR-0057 (Run Manager & Isolation)**: a run is a `RunContext` with a deterministic UUID v5 `run_id` (derived from `case_id` + harness seed), an isolated per-run workspace, eagerly resolved role-to-model mappings, and persistence as the final lifecycle step.
+- **ADR-0057 (Run Manager & Isolation)**: a run is identified by the tuple (`run_id`, `user_id`, `chat_id`), with `run_id` a UUID v5 over `case_id` + harness seed and `chat_id` a UUID v5 over `run_id` + `user_id`, plus an isolated per-run directory, eagerly resolved model-backed roles (plan, execute, eval, chat) and persistence as the final lifecycle step.
 - **ADR-0058 (Metrics Collection & Aggregation)**: metrics are extracted primarily from the agent's endpoints (SSE during execution, JSON on run completion) and funnelled through one `RunMetricsCollector` per run (`record_tool_call`, `record_turn_metrics`, `record_evaluation_result`, `finalize`).
-- **ADR-0059 (Result Storage)**: a completed run is the directory `runs/<run_id>/` (`run.json`, `metrics.jsonl`, `transcript.jsonl`, `artifacts/`, `COMPLETE`) plus one appended line in `runs/index.jsonl`.
+- **ADR-0059 (Result Storage)**: a completed run is the directory `runs/<run_id>/` (`run.json`, `metrics.jsonl` at the run root, `transcript.jsonl`, `workspace/`, `COMPLETE`) plus one appended line in `runs/index.jsonl`.
 
 Nothing yet enumerates cases, schedules runs, drives the conversation against the agent, invokes the scorer, hands results to the storage writer, or aggregates a suite. `devdocs/backlog.md` tracks this gap as the unimplemented `eval_pkg` harness (`:110`) and as the owner of the deferred tier-2 API/orchestrator scenarios (`:408-410`) and the retargeting of the CLI-based `agent_pkg/e2e/` suite to the API/SSE path (`:400-402`).
 
@@ -23,8 +23,8 @@ The question: what is the top-level execution component that turns a JSONL suite
 
 * **Composition over redefinition**: the execution layer must consume the accepted interfaces of ADR-0056/0057/0058/0059 verbatim and must not re-specify the case format, run identity, metrics schema or storage layout.
 * **Agent-agnostic execution**: ADR-0058 collects metrics from endpoints, so the harness must drive the agent over its API/SSE surface rather than importing Klea internals; third-party agents exposing the same surface must be evaluable.
-* **Determinism and reproducibility**: the same suite + seed must produce the same `run_id`s, the same model resolution and the same stored metrics (ADR-0057 invariants).
-* **Durability and crash recovery**: per-turn metrics must already be on disk when the process dies, and an interrupted run must be distinguishable from a completed one (ADR-0058 lazy streaming, ADR-0059 `COMPLETE` marker).
+* **Determinism and reproducibility**: the same suite + seed must produce the same run identities (`run_id`/`chat_id`), the same model resolution, the same ordering and the same derived metrics for the same transcripts (ADR-0057 invariants); LLM sampling means turn content and latency legitimately differ between runs.
+* **Durability and crash recovery**: per-turn metrics must already be on disk inside `runs/<run_id>.tmp/` when the process dies, and an interrupted run must be distinguishable from a completed one (ADR-0058 lazy streaming, ADR-0059 `COMPLETE` marker and atomic rename).
 * **Bounded local concurrency**: runs must be able to execute in parallel, but only within local resource limits, and without external infrastructure.
 * **Operational simplicity**: one command must be enough to run a suite; no databases, brokers or services (ADR-0057 driver), only standard filesystem and JSON libraries.
 * **Inspectability (ADR-0013)**: progress, per-run status and failures must be human-readable while the suite runs and afterwards.
@@ -49,11 +49,11 @@ A distributed worker or broker-backed queue is deliberately *not* listed: it can
 Each stage has one input contract and one output contract; stages are separable so that each can be tested against a fake of its neighbour.
 
 1. **Load.** Read the suite JSONL line by line (ADR-0056), validate each case (schema version, required fields, turn ordering, `case_id` uniqueness across the suite) and reject the suite before any run starts if validation fails.
-2. **Schedule.** For each case, derive the `run_id` (UUID v5 over `case_id` + seed), resolve roles eagerly (ADR-0057) and create the `RunContext` and isolated workspace. The scheduler emits runs into a bounded local worker pool.
+2. **Schedule.** For each case, derive the `run_id` (UUID v5 over `case_id` + seed) and the `chat_id` (UUID v5 over `run_id` + `user_id`), resolve model-backed roles eagerly (ADR-0057) and create the `RunContext` and its run directory under the evaluation workspace root. The scheduler emits runs into a bounded local worker pool.
 3. **Execute.** Drive the run's turns against the agent endpoint: send the turn, consume the SSE stream, and feed `record_tool_call` / `record_turn_metrics` as events arrive. Turn content is persisted to `transcript.jsonl` as it is produced.
 4. **Score.** Run the case's rubrics against the executed turns (LLM-as-judge or deterministic checks, per ADR-0056 rubric types) and feed `record_evaluation_result`.
 5. **Persist.** Call `RunMetricsCollector.finalize()`, then hand the run to the ADR-0059 writer: write into `runs/<run_id>.tmp/`, flush and `fsync`, write `COMPLETE` last, rename to `runs/<run_id>/`, and append one line to `runs/index.jsonl`.
-6. **Aggregate & report.** Read `runs/index.jsonl` (never the run directories) to produce the suite summary -- per-case pass/fail, pass@k, token totals and cost -- and to print the run listing.
+6. **Aggregate & report.** This stage owns suite-level aggregation: it reads `runs/index.jsonl` (never the run directories) and uses the ADR-0058 per-run envelope schema to compute pass@k over k repetitions, token totals and cost, plus per-case pass/fail, and to print the run listing.
 
 ### Scheduler backend (sub-decision)
 
@@ -67,8 +67,8 @@ A distributed worker/queue is **not** an alternative to this ADR: load, execute,
 
 - **Local, bounded concurrency.** Execution is sequential by default; a worker count enables parallel runs. Nothing in execute, score or persist assumes a broker: the default backend is a bounded local worker pool, and a broker-backed backend is deferred by the Scheduler backend sub-decision.
 - **One workspace per run, owned by one process.** A run is written by exactly one worker; no two workers write the same run directory, so the ADR-0059 rename-at-completion protocol needs no cross-process locking.
-- **Determinism.** Case order, `run_id` derivation, model resolution and rubric evaluation ordering are deterministic given the suite and seed; concurrency affects only scheduling, never the stored content of a run.
-- **Crash recovery.** Because per-turn metrics stream to `metrics.jsonl` and the directory is renamed only at completion, a killed harness leaves `runs/<run_id>.tmp/` directories that are unambiguously incomplete; the scheduler reports them and never treats them as results.
+- **Determinism.** Case order, `run_id`/`chat_id` derivation, model resolution and rubric evaluation ordering are deterministic given the suite and seed, and derived values (token totals, cost, pass@k) are a pure function of the recorded transcripts; LLM sampling means turn content and latency are not expected to be identical across runs; concurrency affects only scheduling, never the ordering or the derived values stored for a run.
+- **Crash recovery.** Per-turn metrics are appended to `runs/<run_id>.tmp/metrics.jsonl` while the run executes, and the directory is renamed to `runs/<run_id>/` only at completion, so a killed harness leaves exactly `runs/<run_id>.tmp/` directories that are unambiguously incomplete; the scheduler reports them and never treats them as results.
 - **Idempotent re-runs.** Re-running a suite with the same seed recomputes the same `run_id`s; an existing `COMPLETE` run is skipped unless overwrite is requested, and a leftover `.tmp` is discarded and redone.
 
 ### Failure semantics
@@ -90,7 +90,7 @@ This ADR decides only the execution layer. It does not change the case format (A
 
 * Good, because the harness is a thin composition of four accepted decisions: it adds orchestration and nothing else, so changes to case format, metrics or storage do not require changes here.
 * Good, because endpoint-based execution keeps the harness agent-agnostic: the same loop evaluates Klea and any third-party agent that exposes the API/SSE surface.
-* Good, because the pipeline is inspectable both live (per-turn streaming, progress on screen) and afterwards (plain-text run directories plus a one-line-per-run index), and deterministic re-runs reproduce the same results.
+* Good, because the pipeline is inspectable both live (per-turn streaming, progress on screen) and afterwards (plain-text run directories plus a one-line-per-run index), and deterministic re-runs reproduce the same identities, ordering and derived metrics for the same transcripts.
 * Good, because exit codes distinguish configuration errors from evaluation failures, so CI fails for the right reason.
 * Bad, because it is a new top-level package with its own tests, CLI surface and documentation, and the stage boundaries add indirection for what could be a single script at small scale.
 * Bad, because endpoint-only execution loses anything the agent does not expose over its API: internal state transitions and retries are invisible unless the agent reports them (ADR-0058 secondary hooks), and a non-compliant agent yields no token or cost metrics.
@@ -149,10 +149,10 @@ No harness implementation exists yet: the only references to `RunMetricsCollecto
 
 ### Related Decisions
 
-- **ADR-0056 (Test Case Storage Format)**: supplies the JSONL suite the harness loads and the `case_id` it keys runs by; validation rules are enforced by the loader, not redefined here.
-- **ADR-0057 (Run Manager & Isolation)**: supplies `RunContext`, deterministic `run_id` derivation, per-run workspaces and eager model resolution; the scheduler instantiates them and places persistence last, as that ADR requires.
-- **ADR-0058 (Metrics Collection & Aggregation)**: supplies the `RunMetricsCollector` the execute and score stages feed, and the endpoint-based collection strategy the execution loop implements.
-- **ADR-0059 (Result Storage)**: supplies the write protocol and layout the persist stage performs and the `index.jsonl` the aggregate stage reads; this ADR fills the orchestration it explicitly deferred (`0059:131`).
+- **ADR-0056 (Test Case Storage Format)**: supplies the JSONL suite the harness loads and the `case_id` it keys runs by, together with the validation rules the loader enforces; none of the case format is redefined here.
+- **ADR-0057 (Run Manager & Isolation)**: supplies the run identity tuple (`run_id`, `user_id`, `chat_id`), the isolated per-run directory and eager role-to-model resolution; the scheduler instantiates them and places persistence last, as that ADR requires.
+- **ADR-0058 (Metrics Collection & Aggregation)**: supplies the `RunMetricsCollector` the execute and score stages feed, the versioned metric record schema (`run_id`, `case_id`, `schema_version`, `record_type`, `metrics`) and the endpoint-based collection strategy the execution loop implements.
+- **ADR-0059 (Result Storage)**: supplies the run-directory file set the persist stage writes, the single write protocol (temporary directory, `fsync`, `COMPLETE` written last, atomic rename, then the index append) and the retention default; this ADR fills the orchestration it explicitly deferred (ADR-0059 'Out of scope' subsection).
 - **ADR-0041 (Plan step granularity, explicit dependencies and parallel step execution)**: its open "Measurement" item is the first concrete consumer of this harness; the measurement is a motivation for building it, not a dependency of its design.
 
 ### References

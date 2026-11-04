@@ -13,7 +13,7 @@ The evaluation harness must track and aggregate metrics during run execution to 
 - **Metric Collection Points**: Tool calls (name, arguments, duration, errors), latency per turn, token usage (input/output/cached), and evaluation results (rubric scores, pass/fail verdicts) must be captured at multiple execution stages without blocking execution or losing data on failure.
 - **Collection Timing and Scope**: Metrics must flow from execution (tool caller, turn executor) through evaluation (scorer, rubric evaluator) to persistence (JSON, optional MLflow). Collection must support both per-turn granularity (for debugging) and per-run aggregation (for cost analysis and task success computation).
 - **Aggregation Complexity**: Metrics from independent tool calls, turns, and evaluation steps must be aggregated into consistent per-run summaries (task success, pass@k, cost) without data loss or inconsistency.
-- **Downstream Dependencies**: Result Storage (ADR-0059) depends on knowing what metrics to persist; Harness Execution & Orchestration (ADR-0060) depends on metrics to aggregate results across runs and enable real-time monitoring. Without a clear metrics schema and collection strategy, both downstream ADRs lack a foundation.
+- **Downstream Dependencies**: Result Storage (ADR-0059) depends on knowing what metrics to persist; Harness Execution & Orchestration (ADR-0060) depends on metrics to aggregate results across runs and enable real-time monitoring. Ownership is split once, here: this ADR owns the metric record schema, collection and per-run aggregation; ADR-0059 owns the on-disk layout, write protocol and retention; ADR-0060 owns orchestration and suite-level aggregation (pass@k). Without a clear metrics schema and collection strategy, both downstream ADRs lack a foundation.
 
 Existing approaches (in-memory only, distributed per-component, external event bus) each have trade-offs that make them unsuitable for this use case:
 - **In-Memory Only**: Simple but loses data on crash; no real-time monitoring or crash recovery.
@@ -25,7 +25,7 @@ Without a clear metrics collection and aggregation strategy, the harness will la
 
 ## Decision Drivers
 
-* **Reproducibility**: identical runs (same case_id, user_id and harness seed) must produce identical metrics, so that analysis and debugging are repeatable.
+* **Reproducibility**: records must be written in a deterministic order and the same transcript must always yield the same derived metrics, so that analysis and debugging are repeatable. LLM sampling makes turn content and latency differ between runs even at a fixed seed, so reproducibility covers ordering, identities and derived metrics, never turn content.
 * **Isolation**: metrics must be collected per run with no cross-run interference and no data loss.
 * **Debuggability**: per-turn metrics must let developers identify which turn or tool call caused a failure.
 * **Extensibility**: custom metrics, LLM-as-judge integration and future distributed collection must be addable without refactoring.
@@ -88,10 +88,11 @@ Each run initializes a centralized `RunMetricsCollector` that aggregates metrics
 {
   "run_id": "string (UUID v5, from ADR-0057)",
   "case_id": "string (from test case)",
+  "schema_version": "string (immutable, e.g. '1.0')",
+  "record_type": "string ('turn' or 'run')",
   "metrics": {
     "_primary": {
       "task_success": "boolean (all turns passed; evaluates agent correctness)",
-      "pass_at_k": "object (pass@1, pass^k over N repetitions; evaluates agent reliability)",
       "token_usage": "object (input, output, cached tokens per turn; evaluates agent efficiency and cost)",
       "cost_estimate": "number (estimated cost in USD, derived from token_usage only)"
     },
@@ -104,6 +105,8 @@ Each run initializes a centralized `RunMetricsCollector` that aggregates metrics
   }
 }
 ```
+
+`metrics.jsonl` holds exactly one JSON object per line (pretty printing appears only inside documentation examples such as this one): per-turn lines carry `record_type` "turn" in deterministic order (turn number, then call index), and the last line carries `record_type` "run" with the `{run_id, case_id, schema_version, record_type, metrics{...}}` envelope serialised on a single line. `pass_at_k` is a suite-level aggregate (its formula is defined in this ADR) computed by ADR-0060, so it is not part of the per-run envelope.
 
 ### Instrumentation Hooks
 
@@ -201,23 +204,24 @@ Each metric category has a versioned schema:
 Metrics flow through the following stages:
 
 1. **Execution Layer** (tool_caller, turn_executor): Instrumentation hooks record metrics at completion.
-2. **Centralized Collector** (RunMetricsCollector): Receives metrics from hooks, validates, and buffers in memory.
-3. **JSONL Persistence** (metrics.jsonl): Per-turn metrics written immediately after each turn; final RunMetrics summary written at run completion.
-4. **Optional MLflow Backend**: If configured, RunMetrics summary logged to MLflow for experiment tracking and dashboarding.
+2. **Centralized Collector** (RunMetricsCollector): Receives metrics from hooks, validates, and buffers the records in memory. The collector is constructed as `RunMetricsCollector(run_id, case_id, run_dir)`; its only path is `run_dir` (the run root), and it never writes under `run_dir/workspace/`.
+3. **Writer** (ADR-0059): The collector hands its buffered records to the ADR-0059 writer, which is the single owner of the on-disk write protocol. Records are written to `run_dir/metrics.jsonl`, i.e. at the run root and never under `workspace/`, inside `runs/<run_id>.tmp/` as the run proceeds, one JSON object per line in deterministic order, so per-turn records are already durable when a crash occurs.
+4. **Publication**: At run completion the collector is finalized, the buffered records are flushed and `fsync`ed, `COMPLETE` is written last, and the `.tmp` directory is renamed into `runs/<run_id>/` in one atomic operation; nothing is visible in the final directory before that rename.
+5. **Optional MLflow Backend**: If configured, the final RunMetrics summary is logged to MLflow for experiment tracking and dashboarding.
 
 ### Invariants
 
 The metrics collection enforces the following invariants:
 
 1. **Completeness**: All tool calls, turns, and evaluation results are recorded. No metrics are dropped or lost.
-2. **Determinism**: Metrics are recorded in deterministic order (by turn number, then call index). Same run + seed produces identical metrics.
+2. **Determinism**: Metrics are recorded in deterministic order (by turn number, then call index), and the outputs derived from a given transcript (per-run aggregates, task success, cost) are deterministic: the same transcript always yields the same derived metrics.
 3. **Immutability**: Metrics are append-only; once written to metrics.jsonl, they are not modified.
 4. **Consistency**: Per-turn metrics are consistent with per-run aggregates (e.g., total tokens = sum of per-turn tokens).
-5. **Reproducibility**: Runs with the same case_id, user_id, and harness seed produce identical metrics.
+5. **Reproducibility**: For a given transcript the derived metrics are identical, and the identities (case_id, user_id, run_id, harness seed) and model resolution are reproducible. Turn content and latency are not reproducible: LLM sampling makes them differ between runs even at a fixed seed.
 
 ### Consequences
 
-* Good, because all metrics are captured deterministically; identical re-runs produce identical metrics, enabling reproducible analysis and debugging across runs.
+* Good, because identities, model resolution, ordering and derived metrics are reproducible, enabling reproducible analysis and debugging across runs; turn content and latency are not reproducible, because LLM sampling differs between runs even at a fixed seed.
 * Good, because per-turn metrics in JSONL enable inspection, comparison, and root-cause analysis, so developers can trace which turn or tool call caused a failure.
 * Good, because in-process instrumentation hooks support custom metrics, LLM-as-judge integration, and future distributed collection without major refactoring; new metrics are added as new hook points or fields in the RunMetrics schema.
 * Bad, because instrumentation hooks add CPU/memory cost per tool call and turn (mitigated by optional sampling, e.g. record every Nth call for high-volume scenarios, and by lazy aggregation in Phase 2).
@@ -284,7 +288,7 @@ Stream per-turn metrics to metrics.jsonl immediately after each turn; aggregate 
 * Good, because real-time monitoring is possible; metrics can be monitored as the run progresses.
 * Neutral, because storage is per-turn metrics.jsonl plus a final summary.
 * Bad, because implementation is more complex; requires append-only JSON or separate per-turn files.
-* Neutral, because it is an optional Phase 2 enhancement; both approaches can coexist (eager aggregation for the final summary, lazy streaming for per-turn debugging).
+* Good, because this is the adopted protocol, not a later option: per-turn records persist to `run_dir/metrics.jsonl` at the run root inside `runs/<run_id>.tmp/` as the run proceeds (ADR-0059 write protocol), so crash recovery is preserved, and the final RunMetrics line is appended before the directory is published by atomic rename; lazy per-turn persistence and eager end-of-run aggregation are therefore the same mechanism rather than competing phases.
 
 ### Schema-first metrics
 
@@ -313,7 +317,7 @@ Flexible JSON; any metrics can be added without schema changes.
 
 The chosen architecture aligns with the evaluation harness's core requirements:
 
-1. **Reproducibility**: Centralized, deterministic collection ensures all metrics are captured consistently. Same run + seed produces identical metrics, enabling reproducible analysis and debugging.
+1. **Reproducibility**: Centralized, deterministic collection records metrics in a deterministic order, and the same transcript always yields the same derived metrics, enabling reproducible analysis and debugging; LLM sampling still makes turn content and latency non-identical across re-runs at a fixed seed.
 2. **Isolation**: Per-run RunMetricsCollector (from ADR-0057) ensures metrics are isolated per run; no cross-run interference or data loss.
 3. **Debuggability**: Per-turn metrics in JSONL enable inspection, comparison, and root-cause analysis. Developers can easily identify which turn or tool call caused a failure.
 4. **Extensibility**: In-process instrumentation hooks support custom metrics, LLM-as-judge integration, and future distributed collection without refactoring. New metrics are added as new hook points or fields in RunMetrics.
@@ -386,10 +390,10 @@ def evaluate_turn(turn, expected_output, actual_output, ...):
 
 ```python
 class RunMetricsCollector:
-    def __init__(self, run_id: str, case_id: str, workspace_path: Path):
+    def __init__(self, run_id: str, case_id: str, run_dir: Path):
         self.run_id = run_id
         self.case_id = case_id
-        self.metrics_file = workspace_path / "metrics.jsonl"
+        self.metrics_file = run_dir / "metrics.jsonl"
         self.metrics = RunMetrics(run_id=run_id, case_id=case_id)
 
     def record_tool_call(
@@ -424,30 +428,70 @@ class RunMetricsCollector:
             "pass_fail": pass_fail,
         }
 
+    # NOTE: Illustrative documentation code, not production code.
     def finalize(self):
-        """Aggregate metrics and write to JSON."""
-        # Compute aggregates
-        self.metrics.task_success = all(
-            all(r.get("pass_fail", False) for r in turn_results.values())
-            for turn_results in self.metrics.evaluation_results.values()
-        )
-        self.metrics.total_latency_ms = sum(self.metrics.latency_ms.values())
-        self.metrics.total_tokens = sum(
-            usage.get("total_tokens", 0) for usage in self.metrics.token_usage.values()
+        """Aggregate per-run metrics and append the payload to metrics.jsonl."""
+        per_turn_latency = self.metrics.latency_ms["per_turn"]
+        per_turn_tokens = self.metrics.token_usage["per_turn"]
+        per_turn_eval = self.metrics.evaluation_results["per_turn"]
+
+        task_success = all(
+            all(result.get("pass_fail", False) for result in turn_results.values())
+            for turn_results in per_turn_eval.values()
         )
 
-        # Write to metrics.jsonl
+        tool_overhead_ms = sum(
+            call.get("duration_ms", 0) for call in self.metrics.tool_calls
+        )
+        total_ms = sum(per_turn_latency.values())
+
+        payload = {
+            "schema_version": self.metrics.schema_version,
+            "record_type": "run",
+            "run_id": self.metrics.run_id,
+            "case_id": self.metrics.case_id,
+            "turn_count": len(per_turn_latency),
+            "task_success": task_success,
+            "token_usage": {
+                "per_turn": per_turn_tokens,
+                "total_input_tokens": sum(
+                    t.get("input_tokens", 0) for t in per_turn_tokens.values()
+                ),
+                "total_output_tokens": sum(
+                    t.get("output_tokens", 0) for t in per_turn_tokens.values()
+                ),
+                "total_cached_tokens": sum(
+                    t.get("cached_tokens", 0) for t in per_turn_tokens.values()
+                ),
+            },
+            "latency_ms": {
+                "per_turn": per_turn_latency,
+                "total_ms": total_ms,
+                "tool_overhead_ms": tool_overhead_ms,
+                "model_overhead_ms": total_ms - tool_overhead_ms,
+            },
+            "cost_estimate": self.metrics.cost_estimate,
+            "evaluation_results": {
+                "per_turn": per_turn_eval,
+                "per_rubric": self.metrics.evaluation_results["per_rubric"],
+                "task_success": task_success,
+            },
+            "tool_calls": self.metrics.tool_calls,
+        }
+
         with open(self.metrics_file, "a") as f:
-            f.write(json.dumps(self.metrics.to_dict()) + "\n")
+            f.write(json.dumps(payload) + "\n")
 ```
 
 #### Validation
 
 The harness includes a validator that checks:
 - **Schema Version Compatibility**: Rejects metrics with unknown schema versions.
-- **Required Fields**: Ensures `run_id`, `case_id`, `tool_calls`, `latency_ms`, `token_usage`, `evaluation_results` are present.
+- **Required Fields**: Ensures `schema_version`, `record_type`, `run_id`, `case_id`, `tool_calls`, `latency_ms`, `token_usage`, `evaluation_results` are present.
 - **Consistency**: Verifies per-turn metrics are consistent with per-run aggregates (e.g., total tokens = sum of per-turn tokens).
 - **Determinism**: Ensures metrics are in deterministic order (by turn number, then call index).
+
+`pass_at_k` is not a per-run field. It is a suite-level aggregate over k distinct runs, computed by the ADR-0060 Aggregate stage using the formula defined in this ADR; `finalize()` therefore never fabricates it, and the per-run `metrics.jsonl` document does not carry it.
 
 ### Examples
 
@@ -467,7 +511,7 @@ The harness includes a validator that checks:
     },
     {
       "turn_number": 2,
-      "role": "assistant",
+      "role": "chat",
       "content": "I'll write the file now."
     }
   ]
@@ -494,6 +538,8 @@ The harness includes a validator that checks:
 **Final RunMetrics**:
 ```json
 {
+  "schema_version": "1.0",
+  "record_type": "run",
   "run_id": "550e8400-e29b-41d4-a716-446655440000",
   "case_id": "simple-001",
   "metrics": {
@@ -527,8 +573,7 @@ The harness includes a validator that checks:
       "per_turn": {
         "2": {"accuracy": {"score": 1.0, "pass_fail": true}}
       },
-      "task_success": true,
-      "pass_at_k": {"pass@1": 1.0}
+      "task_success": true
     },
     "cost_estimate": 0.0015
   }
@@ -550,7 +595,7 @@ The harness includes a validator that checks:
   "run_config": {
     "timeout": 30,
     "seed": 42,
-    "model_overrides": {"evaluator": "claude-3-opus"}
+    "model_overrides": {"eval": "claude-3-opus"}
   },
   "turns": [
     {
@@ -560,7 +605,7 @@ The harness includes a validator that checks:
     },
     {
       "turn_number": 2,
-      "role": "assistant",
+      "role": "chat",
       "content": "The data contains..."
     },
     {
@@ -607,6 +652,8 @@ The harness includes a validator that checks:
 **Final RunMetrics**:
 ```json
 {
+  "schema_version": "1.0",
+  "record_type": "run",
   "run_id": "660e8400-e29b-41d4-a716-446655440000",
   "case_id": "complex-001",
   "metrics": {
@@ -656,8 +703,7 @@ The harness includes a validator that checks:
         "accuracy": {"scores": [0.9, 0.95], "pass": true},
         "tool_usage": {"scores": [1.0, 1.0], "pass": true}
       },
-      "task_success": true,
-      "pass_at_k": {"pass@1": 1.0}
+      "task_success": true
     },
     "cost_estimate": 0.0045
   }
@@ -668,10 +714,10 @@ The harness includes a validator that checks:
 
 | Aspect | Primary (Evaluative) | Secondary (Optional / Non-Evaluative) |
 |--------|---------------------|------------------------|
-| **Metrics** | task_success, pass@k, turn_count | token_usage (input/output/cached), latency (per-turn, total), cost_estimate |
+| **Metrics** | task_success, turn_count (per-run); pass@k (suite-level aggregate over k runs, produced by the ADR-0060 Aggregate stage) | token_usage (input/output/cached), latency (per-turn, total), cost_estimate |
 | **Purpose** | Measure task completion, reliability across k attempts, and reasoning effort independent of infrastructure | Support cost accounting and deployment planning; latency is infrastructure noise rather than evidence about agent behaviour |
 | **Comparability** | Cross-architecture comparable; depends only on agent logic and model capability | token_usage and cost_estimate are derived accounting values; latency varies 20–50% across identical runs due to hardware/system load |
-| **Reproducibility** | Deterministic; identical runs produce identical task_success, pass@k and turn_count | token_usage and cost_estimate are reproducible from the same transcript; latency is non-deterministic and varies with system state, network latency and hardware contention |
+| **Reproducibility** | Derived metrics are reproducible given the same transcript: task_success and turn_count are per-run and pass@k is a suite-level aggregate over k transcripts; LLM sampling makes turn content and latency non-identical across re-runs even at a fixed seed | token_usage and cost_estimate are reproducible from the same transcript; latency is non-deterministic and varies with system state, network latency and hardware contention |
 | **Use Case** | Evaluate agent correctness, compare models, assess reliability and reasoning effort | Cost/deployment analysis and debugging; never compare agent quality on latency |
 | **Verdict** | ✓ Chosen as primary | ✓ Chosen as secondary/optional; latency is explicitly not an evaluation signal |
 
@@ -679,10 +725,10 @@ The harness includes a validator that checks:
 
 ### Related Decisions
 
-- **ADR-0056 (Test Case Format)**: Defines JSONL format for test cases; ADR-0058 uses JSONL for metrics persistence.
-- **ADR-0057 (Run Manager & Isolation)**: Defines run initialization and workspace isolation; ADR-0058 uses RunContext to initialize RunMetricsCollector.
-- **ADR-0059 (Result Storage)**: Depends on ADR-0058 to define what metrics to persist and how to aggregate them.
-- **ADR-0060 (Harness Execution & Orchestration)**: Depends on ADR-0058 to aggregate metrics across runs and enable real-time monitoring.
+- **ADR-0056 (Test Case Format)**: Supplies the JSONL conventions (one JSON document per line, explicit schema_version) that ADR-0058 reuses for metrics records.
+- **ADR-0057 (Run Manager & Isolation)**: Instantiates one RunMetricsCollector per run and feeds it the run-scoped identifiers (run_id, case_id, case_id's run_dir); ADR-0058 defines the behaviour of that collector.
+- **ADR-0059 (Result Storage)**: Owns persistence of the metrics file, the write protocol (append-only JSONL, COMPLETE marker) and retention; ADR-0058 defines only what is recorded and how it is aggregated.
+- **ADR-0060 (Harness Execution & Orchestration)**: Owns orchestration and the suite-level aggregation stage, including pass@k over k runs; it consumes the per-run records defined here.
 
 ### References
 
