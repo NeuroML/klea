@@ -158,3 +158,88 @@ def test_resolve_not_a_path_holds_key():
     assert resolution.allowed_now == []
     assert resolution.allowed_session == []
     assert resolution.denied == []
+
+
+def test_payload_confidence_reason_checkpaths():
+    """A checkpaths declaration is explained to the user."""
+    item = build_permission_payload([_request("/etc")])["requests"][0]
+    assert item["confidence_reason"] == "declared by the tool"
+
+
+def test_payload_confidence_reason_picker():
+    """A picker-supplied path is explained to the user."""
+    request = PathRequest(
+        tool="some_tool",
+        argument="",
+        raw="/opt/x",
+        path="/opt/x",
+        directory="/opt",
+        confidence="expected",
+        source="picker",
+    )
+    item = build_permission_payload([request])["requests"][0]
+    assert item["confidence_reason"] == "declared by the path picker"
+
+
+def test_payload_confidence_reason_name_heuristic():
+    """A path-like argument name is explained to the user."""
+    request = PathRequest(
+        tool="t",
+        argument="path",
+        raw="/opt/x",
+        path="/opt/x",
+        directory="/opt",
+        confidence="guess",
+        source="name:path",
+    )
+    item = build_permission_payload([request])["requests"][0]
+    assert item["confidence_reason"] == "path-like argument name"
+
+
+def test_payload_confidence_reason_value_heuristic():
+    """A heuristic match in an argument value is explained to the user."""
+    request = PathRequest(
+        tool="run_command",
+        argument="command",
+        raw="cat /opt/x",
+        path="/opt/x",
+        directory="/opt",
+        confidence="guess",
+        source="value:command",
+    )
+    item = build_permission_payload([request])["requests"][0]
+    assert item["confidence_reason"] == "heuristic: found in the argument value"
+
+
+def test_payload_passes_through_preview_offsets():
+    """Preview offsets and lengths pass through the payload unchanged."""
+    preview = "...cd /tmp/outside.txt;"
+    request = PathRequest(
+        tool="run_command",
+        argument="command",
+        raw="cd /tmp/outside.txt;",
+        path="/tmp/outside.txt",
+        directory="/tmp",
+        confidence="guess",
+        source="value:command",
+        argument_preview=preview,
+        preview_token_start=6,
+        preview_token_end=22,
+        preview_omitted_before=10,
+        preview_omitted_after=5,
+        argument_length=38,
+        token_line=1,
+    )
+    item = build_permission_payload([request])["requests"][0]
+
+    assert item["argument_preview"] == preview
+    assert item["preview_token_start"] == 6
+    assert item["preview_token_end"] == 22
+    assert item["preview_omitted_before"] == 10
+    assert item["preview_omitted_after"] == 5
+    assert item["argument_length"] == 38
+    assert item["token_line"] == 1
+    # The omitted counts reconcile with the full length and the preview length.
+    assert item["preview_omitted_before"] + item["preview_omitted_after"] == (
+        item["argument_length"] - len(item["argument_preview"])
+    )

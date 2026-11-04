@@ -29,7 +29,7 @@ import os
 import shlex
 from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 from urllib.parse import unquote, urlparse
 
 from pydantic import BaseModel, Field
@@ -37,7 +37,7 @@ from pydantic import BaseModel, Field
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.sensitive import is_sensitive
 from klea_utils.mcp.tool_impls.permission import path_is_allowed, permitted_roots
-from klea_utils.tool_args import is_path_argument_name
+from klea_utils.tool_args import is_command_argument_name, is_path_argument_name
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +50,10 @@ Confidence = Literal["declared", "expected", "guess"]
 MAX_PATH_DISPLAY_CHARS = 240
 MAX_RAW_DISPLAY_CHARS = 160
 MAX_ARGUMENT_PREVIEW_CHARS = 160
+
+#: Longest non-command value scanned for path-like tokens.  A longer value is a
+#: file body or a note, not a command line, so it is not scanned at all.
+MAX_VALUE_SCAN_CHARS = 1000
 
 
 def truncate_middle(text: str, max_chars: int = MAX_PATH_DISPLAY_CHARS) -> str:
@@ -74,35 +78,81 @@ def truncate_middle(text: str, max_chars: int = MAX_PATH_DISPLAY_CHARS) -> str:
     return f"{text[:head]}...[{omitted} chars omitted]...{text[-tail:]}"
 
 
-def _preview_context(
+class _ArgumentPreview(NamedTuple):
+    """A bounded window of an argument value around its detected token.
+
+    :attr:`text` is the preview; :attr:`token_start`/:attr:`token_end` locate
+    the token inside it (``-1`` when the token cannot be found in the value),
+    :attr:`omitted_before`/:attr:`omitted_after` count value characters
+    dropped at each side, and :attr:`token_line` is the token's 1-based line
+    in the value.
+    """
+
+    text: str
+    token_start: int
+    token_end: int
+    omitted_before: int
+    omitted_after: int
+    token_line: int
+
+
+def _preview_details(
     value: str, token: str, max_chars: int = MAX_ARGUMENT_PREVIEW_CHARS
-) -> str:
-    """Return a bounded window of *value* around *token*.
+) -> _ArgumentPreview:
+    """Return a bounded window of *value* around *token*, with its offsets.
 
     Keeps the detected token in view when it occurs in a long command or file
     content string, so the user can tell whether it is a path or ordinary
-    text.  Falls back to middle truncation when the token cannot be located.
+    text.  Falls back to middle truncation when the token cannot be located,
+    reporting ``-1`` offsets and line ``1`` so a UI can degrade to plain text.
 
     :param value: The full argument value.
     :param token: The detected path-like token within it.
     :param max_chars: Maximum number of visible characters to keep.
-    :returns: The bounded preview.
+    :returns: The preview text and the token's position within it.
     """
     if max_chars <= 0:
-        return ""
+        return _ArgumentPreview("", -1, -1, 0, 0, 1)
     text = value.strip()
-    if len(text) <= max_chars:
-        return text
     index = text.find(token) if token else -1
+    line = text.count("\n", 0, index) + 1 if index >= 0 else 1
+    if len(text) <= max_chars:
+        if index < 0:
+            return _ArgumentPreview(text, -1, -1, 0, 0, 1)
+        return _ArgumentPreview(text, index, index + len(token), 0, 0, line)
     if index < 0:
-        return truncate_middle(text, max_chars)
+        return _ArgumentPreview(truncate_middle(text, max_chars), -1, -1, 0, 0, 1)
     window = min(len(token), max_chars)
     before = (max_chars - window) // 2
     start = max(0, index - before)
     end = min(len(text), start + max_chars)
     prefix = "... " if start > 0 else ""
     suffix = " ..." if end < len(text) else ""
-    return f"{prefix}{text[start:end]}{suffix}"
+    token_start = len(prefix) + (index - start)
+    return _ArgumentPreview(
+        f"{prefix}{text[start:end]}{suffix}",
+        token_start,
+        token_start + min(len(token), end - index),
+        start,
+        len(text) - end,
+        line,
+    )
+
+
+def _preview_context(
+    value: str, token: str, max_chars: int = MAX_ARGUMENT_PREVIEW_CHARS
+) -> str:
+    """Return a bounded window of *value* around *token*.
+
+    Thin wrapper over :func:`_preview_details` for callers that only need the
+    preview text.
+
+    :param value: The full argument value.
+    :param token: The detected path-like token within it.
+    :param max_chars: Maximum number of visible characters to keep.
+    :returns: The bounded preview.
+    """
+    return _preview_details(value, token, max_chars).text
 
 
 class PathRequest(BaseModel):
@@ -127,6 +177,14 @@ class PathRequest(BaseModel):
     request's :attr:`approval_key` (all files in an approved directory, or the
     single sensitive file).  It lets the ask show what one session approval
     covers.
+
+    :attr:`argument_length` is the length of the full argument value and
+    :attr:`preview_token_start`/:attr:`preview_token_end` locate the matched
+    token inside :attr:`argument_preview` (``-1`` when it cannot be located);
+    :attr:`preview_omitted_before`/:attr:`preview_omitted_after` count value
+    characters dropped at each side and :attr:`token_line` is the token's
+    1-based line in the value.  Together they let a UI highlight the token and
+    size the argument without re-parsing the preview or storing the full body.
     """
 
     tool: str
@@ -138,6 +196,12 @@ class PathRequest(BaseModel):
     source: str
     kind: Literal["outside", "sensitive"] = "outside"
     argument_preview: str = ""
+    argument_length: int = 0
+    preview_token_start: int = -1
+    preview_token_end: int = -1
+    preview_omitted_before: int = 0
+    preview_omitted_after: int = 0
+    token_line: int = 1
     covered_paths: list[str] = Field(default_factory=list)
 
     @property
@@ -241,8 +305,14 @@ def _is_nonfile_url(token: str) -> bool:
     return scheme != "file"
 
 
-def _looks_pathlike(token: str) -> bool:
-    """Return whether a cleaned shell/argument token looks like a path."""
+def _looks_pathlike(token: str, *, strict: bool = False) -> bool:
+    """Return whether a cleaned shell/argument token looks like a path.
+
+    With *strict* set only an anchored token counts: an absolute, ``~`` or
+    ``./``/``../`` path, a ``file:`` URI, or a Windows drive path.  A bare
+    fragment such as ``a/b`` inside prose is then not a path, so a file body
+    is not mistaken for a shell command line.
+    """
     if not token:
         return False
     if token.startswith("-"):
@@ -257,8 +327,19 @@ def _looks_pathlike(token: str) -> bool:
         return False
     if token in (".", ".."):
         return False
-    if token.startswith(("/", "~", "./", "../")):
+    if token.startswith(("/", "~", "./", "../", "\\")):
         return True
+    if strict:
+        if _strip_file_uri(token) is not None:
+            # A ``file:`` URI names a local path without an anchored prefix.
+            return True
+        # A drive-letter path (``C:/x`` or ``C:\\x``).
+        return (
+            len(token) >= 3
+            and token[0].isalpha()
+            and token[1] == ":"
+            and token[2] in "/\\"
+        )
     return "/" in token or "\\" in token
 
 
@@ -363,17 +444,23 @@ def split_shell_tokens(text: str, *, windows: bool | None = None) -> list[str]:
     return tokens
 
 
-def _tokens_for_value(value: str) -> list[str]:
+def _tokens_for_value(value: str, *, command_like: bool = True) -> list[str]:
     """Split a string value into candidate tokens.
 
     A whitespace-containing value is treated as a shell command string and
     split with :func:`split_shell_tokens` (falling back to ``str.split`` on a
     quoting error); a single-token value (a plain path) is returned as-is.
     Windows quoting keeps backslash separators literal.
+
+    When *command_like* is ``False`` the value is not a shell command (a file
+    body, a note), so it is returned whole and never chopped into pseudo
+    tokens.
     """
     text = value.strip()
     if not text:
         return []
+    if not command_like:
+        return [text]
     if not any(ch.isspace() for ch in text):
         return [text]
     try:
@@ -494,6 +581,8 @@ def detect_path_requests(
             if path_str not in existing.covered_paths:
                 existing.covered_paths.append(path_str)
             return
+        argument_text = str(argument_value)
+        preview = _preview_details(argument_text, str(raw))
         requests[key] = PathRequest(
             tool=tool,
             argument=argument,
@@ -503,7 +592,13 @@ def detect_path_requests(
             confidence=confidence,
             source=source,
             kind=kind,
-            argument_preview=_preview_context(str(argument_value), str(raw)),
+            argument_preview=preview.text,
+            argument_length=len(argument_text),
+            preview_token_start=preview.token_start,
+            preview_token_end=preview.token_end,
+            preview_omitted_before=preview.omitted_before,
+            preview_omitted_after=preview.omitted_after,
+            token_line=preview.token_line,
             covered_paths=[path_str],
         )
 
@@ -548,12 +643,23 @@ def detect_path_requests(
 
     # 4. Path-like values, including tokens of shell command strings.  A bare
     #    sensitive filename (``cat .env``) is not path-like but is considered.
+    #    Only anchored tokens count, and only a command-like argument is shell
+    #    split: a file body or a note is prose, not a command line.
     for name, value in arguments.items():
         if not isinstance(value, str):
             continue
-        for token in _tokens_for_value(value):
+        command_like = is_command_argument_name(name)
+        multi_line = "\n" in value
+        oversized = len(value) > MAX_VALUE_SCAN_CHARS
+        if not command_like and (multi_line or oversized):
+            logger.debug(
+                f"Skipping value scan for {name!r}\n{len(value) = }\n"
+                f"{multi_line = }\n{oversized = }"
+            )
+            continue
+        for token in _tokens_for_value(value, command_like=command_like):
             candidate = _normalize_token(token)
-            if _looks_pathlike(candidate) or (
+            if _looks_pathlike(candidate, strict=True) or (
                 include_sensitive and is_sensitive(candidate)
             ):
                 consider(

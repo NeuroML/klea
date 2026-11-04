@@ -270,6 +270,36 @@ does not change height under the reader (ADR-0046, ADR-0007).
   as part of the path.  A `Rule` closes each block and separates it from the
   next, so a multi-path ask is scanned one request at a time and the numbering
   never drifts from the decision rows.
+* **Detected-path context.** The tool-call hint is rendered by
+  `PermissionPanel._hint_renderable` as a styled `rich.text.Text`, not a plain
+  string, so the reader can see *why* a guess is being gated and *where* it
+  came from.  It lists the tool and argument, then the detected path with its
+  `confidence_reason` (for example `heuristic: found in the argument value`,
+  `declared by the tool`), then a `Context:` line holding the bounded
+  `argument_preview` with the detected token reverse-styled in place using
+  `preview_token_start`/`preview_token_end`, followed by a parenthetical note of
+  the characters elided at each side (`preview_omitted_before +
+  preview_omitted_after` as chars omitted before/after) and the token's
+  `token_line` of the preview's total lines.  A request with no token offsets
+  (an older checkpoint) falls back to the plain `_hint` string, so the panel
+  always renders; the two forms read the same, only the highlight differs.
+
+  ```
+  1. Outside project path: /tmp/outside.txt
+     Session approval covers: /tmp
+     Tool: run_command
+     Argument: command
+     Detected path: /tmp/outside.txt (heuristic: found in the argument value)
+     Context: ... cat /tmp/outside.txt; ... (12 chars omitted before/after,
+     line 1 of 1)
+     Covers:
+     - /tmp/outside.txt
+     ( ) Once  ( ) Session  ( ) Not a path  (o) Deny
+  ```
+
+  The `Context:` token is shown in reverse video (the `<path>` span above);
+  with no offsets the same lines render as plain text and the token is not
+  highlighted.
 
 ## App composition
 

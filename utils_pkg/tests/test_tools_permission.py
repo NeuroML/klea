@@ -586,3 +586,74 @@ def test_detect_outside_beats_sensitive(tmp_path):
         include_sensitive=True,
     )
     assert requests[0].kind == "outside"
+
+
+def test_detect_ignores_prose_file_body(tmp_path):
+    """Pre-change failure: prose in a file-body argument is not a path.
+
+    This is the regression that motivated the fix.  The old detection accepted
+    any argument value containing ``"/"`` and unconditionally shell-split every
+    string, so prose inside an ``edit_file`` body such as ``and/or``,
+    ``src/main.py`` or an ``https://`` URL was reported as an outside-path
+    request.  A non-command argument must not be tokenised as a shell command.
+    """
+    root = _root_only(tmp_path)
+    body = (
+        "Update and/or extend the docs.\n"
+        "See src/main.py for details.\n"
+        "Reference: https://example.com/docs\n"
+    )
+    requests = detect_path_requests(
+        "edit_file",
+        {
+            "path": str(root / "README.md"),
+            "content": body,
+            "new_string": body,
+        },
+        ToolInfo(checkpaths=["path"]),
+        project_root=root,
+    )
+
+    assert [
+        request for request in requests if request.source.startswith("value:")
+    ] == []
+
+
+def test_detect_whole_value_outside_path_still_reported(tmp_path):
+    """A non-command value that is a whole anchored outside path is reported."""
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    requests = detect_path_requests(
+        "some_tool", {"note": str(outside / "a.txt")}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].source == "value:note"
+    assert requests[0].directory == str(outside)
+
+
+def test_detect_named_path_argument_still_reported(tmp_path):
+    """A path-named argument is still gated by the name heuristic."""
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    requests = detect_path_requests(
+        "t", {"file_path": str(outside / "f")}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].source == "name:file_path"
+    assert requests[0].confidence == "guess"
+
+
+def test_detect_command_path_still_reported(tmp_path):
+    """A path in a shell command is still reported as an anchored guess."""
+    root, outside = _root_and_outside(tmp_path)
+    outside.mkdir()
+    requests = detect_path_requests(
+        "run_command", {"command": f"cat {outside}/a.txt"}, None, project_root=root
+    )
+
+    assert len(requests) == 1
+    assert requests[0].source == "value:command"
+    assert requests[0].confidence == "guess"
+    assert requests[0].directory == str(outside)

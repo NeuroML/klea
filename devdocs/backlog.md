@@ -206,6 +206,32 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
   call so retries/truncations count (today only the final call per node is
   measured).  `TokenUsage` now carries `reasoning_tokens`/`cached_tokens`/
   `role`; a stable node key is still needed.
+- Prompt-cache A/B on volatile system-prompt content (deferred, unmeasured):
+  `_get_system_prompt` (`utils_pkg/klea_utils/nodes/base.py:1228-1253`) keeps
+  `context_summary` and the `Model in use:` line inside the one
+  `ephemeral`-tagged block (`base.py:468-501`, `anthropic`-only gate), and
+  Anthropic matches that block as a unit, so either changing busts the whole
+  ~2-3k prefix (ADR-0028).  Variant A = current assembly; variant B = same,
+  with `context_summary` and the `Model in use:` line moved into a trailing
+  message after the breakpoint.  Metric: per-call `input_tokens`/
+  `output_tokens`/`cached_tokens` already logged at
+  `nodes/abstract.py:545-561` (DEBUG per call, INFO on hit); `cached_tokens`
+  is cache-read only and writes fold into `input_tokens`
+  (`graph/schemas.py:31-33`); do not attribute from the thread-summed
+  `usage_metrics` (`graph/reducers.py:32`).  Matrix: Anthropic Sonnet + Haiku
+  tier, `openai:gpt-4o`, native `deepseek:`, a Gemini route and
+  `ollama:qwen3:0.6b` as a zero-hit control; turn shapes short 2-node, long
+  5+ node with tools, compaction, TTL replay; 5 runs per cell over 5 threads,
+  repeated in a second session, median/IQR.  Act only if B cuts
+  cost-equivalents >=5% on the long/compaction cases for Anthropic,
+  reproduced in >=4/5 runs and the second session, with short turns within
+  2%, no cell worse, and the remaining block still above that model's
+  minimum cacheable length; reject if the delta is inside run spread (<2%),
+  the gain is Anthropic-only with <=0 net, the block drops below a model
+  floor, or short turns regress >2%.  Expected default outcome: rejection.
+  Gate: no prompt contract, `_get_system_prompt` assembly or graph-wiring
+  change before this is run and the threshold met.  Revisit when the
+  `eval_pkg` benchmarking suite lands.
 - Time-to-first-token (TTFT) logging for all LLM invocations (observability
   improvement): record per-call first-token latency so slow starts are visible.
   Currently blocked because streaming is deliberately disabled:

@@ -26,6 +26,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -380,6 +381,67 @@ class PermissionPanel(HitlDecisionPanel):
             return f"{detail} - {note}" if detail else note
         return detail
 
+    @classmethod
+    def _hint_renderable(cls, request: Mapping[str, Any]) -> Text | str:
+        """Return the tool-call context as a styled :class:`rich.text.Text`.
+
+        Keeps :meth:`_hint`'s plain-string contract for the fallback while
+        offering a richer renderable for the panel: the tool and argument, an
+        explicit detected path with its confidence reason, and a ``Context:``
+        block whose detected token is highlighted (reverse video) with
+        :meth:`rich.text.Text.stylize` at the request's
+        ``preview_token_start``/``preview_token_end`` offsets, followed by an
+        omission/line note.  A request that carries no token offsets (an older
+        checkpoint) falls back to the plain :meth:`_hint` string so the panel
+        still renders.
+
+        :param request: A permission request dict.
+        :returns: A styled ``Text``, or the plain :meth:`_hint` string when the
+            preview offsets are missing.
+        """
+        token_start = request.get("preview_token_start", -1)
+        token_end = request.get("preview_token_end", -1)
+        if not isinstance(token_start, int) or token_start < 0:
+            return cls._hint(request)
+
+        tool = str(request.get("tool", ""))
+        argument = str(request.get("argument", ""))
+        confidence = str(request.get("confidence", ""))
+        reason = str(request.get("confidence_reason") or confidence)
+        raw = str(request.get("raw_preview") or request.get("raw", ""))
+        preview = str(request.get("argument_preview", ""))
+        token_line = request.get("token_line", 1)
+        if not isinstance(token_line, int) or token_line < 1:
+            token_line = 1
+        omitted_before = request.get("preview_omitted_before", 0)
+        omitted_after = request.get("preview_omitted_after", 0)
+        omitted = (omitted_before if isinstance(omitted_before, int) else 0) + (
+            omitted_after if isinstance(omitted_after, int) else 0
+        )
+        total_lines = preview.count("\n") + 1
+
+        logger.debug(
+            f"Rendering permission hint\n{tool = }\n{argument = }\n"
+            f"{token_start = }\n{token_end = }\n{reason = }"
+        )
+
+        text = Text()
+        if tool:
+            text.append(f"Tool: {tool}\n")
+        if argument:
+            text.append(f"Argument: {argument}\n")
+        if raw:
+            text.append(f"Detected path: {raw} ({reason})\n")
+        context = Text(preview)
+        if isinstance(token_end, int) and token_end > token_start:
+            context.stylize("reverse", token_start, min(token_end, len(preview)))
+        text.append("Context: ")
+        text.append_text(context)
+        text.append(
+            f" ({omitted} chars omitted before/after, line {token_line} of {total_lines})"
+        )
+        return text
+
     @staticmethod
     def _coverage(request: Mapping[str, Any]) -> str:
         """Return the paths covered by this request's session approval."""
@@ -420,7 +482,7 @@ class PermissionPanel(HitlDecisionPanel):
                 scope = _permission_scope(request)
                 if scope:
                     yield SelectableStatic(scope, classes="hitl-hint", markup=False)
-                hint = self._hint(request)
+                hint = self._hint_renderable(request)
                 if hint:
                     yield SelectableStatic(hint, classes="hitl-hint", markup=False)
                 coverage = self._coverage(request)

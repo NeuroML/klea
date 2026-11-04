@@ -71,3 +71,7 @@ Implementation:
 * Current `truncate` round-robin and `textualize` per-tool already bound `human` to `20k+5k`; `ContextVar` isolates per-chat `model`.
 * Deferred: `tool_results` unbounded -> already per-tool; `reference_material` must stay `human`, not `system`.
 * Revisit on `v0.5` when provider `prompt_caching` pricing stabilizes.
+* Unmeasured: extracting the volatile `context_summary` / `Model in use:` line
+  out of the single cached, tagged block is expected to pay only on Anthropic
+  and only under frequent compaction.  Tracked as a deferred A/B benchmark in
+  `devdocs/backlog.md`; no assembly change before it is measured.

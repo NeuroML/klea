@@ -12,6 +12,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import html
 import json
 import logging
 from typing import Any
@@ -271,6 +272,102 @@ def _permission_hint(request: dict[str, Any]) -> str:
     return detail
 
 
+def _permission_hint_parts(request: dict[str, Any]) -> dict[str, Any]:
+    """Return the structured parts of a permission hint (ADR-0007).
+
+    Splits the tool-call context into separately rendered elements so the web
+    form can show the tool, the argument, the detected token (with its
+    confidence reason) and the argument context with the token highlighted.
+    The context is escaped before it is embedded in HTML: it is a
+    model-provided argument value, never trusted markup.
+
+    Returns an empty mapping when the request carries no token offsets (an
+    older checkpoint), so the caller can fall back to the single-line
+    :func:`_permission_hint` text.
+
+    :param request: A serialized path request.
+    :returns: The hint parts, or ``{}`` when the preview offsets are missing.
+    """
+    token_start = request.get("preview_token_start", -1)
+    token_end = request.get("preview_token_end", -1)
+    if not isinstance(token_start, int) or token_start < 0:
+        return {}
+
+    tool = str(request.get("tool", ""))
+    argument = str(request.get("argument", ""))
+    confidence = str(request.get("confidence", ""))
+    reason = str(request.get("confidence_reason") or confidence)
+    raw = str(request.get("raw_preview") or request.get("raw", ""))
+    preview = str(request.get("argument_preview", ""))
+    token_line = request.get("token_line", 1)
+    if not isinstance(token_line, int) or token_line < 1:
+        token_line = 1
+    omitted_before = request.get("preview_omitted_before", 0)
+    omitted_after = request.get("preview_omitted_after", 0)
+    omitted = (omitted_before if isinstance(omitted_before, int) else 0) + (
+        omitted_after if isinstance(omitted_after, int) else 0
+    )
+    total_lines = preview.count("\n") + 1
+    start = min(token_start, len(preview))
+    end = token_end if isinstance(token_end, int) and token_end > start else start
+    end = min(end, len(preview))
+    logger.debug(
+        f"Building permission hint parts\n{tool = }\n{argument = }\n"
+        f"{start = }\n{end = }\n{reason = }"
+    )
+    context_html = (
+        html.escape(preview[:start])
+        + "<mark><code>"
+        + html.escape(preview[start:end])
+        + "</code></mark>"
+        + html.escape(preview[end:])
+    )
+    return {
+        "tool": tool,
+        "argument": argument,
+        "reason": reason,
+        "raw": raw,
+        "context_html": context_html,
+        "omitted": omitted,
+        "token_line": token_line,
+        "total_lines": total_lines,
+    }
+
+
+def _render_permission_hint(request: dict[str, Any]) -> None:
+    """Render a permission request's tool-call context (ADR-0007).
+
+    Emits separate elements: the tool and argument, the detected token in
+    monospace with its confidence reason as a caption, and the argument
+    context with the detected token highlighted.  The context is escaped HTML
+    rendered through :func:`nicegui.ui.html`, never raw markup.  A request
+    without token offsets (an older checkpoint) falls back to the single-line
+    :func:`_permission_hint` text, so an ask always renders.
+
+    :param request: A serialized path request.
+    """
+    parts = _permission_hint_parts(request)
+    if not parts:
+        hint = _permission_hint(request)
+        if hint:
+            ui.label(hint).classes("text-xs text-grey-6").style("white-space: pre-line")
+        return
+    if parts["tool"]:
+        ui.label(f"Tool: {parts['tool']}").classes("text-xs font-bold")
+    if parts["argument"]:
+        ui.label(f"Argument: {parts['argument']}").classes("text-xs font-bold")
+    if parts["raw"]:
+        ui.code(parts["raw"], language=None).classes("text-xs")
+    if parts["reason"]:
+        ui.label(parts["reason"]).classes("text-xs text-grey-6")
+    ui.html(
+        "<div>Context: "
+        f"{parts['context_html']} "
+        f"({parts['omitted']} chars omitted before/after, "
+        f"line {parts['token_line']} of {parts['total_lines']})</div>"
+    ).classes("text-xs text-grey-6").style("white-space: pre-wrap")
+
+
 def _permission_coverage(request: dict[str, Any]) -> str:
     """Return the paths covered by this request's session approval, if plural."""
     paths = request.get("covered_paths_display") or request.get("covered_paths") or []
@@ -336,7 +433,6 @@ def _render_permission_form(
                     title = f"Outside project path: {path}"
                 title = f"{index}. {title}"
                 scope = _permission_scope(request)
-                hint = _permission_hint(request)
                 key = _permission_key(request)
 
                 def _set(value: str, k: str = key) -> None:
@@ -354,10 +450,7 @@ def _render_permission_form(
                 )
                 if scope:
                     ui.label(scope).classes("text-xs text-grey-6")
-                if hint:
-                    ui.label(hint).classes("text-xs text-grey-6").style(
-                        "white-space: pre-line"
-                    )
+                _render_permission_hint(request)
                 coverage = _permission_coverage(request)
                 if coverage:
                     ui.label(coverage).classes("text-xs text-grey-6").style(
