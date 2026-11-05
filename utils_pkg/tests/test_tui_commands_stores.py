@@ -156,6 +156,8 @@ def test_tilde_resolves_against_monkeypatched_home(
     config = home / "stores.json"
     config.write_text("{}", encoding="utf-8")
     monkeypatch.setenv("HOME", str(home))
+    # Windows expands ``~`` from USERPROFILE, not HOME, so set both.
+    monkeypatch.setenv("USERPROFILE", str(home))
     result = _run("/stores ~/stores.json")
     assert result is not None
     assert "Stores configuration set to" in _text(result)
