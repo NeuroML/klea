@@ -1,0 +1,1402 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
+        <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
+
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
+        <title>klea_utils.stores.utils - Klea</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinxcontrib_typer.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=06e26041" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../index.html"><div class="brand">Klea</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../concepts/index.html">Concepts</a><input aria-label="Toggle navigation of Concepts" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/rag.html">RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/mcp.html">MCP</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/rag.html">Klea RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tools.html">Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/commands.html">Session commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tui.html">Terminal interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/agent.html">Klea Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/utils.html">Klea Utils</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../guides/index.html">Guides</a><input aria-label="Toggle navigation of Guides" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/create-and-use-rag.html">Create and use a RAG system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/huggingface.html">Deploying Klea RAG on HuggingFace Spaces</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../cli/index.html">CLI Reference</a><input aria-label="Toggle navigation of CLI Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-stores-create.html">klea-stores-create</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag-serve.html">klea-rag-serve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag.html">klea-rag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/nml-mcp.html">nml-mcp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea.html">klea</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-serve.html">klea-serve</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Develop</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer-info.html">Developer info</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../developer-guides/index.html">Developer guides</a><input aria-label="Toggle navigation of Developer guides" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../developer-guides/writing-mcp-tools.html">Writing MCP tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/klea_utils.html">klea_utils</a><input aria-label="Toggle navigation of klea_utils" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/graph.html">Orchestrator framework</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/stores.html">Vector stores</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/biblio.html">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/llm.html">LLM utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/mcp.html">MCP utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/models_catalog.html">Model catalog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/api.html">API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/commands.html">Commands</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-tui.html">UI - terminal client</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-cli.html">UI — client CLI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/net.html">Host helpers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/client_context.html">Runtime client context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/tools.html">Tool formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting-help.html">Getting help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../code-of-conduct.html">Code of Conduct</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for klea_utils.stores.utils</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="sd">"""</span>
+<span class="sd">Vector store utilities</span>
+
+<span class="sd">File: klea_utils/stores/utils.py</span>
+
+<span class="sd">Copyright 2026 Ankur Sinha</span>
+<span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">unicodedata</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">cast</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.documents</span><span class="w"> </span><span class="kn">import</span> <span class="n">Document</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.stores.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">RetrieverConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.stores.metadata</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">PERSON_NAME_FILTER_FIELDS</span><span class="p">,</span>
+    <span class="n">SHARED_DOC_METADATA_KEYS</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1">#: Name of the chunk-cache directory created inside a source directory by</span>
+<span class="c1">#: the ingestion pipeline (holds the per-file pickled chunks, the</span>
+<span class="c1">#: generated metadata-map template, the DOI cache, and store manifests).</span>
+<span class="c1">#: Excluded from ingestion by :func:`find_source_files`.</span>
+<span class="n">CACHE_DIR_NAME</span> <span class="o">=</span> <span class="s2">".klea-cache"</span>
+
+<span class="c1">#: Name of the metadata-map template ``chunk`` writes into the cache</span>
+<span class="c1">#: directory, organised per source file.</span>
+<span class="n">TEMPLATE_FILE_NAME</span> <span class="o">=</span> <span class="s2">"metadata-map.template.json"</span>
+
+
+<div class="viewcode-block" id="find_source_files">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.find_source_files">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">find_source_files</span><span class="p">(</span>
+    <span class="n">source_dir</span><span class="p">:</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">metadata_map_path</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">store_dir</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">logger</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Path</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Walk ``source_dir`` and return files whose extensions are in</span>
+<span class="sd">    docling's :class:`~docling.datamodel.base_models.FormatToExtensions`.</span>
+
+<span class="sd">    This is the canonical "what will the store ingest" enumeration: the</span>
+<span class="sd">    ingestion pipeline and ``map-lint`` both use it, so a metadata map</span>
+<span class="sd">    that lints clean against its output is guaranteed to resolve at</span>
+<span class="sd">    store time.  Files with unsupported extensions are logged as a</span>
+<span class="sd">    warning (when a *logger* is given) and skipped.</span>
+
+<span class="sd">    Generated artifacts are excluded: the cache directory</span>
+<span class="sd">    (:data:`CACHE_DIR_NAME`, e.g. ``.klea-cache``), the metadata map</span>
+<span class="sd">    passed via *metadata_map_path* (when it lives inside *source_dir*),</span>
+<span class="sd">    and the vector store directory -- either the configured *store_dir*</span>
+<span class="sd">    when it lies under *source_dir*, or any directory inside</span>
+<span class="sd">    *source_dir* that contains a ``chroma.sqlite3`` (so a store created</span>
+<span class="sd">    without setting *store_dir* is still not ingested).</span>
+
+<span class="sd">    :param source_dir: Directory to walk recursively</span>
+<span class="sd">    :param metadata_map_path: The metadata-map file to exclude from</span>
+<span class="sd">        ingestion (mirrors how the ingestion pipeline remembers the</span>
+<span class="sd">        loaded map)</span>
+<span class="sd">    :param store_dir: Configured vector store directory that may live</span>
+<span class="sd">        inside the source directory; ``None`` for remote backends with</span>
+<span class="sd">        no local folder</span>
+<span class="sd">    :param logger: Optional logger for the unsupported-extension warning</span>
+<span class="sd">    :returns: Sorted list of files with supported extensions</span>
+<span class="sd">    """</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">docling.datamodel.base_models</span><span class="w"> </span><span class="kn">import</span> <span class="n">FormatToExtensions</span>
+
+    <span class="n">all_exts</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">exts</span> <span class="ow">in</span> <span class="n">FormatToExtensions</span><span class="o">.</span><span class="n">values</span><span class="p">():</span>
+        <span class="n">all_exts</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">exts</span><span class="p">)</span>
+
+    <span class="n">source_resolved</span> <span class="o">=</span> <span class="n">source_dir</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+
+    <span class="c1"># Directories that must never be ingested: the configured store</span>
+    <span class="c1"># (when it lives under the source dir) and any Chroma store folder</span>
+    <span class="c1"># (a dir containing chroma.sqlite3) inside the source dir.</span>
+    <span class="n">skip_dirs</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">store_dir</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">resolved_store</span> <span class="o">=</span> <span class="n">store_dir</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">resolved_store</span> <span class="o">!=</span> <span class="n">source_resolved</span> <span class="ow">and</span> <span class="n">resolved_store</span><span class="o">.</span><span class="n">is_relative_to</span><span class="p">(</span>
+            <span class="n">source_resolved</span>
+        <span class="p">):</span>
+            <span class="n">skip_dirs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">resolved_store</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">chroma_db</span> <span class="ow">in</span> <span class="n">source_dir</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">"chroma.sqlite3"</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">chroma_db</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+            <span class="n">parent</span> <span class="o">=</span> <span class="n">chroma_db</span><span class="o">.</span><span class="n">parent</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+            <span class="c1"># Don't add source_dir itself  ---  when store==source, we only want to</span>
+            <span class="c1"># exclude the DB file, not all docs in the source</span>
+            <span class="k">if</span> <span class="n">parent</span> <span class="o">!=</span> <span class="n">source_resolved</span><span class="p">:</span>
+                <span class="n">skip_dirs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">parent</span><span class="p">)</span>
+
+    <span class="n">supported</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Path</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">source_dir</span><span class="o">.</span><span class="n">rglob</span><span class="p">(</span><span class="s2">"*"</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">f</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">CACHE_DIR_NAME</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">parts</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">metadata_map_path</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">f</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span> <span class="o">==</span> <span class="n">metadata_map_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">():</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">f</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span><span class="o">.</span><span class="n">is_relative_to</span><span class="p">(</span><span class="n">skip_dir</span><span class="p">)</span> <span class="k">for</span> <span class="n">skip_dir</span> <span class="ow">in</span> <span class="n">skip_dirs</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">suffix</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">suffix</span><span class="o">.</span><span class="n">lstrip</span><span class="p">(</span><span class="s2">"."</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">suffix</span> <span class="ow">in</span> <span class="n">all_exts</span><span class="p">:</span>
+            <span class="n">supported</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">logger</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Skipping unsupported file: </span><span class="si">{</span><span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">supported</span></div>
+
+
+
+<span class="c1">#: Metadata key holding each document's original per-source scores (e.g.</span>
+<span class="c1">#: ``{"vector store": 0.87, "BM25": 3.21}``), set by :func:`rrf_merge`.</span>
+<span class="n">SOURCE_SCORES_KEY</span> <span class="o">=</span> <span class="s2">"_source_scores"</span>
+
+<span class="c1">#: HNSW distance space used for Chroma collections created by Klea.  Cosine</span>
+<span class="c1">#: makes the vector-store relevance scores true cosine similarities</span>
+<span class="c1">#: (``1 - cosine_distance``), so a ``score_threshold`` reads as a minimum</span>
+<span class="c1">#: cosine similarity.</span>
+<span class="n">CHROMA_HNSW_SPACE</span> <span class="o">=</span> <span class="s2">"cosine"</span>
+
+<span class="c1">#: Rank offset for Reciprocal Rank Fusion.  A document at rank *r* within a</span>
+<span class="c1">#: source's result list contributes ``1 / (RRF_K + r)`` to its fused score.</span>
+<span class="n">RRF_K</span> <span class="o">=</span> <span class="mi">60</span>
+
+<span class="c1">#: Per-document character overhead attributed by :func:`truncate_reference_material`</span>
+<span class="c1">#: for the serialized markup that wraps each reference in the LLM context</span>
+<span class="c1">#: (``### Source document N/M: [file]`` plus the optional metadata line).</span>
+<span class="c1">#: Approximate; the page content dominates in practice.</span>
+<span class="n">REF_DOC_OVERHEAD</span> <span class="o">=</span> <span class="mi">200</span>
+
+<span class="n">_INTERNAL_META_KEYS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">"file_name"</span><span class="p">,</span>
+    <span class="s2">"file_hash"</span><span class="p">,</span>
+    <span class="s2">"headings"</span><span class="p">,</span>
+    <span class="n">SOURCE_SCORES_KEY</span><span class="p">,</span>
+    <span class="c1"># Bibliographic extraction provenance (see klea_utils/biblio).  These</span>
+    <span class="c1"># guide the researcher reviewing metadata-map.template.json but carry</span>
+    <span class="c1"># no meaning for the answer LLM, so they are never serialized to it.</span>
+    <span class="s2">"_metadata_complete"</span><span class="p">,</span>
+    <span class="s2">"_sources"</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="c1">#: No-break space variants mapped to a regular space by :func:`normalize_text`</span>
+<span class="c1">#: (NFKC also folds these, but the explicit mapping keeps the intent visible).</span>
+<span class="n">_NO_BREAK_SPACES</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\u00a0\u2007\u202f</span><span class="s2">"</span>
+
+<span class="c1">#: Zero-width / invisible characters stripped by :func:`normalize_text`.</span>
+<span class="c1">#: ``\ufeff`` is the byte-order mark emitted at the start of extracted text;</span>
+<span class="c1">#: ``\u200e``/``\u200f`` are bidi marks; ``\ufe00``-``\ufe0f`` are variation</span>
+<span class="c1">#: selectors.</span>
+<span class="n">_ZERO_WIDTH_CHARS</span> <span class="o">=</span> <span class="s2">"</span><span class="se">\ufeff\u200b\u200c\u200d\u200e\u200f\u2060\ufe00\ufe01\ufe02\ufe03\ufe04\ufe05\ufe06\ufe07\ufe08\ufe09\ufe0a\ufe0b\ufe0c\ufe0d\ufe0e\ufe0f</span><span class="s2">"</span>
+
+
+<div class="viewcode-block" id="normalize_text">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.normalize_text">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">normalize_text</span><span class="p">(</span><span class="n">text</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Normalise free text for consistent indexing and retrieval.</span>
+
+<span class="sd">    Document conversion (e.g. Docling's PDF extraction) embeds</span>
+<span class="sd">    typographic artifacts that hurt search: soft hyphens (``\\u00ad``)</span>
+<span class="sd">    split words mid-token, no-break / zero-width characters distort</span>
+<span class="sd">    embeddings and BM25 keyword matching, and ligatures / full-width</span>
+<span class="sd">    forms / superscripts / typographic spaces tokenise differently from</span>
+<span class="sd">    their plain equivalents.  This strips or maps them so that indexed</span>
+<span class="sd">    chunks and retrieval queries share the same plain-text form.</span>
+
+<span class="sd">    The final pass uses NFKC compatibility composition, which (unlike NFC)</span>
+<span class="sd">    also folds ligatures (``\\ufb01`` -&gt; "fi"), full-width forms</span>
+<span class="sd">    (``\\uff21`` -&gt; "A"), superscripts (``\\u00b2`` -&gt; "2"), typographic</span>
+<span class="sd">    spaces (en/em/thin/ideographic), and the non-breaking hyphen</span>
+<span class="sd">    (``\\u2011`` -&gt; ``\\u2010``).  Typographic em/en dashes are kept</span>
+<span class="sd">    unchanged.</span>
+
+<span class="sd">    :param text: Raw text, possibly containing typographic artifacts</span>
+<span class="sd">    :returns: Normalised plain text</span>
+<span class="sd">    """</span>
+    <span class="c1"># Soft hyphen: an invisible line-break hint; dropping it rejoins the</span>
+    <span class="c1"># split word (e.g. "multi-\\u00adscale" -&gt; "multi-scale").</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">"</span><span class="se">\u00ad</span><span class="s2">"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="c1"># No-break space variants -&gt; regular space.</span>
+    <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">_NO_BREAK_SPACES</span><span class="p">:</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="s2">" "</span><span class="p">)</span>
+    <span class="c1"># Byte-order mark and zero-width characters carry no meaning.</span>
+    <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">_ZERO_WIDTH_CHARS</span><span class="p">:</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="n">text</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="c1"># NFKC: canonical + compatibility composition (ligatures, full-width</span>
+    <span class="c1"># forms, superscripts, typographic spaces; see docstring).</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="n">unicodedata</span><span class="o">.</span><span class="n">normalize</span><span class="p">(</span><span class="s2">"NFKC"</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span>
+    <span class="c1"># Collapse repeated horizontal whitespace and trim.</span>
+    <span class="k">return</span> <span class="n">re</span><span class="o">.</span><span class="n">sub</span><span class="p">(</span><span class="sa">r</span><span class="s2">"[ \t]{2,}"</span><span class="p">,</span> <span class="s2">" "</span><span class="p">,</span> <span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span></div>
+
+
+
+<div class="viewcode-block" id="expand_person_names">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.expand_person_names">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">expand_person_names</span><span class="p">(</span><span class="n">names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return *names* with per-word variants appended, order-preserving.</span>
+
+<span class="sd">    Humans are referred to by parts of their full name ("find papers by</span>
+<span class="sd">    Sinha" for an author stored as "Ankur Sinha"), so person-name list</span>
+<span class="sd">    fields (:data:`klea_utils.stores.metadata.PERSON_NAME_FILTER_FIELDS`)</span>
+<span class="sd">    are expanded at store time: each full name is kept, every whitespace</span>
+<span class="sd">    token plus its lowercase form is added, and the lowercased full name</span>
+<span class="sd">    is added too.  This makes an exact-membership retrieval filter</span>
+<span class="sd">    (``$contains``) match the partial name in any form and case,</span>
+<span class="sd">    uniformly on every store backend.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        expand_person_names(["Ankur Sinha"])</span>
+<span class="sd">        -&gt; ["Ankur Sinha", "ankur sinha", "Ankur", "Sinha",</span>
+<span class="sd">            "ankur", "sinha"]</span>
+
+<span class="sd">    The expansion is idempotent (expanding an already-expanded list is a</span>
+<span class="sd">    no-op), so re-applying the store metadata policy is safe.</span>
+
+<span class="sd">    :param names: List of author display names</span>
+<span class="sd">    :returns: Names plus per-word and lowercase variants, deduplicated in</span>
+<span class="sd">        order of first appearance.  Non-string elements are skipped.</span>
+<span class="sd">    """</span>
+    <span class="n">expanded</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span><span class="n">variant</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">variant</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">variant</span><span class="p">)</span>
+            <span class="n">expanded</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">variant</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+        <span class="n">add</span><span class="p">(</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+        <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">():</span>
+            <span class="n">add</span><span class="p">(</span><span class="n">token</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">token</span> <span class="ow">in</span> <span class="n">name</span><span class="o">.</span><span class="n">split</span><span class="p">():</span>
+            <span class="n">add</span><span class="p">(</span><span class="n">token</span><span class="o">.</span><span class="n">lower</span><span class="p">())</span>
+
+    <span class="k">return</span> <span class="n">expanded</span></div>
+
+
+
+<div class="viewcode-block" id="display_person_names">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.display_person_names">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">display_person_names</span><span class="p">(</span><span class="n">names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the display-safe subset of an expanded person-name list.</span>
+
+<span class="sd">    :func:`expand_person_names` appends per-word and lowercase variants to</span>
+<span class="sd">    a person-name field for filtering, but those variants must not appear</span>
+<span class="sd">    in the reference material shown to the answer LLM (citations would</span>
+<span class="sd">    otherwise read ``Ankur Sinha; Sinha; ankur; sinha``).  This keeps only</span>
+<span class="sd">    the real names: whole-lowercase entries and single-word entries that</span>
+<span class="sd">    make up a longer entry are dropped, so a genuine single-name author</span>
+<span class="sd">    (not a token of another entry) still displays.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        display_person_names(</span>
+<span class="sd">            ["Ankur Sinha", "Padraig Gleeson", "Sinha", "gleeson"]</span>
+<span class="sd">        )</span>
+<span class="sd">        -&gt; ["Ankur Sinha", "Padraig Gleeson"]</span>
+
+<span class="sd">    :param names: Person-name list, possibly expanded</span>
+<span class="sd">    :returns: The original full names, order-preserving</span>
+<span class="sd">    """</span>
+    <span class="n">multi_word</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">n</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">names</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="o">&gt;</span> <span class="mi">1</span>
+    <span class="p">]</span>
+    <span class="n">tokens_of_others</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">multi_word</span><span class="p">:</span>
+        <span class="n">tokens_of_others</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">split</span><span class="p">())</span>
+
+    <span class="n">shown</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">names</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">n</span><span class="o">.</span><span class="n">islower</span><span class="p">():</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">n</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">tokens_of_others</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">shown</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">shown</span></div>
+
+
+
+<div class="viewcode-block" id="rrf_merge">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.rrf_merge">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">rrf_merge</span><span class="p">(</span>
+    <span class="n">result_sets</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]],</span>
+    <span class="n">num_refs_max</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Fuse per-source retrieval results with Reciprocal Rank Fusion.</span>
+
+<span class="sd">    Scores from different retrievers (e.g. cosine similarity vs BM25) are not</span>
+<span class="sd">    comparable, so each document is scored purely by its rank within each</span>
+<span class="sd">    source's result list.  The original per-source scores are preserved in</span>
+<span class="sd">    each document's :data:`SOURCE_SCORES_KEY` metadata for debugging and</span>
+<span class="sd">    introspection (they are not shown to the answer LLM).</span>
+
+<span class="sd">    :param result_sets: List of ``(source_label, results)`` pairs, where each</span>
+<span class="sd">        *results* is a list of ``(document, score)`` tuples already ranked by</span>
+<span class="sd">        its source</span>
+<span class="sd">    :param num_refs_max: Maximum number of documents to return, or ``None``</span>
+<span class="sd">        to return every fused document.  Callers that want to bound the</span>
+<span class="sd">        context fed to an LLM should cap by characters via</span>
+<span class="sd">        :func:`truncate_reference_material` instead of by document count.</span>
+<span class="sd">    :returns: Documents ordered by RRF score, deduplicated by file+content,</span>
+<span class="sd">        capped at *num_refs_max* when set</span>
+<span class="sd">    """</span>
+    <span class="c1"># Key by (file_name, page_content) so identical boilerplate in different</span>
+    <span class="c1"># files is not collapsed to a single provenance</span>
+    <span class="n">rrf_scores</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">doc_by_key</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">],</span> <span class="n">Document</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">for</span> <span class="n">source_label</span><span class="p">,</span> <span class="n">results</span> <span class="ow">in</span> <span class="n">result_sets</span><span class="p">:</span>
+        <span class="k">for</span> <span class="n">rank</span><span class="p">,</span> <span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="n">score</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">results</span><span class="p">,</span> <span class="n">start</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+            <span class="n">fname</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"file_name"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"file_name"</span><span class="p">),</span> <span class="nb">str</span><span class="p">)</span>
+                <span class="k">else</span> <span class="s2">""</span>
+            <span class="p">)</span>
+            <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">fname</span><span class="p">,</span> <span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">)</span>
+            <span class="n">rrf_scores</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">rrf_scores</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span> <span class="o">+</span> <span class="mf">1.0</span> <span class="o">/</span> <span class="p">(</span><span class="n">RRF_K</span> <span class="o">+</span> <span class="n">rank</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">doc_by_key</span><span class="p">:</span>
+                <span class="c1"># Copy metadata so we don't mutate the retriever's original doc</span>
+                <span class="c1"># (which would pollute cached results and checkpoint history)</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="c1"># langchain Document is a Pydantic model  ---  model_copy is cheapest</span>
+                    <span class="n">copied</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">model_copy</span><span class="p">(</span><span class="n">deep</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>  <span class="c1"># type: ignore[attr-defined]</span>
+                <span class="k">except</span> <span class="p">(</span><span class="ne">AttributeError</span><span class="p">,</span> <span class="ne">TypeError</span><span class="p">):</span>
+                    <span class="c1"># Fallback for plain objects / older versions</span>
+                    <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.documents</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+                        <span class="n">Document</span> <span class="k">as</span> <span class="n">_Doc</span><span class="p">,</span>  <span class="c1"># type: ignore[import]</span>
+                    <span class="p">)</span>
+
+                    <span class="n">copied</span> <span class="o">=</span> <span class="n">_Doc</span><span class="p">(</span>
+                        <span class="n">page_content</span><span class="o">=</span><span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">,</span> <span class="n">metadata</span><span class="o">=</span><span class="nb">dict</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="n">copied</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="n">SOURCE_SCORES_KEY</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+                <span class="n">doc_by_key</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">copied</span>
+            <span class="c1"># Cast to Python floats: BM25 and vector-store scores are numpy</span>
+            <span class="c1"># scalars (np.float64/np.float32).  The scores are persisted in</span>
+            <span class="c1"># doc metadata, which ends up inside the graph state; LangGraph's</span>
+            <span class="c1"># msgpack checkpoint serializer cannot encode numpy scalars, so</span>
+            <span class="c1"># plain floats keep the state checkpoint-serializable.</span>
+            <span class="n">doc_by_key</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="n">SOURCE_SCORES_KEY</span><span class="p">][</span><span class="n">source_label</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">score</span><span class="p">)</span>
+
+    <span class="n">merged</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="p">((</span><span class="n">doc_by_key</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">rrf</span><span class="p">)</span> <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">rrf</span> <span class="ow">in</span> <span class="n">rrf_scores</span><span class="o">.</span><span class="n">items</span><span class="p">()),</span>
+        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">tup</span><span class="p">:</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+        <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">num_refs_max</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">merged</span>
+    <span class="k">return</span> <span class="n">merged</span><span class="p">[:</span><span class="n">num_refs_max</span><span class="p">]</span></div>
+
+
+
+<span class="c1">#: Default cross-encoder model for reranking.  Small MS MARCO model; runs</span>
+<span class="c1">#: locally via ``sentence-transformers``.</span>
+<span class="n">DEFAULT_CROSS_ENCODER_MODEL</span> <span class="o">=</span> <span class="s2">"cross-encoder/ms-marco-MiniLM-L-6-v2"</span>
+
+
+<div class="viewcode-block" id="load_cross_encoder">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.load_cross_encoder">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_cross_encoder</span><span class="p">(</span><span class="n">model_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Load a :class:`~sentence_transformers.CrossEncoder` instance.</span>
+
+<span class="sd">    A plain factory: it imports ``sentence-transformers``, downloads the</span>
+<span class="sd">    weights on first use (into the Hugging Face cache), and returns a new</span>
+<span class="sd">    instance.  It performs no caching and holds no shared state, so callers</span>
+<span class="sd">    that need one shared model must load it once and reuse the instance</span>
+<span class="sd">    themselves.  It is likewise not safe for concurrent loads (each call</span>
+<span class="sd">    constructs a new model), so load once at startup rather than from several</span>
+<span class="sd">    worker threads.</span>
+
+<span class="sd">    :param model_name: Hugging Face cross-encoder model id.  Must be a</span>
+<span class="sd">        non-empty string.</span>
+<span class="sd">    :returns: A newly constructed cross-encoder for *model_name*</span>
+<span class="sd">    :raises ValueError: If *model_name* is empty or ``None``</span>
+<span class="sd">    :raises ImportError: If ``sentence-transformers`` is not installed</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">model_name</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">"A cross-encoder model name is required"</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">sentence_transformers</span><span class="w"> </span><span class="kn">import</span> <span class="n">CrossEncoder</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+            <span class="s2">"Cross-encoder reranking requires sentence-transformers. "</span>
+            <span class="s2">"Install: pip install klea_utils[rerank]"</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">info</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"Loading cross-encoder </span><span class="si">{</span><span class="n">model_name</span><span class="si">}</span><span class="s2"> (the first use downloads the weights)"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">CrossEncoder</span><span class="p">(</span><span class="n">model_name</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="cross_encoder_rerank">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.cross_encoder_rerank">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cross_encoder_rerank</span><span class="p">(</span>
+    <span class="n">query</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">docs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Re-rank fused retrieval results with a cross-encoder instance.</span>
+
+<span class="sd">    Intended to run after :func:`rrf_merge` and before downstream steps such</span>
+<span class="sd">    as :func:`rerank_by_recency` and :func:`truncate_reference_material`.</span>
+
+<span class="sd">    The caller owns the model: load it once (see :func:`load_cross_encoder`)</span>
+<span class="sd">    and pass the same instance here.  This function neither caches nor skips,</span>
+<span class="sd">    so "reranking disabled" is the caller's decision.</span>
+
+<span class="sd">    Each document is scored by a query--passage cross-encoder (local/offline</span>
+<span class="sd">    via ``sentence-transformers``).  Original per-source scores in</span>
+<span class="sd">    :data:`SOURCE_SCORES_KEY` metadata are preserved; only the tuple's</span>
+<span class="sd">    relevance score is replaced by the cross-encoder score.</span>
+
+<span class="sd">    :param query: Normalized retrieval query (same form as passed to</span>
+<span class="sd">        retrievers)</span>
+<span class="sd">    :param docs: ``(document, score)`` tuples, typically from</span>
+<span class="sd">        :func:`rrf_merge`</span>
+<span class="sd">    :param model: A loaded cross-encoder exposing</span>
+<span class="sd">        ``predict(pairs, show_progress_bar=...) -&gt; scores``</span>
+<span class="sd">    :returns: Documents ordered by cross-encoder score (descending)</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">docs</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">docs</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Cross-encoder reranking </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">docs</span><span class="p">)</span><span class="si">}</span><span class="s2"> documents"</span><span class="p">)</span>
+    <span class="n">pairs</span> <span class="o">=</span> <span class="p">[(</span><span class="n">query</span><span class="p">,</span> <span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">)</span> <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">docs</span><span class="p">]</span>
+    <span class="c1"># Runs on every retrieval: a "Batches" progress bar would clutter the</span>
+    <span class="c1"># CLI/TUI output on each query.</span>
+    <span class="n">raw_scores</span> <span class="o">=</span> <span class="n">model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">pairs</span><span class="p">,</span> <span class="n">show_progress_bar</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="n">ranked</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+        <span class="p">((</span><span class="n">doc</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">score</span><span class="p">))</span> <span class="k">for</span> <span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="n">_</span><span class="p">),</span> <span class="n">score</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">docs</span><span class="p">,</span> <span class="n">raw_scores</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)),</span>
+        <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+        <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ranked</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ranked</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ranked</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ranked</span></div>
+
+
+
+<span class="c1">#: Weight given to the normalized relevance (RRF) component of the final</span>
+<span class="c1">#: blended score in :func:`rerank_by_recency`.</span>
+<span class="n">RECENCY_WEIGHT_RELEVANCE</span> <span class="o">=</span> <span class="mf">0.9</span>
+
+<span class="c1">#: Weight given to the recency (time) component of the final blended score.</span>
+<span class="c1">#: Newer documents are boosted because academic work builds on -- and often</span>
+<span class="c1">#: corrects -- earlier results, so recent information is more authoritative.</span>
+<span class="n">RECENCY_WEIGHT_TIME</span> <span class="o">=</span> <span class="mf">0.1</span>
+
+<span class="c1">#: Recency score assigned to documents without a usable ``year`` metadata</span>
+<span class="c1">#: value.  A fixed midpoint (not a derived statistic) so it is immune to</span>
+<span class="c1">#: distribution skew: it ranks such documents below known-recent papers but</span>
+<span class="c1">#: above the oldest retrieved document.</span>
+<span class="n">RECENCY_MISSING_YEAR_SCORE</span> <span class="o">=</span> <span class="mf">0.5</span>
+
+
+<div class="viewcode-block" id="rerank_by_recency">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.rerank_by_recency">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">rerank_by_recency</span><span class="p">(</span>
+    <span class="n">merged</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]],</span>
+    <span class="n">relevance_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">RECENCY_WEIGHT_RELEVANCE</span><span class="p">,</span>
+    <span class="n">time_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="n">RECENCY_WEIGHT_TIME</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Re-rank results blending in document recency.</span>
+
+<span class="sd">    Keeps :func:`rrf_merge` pure (relevance only) and applies recency as a</span>
+<span class="sd">    separate post-fusion re-rank.  Each document's relevance score is</span>
+<span class="sd">    min-max normalized to ``[0, 1]`` across the result set, a time score is</span>
+<span class="sd">    computed from its ``year`` metadata, and the final score is a weighted</span>
+<span class="sd">    combination:</span>
+
+<span class="sd">    ``final = relevance_weight * norm_relevance + time_weight * time_score``</span>
+
+<span class="sd">    The time score is ``(year - year_min) / (year_max - year_min)`` where</span>
+<span class="sd">    ``year_min``/``year_max`` are the min and max ``year`` across the</span>
+<span class="sd">    retrieved set (relative normalization).  Documents without a usable</span>
+<span class="sd">    ``year`` (missing or non-int) get :data:`RECENCY_MISSING_YEAR_SCORE`.</span>
+
+<span class="sd">    Division-by-zero cases are guarded: a single distinct relevance value</span>
+<span class="sd">    maps to ``1.0`` and a single distinct year maps to ``1.0``.</span>
+
+<span class="sd">    :param merged: ``(document, score)`` tuples, typically from</span>
+<span class="sd">        :func:`rrf_merge` (or the cross-encoder rerank when enabled)</span>
+<span class="sd">    :param relevance_weight: Weight for the normalized relevance component</span>
+<span class="sd">    :param time_weight: Weight for the recency component</span>
+<span class="sd">    :returns: The same documents, re-sorted descending by the blended score,</span>
+<span class="sd">        with the blended score replacing the input score in each tuple</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">merged</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">[]</span>
+
+    <span class="n">rrf_scores</span> <span class="o">=</span> <span class="p">[</span><span class="n">score</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">merged</span><span class="p">]</span>
+    <span class="n">rrf_min</span><span class="p">,</span> <span class="n">rrf_max</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">rrf_scores</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">rrf_scores</span><span class="p">)</span>
+
+    <span class="n">years</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span>
+        <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="p">[</span><span class="s2">"year"</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">merged</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"year"</span><span class="p">),</span> <span class="nb">int</span><span class="p">)</span>
+    <span class="p">]</span>
+    <span class="n">year_min</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">years</span><span class="p">)</span> <span class="k">if</span> <span class="n">years</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">year_max</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">years</span><span class="p">)</span> <span class="k">if</span> <span class="n">years</span> <span class="k">else</span> <span class="kc">None</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"Recency reranking </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">merged</span><span class="p">)</span><span class="si">}</span><span class="s2"> documents: "</span>
+        <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">year_min</span><span class="w"> </span><span class="si">= }</span><span class="s2">, </span><span class="si">{</span><span class="n">year_max</span><span class="w"> </span><span class="si">= }</span><span class="s2">, </span><span class="si">{</span><span class="n">rrf_min</span><span class="w"> </span><span class="si">= }</span><span class="s2">, </span><span class="si">{</span><span class="n">rrf_max</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span>
+    <span class="p">)</span>
+
+    <span class="n">blended</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">merged</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">rrf_max</span> <span class="o">&gt;</span> <span class="n">rrf_min</span><span class="p">:</span>
+            <span class="n">norm_rrf</span> <span class="o">=</span> <span class="p">(</span><span class="n">score</span> <span class="o">-</span> <span class="n">rrf_min</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">rrf_max</span> <span class="o">-</span> <span class="n">rrf_min</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">norm_rrf</span> <span class="o">=</span> <span class="mf">1.0</span>
+
+        <span class="n">year</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"year"</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">year</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">and</span> <span class="n">year_max</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">year_min</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">year_max</span> <span class="o">&gt;</span> <span class="n">year_min</span><span class="p">:</span>
+                <span class="n">time_score</span> <span class="o">=</span> <span class="p">(</span><span class="n">year</span> <span class="o">-</span> <span class="n">year_min</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">year_max</span> <span class="o">-</span> <span class="n">year_min</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">time_score</span> <span class="o">=</span> <span class="mf">1.0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">time_score</span> <span class="o">=</span> <span class="n">RECENCY_MISSING_YEAR_SCORE</span>
+
+        <span class="n">final</span> <span class="o">=</span> <span class="n">relevance_weight</span> <span class="o">*</span> <span class="n">norm_rrf</span> <span class="o">+</span> <span class="n">time_weight</span> <span class="o">*</span> <span class="n">time_score</span>
+        <span class="n">blended</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">doc</span><span class="p">,</span> <span class="n">final</span><span class="p">))</span>
+
+    <span class="n">ranked</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">blended</span><span class="p">,</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">tup</span><span class="p">:</span> <span class="n">tup</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ranked</span><span class="p">)</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ranked</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">ranked</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">ranked</span></div>
+
+
+
+<div class="viewcode-block" id="truncate_reference_material">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.truncate_reference_material">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">truncate_reference_material</span><span class="p">(</span>
+    <span class="n">reference_material</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]],</span>
+    <span class="n">max_chars</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]:</span>
+<span class="w">    </span><span class="sd">"""Truncate reference material to a global character budget.</span>
+
+<span class="sd">    The RRF merge orders documents by fused rank but does not bound how</span>
+<span class="sd">    much context the answer LLM receives; that is what this function does.</span>
+<span class="sd">    Documents are consumed in RRF order per domain (domains in their dict</span>
+<span class="sd">    order), counting ``len(page_content)`` plus the per-document</span>
+<span class="sd">    serialization overhead (:data:`REF_DOC_OVERHEAD`), until the budget is</span>
+<span class="sd">    exhausted.  The first document that crosses the budget is still</span>
+<span class="sd">    included, so a single large chunk never silently yields empty context.</span>
+
+<span class="sd">    :param reference_material: ``{domain: [(doc, score), ...]}`` in RRF order</span>
+<span class="sd">    :param max_chars: Total character budget across all domains</span>
+<span class="sd">    :returns: New mapping with the same domain keys, lists truncated to the</span>
+<span class="sd">        budget</span>
+<span class="sd">    """</span>
+    <span class="n">budgeted</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">d</span><span class="p">:</span> <span class="p">[]</span> <span class="k">for</span> <span class="n">d</span> <span class="ow">in</span> <span class="n">reference_material</span>
+    <span class="p">}</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">crossed</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="c1"># Round-robin across domains to avoid starvation: take one doc at a time</span>
+    <span class="c1"># from each domain in dict order, rather than filling first domain fully</span>
+    <span class="c1"># before later domains get any docs.</span>
+    <span class="n">max_len</span> <span class="o">=</span> <span class="nb">max</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">reference_material</span><span class="o">.</span><span class="n">values</span><span class="p">()),</span> <span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">max_len</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">domain</span><span class="p">,</span> <span class="n">docs</span> <span class="ow">in</span> <span class="n">reference_material</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">idx</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="n">docs</span><span class="p">):</span>
+                <span class="k">continue</span>
+            <span class="n">doc</span><span class="p">,</span> <span class="n">score</span> <span class="o">=</span> <span class="n">docs</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
+            <span class="n">size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">doc</span><span class="o">.</span><span class="n">page_content</span><span class="p">)</span> <span class="o">+</span> <span class="n">REF_DOC_OVERHEAD</span>
+            <span class="k">if</span> <span class="n">total</span> <span class="o">+</span> <span class="n">size</span> <span class="o">&gt;</span> <span class="n">max_chars</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">crossed</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="n">crossed</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="n">budgeted</span><span class="p">[</span><span class="n">domain</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">doc</span><span class="p">,</span> <span class="n">score</span><span class="p">))</span>
+            <span class="n">total</span> <span class="o">+=</span> <span class="n">size</span>
+    <span class="k">return</span> <span class="n">budgeted</span></div>
+
+
+
+<div class="viewcode-block" id="serialize_reference_material">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.serialize_reference_material">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">serialize_reference_material</span><span class="p">(</span>
+    <span class="n">reference_material</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Serialize reference material into text for use in prompt context.</span>
+
+<span class="sd">    Documents are grouped by their source file (``file_name`` metadata)</span>
+<span class="sd">    and each source file's document-level metadata is emitted once, with</span>
+<span class="sd">    the file's chunks listed underneath.  The shared bibliographic</span>
+<span class="sd">    fields (authors, year, journal, ...) are identical on every chunk of</span>
+<span class="sd">    a file, so they are listed once on the source header; a ``url*`` key</span>
+<span class="sd">    is also hoisted to the header when the whole file shares the same</span>
+<span class="sd">    value.  Per-chunk metadata that differs (e.g. a heading-specific</span>
+<span class="sd">    ``url``) is emitted inline so no chunk is misattributed.  Files are</span>
+<span class="sd">    ordered by their best chunk's score; chunks within a file by score.</span>
+<span class="sd">    Relevance scores are not included in the prompt -- the ranked order is</span>
+<span class="sd">    what matters to the answer LLM.</span>
+
+<span class="sd">    Uses Docling ``HybridChunker`` metadata format:</span>
+
+<span class="sd">    - ``headings``: list of heading hierarchy (most specific last)</span>
+<span class="sd">    - ``file_name``: source filename</span>
+<span class="sd">    - ``_source_scores``: optional per-retriever scores (from the RRF merge)</span>
+<span class="sd">    - Optional custom keys from the ``--metadata-map`` (e.g., ``url``)</span>
+
+<span class="sd">    :param reference_material: Dict mapping query/domain to list of (doc, score) tuples</span>
+<span class="sd">    :returns: Formatted string representation of references</span>
+<span class="sd">    """</span>
+    <span class="n">serialized</span> <span class="o">=</span> <span class="s2">""</span>
+    <span class="k">for</span> <span class="n">q</span><span class="p">,</span> <span class="n">sorted_refs</span> <span class="ow">in</span> <span class="n">reference_material</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">serialized</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"## </span><span class="si">{</span><span class="n">q</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+
+        <span class="c1"># Group chunks by source file, keeping per-file best score for ordering.</span>
+        <span class="n">files</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Document</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">score</span> <span class="ow">in</span> <span class="n">sorted_refs</span><span class="p">:</span>
+            <span class="n">file_name</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"file_name"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+            <span class="n">files</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="p">[])</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">doc</span><span class="p">,</span> <span class="n">score</span><span class="p">))</span>
+
+        <span class="n">ordered_files</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span>
+            <span class="n">files</span><span class="o">.</span><span class="n">items</span><span class="p">(),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="nb">max</span><span class="p">(</span><span class="n">s</span> <span class="k">for</span> <span class="n">_</span><span class="p">,</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">ctr</span><span class="p">,</span> <span class="p">(</span><span class="n">file_name</span><span class="p">,</span> <span class="n">file_docs</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ordered_files</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+            <span class="n">file_docs</span><span class="o">.</span><span class="n">sort</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">item</span><span class="p">:</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">reverse</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="n">first_doc</span> <span class="o">=</span> <span class="n">file_docs</span><span class="p">[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="c1"># Document-level metadata: the shared bibliographic fields</span>
+            <span class="c1"># (authors, year, journal, ...) come from the file's top chunk</span>
+            <span class="c1"># -- every chunk of the file carries the same values, so they</span>
+            <span class="c1"># are emitted once.  A url* key is promoted to the file level</span>
+            <span class="c1"># too when every chunk carries the identical value (the common</span>
+            <span class="c1"># case); otherwise it stays per-chunk below.</span>
+            <span class="n">file_meta</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">first_doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SHARED_DOC_METADATA_KEYS</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">PERSON_NAME_FILTER_FIELDS</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                    <span class="c1"># Person-name fields carry expanded per-word variants</span>
+                    <span class="c1"># for filtering; show only the real names.</span>
+                    <span class="n">v</span> <span class="o">=</span> <span class="n">display_person_names</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="n">file_meta</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">v</span>
+            <span class="n">url_keys</span> <span class="o">=</span> <span class="p">{</span>
+                <span class="n">k</span> <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">file_docs</span> <span class="k">for</span> <span class="n">k</span> <span class="ow">in</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span> <span class="k">if</span> <span class="n">k</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"url"</span><span class="p">)</span>
+            <span class="p">}</span>
+            <span class="k">for</span> <span class="n">url_key</span> <span class="ow">in</span> <span class="n">url_keys</span><span class="p">:</span>
+                <span class="n">values</span> <span class="o">=</span> <span class="p">{</span><span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url_key</span><span class="p">)</span> <span class="k">for</span> <span class="n">doc</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="n">file_docs</span><span class="p">}</span>
+                <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="ow">and</span> <span class="kc">None</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">values</span><span class="p">:</span>
+                    <span class="n">file_meta</span><span class="p">[</span><span class="n">url_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">first_doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">url_key</span><span class="p">)</span>
+
+            <span class="n">heading_str</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"[</span><span class="si">{</span><span class="n">file_name</span><span class="si">}</span><span class="s2">]"</span> <span class="k">if</span> <span class="n">file_name</span> <span class="k">else</span> <span class="s2">"(no file)"</span>
+            <span class="n">serialized</span> <span class="o">+=</span> <span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">### Source document </span><span class="si">{</span><span class="n">ctr</span><span class="si">}</span><span class="s2">/</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">ordered_files</span><span class="p">)</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">heading_str</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">file_meta</span><span class="p">:</span>
+                <span class="n">meta_str</span> <span class="o">=</span> <span class="s2">" | "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">file_meta</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+                <span class="n">serialized</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"Metadata: </span><span class="si">{</span><span class="n">meta_str</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+
+            <span class="k">for</span> <span class="n">chunk_ctr</span><span class="p">,</span> <span class="p">(</span><span class="n">doc</span><span class="p">,</span> <span class="n">_score</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">file_docs</span><span class="p">,</span> <span class="mi">1</span><span class="p">):</span>
+                <span class="n">headings</span> <span class="o">=</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"headings"</span><span class="p">,</span> <span class="p">[])</span>
+                <span class="n">heading_str</span> <span class="o">=</span> <span class="s2">" &gt; "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">headings</span><span class="p">)</span> <span class="k">if</span> <span class="n">headings</span> <span class="k">else</span> <span class="s2">"(no heading)"</span>
+                <span class="n">serialized</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"</span><span class="se">\n</span><span class="s2">  Chunk </span><span class="si">{</span><span class="n">chunk_ctr</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">heading_str</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+
+                <span class="c1"># Chunk-level metadata: non-internal keys not already on the</span>
+                <span class="c1"># file level (shared bibliographic fields, and url keys the</span>
+                <span class="c1"># whole file shares).  A differing url (e.g. heading-specific)</span>
+                <span class="c1"># is emitted inline so no chunk is misattributed.</span>
+                <span class="n">chunk_meta</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="n">k</span><span class="p">:</span> <span class="n">v</span>
+                    <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+                    <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">_INTERNAL_META_KEYS</span>
+                    <span class="ow">and</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">SHARED_DOC_METADATA_KEYS</span>
+                    <span class="ow">and</span> <span class="n">file_meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">object</span><span class="p">())</span> <span class="o">!=</span> <span class="n">v</span>
+                <span class="p">}</span>
+                <span class="k">if</span> <span class="n">chunk_meta</span><span class="p">:</span>
+                    <span class="n">meta_str</span> <span class="o">=</span> <span class="s2">" | "</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">k</span><span class="si">}</span><span class="s2">=</span><span class="si">{</span><span class="n">v</span><span class="si">}</span><span class="s2">"</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">chunk_meta</span><span class="o">.</span><span class="n">items</span><span class="p">())</span>
+                    <span class="n">serialized</span> <span class="o">+=</span> <span class="sa">f</span><span class="s2">"  Chunk metadata: </span><span class="si">{</span><span class="n">meta_str</span><span class="si">}</span><span class="se">\n</span><span class="s2">"</span>
+                <span class="n">serialized</span> <span class="o">+=</span> <span class="n">doc</span><span class="o">.</span><span class="n">page_content</span>
+
+    <span class="k">return</span> <span class="n">serialized</span></div>
+
+
+
+<div class="viewcode-block" id="instantiate_vector_store">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.instantiate_vector_store">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">instantiate_vector_store</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">embeddings</span><span class="p">,</span>
+    <span class="n">logger</span><span class="p">:</span> <span class="n">logging</span><span class="o">.</span><span class="n">Logger</span><span class="p">,</span>
+    <span class="n">create</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Instantiate a vector store based on the URI scheme in path.</span>
+
+<span class="sd">    Expected format: ``"scheme:location"``.</span>
+
+<span class="sd">    If ``create`` is ``True``, the store is created if it does not exist</span>
+<span class="sd">    (relevant for ChromaDB which requires a local directory).  For</span>
+<span class="sd">    Qdrant and PGVector the flag is a no-op --- collections are created</span>
+<span class="sd">    on first write.</span>
+
+<span class="sd">    For ChromaDB, ``location`` must point at the store folder.  Chroma</span>
+<span class="sd">    always stores its database as ``&lt;folder&gt;/chroma.sqlite3`` and the</span>
+<span class="sd">    filename is not configurable, so a path pointing at an existing file</span>
+<span class="sd">    (even the ``chroma.sqlite3`` itself) is rejected.  The collection</span>
+<span class="sd">    ``name`` selects which collection within the store file is</span>
+<span class="sd">    addressed: a single ChromaDB store file can hold multiple</span>
+<span class="sd">    collections, so reusing an existing folder with a new collection</span>
+<span class="sd">    name creates a new collection in it.</span>
+
+<span class="sd">    New Chroma collections are created with the :data:`CHROMA_HNSW_SPACE`</span>
+<span class="sd">    HNSW distance space (cosine).  The configuration is only applied at</span>
+<span class="sd">    collection creation; loading an existing collection keeps its own</span>
+<span class="sd">    distance space.</span>
+
+<span class="sd">    :param path: URI-style string with scheme prefix</span>
+<span class="sd">        (e.g. ``"chroma:/path/to/dir"``,</span>
+<span class="sd">        ``"qdrant:http://localhost:6333"``,</span>
+<span class="sd">        ``"pgvector:postgresql://localhost/db"``)</span>
+<span class="sd">    :param name: Collection name for the vector store</span>
+<span class="sd">    :param embeddings: Embedding function to use</span>
+<span class="sd">    :param logger: Logger instance</span>
+<span class="sd">    :param create: If ``True``, allow creating a new store</span>
+<span class="sd">    :returns: Instantiated LangChain VectorStore</span>
+<span class="sd">    :raises ValueError: If the scheme is missing or unknown</span>
+<span class="sd">    :raises FileNotFoundError: If ``create`` is ``False`` and a local</span>
+<span class="sd">        ChromaDB store does not exist</span>
+<span class="sd">    """</span>
+    <span class="n">scheme</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">location</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sep</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid vector store path '</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">': "</span>
+            <span class="sa">f</span><span class="s2">"expected format 'scheme:location' (e.g. 'chroma:/path/to/store')"</span>
+        <span class="p">)</span>
+
+    <span class="k">match</span> <span class="n">scheme</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+        <span class="k">case</span> <span class="s2">"chroma"</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">import</span><span class="w"> </span><span class="nn">chromadb</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_chroma</span><span class="w"> </span><span class="kn">import</span> <span class="n">Chroma</span>
+            <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+                    <span class="s2">"ChromaDB backend not installed. "</span>
+                    <span class="s2">"Install: pip install klea_utils[chroma]"</span>
+                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+
+            <span class="n">store_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">location</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">store_dir</span><span class="o">.</span><span class="n">is_absolute</span><span class="p">():</span>
+                <span class="n">store_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="o">.</span><span class="n">cwd</span><span class="p">()</span> <span class="o">/</span> <span class="n">store_dir</span>
+                <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Store path made absolute relative to cwd: </span><span class="si">{</span><span class="n">store_dir</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+            <span class="c1"># Chroma always stores its database in &lt;folder&gt;/chroma.sqlite3</span>
+            <span class="c1"># (the filename is not configurable), so a store is addressed</span>
+            <span class="c1"># by its folder, never by the database file.</span>
+            <span class="k">if</span> <span class="n">store_dir</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+                <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">"'</span><span class="si">{</span><span class="n">store_dir</span><span class="si">}</span><span class="s2">' is a file, not a folder. Chroma stores "</span>
+                    <span class="sa">f</span><span class="s2">"its database in a folder as 'chroma.sqlite3'; pass the "</span>
+                    <span class="sa">f</span><span class="s2">"folder path instead (e.g. 'chroma:</span><span class="si">{</span><span class="n">store_dir</span><span class="o">.</span><span class="n">parent</span><span class="si">}</span><span class="s2">')"</span>
+                <span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">create</span><span class="p">:</span>
+                <span class="n">store_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">store_dir</span><span class="o">.</span><span class="n">is_dir</span><span class="p">():</span>
+                    <span class="n">logger</span><span class="o">.</span><span class="n">error</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not find folder: </span><span class="si">{</span><span class="n">store_dir</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+                    <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Could not find folder: </span><span class="si">{</span><span class="n">store_dir</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+                <span class="n">store_db</span> <span class="o">=</span> <span class="n">store_dir</span> <span class="o">/</span> <span class="s2">"chroma.sqlite3"</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">store_db</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+                    <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"ChromaDB not found at </span><span class="si">{</span><span class="n">store_db</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Loading Chroma vector store '</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">' from </span><span class="si">{</span><span class="n">store_dir</span><span class="o">.</span><span class="n">absolute</span><span class="p">()</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+
+            <span class="n">settings</span> <span class="o">=</span> <span class="n">chromadb</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">Settings</span><span class="p">(</span>
+                <span class="n">is_persistent</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">persist_directory</span><span class="o">=</span><span class="nb">str</span><span class="p">(</span><span class="n">store_dir</span><span class="o">.</span><span class="n">absolute</span><span class="p">()),</span>
+                <span class="n">anonymized_telemetry</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="n">Chroma</span><span class="p">(</span>
+                <span class="n">collection_name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+                <span class="n">embedding_function</span><span class="o">=</span><span class="n">embeddings</span><span class="p">,</span>
+                <span class="n">client_settings</span><span class="o">=</span><span class="n">settings</span><span class="p">,</span>
+                <span class="n">collection_configuration</span><span class="o">=</span><span class="p">{</span><span class="s2">"hnsw"</span><span class="p">:</span> <span class="p">{</span><span class="s2">"space"</span><span class="p">:</span> <span class="n">CHROMA_HNSW_SPACE</span><span class="p">}},</span>
+            <span class="p">)</span>
+
+        <span class="k">case</span> <span class="s2">"qdrant"</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_qdrant</span><span class="w"> </span><span class="kn">import</span> <span class="n">QdrantVectorStore</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">qdrant_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">QdrantClient</span>
+            <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+                    <span class="s2">"Qdrant backend not installed. "</span>
+                    <span class="s2">"Install: pip install klea_utils[qdrant]"</span>
+                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+
+            <span class="n">client</span> <span class="o">=</span> <span class="n">QdrantClient</span><span class="p">(</span><span class="n">url</span><span class="o">=</span><span class="n">location</span><span class="p">)</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Loading Qdrant vector store '</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">' at </span><span class="si">{</span><span class="n">location</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">QdrantVectorStore</span><span class="p">(</span>
+                <span class="n">client</span><span class="o">=</span><span class="n">client</span><span class="p">,</span>
+                <span class="n">collection_name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+                <span class="n">embedding</span><span class="o">=</span><span class="n">embeddings</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">case</span> <span class="s2">"pgvector"</span><span class="p">:</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="kn">from</span><span class="w"> </span><span class="nn">langchain_postgres</span><span class="w"> </span><span class="kn">import</span> <span class="n">PGVector</span>
+            <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ImportError</span><span class="p">(</span>
+                    <span class="s2">"PGVector backend not installed. "</span>
+                    <span class="s2">"Install: pip install klea_utils[pgvector]"</span>
+                <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="kc">None</span>
+
+            <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Loading PGVector vector store '</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">' with connection </span><span class="si">{</span><span class="n">location</span><span class="si">}</span><span class="s2">"</span>
+            <span class="p">)</span>
+            <span class="k">return</span> <span class="n">PGVector</span><span class="p">(</span>
+                <span class="n">collection_name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+                <span class="n">embeddings</span><span class="o">=</span><span class="n">embeddings</span><span class="p">,</span>
+                <span class="n">connection</span><span class="o">=</span><span class="n">location</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Unknown vector store scheme '</span><span class="si">{</span><span class="n">scheme</span><span class="si">}</span><span class="s2">'. "</span>
+                <span class="sa">f</span><span class="s2">"Supported: chroma, qdrant, pgvector"</span>
+            <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="drop_collection">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.drop_collection">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">drop_collection</span><span class="p">(</span><span class="n">store</span><span class="p">,</span> <span class="n">store_path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">collection_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Drop a vector store collection (portable across backends).</span>
+
+<span class="sd">    Used by ``store --force`` to replace a collection wholesale, since</span>
+<span class="sd">    documents within a collection cannot be updated in place portably.</span>
+<span class="sd">    Chroma and PGVector expose ``delete_collection`` on their LangChain</span>
+<span class="sd">    wrapper; Qdrant's wrapper does not, so its raw client is used</span>
+<span class="sd">    instead.</span>
+
+<span class="sd">    :param store: Instantiated LangChain vector store</span>
+<span class="sd">    :param store_path: Store URI (``scheme:location``)</span>
+<span class="sd">    :param collection_name: Collection name to drop</span>
+<span class="sd">    :raises ValueError: When the scheme is missing or unknown</span>
+<span class="sd">    """</span>
+    <span class="n">scheme</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">store_path</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sep</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid vector store path '</span><span class="si">{</span><span class="n">store_path</span><span class="si">}</span><span class="s2">': expected format "</span>
+            <span class="sa">f</span><span class="s2">"'scheme:location' (e.g. 'chroma:/path/to/store')"</span>
+        <span class="p">)</span>
+    <span class="k">match</span> <span class="n">scheme</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+        <span class="k">case</span> <span class="s2">"chroma"</span> <span class="o">|</span> <span class="s2">"pgvector"</span><span class="p">:</span>
+            <span class="n">store</span><span class="o">.</span><span class="n">delete_collection</span><span class="p">()</span>
+        <span class="k">case</span> <span class="s2">"qdrant"</span><span class="p">:</span>
+            <span class="n">store</span><span class="o">.</span><span class="n">_client</span><span class="o">.</span><span class="n">delete_collection</span><span class="p">(</span><span class="n">collection_name</span><span class="p">)</span>
+        <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Unsupported vector store scheme '</span><span class="si">{</span><span class="n">scheme</span><span class="si">}</span><span class="s2">' for collection "</span>
+                <span class="sa">f</span><span class="s2">"drop. Supported: chroma, qdrant, pgvector"</span>
+            <span class="p">)</span></div>
+
+
+
+<span class="c1">#: Parsed store configurations, keyed by resolved path and holding the</span>
+<span class="c1">#: ``(mtime, size, config)`` of the last load, so an edited file is re-read</span>
+<span class="c1">#: while an unchanged one is served from memory.</span>
+<span class="n">_CONFIG_CACHE</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">Path</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="n">RetrieverConfig</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+
+
+<span class="c1">#: Versioned request-metadata key carrying the stores-configuration JSON</span>
+<span class="c1">#: path to use for this request.  Its value is exactly one absolute path to</span>
+<span class="c1">#: a stores JSON file; its absence in the request metadata means "use the</span>
+<span class="c1">#: host default" (the path configured by the agent app).  Versioned so the</span>
+<span class="c1">#: payload format can evolve without colliding with an older reader.</span>
+<span class="n">STORES_CONFIG_META_KEY</span> <span class="o">=</span> <span class="s2">"klea/stores-config-path/v1"</span>
+
+<span class="c1">#: Environment variable naming the deployment-default stores configuration</span>
+<span class="c1">#: file.  Read once from the server process environment and used as the</span>
+<span class="c1">#: fallback when a request carries no :data:`STORES_CONFIG_META_KEY` value.</span>
+<span class="n">STORES_CONFIG_ENV_VAR</span> <span class="o">=</span> <span class="s2">"KLEA_STORES_CONFIG_FILE"</span>
+
+<span class="c1">#: Sentinel marking that the deployment default has not been read yet.</span>
+<span class="n">_UNSET</span> <span class="o">=</span> <span class="nb">object</span><span class="p">()</span>
+
+<span class="c1">#: Memoised deployment-default stores path.  ``_UNSET`` until</span>
+<span class="c1">#: :func:`_host_stores_config_path` first runs; afterwards a resolved</span>
+<span class="c1">#: :class:`~pathlib.Path` or ``None``.  A plain module global (rather than</span>
+<span class="c1">#: ``functools.lru_cache``) so tests can reset it via</span>
+<span class="c1">#: :func:`_reset_host_stores_config_path`.</span>
+<span class="n">_HOST_STORES_CONFIG_PATH</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">|</span> <span class="nb">object</span> <span class="o">=</span> <span class="n">_UNSET</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_host_stores_config_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Return the deployment-default stores configuration path.</span>
+
+<span class="sd">    Reads :data:`STORES_CONFIG_ENV_VAR` from the server process environment</span>
+<span class="sd">    on the first call and memoises the result, so the value is stable for</span>
+<span class="sd">    the lifetime of the process.  ``None`` is returned when the variable is</span>
+<span class="sd">    unset or empty (the fail-closed case in</span>
+<span class="sd">    :func:`resolve_stores_config_path`).  The path is not validated here;</span>
+<span class="sd">    :func:`resolve_stores_config_path` validates it the same way as a</span>
+<span class="sd">    request-supplied path.</span>
+
+<span class="sd">    :returns: The configured path, or ``None`` when unset</span>
+<span class="sd">    """</span>
+    <span class="k">global</span> <span class="n">_HOST_STORES_CONFIG_PATH</span>
+    <span class="k">if</span> <span class="n">_HOST_STORES_CONFIG_PATH</span> <span class="ow">is</span> <span class="n">_UNSET</span><span class="p">:</span>
+        <span class="n">raw</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">STORES_CONFIG_ENV_VAR</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="n">_HOST_STORES_CONFIG_PATH</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">raw</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span> <span class="k">if</span> <span class="n">raw</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="k">return</span> <span class="n">cast</span><span class="p">(</span><span class="s2">"Path | None"</span><span class="p">,</span> <span class="n">_HOST_STORES_CONFIG_PATH</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_reset_host_stores_config_path</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Clear the memoised deployment-default stores path.</span>
+
+<span class="sd">    Test helper: resets the module-level sentinel so the next call to</span>
+<span class="sd">    :func:`_host_stores_config_path` re-reads</span>
+<span class="sd">    :data:`STORES_CONFIG_ENV_VAR`.</span>
+<span class="sd">    """</span>
+    <span class="k">global</span> <span class="n">_HOST_STORES_CONFIG_PATH</span>
+    <span class="n">_HOST_STORES_CONFIG_PATH</span> <span class="o">=</span> <span class="n">_UNSET</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_stores_config_path</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span> <span class="n">source</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Validate *value* as a stores-configuration path and resolve it.</span>
+
+<span class="sd">    *source* names where the value came from (the request-metadata key</span>
+<span class="sd">    :data:`STORES_CONFIG_META_KEY` or the deployment env var</span>
+<span class="sd">    :data:`STORES_CONFIG_ENV_VAR`), so error messages point at the right</span>
+<span class="sd">    origin.</span>
+
+<span class="sd">    :param value: Candidate path value</span>
+<span class="sd">    :param source: Human-readable name of the value's origin</span>
+<span class="sd">    :returns: The resolved absolute path</span>
+<span class="sd">    :raises ValueError: When *value* is empty, missing, not a regular file,</span>
+<span class="sd">        or not a valid stores configuration</span>
+<span class="sd">    """</span>
+    <span class="n">text</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">text</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid stores configuration path: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> must name a file, "</span>
+            <span class="s2">"not an empty value"</span>
+        <span class="p">)</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">text</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">resolve</span><span class="p">(</span><span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">RuntimeError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid stores configuration path: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> names </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="si">!r}</span><span class="s2">, "</span>
+            <span class="sa">f</span><span class="s2">"which does not exist or cannot be resolved (</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">)"</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">resolved</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid stores configuration path: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> names </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span><span class="si">!r}</span><span class="s2">, "</span>
+            <span class="s2">"which is not a regular file"</span>
+        <span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="n">load_retriever_config</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">OSError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">)</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid stores configuration path: </span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="s2"> names </span><span class="si">{</span><span class="nb">str</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span><span class="si">!r}</span><span class="s2">, "</span>
+            <span class="sa">f</span><span class="s2">"which is not a valid stores configuration (</span><span class="si">{</span><span class="n">exc</span><span class="si">}</span><span class="s2">)"</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+    <span class="k">return</span> <span class="n">resolved</span>
+
+
+<div class="viewcode-block" id="resolve_stores_config_path">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.resolve_stores_config_path">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_stores_config_path</span><span class="p">(</span><span class="n">configured</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Resolve the path of the stores configuration JSON file.</span>
+
+<span class="sd">    Precedence:</span>
+
+<span class="sd">    2. The deployment default named by the :data:`STORES_CONFIG_ENV_VAR`</span>
+<span class="sd">       environment variable (read once by :func:`_host_stores_config_path`</span>
+<span class="sd">       and validated the same way as *configured*).  This is a process-wide</span>
+<span class="sd">       default, so it is consulted only when the request carries no path.</span>
+<span class="sd">    3. Fail closed: when neither source is configured, ``None`` is returned</span>
+<span class="sd">       and a warning naming both the request-metadata key and the env var is</span>
+<span class="sd">       logged rather than guessing a path.</span>
+
+<span class="sd">    :param configured: Stores-configuration path supplied for this request,</span>
+<span class="sd">        if any</span>
+<span class="sd">    :returns: The resolved path, or ``None`` when nothing is configured</span>
+<span class="sd">    :raises ValueError: When *configured* is unusable: empty, missing, not a</span>
+<span class="sd">        regular file, or not a valid stores configuration</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">configured</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">_validate_stores_config_path</span><span class="p">(</span><span class="n">configured</span><span class="p">,</span> <span class="n">STORES_CONFIG_META_KEY</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Stores configuration from request metadata: </span><span class="si">{</span><span class="n">resolved</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">resolved</span>
+
+    <span class="n">host_default</span> <span class="o">=</span> <span class="n">_host_stores_config_path</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">host_default</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">resolved</span> <span class="o">=</span> <span class="n">_validate_stores_config_path</span><span class="p">(</span><span class="n">host_default</span><span class="p">,</span> <span class="n">STORES_CONFIG_ENV_VAR</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span>
+            <span class="s2">"Stores configuration from deployment default "</span>
+            <span class="sa">f</span><span class="s2">"(</span><span class="si">{</span><span class="n">STORES_CONFIG_ENV_VAR</span><span class="si">}</span><span class="s2">): </span><span class="si">{</span><span class="n">resolved</span><span class="si">}</span><span class="s2">"</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">resolved</span>
+
+    <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+        <span class="s2">"No stores configuration file configured: neither the request "</span>
+        <span class="sa">f</span><span class="s2">"metadata key </span><span class="si">{</span><span class="n">STORES_CONFIG_META_KEY</span><span class="si">!r}</span><span class="s2"> nor the deployment default "</span>
+        <span class="sa">f</span><span class="s2">"environment variable </span><span class="si">{</span><span class="n">STORES_CONFIG_ENV_VAR</span><span class="si">!r}</span><span class="s2"> names one"</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="load_retriever_config">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.utils.load_retriever_config">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">load_retriever_config</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RetrieverConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Load (and cache) the :class:`RetrieverConfig` stored in *path*.</span>
+
+<span class="sd">    The cache is keyed by the resolved path and invalidated whenever the</span>
+<span class="sd">    file's ``mtime`` or size changes, so an edited stores file is re-read</span>
+<span class="sd">    on the next call while an unchanged one is served from memory.</span>
+
+<span class="sd">    :param path: JSON file holding the stores configuration</span>
+<span class="sd">    :returns: The parsed configuration</span>
+<span class="sd">    :raises FileNotFoundError: When *path* does not exist</span>
+<span class="sd">    """</span>
+    <span class="n">resolved</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+    <span class="n">stat</span> <span class="o">=</span> <span class="n">resolved</span><span class="o">.</span><span class="n">stat</span><span class="p">()</span>
+
+    <span class="n">cached</span> <span class="o">=</span> <span class="n">_CONFIG_CACHE</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">cached</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">cached</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="n">stat</span><span class="o">.</span><span class="n">st_mtime</span> <span class="ow">and</span> <span class="n">cached</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">==</span> <span class="n">stat</span><span class="o">.</span><span class="n">st_size</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Using cached stores configuration: </span><span class="si">{</span><span class="n">resolved</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">cached</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+
+    <span class="n">config</span> <span class="o">=</span> <span class="n">RetrieverConfig</span><span class="o">.</span><span class="n">model_validate_json</span><span class="p">(</span><span class="n">resolved</span><span class="o">.</span><span class="n">read_text</span><span class="p">())</span>
+    <span class="n">_CONFIG_CACHE</span><span class="p">[</span><span class="n">resolved</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="n">stat</span><span class="o">.</span><span class="n">st_mtime</span><span class="p">,</span> <span class="n">stat</span><span class="o">.</span><span class="n">st_size</span><span class="p">,</span> <span class="n">config</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Loaded stores configuration: </span><span class="si">{</span><span class="n">resolved</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">config</span></div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, NeuroML contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>
