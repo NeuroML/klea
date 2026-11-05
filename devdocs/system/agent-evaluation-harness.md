@@ -1,6 +1,9 @@
 # Agent evaluation harness: planning note
 
-Status: draft plan, not an ADR.  To be refined before implementation.
+Status: scope and orientation note, not an ADR.  It records the task
+taxonomy, model conditions, threats to validity, the boundary guardrail
+test and the `eval_pkg` layout; the normative decisions now live in
+ADR-0056, ADR-0057, ADR-0058, ADR-0059 and ADR-0060, all dated 2026-10-27.
 Companion to `agent-topology-literature-review.md`.  Written 2026-09-10 by
 opencode (model: deepseek-flash).  The concrete `eval_pkg` implementation
 plan is captured at the end of this document; it is deferred until the
@@ -76,7 +79,12 @@ optional condition (model escalation), never a requirement.
 
 ## Isolation and reproducibility
 
-- Each run in a fresh scratch workspace copied from a fixture repo.
+- Each run lives in its own directory `<eval_workspace_root>/runs/<run_id>/`,
+  outside the source tree, containing `run.json`, `metrics.jsonl` at the run
+  root (never under `workspace/`) and `transcript.jsonl`, with fixtures
+  copied into `runs/<run_id>/workspace/fixtures/` and generated files under
+  `runs/<run_id>/workspace/outputs/` (ADR-0057).  Case fixture paths resolve
+  against the case-file directory, never the run workspace (ADR-0056).
 - Tools sandboxed through the existing permission boundary.
 - Temperature 0 and fixed seeds where possible; N repetitions to compute
   pass^k.
@@ -87,7 +95,12 @@ optional condition (model escalation), never a requirement.
 - Location to decide: a new dev-only package or a `scripts/` entry point.
 - Reuse `scripts/run_tests.sh` conventions and a new pytest marker (for
   example `eval`) separate from `localonly`.
-- Results written to JSON, with a generated summary table.
+- Results: per-turn records appended to `run_dir/metrics.jsonl` inside
+  `runs/<run_id>.tmp/` as the adopted protocol, not an optional extra, each
+  object carrying `schema_version` and `record_type`, with the last line the
+  `{run_id, case_id, schema_version, record_type, metrics{...}}` "run"
+  envelope (ADR-0058); persistence precedes suite-level aggregation, which
+  reads `runs/index.jsonl` (ADR-0059, ADR-0060).
 - Topology variants wired as swappable graphs sharing prompts, tools and
   models, so the only independent variable is the topology.
 
@@ -143,25 +156,25 @@ apps consume `klea_utils`.
 
 ```
 eval_pkg/
-├── pyproject.toml / setup.cfg     # package klea_eval; no runtime deps beyond the apps
-├── AGENTS.md                      # package-specific commands/conventions
-├── klea_eval/
-│   ├── common/                    # app-agnostic harness core
-│   │   ├── schemas.py             # TaskSpec, FixtureWorkspace, TaskResult, RunConfig
-│   │   ├── fixtures.py            # scratch-workspace creation/copy, teardown
-│   │   ├── metrics.py             # calls, tokens, cache hits, wall-clock, tool errors
-│   │   ├── scoring.py             # deterministic checks + LLM-judge rubric hook
-│   │   ├── cost.py                # per-model notional price table
-│   │   ├── runner.py              # N-repetition loop, pass@1 / pass^k
-│   │   └── report.py              # raw JSON out + generated summary table
-│   ├── agent/
-│   │   ├── tasks/                 # task set mirroring the taxonomy, with fixtures
-│   │   ├── variants.py            # topology variants (see below)
-│   │   └── run.py                 # agent-specific entry point
-│   └── rag/
-│       ├── tasks/
-│       └── run.py
-└── tests/                         # harness unit tests (no LLM), marker `eval` for full runs
+|-- pyproject.toml / setup.cfg     # package klea_eval; no runtime deps beyond the apps
+|-- AGENTS.md                      # package-specific commands/conventions
+|-- klea_eval/
+|   |-- common/                    # app-agnostic harness core
+|   |   |-- schemas.py             # TaskSpec, FixtureWorkspace, TaskResult, RunConfig
+|   |   |-- fixtures.py            # run-directory and fixture creation under runs/<run_id>/workspace/fixtures/
+|   |   |-- metrics.py             # per-turn metrics.jsonl records under the ADR-0058 schema
+|   |   |-- scoring.py             # deterministic checks + LLM-judge rubric hook
+|   |   |-- cost.py                # per-model notional price table
+|   |   |-- runner.py              # N-repetition loop writing per-run records; pass_at_k is suite-level
+|   |   `-- report.py              # summary table from the Aggregate stage
+|   |-- agent/
+|   |   |-- tasks/                 # task set mirroring the taxonomy, with fixtures
+|   |   |-- variants.py            # topology variants (see below)
+|   |   `-- run.py                 # agent-specific entry point
+|   `-- rag/
+|       |-- tasks/
+|       `-- run.py
+`-- tests/                         # harness unit tests (no LLM), marker `eval` for full runs
 ```
 
 ## Topology variants
@@ -187,8 +200,10 @@ grounding (see the guardrail section above).
   runs are marked `eval` and require an explicit opt-in, never blocking CI.
 - `scripts/run_tests.sh`: include the harness unit tests; do not run the full
   evaluation matrix.
-- Results: JSON per run (pinned model/prompt versions, seeds, N repetitions)
-  plus a generated Markdown summary table for the write-up.
+- Results persisted as `runs/<run_id>/` with a versioned `metrics.jsonl`
+  (`schema_version`, `record_type`, final "run" envelope); suite aggregates
+  are read from `runs/index.jsonl` and the Markdown summary table is
+  generated from those aggregates (ADR-0058, ADR-0059, ADR-0060).
 
 ## Deferred sub-items
 
@@ -200,79 +215,32 @@ grounding (see the guardrail section above).
 
 ---
 
-# Framework Decision: MLflow vs RAGAS
+# Storage decision: filesystem-only results
 
-Status: decision record for evaluation framework selection.
+Status: superseded by ADR-0059 (Result Storage); only the rationale for
+rejecting an external tracking backend is retained here.
 
-## Why MLflow over RAGAS
+Results live under the evaluation workspace root: each run is stored as
+`runs/<run_id>/` holding `run.json`, `metrics.jsonl` at the run root (never
+under `workspace/`), `transcript.jsonl`, the `workspace/` directory and the
+zero-byte `COMPLETE` marker, while a single suite-level `runs/index.jsonl` is a
+lookup and listing entry point only and never an aggregation store.  No
+database, server or tracking service is required or planned: standard
+filesystem operations and JSON libraries suffice, and a run reproduces
+offline from its own directory alone (ADR-0059).
 
-Both MLflow and RAGAS are mature evaluation frameworks, but MLflow was chosen as the primary backend for the following reasons:
+## Rejected alternatives
 
-1. **Scope alignment**: MLflow is a general-purpose experiment tracking and model management platform, making it ideal for tracking topology variants, model versions, and cost metrics across runs. RAGAS is specialized for RAG evaluation and focuses on retrieval-specific metrics (context relevance, answer relevance, faithfulness), which are only a subset of Klea's evaluation needs.
-
-2. **Flexibility**: MLflow's experiment tracking, parameter logging, and custom metric support allow us to capture the full breadth of measurements (task success, token counts, wall-clock time, tool errors, escalation events, cost) without forcing a RAG-centric schema. RAGAS would require significant adaptation for non-RAG tasks.
-
-3. **Integration with existing infrastructure**: MLflow integrates naturally with Python logging, pytest, and CI/CD pipelines. It supports local file-based backends (no external service required for development) and optional cloud backends (Databricks, MLflow Tracking Server) for production runs.
-
-4. **Reproducibility**: MLflow's built-in support for parameter versioning, artifact storage, and run comparison directly supports the reproducibility goals (pin model versions, prompt versions, seeds, and record all in result JSON).
-
-## Adoption metrics and community
-
-- **Downloads**: MLflow averages ~2M downloads/month on PyPI (as of 2024), with consistent growth.
-- **GitHub stars**: ~17k stars on the MLflow repository, indicating strong community adoption.
-- **Community**: Active maintenance by Databricks, regular releases, and broad use in industry (ML ops, data science, academia).
-- **RAGAS**: ~4k GitHub stars, smaller but growing community focused on RAG evaluation; maintained by Exploding Gradients.
-
-## Funding and long-term viability
-
-- **MLflow**: Backed by Databricks, a well-funded company ($43B valuation as of 2024). Long-term support is assured; MLflow is a core component of the Databricks platform.
-- **RAGAS**: Community-driven with support from Exploding Gradients (a smaller, focused team). Viable but smaller funding footprint; risk is lower than a solo project but higher than Databricks-backed MLflow.
-
-**Decision**: MLflow's backing provides stronger assurance of long-term maintenance and feature stability, critical for a harness that must remain reproducible over years.
-
-## Extensibility for Klea's needs
-
-MLflow supports custom metrics and logging via:
-
-1. **Custom metrics**: Log arbitrary scalar/dict metrics (e.g., `escalation_tier`, `tool_error_count`, `estimated_cost`).
-2. **Artifacts**: Store raw JSON task results, fixture workspaces, and generated summary tables.
-3. **Parameters**: Log topology variant, model name, prompt version, seed, and run configuration.
-4. **Tags**: Organize runs by task taxonomy category, model tier, or experiment phase.
-
-This allows the harness to evolve without framework changes: new metrics are added as custom fields, and the schema remains flexible.
-
-## Integration strategy
-
-### MLflow as optional backend
-
-- **Default mode**: The harness writes raw JSON results to disk (as planned in the original design). This is the baseline, requires no external service, and is fully reproducible offline.
-- **Optional MLflow tracking**: If MLflow is installed and configured, the harness logs runs to MLflow in parallel. This is opt-in via a `--mlflow-tracking-uri` flag or environment variable.
-- **No hard dependency**: `eval_pkg` does not require MLflow; it is an optional dependency in `pyproject.toml` (extras: `mlflow`).
-
-### RAGAS metrics via MLflow
-
-- **Selective integration**: For RAG-specific tasks (e.g., retrieval-available tasks in the taxonomy), compute RAGAS metrics (context relevance, answer relevance, faithfulness) and log them as custom MLflow metrics alongside Klea-specific metrics.
-- **Decoupled**: RAGAS is used only for its metric computation; the harness does not adopt RAGAS's experiment tracking or schema.
-- **Optional dependency**: RAGAS is an optional dependency (extras: `ragas`), installed only if RAG evaluation is needed.
-
-### HTTP-first harness design
-
-- **Harness architecture**: The core harness (`klea_eval.common`) is HTTP-agnostic and works with local files and in-memory state.
-- **MLflow HTTP API**: MLflow tracking is accessed via its REST API (or Python client, which wraps the API). This allows:
-  - **Remote tracking**: Harness runs on a CI worker; results are sent to a central MLflow Tracking Server (e.g., on a shared machine or cloud).
-  - **Scalability**: Multiple harness instances can log to the same MLflow server without file conflicts.
-  - **Future extensibility**: Other backends (e.g., a custom HTTP API for Klea-specific dashboards) can be added by wrapping the harness output.
-
-### Implementation checklist
-
-1. **Phase 1 (MVP)**: Implement the harness with raw JSON output (as per the original plan). No MLflow dependency.
-2. **Phase 2 (optional)**: Add MLflow tracking as an optional backend. Harness logs to MLflow if configured; otherwise, JSON-only.
-3. **Phase 3 (future)**: Integrate RAGAS metrics for RAG-specific tasks. Compute and log via MLflow.
-4. **Phase 4 (future)**: Build a dashboard or report generator that consumes MLflow results and generates summary tables for the write-up.
-
-## Rationale summary
-
-MLflow provides the flexibility, community backing, and extensibility needed for a long-lived evaluation harness. Its optional integration strategy keeps the harness lightweight and reproducible while enabling future scaling and integration with experiment tracking infrastructure. RAGAS remains available for specialized RAG metrics, integrated via MLflow without forcing a RAG-centric schema on the entire harness.
+An external experiment-tracking backend (MLflow, or RAGAS for retrieval
+metrics) was rejected: it adds a service, credentials and availability failure
+modes to every run, breaks local offline reproducibility, and its tracking or
+RAG-centric schema does not fit the project-specific contracts already fixed
+by ADR-0056 (case format), ADR-0057 (run identity) and ADR-0058 (metrics
+schema).  A single monolithic results log, an embedded database and an
+external database or object store were rejected for the same reasons: none of
+them beats directory-per-run plus a JSONL index on durability, isolation,
+debuggability with ordinary tools, and operation without infrastructure
+(ADR-0059).
 
 ---
 
@@ -280,35 +248,31 @@ MLflow provides the flexibility, community backing, and extensibility needed for
 
 ## System overview
 
-The evaluation harness follows an 8-phase execution sequence, with components organized as a pipeline from case loading through result reporting. External systems (Klea agent/RAG endpoints, MLflow, LLM judges) integrate via well-defined interfaces.
+The evaluation harness follows the six ADR-0060 stages -- Load, Schedule, Execute, Score, Persist, then Aggregate and report -- organized as a pipeline that persists every run before any suite-level aggregation.  External systems are limited to the Klea agent/RAG HTTP endpoint and the optional LLM judge.
 
 ```mermaid
 graph TD
-    A["📋 Case Loader<br/>(JSONL test cases)"] -->|case_id, turns,<br/>expected_outputs,<br/>fixtures, run_config| B["🏗️ Run Manager<br/>(init context,<br/>resolve model,<br/>copy workspace)"]
+    A["Case Loader<br/>(suite JSONL, ADR-0056)"] -->|case_id, turns,<br/>expected_outputs,<br/>fixtures, run_config| B["Run Manager / Scheduler<br/>(identity tuple,<br/>role resolution,<br/>runs/run_id.tmp/)"]
 
-    B -->|run_id, user_id,<br/>chat_id, model| C["🔄 Turn Executor<br/>(per-turn loop)"]
+    B -->|run_id, user_id,<br/>chat_id, resolved models| C["Turn Executor<br/>(per-turn loop)"]
 
-    C -->|POST turn_input| D["🌐 Klea Agent/RAG<br/>HTTP Endpoint"]
+    C -->|POST turn_input| D["Klea Agent/RAG<br/>HTTP Endpoint"]
     D -->|SSE stream<br/>response| C
 
-    C -->|turn_output,<br/>metadata| E["✅ Scorer<br/>(deterministic checks<br/>+ LLM judge)"]
+    C -->|turn_output,<br/>metadata| E["Scorer<br/>(deterministic checks<br/>+ LLM judge)"]
 
-    E -->|pass/fail,<br/>score| F["📊 Usage Tracker<br/>(token counts,<br/>latency,<br/>tool errors)"]
+    E -->|pass/fail,<br/>score| F["Usage Tracker<br/>(token counts,<br/>latency,<br/>tool errors)"]
 
-    F -->|per-turn metrics| G["📈 Result Aggregator<br/>(task success,<br/>pass@k,<br/>cost, per-model<br/>summaries)"]
+    F -->|per-turn records| G["Persist / Writer<br/>(metrics.jsonl,<br/>transcript.jsonl,<br/>flush/fsync,<br/>COMPLETE written last,<br/>atomic rename,<br/>index append)"]
 
-    G -->|run_record<br/>JSON| H["💾 Persistence<br/>(write JSON artifact)"]
+    G -->|completed runs/run_id/| H["Aggregate<br/>(reads runs/index.jsonl;<br/>pass_at_k,<br/>token and cost totals)"]
 
-    H -->|optional| I["🔵 MLflow Backend<br/>(experiment tracking,<br/>metrics logging)"]
+    H -->|suite aggregates| J["Reporter<br/>(summary table,<br/>cost breakdown)"]
 
-    H -->|raw JSON| J["📄 Reporter<br/>(summary table,<br/>cost breakdown)"]
+    J -->|Markdown| M["Summary Report<br/>(task x model grid)"]
 
-    E -.->|if LLM judge| K["🤖 LLM Judge<br/>(local or remote)"]
+    E -.->|if LLM judge| K["LLM Judge<br/>(local or remote)"]
     K -.->|rubric score| E
-
-    I -->|UI| L["📊 MLflow UI<br/>(run comparison,<br/>metrics dashboard)"]
-
-    J -->|Markdown| M["📋 Summary Report<br/>(task × model grid)"]
 
     style A fill:#e1f5ff
     style B fill:#e1f5ff
@@ -318,10 +282,8 @@ graph TD
     style F fill:#fce4ec
     style G fill:#e0f2f1
     style H fill:#f1f8e9
-    style I fill:#ede7f6
     style J fill:#fff9c4
     style K fill:#f3e5f5
-    style L fill:#ede7f6
     style M fill:#fff9c4
 ```
 
@@ -334,8 +296,8 @@ graph TD
 
 ### Run Manager
 - **Input**: Case object, model selection strategy.
-- **Output**: Initialized run context (run_id, user_id, chat_id, workspace copy, resolved model).
-- **Responsibility**: Create isolated execution environment, copy fixture workspace to scratch, resolve model via run_config role→model map, initialize metrics collectors.
+- **Output**: Initialized run context: the identity tuple `(run_id, user_id, chat_id)`, the run directory `runs/<run_id>.tmp/` with its `workspace/`, and the resolved models.
+- **Responsibility**: Derive `run_id` as UUID v5 over `case_id` + harness seed and `chat_id` as UUID v5 over `run_id` + `user_id` (one chat session per run); create the isolated run directory outside the source tree; copy case fixtures into `runs/<run_id>/workspace/fixtures/`; resolve the model-backed roles `plan`, `execute`, `eval` and `chat` from `role_model_map` and `run_config.model_overrides` (the `user` role is human input taken from the case and is never model-resolved); initialize the run's metrics collector.
 
 ### Turn Executor
 - **Input**: Run context, turn specification (input, expected_output, tool_expectations).
@@ -349,34 +311,34 @@ graph TD
 
 ### Usage Tracker
 - **Input**: Turn response metadata (token counts, model identity, latency, tool calls).
-- **Output**: Per-turn usage record (input_tokens, cached_tokens, output_tokens, model, latency_ms, tool_error_count).
-- **Responsibility**: Extract token counts from response or DEBUG logs, aggregate per LLM call, track tool errors and retries.
+- **Output**: Per-turn usage record (input_tokens, cached_tokens, output_tokens, model, latency_ms, tool_error_count), emitted as a `metrics.jsonl` record carrying `schema_version` and `record_type` "turn".
+- **Responsibility**: Extract token counts from response or DEBUG logs, aggregate per LLM call, track tool errors and retries; records are appended to `metrics.jsonl` at the run root, never under `workspace/`.
 
 ### Result Aggregator
-- **Input**: Per-turn metrics, per-case pass/fail decisions, N repetitions.
-- **Output**: Aggregated metrics (task_success, pass@1, pass^k, avg_tokens, cost, per-model summaries).
-- **Responsibility**: Compute task success (all turns passed), pass@k over N repetitions, aggregate token counts and cost, generate per-model and per-run summaries.
+- **Input**: Per-turn metrics and per-case pass/fail decisions for one run.
+- **Output**: The versioned per-run envelope `{run_id, case_id, schema_version, record_type, metrics{...}}` with `task_success`, token totals and cost estimate.
+- **Responsibility**: Aggregate the run's own records only; `pass_at_k` is a suite-level aggregate computed later by the Aggregate stage from `runs/index.jsonl`, so it is never a per-run field.
 
-### Persistence
-- **Input**: Aggregated run record (case_id, model, variant, seed, metrics, traces).
-- **Output**: JSON artifact written to disk; optional MLflow log.
-- **Responsibility**: Write run record to JSON file, optionally log to MLflow backend if configured, store raw traces and fixtures for reproducibility.
+### Persistence (Writer)
+- **Input**: A finished run: its `run.json` envelope, `metrics.jsonl` records, `transcript.jsonl` and `workspace/`.
+- **Output**: The completed run directory `runs/<run_id>/` plus one appended line in `runs/index.jsonl`.
+- **Responsibility**: Own the single write protocol: write into `runs/<run_id>.tmp/` as the run proceeds, flush and `fsync` every file, write the zero-byte `COMPLETE` marker last, rename the directory to `runs/<run_id>/` atomically, then append one `O_APPEND` line to `runs/index.jsonl`; apply retention by keeping the full run directory for the most recent N runs per case (N from run config) and only `run.json` plus `metrics.jsonl` for older runs; a leftover `.tmp` directory is unambiguously an incomplete run.
 
 ### Reporter
-- **Input**: Aggregated results from all runs (JSON artifacts or MLflow backend).
-- **Output**: Summary table (task × model grid), cost breakdown, Markdown report.
+- **Input**: Suite aggregates from the Aggregate stage, read from `runs/index.jsonl`.
+- **Output**: Summary table (task x model grid), cost breakdown, Markdown report.
 - **Responsibility**: Generate human-readable summary tables, compute cost per task/model, produce write-up-ready output.
 
 ## Data flow
 
-1. **Case Loading**: JSONL → Case objects (case_id, turns, expected_outputs, fixtures, run_config).
-2. **Run Initialization**: Case + model selection → Run context (run_id, user_id, chat_id, workspace, model).
-3. **Per-Turn Execution**: Turn input → HTTP POST → SSE stream → buffered response.
-4. **Per-Turn Scoring**: Turn output + expected output → Scorer → pass/fail + score.
-5. **Usage Tracking**: Response metadata → Usage tracker → per-turn metrics (tokens, latency, errors).
-6. **Result Aggregation**: Per-turn metrics + pass/fail → Aggregator → task success, pass@k, cost.
-7. **Persistence**: Aggregated record → JSON artifact + optional MLflow log.
-8. **Reporting**: JSON artifacts or MLflow → Reporter → summary table + Markdown.
+1. **Load**: suite JSONL -> Case objects (case_id, turns, expected_outputs, fixtures, run_config).
+2. **Schedule**: Case + model selection -> Run context: the identity tuple `(run_id, user_id, chat_id)` with `run_id` = UUID v5 over `case_id` + seed and `chat_id` = UUID v5 over `run_id` + `user_id`, the resolved models, and `runs/<run_id>.tmp/` with its `workspace/`.
+3. **Execute**: Turn input -> HTTP POST -> SSE stream -> buffered response; turn content is appended to `transcript.jsonl` and per-turn records to `metrics.jsonl`.
+4. **Score**: Turn output + expected output -> Scorer -> pass/fail + score, recorded through the metrics collector.
+5. **Usage tracking**: Response metadata -> Usage tracker -> per-turn `metrics.jsonl` record (tokens, latency, tool errors).
+6. **Persist**: Buffered records -> `runs/<run_id>.tmp/`; flush and `fsync`, `COMPLETE` written last, atomic rename to `runs/<run_id>/`, then one `O_APPEND` line to `runs/index.jsonl`.
+7. **Aggregate**: `runs/index.jsonl` -> suite-level `pass_at_k`, per-case pass/fail, token totals and cost.
+8. **Report**: Suite aggregates -> Reporter -> summary table + Markdown.
 
 ## External integrations
 
@@ -385,12 +347,6 @@ graph TD
 - **Input**: Turn input (user message, context, tool availability).
 - **Output**: SSE stream with response chunks, metadata (token usage, model, latency).
 - **Error handling**: Retry logic on transient errors; case skip on persistent failures.
-
-### MLflow Backend (optional)
-- **Protocol**: MLflow REST API or Python client.
-- **Input**: Run record (parameters, metrics, artifacts).
-- **Output**: Experiment tracking, run comparison UI, metrics dashboard.
-- **Integration**: Opt-in via `--mlflow-tracking-uri` flag or environment variable; no hard dependency.
 
 ### LLM Judge (optional)
 - **Protocol**: HTTP API (OpenAI-compatible, Ollama, or local).
@@ -403,36 +359,40 @@ graph TD
 - **Transient errors** (HTTP 5xx, timeout): Retry with exponential backoff (up to 3 attempts).
 - **Persistent errors** (HTTP 4xx, invalid response): Log error, skip case, record failure reason.
 - **Scoring errors** (LLM judge unavailable): Fall back to deterministic check or mark as inconclusive.
-- **Workspace errors** (fixture copy failed): Skip run, log error.
+- **Workspace errors** (fixture copy into `runs/<run_id>.tmp/workspace/fixtures/` failed): Skip run, remove the `.tmp` directory, log error.
+- **Incomplete runs**: A leftover `runs/<run_id>.tmp/` directory is reported as an incomplete run and is never treated as a result; a re-run discards and redoes it.
 
 ## Reproducibility guarantees
 
-- **Seed pinning**: Fixed random seed per run (logged in run_record).
-- **Model versioning**: Model name, version, and parameters logged in run_record.
-- **Prompt versioning**: Prompt text and version logged in run_record.
-- **Fixture snapshots**: Fixture workspace copied to scratch; original fixture preserved.
-- **Artifact storage**: Raw JSON, traces, and fixtures stored for offline reproducibility.
-- **MLflow artifacts**: Optional MLflow backend stores artifacts and metadata for centralized reproducibility.
+- **Seed pinning**: Fixed random seed per run (logged in `run.json`).
+- **Model versioning**: Model name, version and parameters logged in `run.json`.
+- **Prompt versioning**: Prompt text and version logged in `run.json`.
+- **Fixture snapshots**: Fixtures copied under `runs/<run_id>/workspace/`; the original fixture is preserved and the copy is immutable.
+- **Artifact storage**: `run.json` plus the versioned `metrics.jsonl` (`schema_version`, `record_type`, final "run" envelope), `transcript.jsonl` and the workspace are stored for offline reproducibility.
+- **Retention**: The full run directory is kept for the most recent N runs per case (N from run config); older runs keep only `run.json` plus `metrics.jsonl` (ADR-0059).
+- **Scope of determinism**: Only identifiers, ordering and derived metrics are reproducible; turn content and latency are stochastic.
 
 ---
 
 # Open Questions and Design Decisions
 
-Status: decision points for ADR authors. Each question below captures a design choice with implications for harness architecture, performance, and reproducibility. Decisions should be recorded as ADRs before implementation.
+Status: questions 1, 3, 4 and 5 are settled by ADR-0056, ADR-0057, ADR-0058, ADR-0059 and ADR-0060 and are kept below only as a record of the decision plus its ADR reference; only the genuinely open items remain open.
 
 ## 1. Multi-turn execution: sequential or parallel?
+
+**Resolved by ADR-0057**: one run is exactly one chat session, fixed at run initialization.
 
 **Context**: Test cases may contain multiple turns (e.g., a multi-step coding task with 3 turns: initial request, feedback on error, refinement). The harness must decide whether to execute turns sequentially within a single run or in parallel across multiple runs.
 
 **Options**:
-- **Sequential (within-run)**: All turns execute in a single run context (same user_id, chat_id, workspace). Turns are executed one after another; each turn sees the results of previous turns (e.g., file edits persist). This mirrors a real conversation.
-- **Parallel (across runs)**: Each turn executes in a separate run context (distinct user_id, chat_id, workspace copy). Turns are independent; no state carries over. This isolates turn failures and allows parallel execution.
+- **Sequential (within-run)**: All turns execute in one run context -- one `run_id`, one `chat_id`, one workspace. Turns are executed one after another; each turn sees the results of previous turns (e.g., file edits persist). This mirrors a real conversation.
+- **Parallel (across runs)**: Each turn would execute in a separate run context with its own workspace copy. Turns are independent; no state carries over. Because a run is always exactly one chat session (ADR-0057), this mode would create several runs for one case and is deferred.
 
 **Implications**:
 - **Sequential**: Simpler state management, realistic conversation flow, but a single turn failure may cascade. Harder to parallelize for speed.
 - **Parallel**: Better isolation and parallelization, but requires explicit state passing between turns (e.g., file edits from turn 1 must be replayed in turn 2's workspace). More complex setup.
 
-**Recommendation for ADR**: Define the default behavior (sequential is simpler for MVP) and allow per-case override via `execution_mode` in run_config.
+**Decision**: Sequential within one run is the default, and it is what ADR-0057 fixes: one `run_id`, one `chat_id` and one workspace per run, with later turns seeing the earlier turns' file edits. A per-case `execution_mode` override remains a deferred extension.
 
 ## 2. Error handling: retry, skip, or fail?
 
@@ -452,47 +412,53 @@ Status: decision points for ADR authors. Each question below captures a design c
 
 ## 3. Model selection: per-run or per-turn override?
 
+**Resolved by ADR-0057**: model resolution is eager and per-run.
+
 **Context**: The harness must support model selection for topology comparison. The question is whether model selection is fixed per run (all turns use the same model) or can vary per turn (e.g., escalation to a stronger model mid-conversation).
 
 **Options**:
-- **Per-run**: Model is selected once at run initialization via run_config role→model map. All turns use the same model. Simpler, aligns with the "single-model default" in the original design.
+- **Per-run**: Model is selected once at run initialization via the run_config role -> model map. All turns use the same model. Simpler, aligns with the "single-model default" in the original design.
 - **Per-turn**: Model can be overridden per turn via turn-level run_config. Allows mid-conversation escalation. More complex but enables model-escalation evaluation.
 
 **Implications**:
 - **Per-run**: Simpler implementation, aligns with the single-model default. Does not support model escalation in the MVP.
 - **Per-turn**: Enables model escalation evaluation (optional condition). Requires turn-level model resolution and separate token tracking per model.
 
-**Recommendation for ADR**: Default to per-run model selection (MVP). Reserve per-turn override for future model-escalation condition (optional, not blocking). Document the extension point in the runner architecture.
+**Decision**: Per-run resolution is the default and is fixed by ADR-0057: the model-backed roles `plan`, `execute`, `eval` and `chat` are resolved eagerly from `role_model_map` and `run_config.model_overrides`, while `user` is human input taken from the case and is never model-resolved.  A per-turn override remains a future, optional model-escalation condition and is not part of the MVP.
 
 ## 4. Usage tracking: aggregate at run end or stream per-turn?
+
+**Resolved by ADR-0058 and ADR-0059**: per-turn streaming into `run_dir/metrics.jsonl` is the adopted protocol, not an optional extra.
 
 **Context**: Token counts, latency, and tool errors must be tracked for each turn. The question is whether to aggregate metrics at the end of the run or stream them per-turn.
 
 **Options**:
-- **Aggregate at run end**: Collect per-turn metrics in memory; write aggregated metrics to JSON at run end. Simpler, but loses per-turn granularity if the run crashes.
-- **Stream per-turn**: Write per-turn metrics to JSON immediately after each turn. More robust to crashes; enables real-time monitoring. Requires append-only JSON or separate per-turn files.
+- **Aggregate at run end**: Collect per-turn metrics in memory; write the aggregated document at run end. Simpler, but loses per-turn granularity if the run crashes.
+- **Stream per-turn**: Write per-turn records to `metrics.jsonl` at the run root as the run proceeds. More robust to crashes; enables real-time monitoring.
 
 **Implications**:
-- **Aggregate**: Simpler implementation, cleaner JSON structure. Risk of data loss on crash.
-- **Stream**: More robust, enables real-time monitoring. Requires careful JSON handling (append-only or separate files).
+- **Aggregate**: Simpler implementation, cleaner document. Risk of data loss on crash.
+- **Stream**: More robust, enables real-time monitoring. Requires append-only JSONL writing.
 
-**Recommendation for ADR**: Default to aggregate at run end (simpler for MVP). Optionally support streaming per-turn metrics to a separate `metrics.jsonl` file for real-time monitoring. Document the trade-off.
+**Decision**: Per-turn records are appended to `run_dir/metrics.jsonl` (at the run root, never under `workspace/`) inside `runs/<run_id>.tmp/` while the run executes, each carrying `schema_version` and `record_type`, so they are already durable if the run crashes; the last line is the `{run_id, case_id, schema_version, record_type, metrics{...}}` "run" envelope.  Per-run aggregation therefore happens over records that are already on disk.
 
-## 5. Result persistence: JSON file, MLflow backend, or both?
+## 5. Result persistence: JSON file, external backend, or both?
 
-**Context**: Results must be persisted for reproducibility and reporting. The question is whether to use JSON files (local, reproducible, no external service) or MLflow backend (centralized, queryable, optional).
+**Resolved by ADR-0059**: filesystem-only, with an append-only JSONL index.
+
+**Context**: Results must be persisted for reproducibility and reporting. The question is where the authoritative record lives and whether an external tracking backend is needed.
 
 **Options**:
 - **JSON file only**: Write run records to JSON files in a local directory. No external service required. Reproducible offline. Harder to query across runs.
-- **MLflow backend only**: Log all runs to MLflow (local or remote). Centralized, queryable, UI for run comparison. Requires MLflow service; harder to reproduce offline.
-- **Both**: Write JSON files as the primary artifact; optionally log to MLflow if configured. Best of both worlds; adds complexity.
+- **External tracking backend only**: Log all runs to a tracking service. Centralized, queryable, UI for run comparison. Requires a service; harder to reproduce offline.
+- **Both**: Write JSON files as the primary artifact and optionally log to the backend. Flexible, but adds complexity and a sync problem.
 
 **Implications**:
 - **JSON only**: Simple, reproducible, no external dependency. Harder to query and compare runs.
-- **MLflow only**: Centralized, queryable, nice UI. Requires external service; harder to reproduce offline.
-- **Both**: Flexible, reproducible, queryable. Adds complexity; requires careful sync between JSON and MLflow.
+- **External backend**: Centralized, queryable, nice UI. Requires external service; harder to reproduce offline.
+- **Both**: Flexible, reproducible, queryable. Adds complexity; requires careful sync between the files and the backend.
 
-**Recommendation for ADR**: Default to JSON file only (MVP, aligns with original design). Make MLflow an optional backend (opt-in via flag or environment variable). Document the integration strategy (Phase 2 in the MLflow decision record above).
+**Decision**: Filesystem-only per ADR-0059.  Each completed run is a self-contained `runs/<run_id>/` directory holding a versioned `run.json` and `metrics.jsonl`, and a single suite-level `runs/index.jsonl` is a lookup and listing entry point only; no database, server or service is required, and no MLflow or RAGAS tracking is adopted or planned.  An external tracking backend was rejected because it breaks local offline reproducibility and adds service, credential and availability failure modes to every run.
 
 ## 6. Scoring latency: synchronous or async judges?
 
@@ -510,11 +476,11 @@ Status: decision points for ADR authors. Each question below captures a design c
 
 ## Summary of recommendations for MVP
 
-1. **Multi-turn execution**: Sequential within-run (simpler).
+1. **Multi-turn execution**: Sequential within a single run -- one `run_id`, one `chat_id`, one workspace (ADR-0057).
 2. **Error handling**: Retry transient errors (3 attempts); skip case on persistent errors.
-3. **Model selection**: Per-run (single-model default).
-4. **Usage tracking**: Aggregate at run end (simpler).
-5. **Result persistence**: JSON file only (reproducible, no external service).
+3. **Model selection**: Per-run, over the model-backed roles `plan`, `execute`, `eval` and `chat`; `user` is never model-resolved (ADR-0057).
+4. **Usage tracking**: Per-turn records streamed into `run_dir/metrics.jsonl` as the adopted protocol (ADR-0058, ADR-0059).
+5. **Result persistence**: Filesystem-only per ADR-0059 -- versioned `run.json` plus `metrics.jsonl` under `runs/<run_id>/`, with `runs/index.jsonl` as a lookup-only index.
 6. **Scoring latency**: Synchronous judges (simpler).
 
-All decisions should be documented as ADRs before implementation. Future phases can revisit these choices (e.g., parallel turns, per-turn model selection, async judges) as the harness matures.
+These decisions are recorded in ADR-0056, ADR-0057, ADR-0058, ADR-0059 and ADR-0060.  The genuinely open items above, and the deferred extensions such as parallel turns, per-turn model selection, async judges and an external tracking backend, can be revisited as the harness matures.
