@@ -116,6 +116,11 @@ pre-commit run --all-files
 
 `.github/workflows/ruff.yml`: changed-files lint on PRs.
 
+The `ci.yml` matrix runs on `ubuntu-latest`, `macos-latest` and `windows-latest`
+with Python 3.12-3.14; `ruff.yml` lints on `ubuntu-latest` only.  Windows
+installs only `utils_pkg`, `rag_pkg` and `agent_pkg` (no NEURON/nml-mcp) and
+runs a reduced test set.
+
 ## Config & env loading
 
 Both `KleaAgent` and `RAG` orchestrators load configuration via:
@@ -144,6 +149,10 @@ cross-package imports.
   `<pkg>/tests/ui/web/` and run under `-n auto` like the rest of the suite.
   See `devdocs/system/web-ui-testing.md`.
 - All packages ignore `F403` and `F405` in ruff.
+- Tests must pass on Linux, macOS and Windows: POSIX path and `~` assumptions are
+  unsafe (Windows expands `~` from `USERPROFILE`, not `HOME`, so monkeypatch both
+  when faking a home directory).  Avoid POSIX-only shell utilities, `pty`/`select`,
+  and lock-file/permission assumptions.
 
 ## Key references
 
