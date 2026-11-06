@@ -287,6 +287,74 @@ graph TD
     style M fill:#fff9c4
 ```
 
+## Run lifecycle sequence
+
+This sequence diagram adds the time ordering that the stage graph above does not show: the per-run lifecycle from case load through execution, scoring, persistence and retention, followed by suite-level aggregation.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant D as Driver / suite runner
+    participant RM as Run Manager (workspace)
+    participant A as Agent under test (Klea Agent/RAG HTTP endpoint)
+    participant S as Scorer / LLM judge
+    participant W as Writer
+    participant I as Index / Aggregator
+    participant R as Retention
+
+    Note over D: Load suite JSONL line by line, validate schema_version, case_id uniqueness and turn ordering (ADR-0056, ADR-0060)
+    loop For each case in suite and each seed
+        D->>RM: schedule case with seed
+        RM->>RM: derive run_id = UUID v5 over case_id + seed
+        RM->>RM: derive chat_id = UUID v5 over run_id + user_id, one chat session per run
+        alt runs/{run_id}/ with COMPLETE already exists
+            RM->>D: skip run unless overwrite requested
+        else leftover runs/{run_id}.tmp/ exists
+            RM->>RM: report incomplete run, discard .tmp and redo
+        else
+            RM->>RM: create runs/{run_id}.tmp/ with workspace/
+        end
+        RM->>RM: resolve fixture paths against the case-file directory, reject absolute paths
+        RM->>RM: copy fixtures shallow into runs/{run_id}/workspace/fixtures/, read-only
+        alt fixture copy fails
+            RM->>D: skip run, remove .tmp, log error
+        end
+        RM->>RM: resolve model-backed roles plan, execute, eval, chat, user role is never model-resolved
+        RM->>RM: instantiate RunMetricsCollector with run_id, case_id, run_dir
+        loop For each turn, sequential 1..N with no gaps
+            D->>A: POST turn_input
+            A-->>D: SSE stream, buffered response with token and latency metadata
+            D->>W: append turn content to transcript.jsonl
+            D->>S: score turn output against expected_output
+            opt rubric is non-deterministic
+                S->>S: invoke LLM judge (optional, local or remote), return rubric score
+            end
+            S-->>W: record_evaluation_result, pass/fail plus score
+            W->>W: append one metrics.jsonl line, record_type "turn" with schema_version, at the run root inside .tmp
+            opt transient HTTP 5xx or timeout
+                D->>A: retry with exponential backoff, up to 3 attempts
+            end
+            alt persistent error 4xx or invalid response
+                D->>W: log error, mark case failed
+            end
+        end
+        D->>W: finalize, append final run envelope record_type "run" as the last metrics.jsonl line
+        W->>W: flush and fsync every file
+        W->>W: write zero-byte COMPLETE last
+        W->>W: atomic rename runs/{run_id}.tmp/ to runs/{run_id}/
+        W->>I: append one O_APPEND line to runs/index.jsonl with run_id, case_id, status, timestamp, schema_version, metrics path
+        Note over W,I: a reader sees no run or a complete run, a leftover .tmp is an incomplete run
+        I->>R: apply retention after publish
+        alt case has more than N runs
+            R->>R: purge whole older run dirs, keep only run.json plus metrics.jsonl, rewrite index atomically
+        end
+    end
+    D->>I: aggregate reads runs/index.jsonl only, never the run directories
+    I->>I: compute suite-level pass_at_k over k runs, plus per-case pass/fail, token totals and cost
+    Note over I: pass_at_k is suite-level only and never a per-run field
+    I->>I: Reporter prints summary table and Markdown report
+```
+
 ## Component responsibilities
 
 ### Case Loader
