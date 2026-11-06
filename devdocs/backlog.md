@@ -125,6 +125,11 @@ Last updated: 2026-11-03.
 
 ## Evaluation harness (`eval_pkg`)
 
+The authoritative implementation tracker (agreed decisions, ordered phases,
+commit log and resume instructions) is
+`devdocs/system/eval-harness-implementation.md`; this section keeps only the
+remaining ordered phases and deferred items.
+
 Ordered phases.  The package scaffold and distribution (`klea-eval`) are done,
 and the ADR-0056 JSONL case loader shipped in commit `4c1df875`.  The next
 task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
