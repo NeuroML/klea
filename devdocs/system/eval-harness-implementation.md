@@ -64,13 +64,13 @@ The phases are ordered; each depends on the ones before it. Every phase names
 its exit criterion and the verification command that must pass before its commits
 are made.
 
-P1 `done`, P2 `done`, P3-P9 `pending`.
+P1 `done`, P2 `done`, P3 `done`, P4-P9 `pending`.
 
 | Phase | Objective | Files under `eval_pkg/` | ADR / design note | Depends on | Exit criterion | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | P1 | CLI case validation command: expose the JSONL loader through `klea-eval`, render `CaseValidationError`, map to exit code 2. | `klea_eval/ui/cli.py`, `klea_eval/errors.py`, `tests/test_cli_validate.py` | ADR-0056, ADR-0060, `agent-evaluation-harness.md` | P0 scaffold (`4c1df875`) | `klea-eval validate <suite>` exits 0 on a valid suite and 2 on an invalid one with a located message; `eval` marker registered. | `pytest eval_pkg -m eval`, `ruff check eval_pkg`, `ty check eval_pkg` | done |
 | P2 | Run manager and run isolation: per-case run directory, isolated environment, cleanup. | `klea_eval/run_manager.py`, `klea_eval/workspace.py`, `tests/test_run_manager.py` | ADR-0057, D3 | P1 | Each case runs in its own directory under `KLEA_EVAL_WORKSPACE`; directory removed on success and on failure. | `pytest eval_pkg -m eval -k runmanager` | done |
-| P3 | Metrics collector: per-case metrics collected through the runner interfaces. | `klea_eval/metrics.py`, `tests/test_metrics.py` | ADR-0058 | P2 | Runner interface yields metrics for a fixture case; collector aggregates them per case. | `pytest eval_pkg -m eval -k metrics` | pending |
+| P3 | Metrics collector: per-case metrics collected through the runner interfaces. | `klea_eval/metrics.py`, `tests/test_metrics.py` | ADR-0058 | P2 | Runner interface yields metrics for a fixture case; collector aggregates them per case. | `pytest eval_pkg -m eval -k metrics` | done |
 | P4 | Result storage: persist run results in the ADR-0059 reporting format. | `klea_eval/results.py`, `tests/test_results.py` | ADR-0059, D6, D10 | P3 | A completed run is written to the store and read back unchanged, `run_id` stable across reruns. | `pytest eval_pkg -m eval -k results` | pending |
 | P5 | Runner adapters: async `httpx` client and SSE parsing against `/query/stream`, backed by hand-written fixtures. | `klea_eval/runners/http.py`, `klea_eval/runners/sse.py`, `tests/test_http_runner.py`, `tests/fixtures/sse/` | D1, D2, ADR-0058 | P4 | Fixture SSE streams parse into ordered events; `localonly` live check passes when a server is present and skips otherwise. | `pytest eval_pkg -m eval -k runner` | pending |
 | P6 | Harness pipeline: wire loader, runners and storage behind the `klea-eval` command. | `klea_eval/pipeline.py`, `klea_eval/ui/cli.py`, `tests/test_pipeline.py` | ADR-0060, D1, D4 | P5 | `klea-eval run <suite>` executes a multi-case JSONL suite end to end and stores results. | `pytest eval_pkg -m eval -k pipeline` | pending |
@@ -90,6 +90,7 @@ P1 `done`, P2 `done`, P3-P9 `pending`.
 | P2 | `535b09d3` | `feat(eval): deterministic run, user and chat identity` |
 | P2 | `06530ad7` | `feat(eval): add run workspace layout, creation and atomic publication` |
 | P2 | `28167be8` | `feat(eval): add run manager to prepare, execute and publish evaluation runs` |
+| P3 | `c2118f27` | `feat(eval): add run metrics collector` |
 
 Rows are appended as commits land. The phase column is the phase the commit
 belongs to, or `docs` for planning-only commits.
@@ -98,7 +99,7 @@ belongs to, or `docs` for planning-only commits.
 
 ## 5. Notes/decisions changed while implementing
 
-Points discovered while delivering P1; later phases must respect them.
+Points discovered while delivering P1-P3; later phases must respect them.
 
 - `ty check` must be scoped to `eval_pkg` (`ty check eval_pkg`). Running it over
   the whole repository reports pre-existing errors in other packages, so only
@@ -114,17 +115,33 @@ Points discovered while delivering P1; later phases must respect them.
   use `DEFAULT_MAX_ATTEMPTS = 3` with `RETRY_BACKOFF_SECONDS = 0.5`. An
   already-complete run returns `STATUS_SKIPPED` unless `overwrite=True`. The
   workspace functions take `run_id` first with an optional `root`.
+- Phase 3 scope caveats: the metrics collector is a read-only consumer of
+  `metrics.jsonl`. The run manager's per-turn lines do not yet carry
+  `schema_version` or `record_type`, so the collector infers the record type
+  from the payload and defaults the schema version to `1.0`; the final
+  `record_type` "run" envelope is still not written, so the run-level values
+  are recomputed from the turn lines and `envelope_present` stays false until
+  the ADR-0059 writer lands in P4. No price table exists, so `cost_estimate`
+  is read from an envelope when present and stays `None` otherwise; cost
+  derivation belongs to P7. `MetricsError` and `MetricsSchemaError` live in
+  `klea_eval/metrics.py`, following the `WorkspaceError` and
+  `RunManagerError` precedent, rather than in `klea_eval/errors.py`. The
+  failure line a failed run appends is discarded together with the run
+  directory, so the collector parses that shape for `.tmp` inspection only,
+  and `pass_at_k` is never produced there: it is a suite-level aggregate of
+  the ADR-0060 stage.
 
 ---
 
 ## 6. How to resume
 
 1. Read this note, then read the phase table for the first row whose status is
-   not `done`. P1 and P2 are `done`. The deterministic identity module
+   not `done`. P1, P2 and P3 are `done`. The deterministic identity module
    (`klea_eval/identity.py`, commit `535b09d3`), the workspace module
-   (`klea_eval/workspace.py`, commit `06530ad7`) and the run manager
-   (`klea_eval/run_manager.py`, commit `28167be8`) are delivered; the next
-   atomic change is the metrics collector (`klea_eval/metrics.py`).
+   (`klea_eval/workspace.py`, commit `06530ad7`), the run manager
+   (`klea_eval/run_manager.py`, commit `28167be8`) and the metrics collector
+   (`klea_eval/metrics.py`, commit `c2118f27`) are delivered; the next atomic
+   change is result storage (`klea_eval/results.py`), the single P4 step.
 2. Read `devdocs/system/agent-evaluation-harness.md` for the architecture of the
    phase you are picking up, and the ADR it names for the design intent.
 3. Check `git log --oneline` and the commit log table above: they should agree.
