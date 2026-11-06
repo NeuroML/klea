@@ -6,6 +6,10 @@ are never held in memory in full, validates every case against the ADR-0056
 schema and invariants, and raises
 :class:`~klea_eval.errors.CaseValidationError` for any load-time rejection.
 
+Fixture paths declared by a case resolve against the directory of the JSONL
+suite file that owns the case, not the process working directory; absolute
+paths and paths escaping that directory are rejected.
+
 Only the standard library is imported here: the loader must stay cheap to
 import and must not drag in the model client or the HTTP stack.
 """
@@ -45,7 +49,7 @@ SUPPORTED_SCHEMA_VERSIONS = frozenset({"1.0"})
 REQUIRED_FIELDS = ("case_id", "schema_version", "turns")
 
 #: Allowed turn roles, in the order used when rendering error messages.
-VALID_ROLES = ("user", "assistant", "system")
+VALID_ROLES = ("user", "plan", "execute", "eval", "chat")
 
 #: Allowed expected-output formats, in error-message order.
 VALID_OUTPUT_FORMATS = ("json", "yaml", "text", "binary")
@@ -535,7 +539,12 @@ def _check_fixture_paths(
     line_number: int,
     case_id: str,
 ) -> None:
-    """Reject absolute fixture paths and paths escaping the case directory."""
+    """Reject absolute fixture paths and paths escaping the owning JSONL directory.
+
+    The fixture base is the directory of the case's owning JSONL suite file
+    (``source.parent``), so fixtures resolve relative to the file that declares
+    the case, not the process working directory.
+    """
     base = source.parent.resolve()
 
     for raw in _iter_fixture_strings(fixtures):

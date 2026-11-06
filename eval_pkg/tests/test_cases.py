@@ -91,7 +91,7 @@ def test_load_suite_parses_complex_case(tmp_path: Path) -> None:
             ),
             _turn(
                 2,
-                role="assistant",
+                role="chat",
                 content="The data contains...",
                 expected_outputs=[
                     {
@@ -154,7 +154,7 @@ def test_load_suite_parses_complex_case(tmp_path: Path) -> None:
     assert first.tool_expectations[0].call_count == (1, 1)
     assert first.tool_expectations[0].argument_constraints == {"path": "data.json"}
 
-    assert second.role == "assistant"
+    assert second.role == "chat"
     assert second.content == "The data contains..."
     assert len(second.expected_outputs) == 1
     assert second.expected_outputs[0].file_path == "summary.txt"
@@ -333,9 +333,38 @@ def test_invalid_turn_role_is_rejected(tmp_path: Path) -> None:
         load_suite(path)
 
     assert excinfo.value.message == (
-        "turn 1 has invalid role 'tool' (allowed: user, assistant, system)"
+        f"turn 1 has invalid role 'tool' (allowed: {', '.join(VALID_ROLES)})"
     )
-    assert VALID_ROLES == ("user", "assistant", "system")
+    assert VALID_ROLES == ("user", "plan", "execute", "eval", "chat")
+
+
+@pytest.mark.parametrize("role", VALID_ROLES)
+def test_all_supported_roles_are_accepted(tmp_path: Path, role: str) -> None:
+    """Every role in VALID_ROLES parses and round-trips onto the turn."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(turns=[_turn(1, role=role)])],
+    )
+
+    loaded = load_suite(path).cases[0]
+
+    assert loaded.turns[0].role == role
+
+
+@pytest.mark.parametrize("role", ["system", "assistant"])
+def test_legacy_roles_are_rejected(tmp_path: Path, role: str) -> None:
+    """The retired orchestration roles are rejected, naming the offending role."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(turns=[_turn(1, role=role)])],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    message = excinfo.value.message
+    assert f"invalid role '{role}'" in message
+    assert ", ".join(VALID_ROLES) in message
 
 
 def test_absolute_fixture_path_is_rejected(tmp_path: Path) -> None:
@@ -365,6 +394,55 @@ def test_escaping_fixture_path_is_rejected(tmp_path: Path) -> None:
 
     assert excinfo.value.message == (
         "fixture path escapes the case directory: '../secrets'"
+    )
+
+
+def test_fixture_paths_resolve_against_owning_suite_directory(tmp_path: Path) -> None:
+    """Relative fixture paths resolve against the owning JSONL file's directory."""
+    suite_dir = tmp_path / "nested" / "suite"
+    (suite_dir / "fixtures").mkdir(parents=True)
+    (suite_dir / "fixtures" / "data.json").write_text("{}", encoding="utf-8")
+    path = _write_suite(
+        suite_dir / "suite.jsonl",
+        [_case(fixtures={"input_dir": "fixtures", "files": ["fixtures/data.json"]})],
+    )
+
+    suite = load_suite(path)
+    loaded = suite.cases[0]
+
+    base = suite.source.parent.resolve()
+    assert base == path.parent.resolve()
+    assert base == suite_dir.resolve()
+    assert base != tmp_path.resolve()
+
+    assert loaded.fixtures is not None
+    for raw in ("fixtures", "fixtures/data.json"):
+        resolved = (base / raw).resolve()
+        resolved.relative_to(base)
+        assert resolved.exists()
+
+
+def test_fixture_path_escaping_owning_suite_directory_is_rejected(
+    tmp_path: Path,
+) -> None:
+    """A path escaping the owning suite directory is rejected.
+
+    The sibling directory exists and lives inside ``tmp_path``, so rejecting it
+    proves the fixture base is the suite file's directory, not an ancestor.
+    """
+    suite_dir = tmp_path / "nested" / "suite"
+    suite_dir.mkdir(parents=True)
+    (tmp_path / "nested" / "shared").mkdir()
+    path = _write_suite(
+        suite_dir / "suite.jsonl",
+        [_case(fixtures={"input_dir": "../shared"})],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == (
+        "fixture path escapes the case directory: '../shared'"
     )
 
 
