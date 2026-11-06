@@ -81,5 +81,27 @@ def report(
     write_report(results, output)
 
 
+@app.command()
+def validate(
+    suite: str = typer.Argument(..., help="Path to the JSONL suite to validate."),
+) -> None:
+    """Validate a JSONL test suite without running it (ADR-0056)."""
+    # Deferred imports: the loader only needs the standard library, but the CLI
+    # keeps every command body light so importing the module (and rendering
+    # --help) never walks the harness import graph.
+    from klea_eval.cases import load_suite
+    from klea_eval.errors import CaseValidationError
+
+    logger.debug("klea-eval: validating suite %s", suite)
+    try:
+        loaded = load_suite(suite)
+    except CaseValidationError as error:
+        # ``str()`` renders ``<source>:<line>: <message>`` per ADR-0056.
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
+
+    typer.echo(f"{loaded.source}: {len(loaded.cases)} cases valid")
+
+
 if __name__ == "__main__":
     app()
