@@ -88,6 +88,7 @@ P1 `done`, P2 `in progress`, P3-P9 `pending`.
 | P1 | `550cdf73` | `feat(eval): migrate case roles and resolve fixtures per owning suite file` |
 | P1 | `b74871cb` | `feat(eval): add suite validate command` |
 | P2 | `535b09d3` | `feat(eval): deterministic run, user and chat identity` |
+| P2 | `06530ad7` | `feat(eval): add run workspace layout, creation and atomic publication` |
 
 Rows are appended as commits land. The phase column is the phase the commit
 belongs to, or `docs` for planning-only commits.
@@ -111,8 +112,9 @@ Points discovered while delivering P1; later phases must respect them.
 
 1. Read this note, then read the phase table for the first row whose status is
    not `done`. P1 is `done`; P2 is `in progress`. The deterministic identity
-   module (`klea_eval/identity.py`, commit `535b09d3`) is delivered; the
-   next atomic change is the workspace module (`klea_eval/workspace.py`).
+   module (`klea_eval/identity.py`, commit `535b09d3`) and the workspace module
+   (`klea_eval/workspace.py`, commit `06530ad7`) are delivered; the next atomic
+   change is the run manager (`klea_eval/runmanager.py`).
 2. Read `devdocs/system/agent-evaluation-harness.md` for the architecture of the
    phase you are picking up, and the ADR it names for the design intent.
 3. Check `git log --oneline` and the commit log table above: they should agree.
