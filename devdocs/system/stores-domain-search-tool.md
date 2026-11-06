@@ -1,10 +1,12 @@
-# Stores: domain search tool for the general agent (draft reference note)
+# Stores: domain search tool for the general agent (accepted)
 
-Status: **draft reference note**.  Research notes and a locked but not yet
-implemented tool contract.  This is internal material: do not link it from
-`docs/`, and update the public documentation and `CHANGELOG.md` only when the
-tool is implemented (see `devdocs/README.md` and `AGENTS.md` for the
-ASCII-only and one-file-per-topic conventions).
+Status: **accepted**.  The `search_stores` MCP tool contract below is
+implemented.  The tool call is optional and chosen by the LLM, while the
+retrieval node is a compulsory node in the scientific topology once that
+topology is settled (see `system/scientific-mode.md`).  This is internal
+material: do not link it from `docs/`, and update the public documentation and
+`CHANGELOG.md` when the contract changes (see `devdocs/README.md` and
+`AGENTS.md` for the ASCII-only and one-file-per-topic conventions).
 
 Revision: the contract in sections 4-5 was revisited after reading the
 existing retrieval layer.  The outcome is recorded in sections 7-10: the
@@ -558,7 +560,10 @@ Both call the shared retrieval layer of section 5; only the delivery differs.
   this: optional, discretionary, prompt-visible, access-filtered.
 - **Deterministic graph step** (unconditional edge, `system/graph-routing.md`,
   ADR-0036 grounding enforcement): the capability is a node that always runs
-  and writes evidence into state.  *RAG/scientific mode* is exactly this.
+  and writes evidence into state.  Scientific mode's compulsory retrieval node is
+  exactly this shape; RAG is the concrete retrieval implementation it uses, not
+  the mode itself, and the ``search_stores`` tool call stays optional and
+  LLM-chosen (section 11.4).
 - **State-held configuration** (the `chat_sessions` JSON-blob precedent used by
   model overrides): configuration is carried in state rather than forwarded
   through a process environment.

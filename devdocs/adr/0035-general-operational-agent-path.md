@@ -165,8 +165,10 @@ Act.
   separate synthesis stage (``AnswerFromResults``) does that on ``plan_done``,
   from the goal, completed plan and observations.  Keeping judgement and
   generation separate keeps each LLM call single-responsibility (robust for
-  small models) and lets the same evaluator contract serve as the independent
-  scientific verifier (ADR-0029 invariant 7).  The cost is one extra LLM call
+  small models) and leaves open whether the same evaluator node with
+  mode-conditional behaviour, or a separate epistemic node with its own output
+  schema, serves as the independent scientific verifier (ADR-0029 invariant 7;
+  see ``devdocs/system/scientific-mode.md``).  The cost is one extra LLM call
   when a task completes; trivial chat is unaffected (RouteDecision answers
   inline).
 * **Escalation has two axes**: structural escalation (same model, more process:
@@ -179,14 +181,19 @@ Act.
   ordered model cascades: a reliable "this model cannot do this" signal does
   not exist, so automatic model escalation is not implemented.
 * **Retrieval is an optional tool** (a lightweight store/web search tool), not
-  the full RAG graph, and is not mandatory in general mode (ADR-0036).
+  the full RAG graph, and is not mandatory in general mode (ADR-0036).  In
+  scientific mode retrieval is a compulsory node, while the ``search_stores``
+  tool call stays optional and LLM-chosen
+  (``system/stores-domain-search-tool.md``).
 * **No multi-agent**: a single thread with parallel tool calls and an evolvable
   plan.  A different model may be used for the evaluator role, but that is a
   role assignment, not a second agent.
 
-Scientific mode is the general base plus the ADR-0029 correctness layer,
-inserted additively; the general path contains no
-retrieval/evidence/gating/verification/provenance stages (ADR-0036).
+Scientific mode is assumed to be the general base plus the ADR-0029 correctness
+layer, inserted additively; the general path contains no
+retrieval/evidence/gating/verification/provenance stages (ADR-0036).  Whether the
+scientific path is an additive layer or a separate graph is an open question
+(``devdocs/system/scientific-mode.md``).
 
 ### Consequences
 
@@ -200,8 +207,10 @@ retrieval/evidence/gating/verification/provenance stages (ADR-0036).
 * Good, because the plan is evolvable state, so multi-step tasks adapt to step
   feedback without a DAG scheduler.
 * Good, because evaluation and answer generation are separate stages, so the
-  evaluator stays an independent judge that can be reused as the scientific
-  verifier (ADR-0029 invariant 7).
+  evaluator stays an independent judge that may be reusable as the scientific
+  verifier (ADR-0029 invariant 7); whether that is this node with
+  mode-conditional behaviour or a separate node is an open choice
+  (``devdocs/system/scientific-mode.md``).
 * Bad, because a completed task costs one extra LLM call (the answer synthesis
   stage); trivial chat is unaffected.
 * Good, because the goal and task-level success criteria are set once and

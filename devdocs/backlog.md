@@ -123,6 +123,15 @@ Last updated: 2026-11-03.
 - Independent inline-answer verifier for `chat`-route answers (ADR-0029
   phase).
 - `eval_pkg` harness (see `devdocs/system/agent-evaluation-harness.md`).
+- Scientific-mode design track: settle before any scientific-mode ADR -- graph
+  topology (additive layer vs separate graph), the epistemic-verifier choice
+  (mode-conditional behaviour in the existing node vs a separate node with its
+  own output schema), the compulsory retrieval node and how scientific mode
+  uses RAG, provenance/no-bypass enforcement, assurance semantics (only
+  `unverified` is implemented), the approved-source definition and the
+  cannot-ground ask-the-user behaviour, mode classification/resolution, one-way
+  downgrade enforcement in `/mode`, citation-carrying answers, and scientific
+  HITL approval mapping (`devdocs/system/scientific-mode.md`).
 
 ## Infrastructure / correctness
 
@@ -290,10 +299,13 @@ Last updated: 2026-11-03.
 ## Frontends / TUI
 
 - Client-context envelope follow-up (ADR-0055): the TUI sends its cwd/env/
-  interpreter as one `client_context` request field.  Fold the web's
-  `mode`/`access_level` request fields into the same client-facing envelope so
-  there is one per-run shape.  Keep `model_overrides` server-resolved and
-  persisted; do not move model selection into the per-query client context.
+  interpreter as one `client_context` request field.  Keep `mode` out of that
+  envelope: the checkpointed `Mode`, mutated only by the `/mode` graph command,
+  is the single authority, while `client_context` is only the loopback runtime
+  carrier for cwd/env/interpreter and is never placed in graph state.  The
+  remaining per-run request fields (such as `access_level`) can still be folded
+  into the same client-facing shape.  Keep `model_overrides` server-resolved
+  and persisted; do not move model selection into the per-query client context.
   Deferred to avoid API churn in the initial isolation work.
 - Pre-dispatch `running tools` notice: emit a notice through `_emit_notice`
   before dispatch and group repeated tool names (for example `4x grep`) in

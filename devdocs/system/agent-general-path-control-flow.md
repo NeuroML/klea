@@ -15,8 +15,10 @@ cross-batch repeated-call guard.
 ## Scope
 
 Mechanics of the general (operational) path: nodes, state, failure triage,
-plan review, evaluator routing and escalation.  Scientific mode is the general
-base plus the ADR-0029 correctness layer (ADR-0036).
+plan review, evaluator routing and escalation.  Scientific mode is assumed to be
+the general base plus the ADR-0029 correctness layer (ADR-0036); that layer is a
+design draft and every scientific-mode item is draft/proposed
+(``scientific-mode.md``).
 
 ## Control flow
 
@@ -601,8 +603,9 @@ is fine, while a material mismatch is reported in the step's ``reason``.  Its
 user prompt also carries an optional ``recent_tool_failures`` block from the
 failed-batch digest, so a failed call is not mistaken for evidence of success.
 It never writes ``message_for_user``.  An empty or failed evaluation escalates
-deterministically to a replan.  Scientific mode uses a separate, independent,
-epistemic verifier with the same judge-only contract.
+deterministically to a replan.  Scientific mode needs an independent epistemic
+verifier; whether that is a separate node or this node with mode-conditional
+behaviour is open (``scientific-mode.md``).
 
 ### Reachability and ``abort``
 
@@ -710,8 +713,8 @@ The observations it receives are rendered in full, not budgeted:
 every recorded step.  There is no character cap; the model's context window is
 the only bound.
 
-Scientific mode will use a grounded, citation-carrying variant; the Evaluator
-contract is unchanged.
+Scientific mode will use a grounded, citation-carrying variant; the scientific
+evaluator contract is not yet decided (``scientific-mode.md``).
 
 ## Escalation
 
@@ -727,13 +730,16 @@ contract is unchanged.
 
 The general path contains no mandatory
 retrieval/evidence/gating/verification/provenance stages (ADR-0036).
-Retrieval is an optional ``search_stores``-style tool.  Scientific mode inserts
-the ADR-0029 layer additively.
+Retrieval is an optional ``search_stores``-style tool in general mode.  In
+scientific mode retrieval is a compulsory node while the ``search_stores`` tool
+call stays optional and LLM-chosen, and whether the ADR-0029 layer is inserted
+additively or built as a separate graph is open (``scientific-mode.md``).
 
 ## Relationship to shared nodes
 
 ``ToolsPicker``/``ToolsCallerNode`` are shared with RAG (ADR-0020); the agent
 uses ``ToolCallBinder``, a ``ToolsPicker`` subclass that binds the Planner's
 chosen tools one group at a time.  The evaluator and planner are agent nodes;
-the general evaluator contract (operational) differs from the scientific
-evaluator contract (epistemic), even if code is shared.
+the general evaluator contract (operational) may differ from the scientific
+evaluator contract (epistemic; open: one mode-conditional node versus a separate
+node), even if code is shared.

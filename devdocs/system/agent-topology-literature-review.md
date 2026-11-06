@@ -72,6 +72,11 @@ Two consequences frame everything below:
    general path must not contain scientific-only stages, so drift is
    structurally prevented.
 
+Status: this is a design frame for a still-proposed scientific path.  Both the
+epistemic evaluator's shape (a separate node versus a mode-conditional node) and
+the additive-versus-separate topology are open questions, not settled contracts
+(see `system/scientific-mode.md`).
+
 ## Findings
 
 ### F1. Cost-aware inference is proven, but learned routing does not fit Klea [I]

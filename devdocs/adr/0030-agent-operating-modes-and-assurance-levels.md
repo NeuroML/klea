@@ -120,6 +120,12 @@ These hold regardless of how the LangGraph is wired. They are the mode-level inv
   never derived from generated text.  Assurance/verification state (invariants 3-4) is
   deferred to the ADR-0029 verification phase; General vs Scientific mode is distinguishable
   by ``mode`` alone.
+* Implementation status: the ADR-0029 invariants are accepted requirements without
+  an implementation confirmation, and the scientific workflow itself is not
+  designed (see ``devdocs/system/scientific-mode.md``).  ``Mode.assurance``
+  defaults to the literal ``unverified`` and nothing sets ``verified``.  The
+  one-way downgrade rule (invariant 5) is stated but not enforced: the ``/mode``
+  command currently accepts both directions.
 * Lint/type/docs gates remain: `ruff check`, `ty`, and `docs: make html` render the ADR.
 
 ## Pros and Cons of the Options

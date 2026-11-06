@@ -59,11 +59,16 @@ Chosen option: **C. General mode MAY ground; Scientific mode MUST ground.**
   execution, independent verification against success criteria, and a closed
   provenance chain (ADR-0029 inv. 1-11).  Its evaluator is **epistemic**
   (groundedness, coverage, confidence; ADR-0009).  Only results satisfying the
-  invariants are labelled **verified**.
+  invariants are labelled **verified**.  The epistemic evaluator is not designed
+  and the implemented assurance literal is ``unverified``: nothing currently
+  sets ``verified`` (``devdocs/system/scientific-mode.md``).
 
 The distinction is one of **enforcement**, not capability.  The scientific path
-is the general base plus an additive correctness layer; the general path
-contains no mandatory retrieval/evidence/gating/verification/provenance stages.
+is assumed to be the general base plus an additive correctness layer; the
+general path contains no mandatory
+retrieval/evidence/gating/verification/provenance stages.  Whether the scientific
+path is an additive layer or a separate graph is an open question
+(``devdocs/system/scientific-mode.md``).
 
 Assurance status is structured state and must be surfaced (ADR-0030 inv. 4,
 ADR-0032).  Because general mode may retrieve from the same curated stores, the
@@ -84,13 +89,15 @@ This ADR refines, and does not weaken, ADR-0029 and ADR-0030.
 * Good, because capability (retrieval) is implemented once and shared.
 * Bad, because similar-looking answers can come from either mode, so the
   frontend must carry the assurance label clearly.
-* Bad, because the evaluator must have two distinct contracts (operational vs
-  epistemic), increasing the testing surface.
+* Bad, because the evaluator may need two distinct contracts (operational vs
+  epistemic; open: one mode-conditional node versus a separate node),
+  increasing the testing surface.
 
 ### Confirmation
 
 * The general graph contains no mandatory
-  retrieval/evidence/verification/provenance stage; the scientific graph does.
+  retrieval/evidence/verification/provenance stage; the scientific graph will
+  contain them once it is designed.
 * ``KleaAgentState.mode`` and the graph-level ``context`` event carry the
   resolved mode and note (ADR-0030/0032), and the frontend renders the
   unverified/verified assurance distinction.
@@ -123,6 +130,8 @@ This ADR refines, and does not weaken, ADR-0029 and ADR-0030.
 
 * Refines: ADR-0029 (correctness invariants), ADR-0030 (operating modes and
   assurance).
+* Status: this ADR stays **proposed**, like ADR-0035, until the scientific design
+  exists (``devdocs/system/scientific-mode.md``).
 * Related: ADR-0035 (general topology), ADR-0032 (context events), ADR-0013
   (inspection), ADR-0008/0011/0022/0024 (RAG pipeline used as a general-mode
   tool).
