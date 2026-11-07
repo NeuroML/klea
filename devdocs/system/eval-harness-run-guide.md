@@ -53,11 +53,13 @@ fields the loader relies on:
   * `turn_number` -- 1-based and matching its position in `turns` (the first
     turn is `1`); a mismatch is a validation error.
   * `role` -- forwarded verbatim as the request `role`.
-  * the message text in `content` -- never in `input`.  `content` is the only
-    key the loader keeps for a turn body, so a turn that sets `input` instead
-    is not a schema error: `validate` accepts it (`1 cases valid`), the turn
-    loads with an empty `content`, and it only fails at run time with
-    `turn <n> carries no input text`.
+  * the message text in `content`, which is required and must be a non-empty
+    string.  The loader allows exactly these turn keys: `turn_number`, `role`,
+    `content`, `expected_outputs`, `tool_expectations`.  Any other key -- for
+    example a turn that puts its text in `input` instead of `content` -- is a
+    validation error: `validate` reports `<source>:<line>: turn <n> has
+    unknown field 'input' (allowed: ...)` and exits 2.  A missing, empty or
+    non-string `content` is rejected the same way.
 * `rubrics` -- optional; per-case or per-turn grading criteria layered on top
   of task success.  See ADR-0056 for the exact keys.
 
@@ -81,11 +83,11 @@ Example (`suites/smoke.jsonl`):
 klea-eval validate suites/smoke.jsonl
 ```
 
-Run this first: it is the cheapest way to catch a bad `turn_number` or an
-unknown `schema_version`, both of which would otherwise fail mid-suite.  It
-does *not* catch a misplaced `input` key: `validate` accepts such a turn and
-still prints `... cases valid`, and the fault only surfaces at run time as
-`turn <n> carries no input text` (see section 8).
+Run this first: it is the cheapest way to catch a bad `turn_number`, an
+unknown `schema_version` or a misplaced `input` key, all of which would
+otherwise fail mid-suite.  A turn that carries `input` instead of a non-empty
+`content` is rejected here with `turn <n> has unknown field 'input'
+(allowed: ...)` and exit 2.
 
 ## 4. Run a suite
 
@@ -202,11 +204,14 @@ Work down this list when a run does not behave as expected.
   agent paths exceed it.  Raise `--timeout` for such suites.
 * **A validation fault from `validate` / `run` (exit 2).**  The message is
   `<source>:<line>: <message>`.  Common causes: `schema_version` other than
-  `"1.0"`, or a `turn_number` that does not match the turn's 1-based position.
-* **`turn <n> carries no input text` at run time.**  The turn puts its message
-  in `input` instead of `content`.  `validate` does not flag this (the turn
-  loads with an empty `content`); the fault only surfaces when the run builds
-  the request, so move the text to `content`.
+  `"1.0"`, a `turn_number` that does not match the turn's 1-based position, or
+  a turn with an unknown key such as `input` (`turn <n> has unknown field
+  'input' (allowed: ...)`); move the text to `content`.
+* **`turn <n> carries no input text` at run time.**  `validate` already rejects
+  a turn that carries an unknown `input` key, so this should be unreachable
+  from a suite file; the runner keeps the check as defence in depth for a
+  payload built programmatically.  The fix is the same: move the text to a
+  non-empty `content`.
 * **A rerun reports `skipped` (or you want to force it).**  The deterministic
   `run_id` matched a complete stored run, so the case was skipped and its
   stored result kept.  Pass `--overwrite` to clear and republish that run

@@ -28,6 +28,7 @@ from klea_eval.errors import CaseValidationError
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "ALLOWED_TURN_KEYS",
     "SUPPORTED_SCHEMA_VERSIONS",
     "VALID_OUTPUT_FORMATS",
     "VALID_ROLES",
@@ -62,6 +63,15 @@ DEFAULT_VALIDATION_RULE = "exact_match"
 
 #: Default tool call-count range when an expectation omits one.
 DEFAULT_CALL_COUNT = (1, 1)
+
+#: Keys a turn object may carry, in error-message order.
+ALLOWED_TURN_KEYS = (
+    "turn_number",
+    "role",
+    "content",
+    "expected_outputs",
+    "tool_expectations",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -287,6 +297,16 @@ def _parse_turn(
             case_id,
         )
 
+    unknown_keys = sorted(set(entry) - set(ALLOWED_TURN_KEYS))
+    if unknown_keys:
+        raise _fail(
+            f"turn {turn_number} has unknown field '{unknown_keys[0]}' "
+            f"(allowed: {_allowed(ALLOWED_TURN_KEYS)})",
+            source,
+            line_number,
+            case_id,
+        )
+
     role = entry.get("role")
     if role not in VALID_ROLES:
         raise _fail(
@@ -300,6 +320,13 @@ def _parse_turn(
     if not isinstance(content, str):
         raise _fail(
             f"turn {turn_number} field 'content' must be a string",
+            source,
+            line_number,
+            case_id,
+        )
+    if not content.strip():
+        raise _fail(
+            f"turn {turn_number} field 'content' must be a non-empty string",
             source,
             line_number,
             case_id,

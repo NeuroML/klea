@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 from klea_eval.cases import (
+    ALLOWED_TURN_KEYS,
     SUPPORTED_SCHEMA_VERSIONS,
     VALID_OUTPUT_FORMATS,
     VALID_ROLES,
@@ -336,6 +337,120 @@ def test_invalid_turn_role_is_rejected(tmp_path: Path) -> None:
         f"turn 1 has invalid role 'tool' (allowed: {', '.join(VALID_ROLES)})"
     )
     assert VALID_ROLES == ("user", "plan", "execute", "eval", "chat")
+
+
+def test_turn_without_content_is_rejected(tmp_path: Path) -> None:
+    """A turn that omits `content` is rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(turns=[{"turn_number": 1, "role": "user"}])],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == "turn 1 field 'content' must be a non-empty string"
+    assert excinfo.value.line_number == 1
+
+
+def test_empty_turn_content_is_rejected(tmp_path: Path) -> None:
+    """An empty `content` string is rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(turns=[_turn(1, content="")])],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == "turn 1 field 'content' must be a non-empty string"
+
+
+def test_whitespace_turn_content_is_rejected(tmp_path: Path) -> None:
+    """A whitespace-only `content` string is rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(turns=[_turn(1, content="   \n\t")])],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == "turn 1 field 'content' must be a non-empty string"
+
+
+def test_non_string_turn_content_is_rejected(tmp_path: Path) -> None:
+    """A non-string `content` is rejected before the emptiness check."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(turns=[_turn(1, content=42)])],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == "turn 1 field 'content' must be a string"
+
+
+def test_turn_with_an_input_key_is_rejected(tmp_path: Path) -> None:
+    """The misplaced `input` key is a validation error, not a silent load."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(turns=[_turn(1, input="Hello")])],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    message = excinfo.value.message
+    assert message.startswith("turn 1 has unknown field 'input' (allowed: ")
+    for key in ALLOWED_TURN_KEYS:
+        assert key in message
+
+
+def test_all_allowed_turn_keys_are_accepted(tmp_path: Path) -> None:
+    """A turn populating every allowed key parses with its values intact."""
+    assert ALLOWED_TURN_KEYS == (
+        "turn_number",
+        "role",
+        "content",
+        "expected_outputs",
+        "tool_expectations",
+    )
+    turn = {
+        "turn_number": 1,
+        "role": "user",
+        "content": "read the data",
+        "expected_outputs": [
+            {
+                "file_path": "summary.txt",
+                "output_format": "text",
+                "validation_rule": "contains",
+            }
+        ],
+        "tool_expectations": [
+            {
+                "tool_name": "read_file",
+                "call_count": [1, 1],
+                "argument_constraints": {"path": "data.json"},
+            }
+        ],
+    }
+    assert set(turn) == set(ALLOWED_TURN_KEYS)
+    path = _write_suite(tmp_path / "suite.jsonl", [_case(turns=[turn])])
+
+    loaded = load_suite(path).cases[0]
+
+    first = loaded.turns[0]
+    assert (first.turn_number, first.role, first.content) == (
+        1,
+        "user",
+        "read the data",
+    )
+    assert first.expected_outputs[0].file_path == "summary.txt"
+    assert first.expected_outputs[0].validation_rule == "contains"
+    assert first.tool_expectations[0].tool_name == "read_file"
+    assert first.tool_expectations[0].call_count == (1, 1)
 
 
 @pytest.mark.parametrize("role", VALID_ROLES)

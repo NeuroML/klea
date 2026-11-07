@@ -38,7 +38,7 @@ requires_samples = pytest.mark.skipif(
 
 def _turn(turn_number: int = 1, role: str = "user", text: str = "hello") -> dict:
     """Build one ADR-0056 turn document."""
-    return {"turn_number": turn_number, "role": role, "input": text}
+    return {"turn_number": turn_number, "role": role, "content": text}
 
 
 def _case(case_id: str, turns: list[dict] | None = None) -> dict:

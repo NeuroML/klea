@@ -78,6 +78,7 @@
 
 ### Changed
 
+- Eval harness case validation now rejects a turn without a non-empty `content` field and any turn carrying an unknown key such as `input`, so a misplaced message is caught by `validate` instead of failing at run time.
 - The final answer now summarises tool output instead of reprinting it, since every tool call is shown in the chat.
 - Agent budgets: the tool-error re-pick budget is now 6 (was 3), the per-step non-advancing attempt budget is 6 (was 3), and the automated-replan budget is 8 (was 4), so reading a large file can span more tool rounds before the agent escalates or replans.
 - Terminal UI: Ctrl+C now copies selected text instead of stopping the run; Ctrl+Shift+C stops a run, with F12 as the fallback for terminals that intercept Ctrl+Shift+C.

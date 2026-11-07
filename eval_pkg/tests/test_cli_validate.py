@@ -93,6 +93,22 @@ def test_validate_rejects_invalid_role(tmp_path: Path) -> None:
     ), combined
 
 
+def test_validate_rejects_a_turn_with_an_input_key(tmp_path: Path) -> None:
+    """A turn that puts its text in `input` exits 2 with the unknown-key fault."""
+    suite = _write_suite(
+        tmp_path / "input.jsonl",
+        [_case("case-1", [{"turn_number": 1, "role": "user", "input": "Hello"}])],
+    )
+
+    result = runner.invoke(app, ["validate", str(suite)])
+    combined = _combined(result)
+
+    assert result.exit_code == 2, combined
+    assert re.search(
+        rf"{re.escape(str(suite))}:1: .*unknown field 'input'", combined
+    ), combined
+
+
 def test_validate_reports_missing_required_field_line(tmp_path: Path) -> None:
     """A missing required field reports the offending line number."""
     suite = _write_suite(
