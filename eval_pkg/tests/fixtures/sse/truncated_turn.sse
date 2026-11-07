@@ -1,0 +1,12 @@
+: SSE fixture: a stream cut off mid-frame. The last frame announces an
+: event but never delivers its data line, so the parser drops it and the
+: adapter reports an incomplete stream.
+
+
+event: progress
+data: {"type": "progress", "node": "planner", "data": {"heading": "Planning the work"}}
+
+event: usage
+data: {"type": "usage", "node": "answer", "data": {"details": {"input_tokens": 30, "output_tokens": 10, "total_tokens": 40, "role": "execute"}}}
+
+event: complete
