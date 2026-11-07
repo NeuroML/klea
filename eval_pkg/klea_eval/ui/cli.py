@@ -84,9 +84,14 @@ def run(
         help="Base URL of the model endpoint (defaults to $KLEA_EVAL_BASE_URL).",
     ),
     endpoint: str = typer.Option(
-        "/v1/chat/completions",
+        "/query/stream",
         "--endpoint",
-        help="Model endpoint path appended to --base-url.",
+        help=(
+            "Model endpoint path appended to --base-url.  Defaults to "
+            "/query/stream, the SSE route that klea-serve and klea-rag-serve "
+            "both expose and the one klea_eval.runners.http targets; pass "
+            "this flag for any other surface."
+        ),
     ),
     timeout: float = typer.Option(
         60.0,
@@ -168,7 +173,7 @@ def report(
     """Render a report from already collected evaluation results."""
     # Deferred import: the reporting stack pulls in the renderers and is only
     # needed once a command actually renders something.
-    from klea_eval.reporting import write_report  # ty: ignore[unresolved-import]
+    from klea_eval.reporting import write_report  # ty: ignore[import-not-found]
 
     logger.debug("klea-eval: rendering report for %s", results)
     write_report(results, output)
