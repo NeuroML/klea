@@ -64,7 +64,7 @@ The phases are ordered; each depends on the ones before it. Every phase names
 its exit criterion and the verification command that must pass before its commits
 are made.
 
-P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7 `done`, P8 `done`, P9 `pending`.
+P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7 `done`, P8 `done`, P9 `done`.
 
 | Phase | Objective | Files under `eval_pkg/` | ADR / design note | Depends on | Exit criterion | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -76,7 +76,7 @@ P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7 `done`, P8 
 | P6 | Harness pipeline: wire loader, runners and storage behind the `klea-eval` command. | `klea_eval/pipeline.py`, `klea_eval/ui/cli.py`, `tests/test_pipeline.py` | ADR-0060, D1, D4 | P5 | `klea-eval run <suite>` executes a multi-case JSONL suite end to end and stores results. | `pytest eval_pkg -m eval -k pipeline` | done |
 | P7 | Scoring and aggregation: aggregate case scores, suite-level `pass_at_k` from the run index. | `klea_eval/scoring.py`, `tests/test_scoring.py` | ADR-0060, D9, D10 | P6 | Suite score is the mean of case scores; `pass_at_k` matches a hand-computed value on a sample suite. | `pytest eval_pkg -m eval -k scoring` | done |
 | P8 | API and SSE integration: expose runs through the API and the SSE stream. | `klea_eval/api.py`, `klea_eval/ui/cli.py`, `tests/test_api.py` | ADR-0060, D10, D11, `agent-evaluation-harness.md` | P7 | A run is retrievable through the API; retention keeps the last 20 complete runs. | `pytest eval_pkg -m eval -k api` | done |
-| P9 | In-process scheduler, sample suites and CI wiring. | `klea_eval/scheduler.py`, `samples/`, `tests/test_scheduler.py`, `.github/workflows/` | ADR-0060, D7, D8 | P8 | Scheduler runs the sample suites unattended; CI runs the `eval` marked tests. | `pytest eval_pkg -m eval`, CI run | pending |
+| P9 | In-process scheduler, sample suites and CI wiring. | `klea_eval/scheduler.py`, `samples/`, `tests/test_scheduler.py`, `.github/workflows/` | ADR-0060, D7, D8 | P8 | Scheduler runs the sample suites unattended; CI runs the `eval` marked tests. | `pytest eval_pkg -m eval`, CI run | done |
 
 ---
 
@@ -96,6 +96,8 @@ P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7 `done`, P8 
 | P6 | `95a2d1c5` | `feat(eval): run suites end to end through the pipeline and CLI` |
 | P7 | `067b82e4` | `feat(eval): score and aggregate eval runs` |
 | P8 | `e137b24a` | `feat(eval): expose stored eval runs through the API with retention` |
+| P9 | `97aef208` | `feat(eval): schedule unattended eval suite runs` |
+| P9 | `c2b9cf03` | `feat(eval): add sample suites and run eval tests in CI` |
 
 Rows are appended as commits land. The phase column is the phase the commit
 belongs to, or `docs` for planning-only commits.
@@ -261,14 +263,44 @@ Points discovered while delivering P1-P7; later phases must respect them.
   `transcript.jsonl` writing, HITL `interrupt` resume, cost derivation (no
   price table exists), the bounded worker pool (P9), MLflow export and the
   Markdown reporter.
+- Phase 9 scope caveats: `klea_eval/scheduler.py` is only the ADR-0060 Schedule
+  stage. It enumerates suites (`discover_suites`: a JSONL file, or a directory's
+  `*.jsonl` files sorted by name), drives each through
+  `klea_eval.pipeline.run_suite` and aggregates each suite's stored runs through
+  `klea_eval.scoring.aggregate_suite`, restricted to that suite's `case_id`s, so
+  no loading, execution, storage or scoring logic is redefined. Execution stays
+  sequential (`DEFAULT_MAX_WORKERS = 1`; the bounded worker pool is deferred). A
+  suite that cannot start is isolated in its `SuiteRun.error` and the remaining
+  suites still run; only an unusable top-level argument raises
+  `SchedulerConfigError`, which lives in `klea_eval/scheduler.py` following the
+  `WorkspaceError`, `RunManagerError`, `MetricsError`, `ResultsError`,
+  `ScoringError` and `ApiError` precedent. `find_incomplete_runs` reports a
+  leftover `runs/<run_id>.tmp/` (or unpublished final) directory as an
+  interrupted run and never treats it as a result. `ScheduleReport.exit_code`
+  maps the ADR-0060 codes: `0` every case passed, `1` a case failed its rubrics,
+  `2` a suite could not start (it outranks everything else because nothing was
+  stored for that suite), `3` incomplete `.tmp` runs were found. The D7 samples
+  are three minimal ASCII suites under `eval_pkg/samples/` (`smoke.jsonl`,
+  `multi_turn.jsonl`, `multi_case.jsonl`) with no fixtures: enough to exercise
+  the loader, the pipeline and per-case aggregation, not a benchmark corpus. The
+  D8 CI wiring is one `Run eval-marked tests` step in
+  `.github/workflows/ci.yml` running `pytest -q -m eval` inside `eval_pkg`, after
+  the unit tests and before the ruff lint; the `eval` marker itself was already
+  registered in `eval_pkg/pyproject.toml`, so no marker change was needed.
+  Still deferred: the bounded worker pool and any parallel worker count, an
+  external or broker-backed scheduler backend, a `klea-eval schedule` CLI
+  command, automatic repair or redo of leftover `.tmp` runs,
+  `transcript.jsonl` writing, HITL `interrupt` resume, cost derivation (no price
+  table exists), MLflow export, a persisted per-suite report artefact and the
+  Markdown reporter.
 
 ---
 
 
 ## 6. How to resume
 
-1. Read this note, then read the phase table for the first row whose status is
-   not `done`. P1, P2, P3, P4, P5, P6, P7 and P8 are `done`. The deterministic
+1. Read this note, then read the phase table: every row (P1 to P9) is `done`
+   and no atomic change remains. The deterministic
    identity module (`klea_eval/identity.py`, commit `535b09d3`), the workspace
    module (`klea_eval/workspace.py`, commit `06530ad7`), the run manager
    (`klea_eval/run_manager.py`, commit `28167be8`), the metrics collector
@@ -278,12 +310,12 @@ Points discovered while delivering P1-P7; later phases must respect them.
    `tests/test_http_runner.py` and `tests/fixtures/sse/`, commit `577fff20`),
    the harness pipeline (`klea_eval/pipeline.py`, `klea_eval/ui/cli.py` and
    `tests/test_pipeline.py`, commit `95a2d1c5`), scoring and aggregation
-   (`klea_eval/scoring.py` and `tests/test_scoring.py`, commit `067b82e4`) and
-   the run API and retention (`klea_eval/api.py`, `klea_eval/ui/cli.py` and
-   `tests/test_api.py`, commit `e137b24a`) are delivered; the next atomic
-   change is P9 in-process scheduler, sample suites and CI wiring
-   (`klea_eval/scheduler.py`, `samples/`, `tests/test_scheduler.py` and
-   `.github/workflows/`).
+   (`klea_eval/scoring.py` and `tests/test_scoring.py`, commit `067b82e4`), the
+   run API and retention (`klea_eval/api.py`, `klea_eval/ui/cli.py` and
+   `tests/test_api.py`, commit `e137b24a`) and the in-process scheduler, sample
+   suites and CI wiring (`klea_eval/scheduler.py`, `samples/`,
+   `tests/test_scheduler.py` and `.github/workflows/ci.yml`, commits `97aef208`
+   and `c2b9cf03`) are delivered.
 2. Read `devdocs/system/agent-evaluation-harness.md` for the architecture of the
    phase you are picking up, and the ADR it names for the design intent.
 3. Check `git log --oneline` and the commit log table above: they should agree.
