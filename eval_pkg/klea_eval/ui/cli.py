@@ -196,5 +196,123 @@ def validate(
     typer.echo(f"{loaded.source}: {len(loaded.cases)} cases valid")
 
 
+@app.command()
+def show(
+    run_id: str = typer.Argument(..., help="Identifier of the stored run to show."),
+    workspace: str = typer.Option(
+        "",
+        "--workspace",
+        "-w",
+        help="Workspace holding the runs (defaults to $KLEA_EVAL_WORKSPACE).",
+    ),
+) -> None:
+    """Show one stored run read back through the API (P8)."""
+    # Deferred import: the API composes the results, metrics and scoring
+    # modules (plus the workspace layer), which --help and the lightweight
+    # commands must not pull in.
+    from klea_eval.api import ApiError, get_run
+
+    logger.debug("klea-eval: showing run %s", run_id)
+    try:
+        record = get_run(run_id, workspace or None)
+    except ApiError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
+
+    outcome = "pass" if record.passed else "fail"
+    typer.echo(f"{record.run_id}: {record.case_id} {record.status} {outcome}")
+
+
+@app.command()
+def runs(
+    workspace: str = typer.Option(
+        "",
+        "--workspace",
+        "-w",
+        help="Workspace holding the runs (defaults to $KLEA_EVAL_WORKSPACE).",
+    ),
+    case_id: str = typer.Option(
+        "",
+        "--case-id",
+        help="Only list the runs of this case.",
+    ),
+    status: str = typer.Option(
+        "",
+        "--status",
+        help="Only list the runs with this status.",
+    ),
+) -> None:
+    """List the stored runs from the run index (P8)."""
+    # Deferred import: only the index reader is needed here, and the API module
+    # stays out of the import graph of the lightweight commands.
+    from klea_eval.api import list_runs
+
+    logger.debug("klea-eval: listing runs")
+    entries = list_runs(
+        workspace or None,
+        case_id=case_id or None,
+        status=status or None,
+    )
+    for entry in entries:
+        typer.echo(f"{entry.run_id} {entry.case_id} {entry.status} {entry.timestamp}")
+
+
+@app.command()
+def prune(
+    workspace: str = typer.Option(
+        "",
+        "--workspace",
+        "-w",
+        help="Workspace holding the runs (defaults to $KLEA_EVAL_WORKSPACE).",
+    ),
+    keep: int = typer.Option(
+        20,
+        "--keep",
+        "-k",
+        help="Number of completed runs kept per case.",
+    ),
+) -> None:
+    """Apply the ADR-0059 retention policy to the stored runs (P8)."""
+    # Deferred import: retention purges directories and rewrites the index, so
+    # it is only imported once this command actually runs.
+    from klea_eval.api import ApiError, apply_retention
+
+    logger.debug("klea-eval: pruning runs, keep=%d", keep)
+    try:
+        result = apply_retention(workspace or None, keep=keep)
+    except ApiError as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
+
+    typer.echo(
+        f"kept {len(result.kept_runs)} runs, pruned {len(result.pruned_runs)} runs"
+    )
+
+
+@app.command()
+def summary(
+    workspace: str = typer.Option(
+        "",
+        "--workspace",
+        "-w",
+        help="Workspace holding the runs (defaults to $KLEA_EVAL_WORKSPACE).",
+    ),
+    k: int = typer.Option(
+        1,
+        "--k",
+        help="Attempts per case inspected by pass_at_k.",
+    ),
+) -> None:
+    """Print the suite-level aggregate of the stored runs (P8)."""
+    # Deferred import: the aggregate reads the per-run metrics, which are only
+    # needed once this command actually summarises something.
+    from klea_eval.api import suite_summary
+
+    logger.debug("klea-eval: summarising the suite, k=%d", k)
+    aggregate = suite_summary(workspace or None, k=k)
+    typer.echo(f"suite_score: {aggregate.suite_score:.4f}")
+    typer.echo(f"pass_at_k: {aggregate.pass_at_k:.4f}")
+
+
 if __name__ == "__main__":
     app()
