@@ -1,0 +1,458 @@
+# Copyright 2026 Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
+"""Harness pipeline: run a suite end to end and store every run.
+
+The module is the ADR-0060 orchestration layer.  It is a thin composition of
+the collaborators that already own their part of the contract:
+
+- :mod:`klea_eval.cases` loads and validates the suite (ADR-0056);
+- :func:`klea_eval.run_manager.start_run` schedules one case and prepares its
+  isolated run directory (ADR-0057);
+- :func:`klea_eval.run_manager.run_case` executes and scores the turns through
+  the injected executor and scorer, and publishes the run (ADR-0057);
+- :func:`klea_eval.metrics.load_run` aggregates the run's own records
+  (ADR-0058);
+- :func:`klea_eval.results.write_metadata` and
+  :func:`klea_eval.results.append_index_entry` write ``run.json`` and the one
+  index line per completed run (ADR-0059);
+- :class:`klea_eval.runners.http.HttpRunner` supplies the Execute stage's
+  network surface when the caller does not inject an executor (ADR-0058).
+
+Nothing is reimplemented here: no retry policy, no metric parsing, no
+``.tmp`` handling, no transport.  A case that fails is isolated: its failure is
+recorded in the returned :class:`CaseRun`, it leaves no published run and no
+index line, and the suite continues with the next case.  Only a pre-run fault
+(an invalid suite, an unusable workspace root, a missing executor) aborts the
+suite before any run starts.
+
+Suite-level aggregation (``pass_at_k``), retention, ``transcript.jsonl``
+writing, HITL resume, cost derivation and the bounded worker pool are out of
+scope here and belong to the later phases of the implementation plan.
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Callable
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from klea_eval import cases, identity, metrics, results, run_manager, workspace
+from klea_eval.cases import TestCase
+from klea_eval.metrics import RunMetrics
+from klea_eval.run_manager import RunContext, TurnExecutor, TurnScorer
+
+logger = logging.getLogger(__name__)
+
+__all__ = [
+    "EXIT_CASE_FAILURE",
+    "EXIT_CONFIGURATION_ERROR",
+    "EXIT_OK",
+    "CaseRun",
+    "PipelineConfigError",
+    "PipelineError",
+    "SuiteResult",
+    "run_suite",
+]
+
+#: Exit code of a suite whose every case met its rubrics (ADR-0060).
+EXIT_OK = 0
+
+#: Exit code of a suite that ran but had a case fail its rubrics (ADR-0060).
+EXIT_CASE_FAILURE = 1
+
+#: Exit code of a suite that could not start at all (ADR-0060).
+EXIT_CONFIGURATION_ERROR = 2
+
+
+class PipelineError(Exception):
+    """Base class for failures raised by the harness pipeline."""
+
+
+class PipelineConfigError(PipelineError):
+    """Raised when the pipeline cannot be configured from its arguments."""
+
+
+@dataclass(frozen=True, slots=True)
+class CaseRun:
+    """The outcome of one case in a suite run."""
+
+    case_id: str
+    status: str
+    run_id: str | None = None
+    output_dir: Path | None = None
+    metrics: RunMetrics | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SuiteResult:
+    """The outcome of one end-to-end suite run, in suite order."""
+
+    suite_path: Path
+    workspace_root: Path
+    runs: tuple[CaseRun, ...] = ()
+
+    @property
+    def completed(self) -> int:
+        """Number of cases that executed and were stored."""
+        return self._count(run_manager.STATUS_COMPLETED)
+
+    @property
+    def failed(self) -> int:
+        """Number of cases that failed, were skipped as failures or stored badly."""
+        return self._count(run_manager.STATUS_FAILED)
+
+    @property
+    def skipped(self) -> int:
+        """Number of cases left untouched because their run was already complete."""
+        return self._count(run_manager.STATUS_SKIPPED)
+
+    @property
+    def exit_code(self) -> int:
+        """``0`` when every case passed, ``1`` when one failed its rubrics.
+
+        A configuration fault never reaches this property: it aborts the suite
+        before any run starts and is mapped to ``2`` by the CLI.
+        """
+        for case_run in self.runs:
+            if case_run.status == run_manager.STATUS_FAILED:
+                return EXIT_CASE_FAILURE
+            if case_run.metrics is not None and case_run.metrics.task_success is False:
+                return EXIT_CASE_FAILURE
+        return EXIT_OK
+
+    @property
+    def ok(self) -> bool:
+        """Whether the suite completed with every case passing."""
+        return self.exit_code == EXIT_OK
+
+    def _count(self, status: str) -> int:
+        """Count the case runs whose status is ``status``."""
+        return sum(1 for case_run in self.runs if case_run.status == status)
+
+
+def run_suite(
+    suite_path: str | Path,
+    *,
+    workspace_root: str | Path | None = None,
+    execute_turn: TurnExecutor | None = None,
+    score_turn: TurnScorer | None = None,
+    runner: Any | None = None,
+    base_url: str | None = None,
+    endpoint: str | None = None,
+    timeout: float | None = None,
+    harness_seed: str | int | None = None,
+    max_attempts: int = run_manager.DEFAULT_MAX_ATTEMPTS,
+    sleep: Callable[[float], None] | None = None,
+    overwrite: bool = False,
+) -> SuiteResult:
+    """Execute every case of ``suite_path`` and store each completed run.
+
+    ``execute_turn`` is the synchronous turn executor the run manager calls; if
+    it is omitted, ``runner`` (an object exposing ``as_turn_executor()``) is
+    used, and if that is omitted too an
+    :class:`klea_eval.runners.http.HttpRunner` is built from ``base_url``,
+    ``endpoint`` and ``timeout``.  Supplying none of the three is a
+    configuration error: the suite cannot start, and nothing is stored.
+
+    Cases run in suite order, single-threaded (the bounded worker pool is a
+    later phase).  A case that fails is recorded and skipped, never promoted to
+    a suite-level error; an already complete run is left untouched and reports
+    :data:`klea_eval.run_manager.STATUS_SKIPPED` unless ``overwrite`` is set.
+    """
+    if not isinstance(suite_path, (str, Path)):
+        raise PipelineConfigError(f"expected a path, got {type(suite_path).__name__}")
+    if isinstance(max_attempts, bool) or not isinstance(max_attempts, int):
+        raise PipelineConfigError("max_attempts must be an integer")
+    if max_attempts < 1:
+        raise PipelineConfigError("max_attempts must be at least 1")
+    if not isinstance(overwrite, bool):
+        raise PipelineConfigError("overwrite must be a boolean")
+    if score_turn is not None and not callable(score_turn):
+        raise PipelineConfigError("score_turn must be callable or None")
+    if sleep is not None and not callable(sleep):
+        raise PipelineConfigError("sleep must be callable or None")
+
+    executor = _resolve_executor(execute_turn, runner, base_url, endpoint, timeout)
+    root = _prepare_workspace_root(workspace_root)
+
+    loaded = cases.load_suite(suite_path)
+    loaded_cases = _loaded_cases(loaded)
+    fixture_base = _fixture_base(loaded, Path(suite_path))
+    logger.debug(
+        f"{suite_path = }, {root = }, {fixture_base = }, "
+        f"{len(loaded_cases) = }, {overwrite = }"
+    )
+
+    outcomes: list[CaseRun] = []
+    for case in loaded_cases:
+        outcomes.append(
+            _run_one_case(
+                case,
+                fixture_base,
+                root,
+                executor,
+                score_turn,
+                harness_seed,
+                max_attempts,
+                sleep,
+                overwrite,
+            )
+        )
+
+    outcome_tuple = tuple(outcomes)
+    logger.debug(
+        f"{suite_path = }, {len(outcome_tuple) = }, "
+        f"{sum(1 for run in outcome_tuple if run.status == run_manager.STATUS_FAILED) = }"
+    )
+    return SuiteResult(
+        suite_path=Path(suite_path).resolve(),
+        workspace_root=root,
+        runs=outcome_tuple,
+    )
+
+
+def _run_one_case(
+    case: TestCase,
+    fixture_base: Path,
+    root: Path,
+    execute_turn: TurnExecutor,
+    score_turn: TurnScorer | None,
+    harness_seed: str | int | None,
+    max_attempts: int,
+    sleep: Callable[[float], None] | None,
+    overwrite: bool,
+) -> CaseRun:
+    """Schedule, execute and store one case, isolating any failure of it."""
+    run_id = _run_id(case, harness_seed)
+    complete = workspace.detect_state(run_id, root) is workspace.RunState.COMPLETE
+
+    if complete and not overwrite:
+        logger.info("pipeline: run %s is already complete, skipping it", run_id)
+        return CaseRun(
+            case_id=case.case_id,
+            status=run_manager.STATUS_SKIPPED,
+            run_id=run_id,
+            output_dir=workspace.run_dir(run_id, root),
+            metrics=_stored_metrics(workspace.run_dir(run_id, root)),
+        )
+
+    try:
+        if complete:
+            # The workspace layer owns deletion of a published run; clearing it
+            # first lets the run manager re-prepare the same deterministic id.
+            workspace.prepare_run(run_id, root, overwrite=True)
+        context = run_manager.start_run(case, fixture_base, root, harness_seed)
+    except Exception as exc:
+        logger.exception("pipeline: could not prepare case %s", case.case_id)
+        return CaseRun(
+            case_id=case.case_id,
+            status=run_manager.STATUS_FAILED,
+            run_id=run_id,
+            error=_error_text(exc),
+        )
+
+    logger.debug(f"{run_id = }, {context.run_dir = }, {len(case.turns) = }")
+
+    try:
+        outcome = run_manager.run_case(
+            context,
+            case,
+            execute_turn,
+            score_turn,
+            sleep=sleep,
+            max_attempts=max_attempts,
+            overwrite=overwrite,
+        )
+    except Exception as exc:
+        logger.exception("pipeline: case %s failed to execute", case.case_id)
+        return CaseRun(
+            case_id=case.case_id,
+            status=run_manager.STATUS_FAILED,
+            run_id=run_id,
+            error=_error_text(exc),
+        )
+
+    if outcome.status != run_manager.STATUS_COMPLETED:
+        logger.warning(
+            "pipeline: case %s ended with status %s", case.case_id, outcome.status
+        )
+        return CaseRun(
+            case_id=case.case_id,
+            status=outcome.status,
+            run_id=run_id,
+            output_dir=outcome.output_dir,
+            error=outcome.error,
+        )
+
+    output_dir = outcome.output_dir
+    if output_dir is None:
+        return CaseRun(
+            case_id=case.case_id,
+            status=run_manager.STATUS_FAILED,
+            run_id=run_id,
+            error="the run manager published no run directory",
+        )
+
+    try:
+        summary = metrics.load_run(output_dir)
+        _store_run(context, case, Path(output_dir), root)
+    except (metrics.MetricsError, results.ResultsError, OSError) as exc:
+        logger.exception("pipeline: could not store the run of %s", case.case_id)
+        return CaseRun(
+            case_id=case.case_id,
+            status=run_manager.STATUS_FAILED,
+            run_id=run_id,
+            output_dir=Path(output_dir),
+            error=_error_text(exc),
+        )
+
+    logger.debug(
+        f"{run_id = }, {output_dir = }, {summary.turn_count = }, "
+        f"{summary.task_success = }"
+    )
+    return CaseRun(
+        case_id=case.case_id,
+        status=run_manager.STATUS_COMPLETED,
+        run_id=run_id,
+        output_dir=Path(output_dir),
+        metrics=summary,
+    )
+
+
+def _store_run(
+    context: RunContext, case: TestCase, output_dir: Path, root: Path
+) -> None:
+    """Write ``run.json`` and the single index line of a completed run."""
+    metadata = results.RunMetadata(
+        run_id=context.run_id,
+        case_id=context.case_id,
+        status=run_manager.STATUS_COMPLETED,
+        harness_seed=context.harness_seed,
+        case_version=case.schema_version,
+        models=context.model_overrides,
+    )
+    stamped = results.write_metadata(output_dir, metadata)
+    results.append_index_entry(results.to_index_entry(stamped), root)
+    logger.debug(f"{stamped.run_id = }, {output_dir = }, {root = }")
+
+
+def _stored_metrics(run_dir: Path) -> metrics.RunMetrics | None:
+    """Read the metrics of an already published run, tolerating absence."""
+    try:
+        return metrics.load_run(run_dir)
+    except metrics.MetricsError as exc:
+        logger.debug(f"{run_dir = }, {exc = }")
+        return None
+
+
+def _resolve_executor(
+    execute_turn: TurnExecutor | None,
+    runner: Any | None,
+    base_url: str | None,
+    endpoint: str | None,
+    timeout: float | None,
+) -> TurnExecutor:
+    """Return the synchronous turn executor the run manager calls."""
+    if execute_turn is not None:
+        if not callable(execute_turn):
+            raise PipelineConfigError("execute_turn must be callable")
+        logger.debug(f"{execute_turn = }")
+        return execute_turn
+
+    http_runner = runner
+    if http_runner is None:
+        if not isinstance(base_url, str) or not base_url.strip():
+            raise PipelineConfigError(
+                "no turn executor: pass execute_turn, a runner or a base_url"
+            )
+        # The HTTP adapter imports ``httpx``; importing it here keeps the
+        # pipeline importable by callers that inject their own executor.
+        from klea_eval.runners.http import (
+            DEFAULT_ENDPOINT,
+            DEFAULT_TIMEOUT_SECONDS,
+            HttpRunner,
+        )
+
+        http_runner = HttpRunner(
+            base_url,
+            endpoint=endpoint or DEFAULT_ENDPOINT,
+            timeout=timeout if timeout is not None else DEFAULT_TIMEOUT_SECONDS,
+        )
+
+    factory = getattr(http_runner, "as_turn_executor", None)
+    if not callable(factory):
+        raise PipelineConfigError("runner must expose as_turn_executor()")
+
+    executor = factory()
+    logger.debug(f"{http_runner = }, {executor = }")
+    return executor
+
+
+def _prepare_workspace_root(workspace_root: str | Path | None) -> Path:
+    """Resolve the workspace root and make its runs directory writable."""
+    root = workspace.workspace_root(
+        Path(workspace_root) if workspace_root is not None else None
+    )
+    try:
+        workspace.runs_dir(root).mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise PipelineConfigError(
+            f"could not create the runs directory under '{root}': {exc}"
+        ) from exc
+
+    logger.debug(f"{root = }")
+    return root
+
+
+def _loaded_cases(loaded: Any) -> tuple[TestCase, ...]:
+    """Return the cases of a loaded suite, in loader order."""
+    raw = getattr(loaded, "cases", None)
+    if raw is None and isinstance(loaded, (tuple, list)):
+        raw = loaded
+    if raw is None:
+        raise PipelineError("the loaded suite does not expose its cases")
+
+    loaded_cases = tuple(raw)
+    logger.debug(f"{len(loaded_cases) = }")
+    return loaded_cases
+
+
+def _fixture_base(loaded: Any, suite_path: Path) -> Path:
+    """Return the directory a case's relative fixture paths resolve against."""
+    source = getattr(loaded, "source", None)
+    base = Path(source) if isinstance(source, (str, Path)) else suite_path
+    resolved = base.resolve().parent
+    logger.debug(f"{base = }, {resolved = }")
+    return resolved
+
+
+def _run_id(case: TestCase, harness_seed: str | int | None) -> str:
+    """Derive the deterministic run id the run manager will use for ``case``.
+
+    The pipeline needs the id before it prepares the run, so that an already
+    complete run can be skipped instead of colliding with it; the derivation
+    mirrors :func:`klea_eval.run_manager.start_run` and reuses the identity
+    module that owns it.
+    """
+    if harness_seed is not None:
+        seed = str(harness_seed).strip()
+    else:
+        run_config = case.run_config or {}
+        raw = run_config.get("harness_seed", run_manager.DEFAULT_HARNESS_SEED)
+        seed = str(raw).strip()
+
+    if not seed:
+        raise PipelineConfigError(
+            f"case '{case.case_id}' does not define a usable harness seed"
+        )
+
+    derived = identity.derive_identity(case.case_id, seed)
+    logger.debug(f"{case.case_id = }, {seed = }, {derived.run_id = }")
+    return derived.run_id
+
+
+def _error_text(exc: BaseException) -> str:
+    """Render an exception as a single ``Type: message`` line."""
+    return f"{type(exc).__name__}: {exc}"
