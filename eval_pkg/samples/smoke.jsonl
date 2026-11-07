@@ -1,1 +1,1 @@
-{"case_id": "sample-smoke-hello", "schema_version": "1.0", "turns": [{"input": "Reply with a single short greeting line that names the assistant.", "role": "user", "turn_number": 1}]}
+{"case_id": "sample-smoke-hello", "schema_version": "1.0", "turns": [{"content": "Reply with a single short greeting line that names the assistant.", "role": "user", "turn_number": 1}]}
