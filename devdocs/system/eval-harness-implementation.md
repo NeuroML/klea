@@ -64,7 +64,7 @@ The phases are ordered; each depends on the ones before it. Every phase names
 its exit criterion and the verification command that must pass before its commits
 are made.
 
-P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6-P9 `pending`.
+P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7-P9 `pending`.
 
 | Phase | Objective | Files under `eval_pkg/` | ADR / design note | Depends on | Exit criterion | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -73,7 +73,7 @@ P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6-P9 `pending`.
 | P3 | Metrics collector: per-case metrics collected through the runner interfaces. | `klea_eval/metrics.py`, `tests/test_metrics.py` | ADR-0058 | P2 | Runner interface yields metrics for a fixture case; collector aggregates them per case. | `pytest eval_pkg -m eval -k metrics` | done |
 | P4 | Result storage: persist run results in the ADR-0059 reporting format. | `klea_eval/results.py`, `tests/test_results.py` | ADR-0059, D6, D10 | P3 | A completed run is written to the store and read back unchanged, `run_id` stable across reruns. | `pytest eval_pkg -m eval -k results` | done |
 | P5 | Runner adapters: async `httpx` client and SSE parsing against `/query/stream`, backed by hand-written fixtures. | `klea_eval/runners/http.py`, `klea_eval/runners/sse.py`, `tests/test_http_runner.py`, `tests/fixtures/sse/` | D1, D2, ADR-0058 | P4 | Fixture SSE streams parse into ordered events; `localonly` live check passes when a server is present and skips otherwise. | `pytest eval_pkg -m eval -k runner` | done |
-| P6 | Harness pipeline: wire loader, runners and storage behind the `klea-eval` command. | `klea_eval/pipeline.py`, `klea_eval/ui/cli.py`, `tests/test_pipeline.py` | ADR-0060, D1, D4 | P5 | `klea-eval run <suite>` executes a multi-case JSONL suite end to end and stores results. | `pytest eval_pkg -m eval -k pipeline` | pending |
+| P6 | Harness pipeline: wire loader, runners and storage behind the `klea-eval` command. | `klea_eval/pipeline.py`, `klea_eval/ui/cli.py`, `tests/test_pipeline.py` | ADR-0060, D1, D4 | P5 | `klea-eval run <suite>` executes a multi-case JSONL suite end to end and stores results. | `pytest eval_pkg -m eval -k pipeline` | done |
 | P7 | Scoring and aggregation: aggregate case scores, suite-level `pass_at_k` from the run index. | `klea_eval/scoring.py`, `tests/test_scoring.py` | ADR-0060, D9, D10 | P6 | Suite score is the mean of case scores; `pass_at_k` matches a hand-computed value on a sample suite. | `pytest eval_pkg -m eval -k scoring` | pending |
 | P8 | API and SSE integration: expose runs through the API and the SSE stream. | `klea_eval/api.py`, `klea_eval/ui/cli.py`, `tests/test_api.py` | ADR-0060, D10, D11, `agent-evaluation-harness.md` | P7 | A run is retrievable through the API; retention keeps the last 20 complete runs. | `pytest eval_pkg -m eval -k api` | pending |
 | P9 | In-process scheduler, sample suites and CI wiring. | `klea_eval/scheduler.py`, `samples/`, `tests/test_scheduler.py`, `.github/workflows/` | ADR-0060, D7, D8 | P8 | Scheduler runs the sample suites unattended; CI runs the `eval` marked tests. | `pytest eval_pkg -m eval`, CI run | pending |
@@ -93,6 +93,7 @@ P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6-P9 `pending`.
 | P3 | `c2118f27` | `feat(eval): add run metrics collector` |
 | P4 | `08a19ec7` | `feat(eval): add result storage writer and reader` |
 | P5 | `577fff20` | `feat(eval): add runner adapters for the eval harness` |
+| P6 | `95a2d1c5` | `feat(eval): run suites end to end through the pipeline and CLI` |
 
 Rows are appended as commits land. The phase column is the phase the commit
 belongs to, or `docs` for planning-only commits.
@@ -169,24 +170,55 @@ Points discovered while delivering P1-P5; later phases must respect them.
   already running; the record it returns carries the usage counters both flat
   and under `usage`, plus `latency_ms`, `tool_calls` and `tool_error_count`.
   `transcript.jsonl` writing, HITL `interrupt` resume, cost derivation and the
-  pipeline wiring are still absent, belonging to P6 and P7.
+   pipeline wiring are still absent, belonging to P6 and P7.
+- Phase 6 scope caveats: `klea_eval/pipeline.py` is orchestration only. It
+  validates the whole suite through `klea_eval.cases.load_suite` before any run
+  starts, resolves the workspace root and runs directory through
+  `klea_eval/workspace.py`, derives each run id through
+  `klea_eval.identity.derive_identity` so an already complete run is skipped
+  before it is prepared, and calls `klea_eval.run_manager.start_run` and
+  `run_case` in suite order, single-threaded (the bounded worker pool stays
+  deferred). It owns no retry policy, metric parsing, `.tmp` handling or
+  transport: those remain in the run manager, the metrics collector and the
+  runner adapters. Turn execution and scoring are injected (`execute_turn`,
+  `score_turn`), so the module is offline and testable; when neither is given
+  the pipeline builds `klea_eval.runners.http.HttpRunner` from `base_url`,
+  `endpoint` and `timeout`, and a missing executor with no base URL raises
+  `PipelineConfigError`. A failing case is isolated: its failure is recorded in
+  its `CaseRun`, no `run.json` and no index line are written for it, and the
+  suite continues; only a pre-run fault (an invalid suite, an unusable
+  workspace root, a missing executor) aborts the suite before any run. `run.json`
+  and the single `runs/index.jsonl` line are written by the pipeline through
+  `klea_eval.results.write_metadata` and `append_index_entry` after `run_case`
+  has published the run directory, because the run manager still does not write
+  them. `SuiteResult.exit_code` is `0` when every case passed and `1` when one
+  failed its rubrics; the CLI maps `CaseValidationError` and
+  `PipelineConfigError` to exit code `2`. The `klea-eval run` command forwards
+  the workspace, endpoint, timeout, harness seed, attempt budget and overwrite
+  options, requires a base URL (`--base-url` or `KLEA_EVAL_BASE_URL`) before it
+  calls the pipeline, and prints one `<case_id>: pass|fail` line per run.
+  Suite-level `pass_at_k`, `transcript.jsonl` writing, HITL `interrupt` resume,
+  cost derivation, retention and the scheduler are still absent, belonging to
+  P7, P8 and P9.
 
 ---
+
 
 ## 6. How to resume
 
 1. Read this note, then read the phase table for the first row whose status is
-   not `done`. P1, P2, P3, P4 and P5 are `done`. The deterministic identity
+   not `done`. P1, P2, P3, P4, P5 and P6 are `done`. The deterministic identity
    module (`klea_eval/identity.py`, commit `535b09d3`), the workspace module
    (`klea_eval/workspace.py`, commit `06530ad7`), the run manager
    (`klea_eval/run_manager.py`, commit `28167be8`), the metrics collector
    (`klea_eval/metrics.py`, commit `c2118f27`), result storage
-   (`klea_eval/results.py`, commit `08a19ec7`) and the runner adapters
+   (`klea_eval/results.py`, commit `08a19ec7`), the runner adapters
    (`klea_eval/runners/http.py` and `klea_eval/runners/sse.py` with
    `tests/test_http_runner.py` and `tests/fixtures/sse/`, commit `577fff20`)
-   are delivered; the next atomic change is the harness pipeline
-   (`klea_eval/pipeline.py`, `klea_eval/ui/cli.py` and
-   `tests/test_pipeline.py`), the single P6 step.
+   and the harness pipeline (`klea_eval/pipeline.py`, `klea_eval/ui/cli.py` and
+   `tests/test_pipeline.py`, commit `95a2d1c5`) are delivered; the next atomic
+   change is P7 scoring and aggregation (`klea_eval/scoring.py` and
+   `tests/test_scoring.py`).
 2. Read `devdocs/system/agent-evaluation-harness.md` for the architecture of the
    phase you are picking up, and the ADR it names for the design intent.
 3. Check `git log --oneline` and the commit log table above: they should agree.
