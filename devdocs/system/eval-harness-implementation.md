@@ -64,7 +64,7 @@ The phases are ordered; each depends on the ones before it. Every phase names
 its exit criterion and the verification command that must pass before its commits
 are made.
 
-P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7-P9 `pending`.
+P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7 `done`, P8-P9 `pending`.
 
 | Phase | Objective | Files under `eval_pkg/` | ADR / design note | Depends on | Exit criterion | Verification | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -74,7 +74,7 @@ P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7-P9 `pending
 | P4 | Result storage: persist run results in the ADR-0059 reporting format. | `klea_eval/results.py`, `tests/test_results.py` | ADR-0059, D6, D10 | P3 | A completed run is written to the store and read back unchanged, `run_id` stable across reruns. | `pytest eval_pkg -m eval -k results` | done |
 | P5 | Runner adapters: async `httpx` client and SSE parsing against `/query/stream`, backed by hand-written fixtures. | `klea_eval/runners/http.py`, `klea_eval/runners/sse.py`, `tests/test_http_runner.py`, `tests/fixtures/sse/` | D1, D2, ADR-0058 | P4 | Fixture SSE streams parse into ordered events; `localonly` live check passes when a server is present and skips otherwise. | `pytest eval_pkg -m eval -k runner` | done |
 | P6 | Harness pipeline: wire loader, runners and storage behind the `klea-eval` command. | `klea_eval/pipeline.py`, `klea_eval/ui/cli.py`, `tests/test_pipeline.py` | ADR-0060, D1, D4 | P5 | `klea-eval run <suite>` executes a multi-case JSONL suite end to end and stores results. | `pytest eval_pkg -m eval -k pipeline` | done |
-| P7 | Scoring and aggregation: aggregate case scores, suite-level `pass_at_k` from the run index. | `klea_eval/scoring.py`, `tests/test_scoring.py` | ADR-0060, D9, D10 | P6 | Suite score is the mean of case scores; `pass_at_k` matches a hand-computed value on a sample suite. | `pytest eval_pkg -m eval -k scoring` | pending |
+| P7 | Scoring and aggregation: aggregate case scores, suite-level `pass_at_k` from the run index. | `klea_eval/scoring.py`, `tests/test_scoring.py` | ADR-0060, D9, D10 | P6 | Suite score is the mean of case scores; `pass_at_k` matches a hand-computed value on a sample suite. | `pytest eval_pkg -m eval -k scoring` | done |
 | P8 | API and SSE integration: expose runs through the API and the SSE stream. | `klea_eval/api.py`, `klea_eval/ui/cli.py`, `tests/test_api.py` | ADR-0060, D10, D11, `agent-evaluation-harness.md` | P7 | A run is retrievable through the API; retention keeps the last 20 complete runs. | `pytest eval_pkg -m eval -k api` | pending |
 | P9 | In-process scheduler, sample suites and CI wiring. | `klea_eval/scheduler.py`, `samples/`, `tests/test_scheduler.py`, `.github/workflows/` | ADR-0060, D7, D8 | P8 | Scheduler runs the sample suites unattended; CI runs the `eval` marked tests. | `pytest eval_pkg -m eval`, CI run | pending |
 
@@ -94,6 +94,7 @@ P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7-P9 `pending
 | P4 | `08a19ec7` | `feat(eval): add result storage writer and reader` |
 | P5 | `577fff20` | `feat(eval): add runner adapters for the eval harness` |
 | P6 | `95a2d1c5` | `feat(eval): run suites end to end through the pipeline and CLI` |
+| P7 | `067b82e4` | `feat(eval): score and aggregate eval runs` |
 
 Rows are appended as commits land. The phase column is the phase the commit
 belongs to, or `docs` for planning-only commits.
@@ -102,7 +103,7 @@ belongs to, or `docs` for planning-only commits.
 
 ## 5. Notes/decisions changed while implementing
 
-Points discovered while delivering P1-P5; later phases must respect them.
+Points discovered while delivering P1-P7; later phases must respect them.
 
 - `ty check` must be scoped to `eval_pkg` (`ty check eval_pkg`). Running it over
   the whole repository reports pre-existing errors in other packages, so only
@@ -198,8 +199,35 @@ Points discovered while delivering P1-P5; later phases must respect them.
   options, requires a base URL (`--base-url` or `KLEA_EVAL_BASE_URL`) before it
   calls the pipeline, and prints one `<case_id>: pass|fail` line per run.
   Suite-level `pass_at_k`, `transcript.jsonl` writing, HITL `interrupt` resume,
-  cost derivation, retention and the scheduler are still absent, belonging to
-  P7, P8 and P9.
+   cost derivation, retention and the scheduler are still absent, belonging to
+   P7, P8 and P9.
+- Phase 7 scope caveats: `klea_eval/scoring.py` is the ADR-0060 Aggregate stage
+  as a read-only module. It reads `runs/index.jsonl` through
+  `klea_eval.results.read_index`, groups entries by `case_id` in
+  first-index-occurrence order, dedupes by `run_id`, skips non-completed
+  entries and loads each selected run through `klea_eval.metrics.load_run`, so
+  it never scans run directories and reuses the ADR-0058 per-run envelope
+  rather than redefining it. A per-case score is the mean of the numeric rubric
+  scores recorded on the run's turn records, falling back to `1.0` for a run
+  whose `task_success` is true and `0.0` otherwise; `passed` follows
+  `task_success` alone, so a run of unknown success contributes a score but
+  never a pass. `suite_score` is the mean of the case scores and `pass_at_k` is
+  passed cases over considered cases (`DEFAULT_K = 1`, D10), where only the
+  first `k` attempts of a case are inspected. A case whose metrics are missing
+  or unreadable is listed in `missing_runs`, counts as failed with score `0.0`
+  and never aborts the aggregate; an empty index yields an empty aggregate and
+  `k < 1` raises `ScoringError`, which lives in `klea_eval/scoring.py`
+  following the `WorkspaceError`, `RunManagerError`, `MetricsError` and
+  `ResultsError` precedent. An unsupported index `schema_version` propagates
+  `ResultsSchemaError` unchanged. Scoring writes no file, no run directory and
+  no index line; `SuiteAggregate.to_dict()` is only the in-memory JSON-ready
+  form. Still deferred: LLM-judge rubric scoring and evaluation of the rubric
+  `criteria` text (D9), cost derivation (no price table exists, so
+  `cost_estimate` is only relayed and summed), `transcript.jsonl` writing, HITL
+  `interrupt` resume, retention (P8), the in-process scheduler (P9), a persisted
+  suite report artefact, the Markdown reporter and any CLI or API exposure of
+  `aggregate_suite` (P8). `pipeline.run_suite` is unchanged and keeps its
+  injected `score_turn` hook.
 
 ---
 
@@ -207,18 +235,19 @@ Points discovered while delivering P1-P5; later phases must respect them.
 ## 6. How to resume
 
 1. Read this note, then read the phase table for the first row whose status is
-   not `done`. P1, P2, P3, P4, P5 and P6 are `done`. The deterministic identity
-   module (`klea_eval/identity.py`, commit `535b09d3`), the workspace module
-   (`klea_eval/workspace.py`, commit `06530ad7`), the run manager
+   not `done`. P1, P2, P3, P4, P5, P6 and P7 are `done`. The deterministic
+   identity module (`klea_eval/identity.py`, commit `535b09d3`), the workspace
+   module (`klea_eval/workspace.py`, commit `06530ad7`), the run manager
    (`klea_eval/run_manager.py`, commit `28167be8`), the metrics collector
    (`klea_eval/metrics.py`, commit `c2118f27`), result storage
    (`klea_eval/results.py`, commit `08a19ec7`), the runner adapters
    (`klea_eval/runners/http.py` and `klea_eval/runners/sse.py` with
-   `tests/test_http_runner.py` and `tests/fixtures/sse/`, commit `577fff20`)
-   and the harness pipeline (`klea_eval/pipeline.py`, `klea_eval/ui/cli.py` and
-   `tests/test_pipeline.py`, commit `95a2d1c5`) are delivered; the next atomic
-   change is P7 scoring and aggregation (`klea_eval/scoring.py` and
-   `tests/test_scoring.py`).
+   `tests/test_http_runner.py` and `tests/fixtures/sse/`, commit `577fff20`),
+   the harness pipeline (`klea_eval/pipeline.py`, `klea_eval/ui/cli.py` and
+   `tests/test_pipeline.py`, commit `95a2d1c5`) and scoring and aggregation
+   (`klea_eval/scoring.py` and `tests/test_scoring.py`, commit `067b82e4`) are
+   delivered; the next atomic change is P8 API and SSE integration
+   (`klea_eval/api.py`, `klea_eval/ui/cli.py` and `tests/test_api.py`).
 2. Read `devdocs/system/agent-evaluation-harness.md` for the architecture of the
    phase you are picking up, and the ADR it names for the design intent.
 3. Check `git log --oneline` and the commit log table above: they should agree.
