@@ -113,6 +113,11 @@ jobs:
           bash ./scripts/run_tests.sh
         fi
 
+    - name: Run eval-marked tests
+      run: |
+        cd eval_pkg
+        pytest -q -m eval
+
     - name: Lint with ruff
       run: |
         ruff check . --exit-zero
