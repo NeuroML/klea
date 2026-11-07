@@ -62,6 +62,7 @@ source change.
 | `system/edit-format-strategy.md` | Edit-format strategy for coding tools: write (whole-file) + edit (search/replace) dual tools with model-guided selection |
 | `system/agent-topology-literature-review.md` | Literature review: agent loop topology, cost-aware inference, planning/verification and small-model agency |
 | `system/agent-evaluation-harness.md` | Planning note: task-level evaluation harness for comparing agent topologies on correctness and cost |
+| `system/eval-harness-run-guide.md` | Run guide: prerequisites, case JSONL format, validate/run/inspect/prune commands, deterministic run_id and --overwrite, troubleshooting |
 | `system/agent-general-path-control-flow.md` | General-path control flow: nodes, failure triage, evaluator routing and escalation (ADR-0035 mechanics; companion to the C4 Agent component diagram) |
 | `system/web-theming.md` | Web UI theming: design tokens, the `@layer overrides` cascade-layer contract, and semantic classes |
 | `system/streams.md` | Streaming event catalogue: channels, event shapes, consumers (web/TUI), and known limitations |

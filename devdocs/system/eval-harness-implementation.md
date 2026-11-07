@@ -317,7 +317,8 @@ Points discovered while delivering P1-P7; later phases must respect them.
    `tests/test_scheduler.py` and `.github/workflows/ci.yml`, commits `97aef208`
    and `c2b9cf03`) are delivered.
 2. Read `devdocs/system/agent-evaluation-harness.md` for the architecture of the
-   phase you are picking up, and the ADR it names for the design intent.
+   phase you are picking up, and the ADR it names for the design intent. The run
+   and validate commands are in `devdocs/system/eval-harness-run-guide.md`.
 3. Check `git log --oneline` and the commit log table above: they should agree.
    If a phase's commits are missing from the table, append them before starting
    new work.
