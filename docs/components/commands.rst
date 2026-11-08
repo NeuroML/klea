@@ -55,8 +55,9 @@ These run in the frontend.
      - Open the model and API-key configuration.
    * - ``/export``
      - ``/export``
-     - web
-     - Download the session transcript as Markdown.
+     - web, TUI
+     - Export the session transcript as Markdown: the web UI downloads it, the
+       TUI writes ``<slug>.md`` in its current working directory.
    * - ``/sessions``
      - ``/sessions`` (TUI picker); ``/sessions [list]`` /
        ``/sessions switch <n|id>`` / ``/sessions delete <n|id>`` (web)

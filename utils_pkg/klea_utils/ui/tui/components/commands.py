@@ -40,6 +40,7 @@ from klea_utils.commands.common import (
     parse_command,
     render_help,
 )
+from klea_utils.ui.export import export_filename, export_timestamp, transcript_markdown
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +126,16 @@ def client_commands() -> CommandRegistry:
             arg_hint="<path>|clear",
             while_streaming="block",
             handler=_handle_stores,
+        )
+    )
+    registry.register(
+        Command(
+            name="export",
+            summary="Export the session transcript as Markdown",
+            side="client",
+            klass="ui",
+            while_streaming="allow",
+            handler=_handle_export,
         )
     )
     registry.register(
@@ -241,6 +252,44 @@ def _handle_stores(context: CommandContext, parsed: ParsedCommand) -> CommandRes
     ensure_chat(context.user_id, context.chat_id)["stores_config"] = str(absolute)
     logger.debug(f"command /stores: {absolute = }")
     return CommandResult.ok(f"Stores configuration set to {absolute}.")
+
+
+def _handle_export(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
+    """Write the active session's transcript to a Markdown file.
+
+    The web frontend offers the transcript as a browser download; the terminal
+    client has no browser, so it writes the same Markdown (rendered by the
+    shared :mod:`klea_utils.ui.export` helpers) to ``<slug>.md`` in its current
+    working directory and reports the written path.  The durable server history
+    is only the curated user/assistant rows; this exports the richer in-session
+    transcript (including tool/system blocks) the frontend currently holds.
+    """
+    from klea_utils.ui.state import ensure_chat
+
+    if not context.chat_id:
+        logger.warning("command /export: no active session to export")
+        return CommandResult.fail("No active session to export.")
+    chat = ensure_chat(context.user_id, context.chat_id)
+    messages = chat.get("messages") or []
+    if not messages:
+        logger.warning(f"command /export: nothing to export {context.chat_id = }")
+        return CommandResult.fail("This session has nothing to export yet.")
+    title = chat.get("name") or context.chat_id
+    content = transcript_markdown(messages, title=title, exported_at=export_timestamp())
+    filename = export_filename(title)
+    path = Path(filename)
+    logger.debug(
+        f"command /export: {context.chat_id = } {len(messages) = } "
+        f"{filename = } {len(content) = }"
+    )
+    try:
+        path.write_text(content, encoding="utf-8")
+    except OSError as e:
+        logger.warning(f"command /export: could not write {path = }: {e}")
+        return CommandResult.fail(f"Could not write the export to {path}: {e}")
+    written = path.resolve()
+    logger.info(f"command /export: wrote the transcript to {written}")
+    return CommandResult.ok(f"Exported the session transcript to {written}.")
 
 
 def _handle_exit(context: CommandContext, parsed: ParsedCommand) -> CommandResult:
