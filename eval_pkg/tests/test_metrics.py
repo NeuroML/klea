@@ -448,6 +448,7 @@ def test_compare_runs_builds_one_row_per_run() -> None:
         "total_output_tokens",
         "total_cached_tokens",
         "cost_estimate",
+        "resolved_models",
     }
     assert len(rows) == 2
     assert set(rows[0]) == expected
@@ -484,3 +485,74 @@ def test_run_manager_shaped_turn_line_is_accepted(tmp_path: Path) -> None:
     assert turn.passed is True
     assert summary.task_success is True
     assert summary.envelope_present is False
+
+
+def test_aggregate_lifts_resolved_models_from_the_run_envelope() -> None:
+    """A run envelope carrying resolved_models is lifted onto the summary."""
+    models = {"chat": "model-a", "judge": "model-b"}
+    records = [
+        {
+            "run_id": "run-1",
+            "case_id": "case-1",
+            "schema_version": "1.0",
+            "record_type": "run",
+            "status": "completed",
+            "metrics": {"task_success": True},
+            "resolved_models": models,
+        }
+    ]
+
+    summary = aggregate(records)
+
+    assert summary.resolved_models == models
+
+
+def test_aggregate_defaults_resolved_models_to_an_empty_mapping() -> None:
+    """A legacy record without resolved_models aggregates to an empty map."""
+    records = [
+        {
+            "run_id": "run-1",
+            "case_id": "case-1",
+            "turn_number": 1,
+            "role": "chat",
+            "status": "completed",
+        }
+    ]
+
+    summary = aggregate(records)
+
+    assert summary.resolved_models == {}
+
+
+def test_compare_runs_carries_resolved_models() -> None:
+    """The compare row reports the resolved model map of each run."""
+    models = {"chat": "model-a"}
+    with_models = aggregate(
+        [
+            {
+                "run_id": "run-a",
+                "case_id": "case-a",
+                "schema_version": "1.0",
+                "record_type": "run",
+                "status": "completed",
+                "metrics": {"task_success": True},
+                "resolved_models": models,
+            }
+        ]
+    )
+    without_models = aggregate(
+        [
+            {
+                "run_id": "run-b",
+                "case_id": "case-b",
+                "turn_number": 1,
+                "role": "chat",
+                "status": "completed",
+            }
+        ]
+    )
+
+    rows = compare_runs(with_models, without_models)
+
+    assert rows[0]["resolved_models"] == models
+    assert rows[1]["resolved_models"] == {}

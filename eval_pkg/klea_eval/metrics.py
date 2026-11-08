@@ -41,7 +41,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +130,7 @@ class RunMetrics:
     turns: tuple[TurnMetrics, ...] = ()
     error: str | None = None
     envelope_present: bool = False
+    resolved_models: dict[str, str] = field(default_factory=dict)
 
 
 def read_records(path: str | Path) -> tuple[dict[str, Any], ...]:
@@ -312,6 +313,8 @@ def aggregate(
             raw_cost = envelope.get("cost_estimate")
         cost_estimate = _as_float(raw_cost, None)
 
+    resolved_models = _envelope_resolved_models(envelope)
+
     summary = RunMetrics(
         run_id=resolved_run_id,
         case_id=resolved_case_id,
@@ -329,6 +332,7 @@ def aggregate(
         turns=turns,
         error=error,
         envelope_present=envelope is not None,
+        resolved_models=resolved_models,
     )
     logger.debug(
         f"{summary.run_id = }, {summary.turn_count = }, "
@@ -378,11 +382,37 @@ def compare_runs(*runs: RunMetrics) -> tuple[dict[str, Any], ...]:
                 "total_output_tokens": run.total_output_tokens,
                 "total_cached_tokens": run.total_cached_tokens,
                 "cost_estimate": run.cost_estimate,
+                "resolved_models": dict(run.resolved_models),
             }
         )
 
     logger.debug(f"{len(rows) = }")
     return tuple(rows)
+
+
+def _envelope_resolved_models(
+    envelope: Mapping[str, Any] | None,
+) -> dict[str, str]:
+    """Return the per-role resolved models declared by the run envelope.
+
+    Older records predate the ``resolved_models`` field, so an absent or
+    malformed value yields an empty mapping instead of failing the aggregate;
+    no schema-version bump is needed to read them.
+    """
+    if envelope is None:
+        return {}
+
+    raw = envelope.get("resolved_models")
+    if not isinstance(raw, Mapping):
+        return {}
+
+    resolved: dict[str, str] = {}
+    for role, model in raw.items():
+        if isinstance(model, str):
+            resolved[str(role)] = model
+
+    logger.debug(f"{raw = }, {len(resolved) = }")
+    return resolved
 
 
 def _classify(record: Mapping[str, Any]) -> str:

@@ -33,6 +33,7 @@ def _write_metrics(
     task_success: bool | None = None,
     turn_scores: tuple[Mapping[str, object], ...] = (),
     cost: float | None = None,
+    resolved_models: Mapping[str, str] | None = None,
     status: str = metrics.STATUS_COMPLETED,
 ) -> Path:
     """Write one run's ``metrics.jsonl``: its turn lines and its envelope."""
@@ -57,16 +58,17 @@ def _write_metrics(
         envelope["task_success"] = task_success
     if cost is not None:
         envelope["cost_estimate"] = cost
-    lines.append(
-        {
-            "run_id": run_id,
-            "case_id": case_id,
-            "schema_version": metrics.SCHEMA_VERSION,
-            "record_type": metrics.RECORD_TYPE_RUN,
-            "status": status,
-            "metrics": envelope,
-        }
-    )
+    record: dict[str, object] = {
+        "run_id": run_id,
+        "case_id": case_id,
+        "schema_version": metrics.SCHEMA_VERSION,
+        "record_type": metrics.RECORD_TYPE_RUN,
+        "status": status,
+        "metrics": envelope,
+    }
+    if resolved_models is not None:
+        record["resolved_models"] = dict(resolved_models)
+    lines.append(record)
 
     target = run_dir / workspace.METRICS_FILE_NAME
     target.write_text(
@@ -290,3 +292,35 @@ def test_aggregate_suite_writes_nothing(tmp_path: Path) -> None:
 
     assert aggregate.case_count == 1
     assert _snapshot(tmp_path) == before
+
+
+def test_score_run_copies_resolved_models() -> None:
+    models = {"chat": "model-a", "judge": "model-b"}
+    run = metrics.RunMetrics(
+        run_id="run-m",
+        case_id="case-m",
+        task_success=True,
+        resolved_models=models,
+    )
+
+    case = scoring.score_run(run)
+
+    assert case.resolved_models == models
+    assert case.to_dict()["resolved_models"] == models
+
+
+def test_aggregate_suite_carries_resolved_models_per_case(tmp_path: Path) -> None:
+    models = {"chat": "model-a"}
+    _write_metrics(
+        tmp_path,
+        "run-m",
+        "case-m",
+        task_success=True,
+        resolved_models=models,
+    )
+    _append_index(tmp_path, "run-m", "case-m")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.cases[0].resolved_models == models
+    assert aggregate.cases[0].to_dict()["resolved_models"] == models

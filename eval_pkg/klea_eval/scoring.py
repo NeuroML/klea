@@ -41,7 +41,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +80,7 @@ class CaseScore:
     total_cached_tokens: int = 0
     cost_estimate: float | None = None
     error: str | None = None
+    resolved_models: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the case score as a plain, JSON-ready mapping."""
@@ -93,6 +94,7 @@ class CaseScore:
             "total_output_tokens": self.total_output_tokens,
             "total_cached_tokens": self.total_cached_tokens,
             "cost_estimate": self.cost_estimate,
+            "resolved_models": dict(self.resolved_models),
             "error": self.error,
         }
 
@@ -166,6 +168,7 @@ def score_run(run: metrics.RunMetrics) -> CaseScore:
         total_output_tokens=run.total_output_tokens,
         total_cached_tokens=run.total_cached_tokens,
         cost_estimate=run.cost_estimate,
+        resolved_models=dict(run.resolved_models),
         error=run.error,
     )
 
