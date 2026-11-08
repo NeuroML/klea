@@ -108,6 +108,7 @@ klea-eval run suites/smoke.jsonl \
 | `--harness-seed`, `-s` | `0` | Seed for the deterministic harness. |
 | `--max-attempts` | `3` | Attempts per case before it is recorded as failed. |
 | `--overwrite` | off | Replace an existing run's `run_id` instead of failing. |
+| `--model`, `-m` | none | Override a model role, `ROLE=MODEL`; repeatable. |
 
 `run` executes the suite end to end (P6); configuration and validation
 faults are reported on stderr and exit 2.  Otherwise each case prints one
@@ -136,7 +137,70 @@ read back exactly the record the run wrote: the identity is stable, so a
 `show <run_id>` after a rerun-with-`--overwrite` is the same slot, not a
 duplicate.
 
-## 5. What one turn sends, and what must come back
+## 5. Per-run model selection
+
+`run` can point the target app's model roles at other models for one run: pass
+`--model` / `-m` once per role, as `ROLE=MODEL`.  A case's own
+`run_config.model_overrides` still applies, and its value wins over the flag
+for the same role:
+
+```console
+klea-eval run suites/smoke.jsonl \
+    --base-url http://127.0.0.1:8006 \
+    --workspace runs/smoke \
+    -m chat=openai:gpt-4o \
+    -m judge=openai:gpt-4o-mini
+```
+
+The flag is repeatable; a malformed pair (no `=MODEL`, an empty role or an
+empty model) is a configuration fault and exits 2.  The overrides are applied
+once per run, after its directory is prepared and before its first turn.
+
+### Roles are discovered, never hardcoded
+
+The roles the flag accepts are the ones the target app exposes in its
+`models/active` map (`chat`, `judge`, `plan`, ... depending on the
+deployment).  The harness reads that map first and rejects a role it does not
+find, so a typo fails that case with `unknown role '<role>' (the backend
+exposes: ...)` before any turn runs, instead of silently leaving the suite on
+the wrong models.
+
+### Credentials come from the environment
+
+An override needs a key for the provider of its model, taken from the
+environment of the harness process:
+
+| Provider | Environment variable |
+| --- | --- |
+| `openai` | `OPENAI_API_KEY` |
+| `anthropic` | `ANTHROPIC_API_KEY` |
+| `mistralai` | `MISTRAL_API_KEY` |
+| `huggingface` | `HF_TOKEN` |
+| `ollama` | none: a local runtime is keyless |
+
+Most other providers follow the same convention, `<PROVIDER>_API_KEY` (upper
+case, for example `OPENROUTER_API_KEY` for `openrouter:`).  One secret is
+pushed per provider, even when several roles share it, and only to the run's
+own user scope in the backend's credential store: it is never printed, echoed
+in an error or recorded in the run's artefacts.  A provider with no key in the
+environment is skipped, and the run fails if the backend then reports that the
+role still requires a credential.
+
+### A locked role cannot be overridden from the harness
+
+Some deployments lock a role in their configuration.  Overriding one answers
+403 with `The '<role>' model is locked`, and the case fails before its first
+turn.  The lock is a server-side setting: change it in the app's environment
+or config, restart the server, and rerun.
+
+### The resolved map is recorded
+
+The map the backend reports after the overrides are applied is stored as
+`resolved_models` in the run's `run.json` and in the run-level envelope record
+of its `metrics.jsonl`, so the stored run (and any comparison of runs) reports
+which model each role actually used, not only which one was requested.
+
+## 6. What one turn sends, and what must come back
 
 The runner (`klea_eval.runners.http`) posts one `POST <base-url>/<endpoint>`
 per turn and buffers the SSE response:
@@ -155,7 +219,7 @@ That contract is why `--endpoint` points at a Klea server and not at an
 OpenAI-style `/v1/chat/completions`: such a stream ends with `data: [DONE]`
 and carries no `complete` event, so it cannot satisfy the parser.
 
-## 6. Where the results go
+## 7. Where the results go
 
 * Artefacts are written under `--workspace`; the default location is
   `$KLEA_EVAL_WORKSPACE`, otherwise `~/.local/share/klea-eval` (D3).  Keep it
@@ -167,7 +231,7 @@ and carries no `complete` event, so it cannot satisfy the parser.
   lists nothing for it, `show <run_id>` exits 2, and `prune` reports
   `kept 0 runs`.
 
-## 7. Inspecting a run
+## 8. Inspecting a run
 
 ```console
 klea-eval runs                       # the run index, one line per run
@@ -181,7 +245,7 @@ klea-eval report results.json -o report.md
 `show`, `runs`, `prune` and `summary` accept `--workspace` / `-w` and fall
 back to `$KLEA_EVAL_WORKSPACE`.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 Work down this list when a run does not behave as expected.
 
@@ -217,8 +281,16 @@ Work down this list when a run does not behave as expected.
   stored result kept.  Pass `--overwrite` to clear and republish that run
   directory, or change `--harness-seed` / `--workspace` to keep both runs.
   See section 4.
+* **`unknown role '<role>' (the backend exposes: ...)`.**  A `--model` role
+  (or a case `run_config.model_overrides` key) is not one the target app
+  exposes, so the case failed before its first turn and published nothing.
+  Pass a role the app lists in its `models/active` map (section 5).
+* **A 403 carrying `The '<role>' model is locked`.**  The deployment locks that
+  role, so the override was refused and the case failed before its first turn.
+  Clear the lock in the app's environment or config, restart the server and
+  rerun (section 5).
 
-## 9. Known divergences
+## 10. Known divergences
 
 * `--endpoint` used to default to `/v1/chat/completions`, which neither Klea
   server serves and the runner cannot parse.  It now defaults to

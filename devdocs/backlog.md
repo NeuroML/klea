@@ -152,6 +152,11 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
   runners and storage together behind the `klea-eval` command.
 - Scoring and aggregation, API/SSE integration (ADR-0060): aggregate case
   scores and expose runs through the API and SSE stream.
+- Model overrides: the backend accepts an unknown role in a model override
+  (it stores it) instead of rejecting it, so the harness rejects an unknown
+  role itself, before pushing anything, against the chat's active model map.
+  Making the backend reject an unknown role is a `utils_pkg` follow-up; an
+  upstream issue has been filed for it.
 
 ## Infrastructure / correctness
 

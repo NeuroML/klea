@@ -144,10 +144,23 @@ Points discovered while delivering P1-P7; later phases must respect them.
   manager is not wired to it yet, so `run_case` still publishes a run without
   `run.json` or an index line: P6 does that wiring. Retention (the last 20
   complete runs, D11) is deferred to P8, which owns the exit criterion.
-  `transcript.jsonl`, concrete role-to-model resolution and `cost_estimate`
-  derivation are still absent (`models` carries only what the caller supplies),
-  belonging to P6 and P7; no startup consistency check or rebuild-index
-  command exists although ADR-0059 flags the index/directory drift risk.
+   `transcript.jsonl` writing and `cost_estimate` derivation are still absent,
+   belonging to P7; model resolution is implemented instead. A case's
+   `run_config.model_overrides` is validated for its shape only at load time (an
+   object mapping non-empty role names to non-empty model strings; a role name
+   need not be a real one), `--model ROLE=MODEL` on `klea-eval run` supplies
+   suite-wide defaults whose value the case's own key wins over, and
+   `klea_eval.run_config.apply_run_models` applies the merged map once per run,
+   after the run directory is prepared and before the first turn executes: it
+   reads the chat's active model map, rejects a requested role the backend does
+   not expose, PUTs one credential per provider that has an environment secret,
+   POSTs each override with `promote_default` false, and re-reads the active map
+   so a role left keyless-credential fails the run. The resolved map is recorded
+   as `resolved_models` in `run.json` (`RunMetadata`), in the run's own envelope
+   record (`RunMetrics`), in the per-case `CaseScore` and in the `compare_runs`
+   row; an override fault records the case as failed, runs no turn and
+   publishes nothing. No startup consistency check or rebuild-index command
+   exists although ADR-0059 flags the index/directory drift risk.
   `attempts` remains the only per-turn extra; the run manager's turn lines still
   carry no `schema_version` or `record_type`, so only `run.json` and the index
   line are stamped. `ResultsError` and `ResultsSchemaError` live in
