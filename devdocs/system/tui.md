@@ -207,7 +207,7 @@ enforcement point for each:
 The TUI reuses `klea_utils/commands/common.py`: it validates `/`-input against
 the merge of its client commands and the server catalogue (`GET /commands`),
 runs client commands locally (`/help`, `/new`, `/sessions`, `/model`,
-`/exit`; later `/rename`, `/export`), and forwards server commands (`/mode`,
+`/export`, `/exit`; later `/rename`), and forwards server commands (`/mode`,
 `/access`) as the query.  The `/`-autocomplete is a Textual completion/
 suggestion list over the merged catalogue.  TUI capabilities start empty (no
 browser file picker); local-filesystem/shell capabilities are deferred with
@@ -217,6 +217,13 @@ the session-workspace work and are not needed for parity.
 worker and sending the best-effort `POST /query/cancel` -- and then quits, so
 it is safe mid-stream.  `/new` switches to a fresh, empty chat; like session
 switching, it is refused while a run is streaming.
+
+`/export` renders the active chat's transcript with the shared
+`klea_utils/ui/export.py` helpers -- the same Markdown document and `<slug>.md`
+filename the web UI offers as a download -- and writes it into the terminal
+client's current working directory, reporting the written path.  It fails
+cleanly when there is no active chat, the transcript is empty, or the file
+cannot be written.
 
 ## HITL and permissions
 
