@@ -4,6 +4,8 @@
 
 ## Unreleased  ---  `klea_utils` / `klea_rag`
 
+## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
+
 ### Breaking changes
 
 - The lightweight `cli` subcommand (the `input()`-based REPL) is removed. The Textual TUI is the terminal client: bare `klea` / `klea-rag` launches it, and `klea tui` / `klea-rag tui` remains the explicit form. The agent and RAG packages also expose a `tui` extra. The opt-in `agent_pkg/e2e` harness is retained for its scenarios and checks, but still targets the removed CLI and must be retargeted to the API/server before use.
