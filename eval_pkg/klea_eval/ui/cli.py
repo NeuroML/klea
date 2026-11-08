@@ -67,6 +67,23 @@ def version() -> None:
     typer.echo(__version__)
 
 
+def _parse_model_overrides(entries: list[str]) -> dict[str, str]:
+    """Parse repeatable ``ROLE=MODEL`` options into a role-to-model mapping."""
+    overrides: dict[str, str] = {}
+    for entry in entries:
+        role, separator, model = entry.partition("=")
+        role_text = role.strip()
+        model_text = model.strip()
+        if not separator or not role_text or not model_text:
+            # A malformed pair is a run-configuration fault, so it exits like
+            # the missing base URL: code 2, message on stderr.
+            typer.echo(f"error: --model expects ROLE=MODEL, got '{entry}'", err=True)
+            raise typer.Exit(code=2)
+        overrides[role_text] = model_text
+
+    return overrides
+
+
 @app.command()
 def run(
     suite: str = typer.Argument(..., help="Path to the JSONL suite to run."),
@@ -114,6 +131,16 @@ def run(
         "--overwrite",
         help="Overwrite an existing workspace instead of failing.",
     ),
+    model: list[str] = typer.Option(  # noqa: B008
+        [],
+        "-m",
+        "--model",
+        metavar="ROLE=MODEL",
+        help=(
+            "Override a model role for this run (repeatable), e.g. "
+            "-m chat=openai:gpt-4o."
+        ),
+    ),
 ) -> None:
     """Run a JSONL evaluation suite end to end (ADR-0056)."""
     # Deferred imports: the pipeline pulls in the model client, the HTTP stack
@@ -134,6 +161,8 @@ def run(
         )
         raise typer.Exit(code=2)
 
+    overrides = _parse_model_overrides(model)
+
     try:
         result = run_suite(
             suite,
@@ -144,6 +173,7 @@ def run(
             harness_seed=harness_seed,
             max_attempts=max_attempts,
             overwrite=overwrite,
+            model_overrides=overrides or None,
         )
     except (PipelineConfigError, CaseValidationError) as error:
         # ``str()`` renders the precise fault; configuration faults exit 2.
