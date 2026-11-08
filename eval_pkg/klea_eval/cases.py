@@ -241,6 +241,45 @@ def _parse_case(line: str, line_number: int, source: Path) -> TestCase:
         raise _fail(
             "field 'run_config' must be an object", source, line_number, case_id
         )
+    if run_config is not None:
+        overrides = run_config.get("model_overrides")
+        if overrides is not None:
+            if not isinstance(overrides, dict):
+                logger.debug(
+                    f"case {case_id!r}: rejecting model_overrides of type "
+                    f"{type(overrides).__name__}"
+                )
+                raise _fail(
+                    "field 'run_config.model_overrides' must be an object",
+                    source,
+                    line_number,
+                    case_id,
+                )
+            for role, model in overrides.items():
+                if not isinstance(role, str) or not role.strip():
+                    logger.debug(
+                        f"case {case_id!r}: rejecting non-empty check for role "
+                        f"key {role!r}"
+                    )
+                    raise _fail(
+                        "field 'run_config.model_overrides' must map non-empty "
+                        f"string role names to models, got key {role!r}",
+                        source,
+                        line_number,
+                        case_id,
+                    )
+                if not isinstance(model, str) or not model.strip():
+                    logger.debug(
+                        f"case {case_id!r}: rejecting model for role {role!r}: "
+                        f"{model!r}"
+                    )
+                    raise _fail(
+                        f"field 'run_config.model_overrides' entry '{role}' must "
+                        "be a non-empty string model",
+                        source,
+                        line_number,
+                        case_id,
+                    )
 
     turns_data = payload["turns"]
     if not isinstance(turns_data, list) or not turns_data:

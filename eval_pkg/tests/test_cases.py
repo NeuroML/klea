@@ -724,3 +724,77 @@ def test_error_str_includes_source_and_line(tmp_path: Path) -> None:
     error = excinfo.value
     assert isinstance(error, ValueError)
     assert str(error) == f"{path}:1: {error.message}"
+
+
+# ---------------------------------------------------------------------------
+# run_config.model_overrides
+# ---------------------------------------------------------------------------
+
+
+def test_model_overrides_map_is_accepted_and_preserved(tmp_path: Path) -> None:
+    """A two-role model override map loads and is preserved verbatim."""
+    overrides = {"chat": "model-a", "judge": "model-b"}
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(run_config={"model_overrides": overrides})],
+    )
+
+    loaded = load_suite(path)
+
+    assert (loaded.cases[0].run_config or {})["model_overrides"] == overrides
+
+
+@pytest.mark.parametrize("value", [[], "chat", 3])
+def test_model_overrides_must_be_an_object(tmp_path: Path, value: object) -> None:
+    """Non-object model override values are rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(run_config={"model_overrides": value})],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert "must be an object" in excinfo.value.message
+
+
+def test_model_overrides_rejects_an_empty_role_name(tmp_path: Path) -> None:
+    """An empty-string role key is rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(run_config={"model_overrides": {"": "model-a"}})],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert "must map non-empty string role names" in excinfo.value.message
+
+
+@pytest.mark.parametrize("value", [3, ""])
+def test_model_overrides_rejects_a_bad_model_name(
+    tmp_path: Path, value: object
+) -> None:
+    """A non-string or empty-string model value is rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(run_config={"model_overrides": {"chat": value}})],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert "must be a non-empty string model" in excinfo.value.message
+
+
+def test_model_overrides_accepts_an_unseen_role_name(tmp_path: Path) -> None:
+    """An arbitrary role name is accepted and preserved."""
+    overrides = {"not_a_real_role": "model-a"}
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(run_config={"model_overrides": overrides})],
+    )
+
+    loaded = load_suite(path)
+
+    assert (loaded.cases[0].run_config or {})["model_overrides"] == overrides
