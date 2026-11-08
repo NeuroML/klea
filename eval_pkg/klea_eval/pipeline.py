@@ -32,7 +32,7 @@ scope here and belong to the later phases of the implementation plan.
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -146,6 +146,8 @@ def run_suite(
     max_attempts: int = run_manager.DEFAULT_MAX_ATTEMPTS,
     sleep: Callable[[float], None] | None = None,
     overwrite: bool = False,
+    model_overrides: Mapping[str, str] | None = None,
+    apply_models: Callable[..., dict[str, str]] | None = None,
 ) -> SuiteResult:
     """Execute every case of ``suite_path`` and store each completed run.
 
@@ -175,6 +177,8 @@ def run_suite(
         raise PipelineConfigError("sleep must be callable or None")
 
     executor = _resolve_executor(execute_turn, runner, base_url, endpoint, timeout)
+    overrides = _checked_model_overrides(model_overrides)
+    applier = _resolve_applier(apply_models)
     root = _prepare_workspace_root(workspace_root)
 
     loaded = cases.load_suite(suite_path)
@@ -184,6 +188,13 @@ def run_suite(
         f"{suite_path = }, {root = }, {fixture_base = }, "
         f"{len(loaded_cases) = }, {overwrite = }"
     )
+
+    if _overrides_need_base_url(overrides, loaded_cases) and (
+        not isinstance(base_url, str) or not base_url.strip()
+    ):
+        raise PipelineConfigError(
+            "no base URL: the model overrides need one to be applied"
+        )
 
     outcomes: list[CaseRun] = []
     for case in loaded_cases:
@@ -198,6 +209,9 @@ def run_suite(
                 max_attempts,
                 sleep,
                 overwrite,
+                base_url,
+                overrides,
+                applier,
             )
         )
 
@@ -223,6 +237,9 @@ def _run_one_case(
     max_attempts: int,
     sleep: Callable[[float], None] | None,
     overwrite: bool,
+    base_url: str | None,
+    overrides: Mapping[str, str],
+    applier: Callable[..., dict[str, str]],
 ) -> CaseRun:
     """Schedule, execute and store one case, isolating any failure of it."""
     run_id = _run_id(case, harness_seed)
@@ -254,6 +271,21 @@ def _run_one_case(
         )
 
     logger.debug(f"{run_id = }, {context.run_dir = }, {len(case.turns) = }")
+
+    merged = _merged_model_overrides(overrides, context)
+    resolved_models: dict[str, str] = {}
+    if merged:
+        applied, failure = _apply_model_overrides(
+            applier, context, base_url or "", merged
+        )
+        if failure is not None:
+            return CaseRun(
+                case_id=case.case_id,
+                status=run_manager.STATUS_FAILED,
+                run_id=run_id,
+                error=failure,
+            )
+        resolved_models = applied or {}
 
     try:
         outcome = run_manager.run_case(
@@ -296,9 +328,15 @@ def _run_one_case(
         )
 
     try:
+        _append_run_envelope(context, Path(output_dir), resolved_models)
         summary = metrics.load_run(output_dir)
-        _store_run(context, case, Path(output_dir), root)
-    except (metrics.MetricsError, results.ResultsError, OSError) as exc:
+        _store_run(context, case, Path(output_dir), root, resolved_models)
+    except (
+        metrics.MetricsError,
+        results.ResultsError,
+        run_manager.RunManagerError,
+        OSError,
+    ) as exc:
         logger.exception("pipeline: could not store the run of %s", case.case_id)
         return CaseRun(
             case_id=case.case_id,
@@ -322,7 +360,11 @@ def _run_one_case(
 
 
 def _store_run(
-    context: RunContext, case: TestCase, output_dir: Path, root: Path
+    context: RunContext,
+    case: TestCase,
+    output_dir: Path,
+    root: Path,
+    resolved_models: Mapping[str, str] | None = None,
 ) -> None:
     """Write ``run.json`` and the single index line of a completed run."""
     metadata = results.RunMetadata(
@@ -332,10 +374,130 @@ def _store_run(
         harness_seed=context.harness_seed,
         case_version=case.schema_version,
         models=context.model_overrides,
+        resolved_models=dict(resolved_models or {}),
     )
     stamped = results.write_metadata(output_dir, metadata)
     results.append_index_entry(results.to_index_entry(stamped), root)
     logger.debug(f"{stamped.run_id = }, {output_dir = }, {root = }")
+
+
+def _checked_model_overrides(model_overrides: Any) -> dict[str, str]:
+    """Validate the caller's role-to-model defaults into a stripped mapping."""
+    if model_overrides is None:
+        return {}
+    if not isinstance(model_overrides, Mapping):
+        raise PipelineConfigError(
+            f"model_overrides must be a mapping, got {type(model_overrides).__name__}"
+        )
+
+    checked: dict[str, str] = {}
+    for role, model in model_overrides.items():
+        role_text = str(role).strip()
+        if not role_text:
+            raise PipelineConfigError("a model override declares an empty role")
+        if not isinstance(model, str) or not model.strip():
+            raise PipelineConfigError(
+                f"model override for role '{role_text}' must be a non-empty string"
+            )
+        checked[role_text] = model.strip()
+
+    logger.debug(f"{checked = }")
+    return checked
+
+
+def _resolve_applier(
+    apply_models: Callable[..., dict[str, str]] | None,
+) -> Callable[..., dict[str, str]]:
+    """Return the callable that applies the role-to-model overrides."""
+    if apply_models is not None:
+        if not callable(apply_models):
+            raise PipelineConfigError("apply_models must be callable")
+        logger.debug(f"{apply_models = }")
+        return apply_models
+
+    # The applier builds its HTTP client lazily itself; importing the module
+    # here keeps that stack out of an injected caller's import graph.
+    from klea_eval.run_config import apply_run_models
+
+    return apply_run_models
+
+
+def _case_model_overrides(case: TestCase) -> dict[str, str]:
+    """Read a case's own ``model_overrides`` mapping for the pre-run check."""
+    run_config = case.run_config or {}
+    raw = run_config.get("model_overrides")
+    if not isinstance(raw, Mapping):
+        return {}
+    return {str(role): str(model) for role, model in raw.items()}
+
+
+def _overrides_need_base_url(
+    defaults: Mapping[str, str], loaded_cases: tuple[TestCase, ...]
+) -> bool:
+    """Whether any case of the suite needs the backend to apply overrides."""
+    if defaults:
+        return True
+    return any(bool(_case_model_overrides(case)) for case in loaded_cases)
+
+
+def _merged_model_overrides(
+    defaults: Mapping[str, str], context: RunContext
+) -> dict[str, str]:
+    """Merge the caller's defaults under the case's values, the case winning."""
+    merged = dict(defaults)
+    case_overrides = context.model_overrides or {}
+    merged.update({str(role): str(model) for role, model in case_overrides.items()})
+    logger.debug(f"{merged = }")
+    return merged
+
+
+def _apply_model_overrides(
+    applier: Callable[..., dict[str, str]],
+    context: RunContext,
+    base_url: str,
+    merged: Mapping[str, str],
+) -> tuple[dict[str, str] | None, str | None]:
+    """Apply the merged overrides; return the resolved map or the failure text."""
+    # The error type belongs to the applier module, whose HTTP stack must stay
+    # out of the import graph of a caller that never applies an override.
+    from klea_eval.run_config import ModelOverrideError
+
+    try:
+        resolved = applier(
+            None,
+            base_url,
+            context.user_id,
+            context.chat_id,
+            merged,
+        )
+    except ModelOverrideError as exc:
+        logger.exception(
+            "pipeline: could not apply the model overrides of %s", context.case_id
+        )
+        workspace.discard_run(context.run_id, context.workspace_root)
+        return None, _error_text(exc)
+
+    logger.debug(f"{resolved = }")
+    return dict(resolved), None
+
+
+def _append_run_envelope(
+    context: RunContext, output_dir: Path, resolved_models: Mapping[str, str]
+) -> None:
+    """Append the single run-level envelope record of a completed run."""
+    # ``append_metric`` owns the atomic, fsync'd line write, so the envelope
+    # lands on the same durability path as the run's own turn lines.
+    record = {
+        "run_id": context.run_id,
+        "case_id": context.case_id,
+        "schema_version": metrics.SCHEMA_VERSION,
+        "record_type": metrics.RECORD_TYPE_RUN,
+        "status": run_manager.STATUS_COMPLETED,
+        "metrics": {},
+        "resolved_models": dict(resolved_models),
+    }
+    run_manager.append_metric(Path(workspace.metrics_path(output_dir)), record)
+    logger.debug(f"{context.run_id = }, {output_dir = }")
 
 
 def _stored_metrics(run_dir: Path) -> metrics.RunMetrics | None:

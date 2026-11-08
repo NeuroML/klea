@@ -8,15 +8,17 @@ executors that return plain mappings.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from klea_eval import pipeline, results
+from klea_eval import metrics, pipeline, results
 from klea_eval.errors import CaseValidationError
-from klea_eval.pipeline import PipelineError, run_suite
+from klea_eval.pipeline import PipelineConfigError, PipelineError, run_suite
 from klea_eval.results import load_stored_run
+from klea_eval.run_config import ModelOverrideError
 from klea_eval.ui.cli import app
 from typer.testing import CliRunner
 
@@ -421,3 +423,220 @@ def test_cli_run_forwards_options(tmp_path: Path, monkeypatch: Any) -> None:
     assert forwarded["harness_seed"] == 99
     assert forwarded["max_attempts"] == 4
     assert forwarded["overwrite"] is True
+
+
+# ---------------------------------------------------------------------------
+# Pipeline: model overrides
+# ---------------------------------------------------------------------------
+class ModelApplier:
+    """Fake ``apply_run_models``: records each call and its inputs."""
+
+    def __init__(
+        self,
+        events: list[str] | None = None,
+        resolved: dict[str, str] | None = None,
+        error: BaseException | None = None,
+        probe: Callable[[], None] | None = None,
+    ) -> None:
+        self.calls: list[dict[str, Any]] = []
+        self.events: list[str] = events if events is not None else []
+        self.resolved: dict[str, str] = resolved if resolved is not None else {}
+        self.error = error
+        self.probe = probe
+
+    def __call__(
+        self,
+        client: Any,
+        base_url: str,
+        user_id: str,
+        chat_id: str,
+        models: Mapping[str, str],
+    ) -> dict[str, str]:
+        self.events.append("apply")
+        self.calls.append(
+            {
+                "client": client,
+                "base_url": base_url,
+                "user_id": user_id,
+                "chat_id": chat_id,
+                "models": dict(models),
+            }
+        )
+        if self.probe is not None:
+            self.probe()
+        if self.error is not None:
+            raise self.error
+        return dict(self.resolved)
+
+
+def _run_with_applier(
+    tmp_path: Path,
+    cases: list[dict[str, Any]],
+    applier: ModelApplier,
+    *,
+    model_overrides: Mapping[str, str] | None = None,
+    base_url: str | None = "http://example.test",
+    execute_turn: Any = None,
+) -> Any:
+    """Run ``cases`` with a fake model applier instead of a live backend."""
+    suite = _write_suite(tmp_path / "suite.jsonl", cases)
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir(exist_ok=True)
+    return run_suite(
+        str(suite),
+        workspace_root=str(workspace_root),
+        base_url=base_url,
+        execute_turn=execute_turn if execute_turn is not None else Recorder(),
+        harness_seed=1234,
+        max_attempts=1,
+        sleep=lambda _delay: None,
+        model_overrides=model_overrides,
+        apply_models=applier,
+    )
+
+
+def test_case_model_overrides_win_over_the_cli_defaults(tmp_path: Path) -> None:
+    """The case's own role value wins over the same key of the CLI defaults."""
+    applier = ModelApplier()
+    result = _run_with_applier(
+        tmp_path,
+        [
+            _case(
+                "case-1",
+                [_turn(1, "user", "Hello")],
+                run_config={"model_overrides": {"chat": "case-model"}},
+            )
+        ],
+        applier,
+        model_overrides={"chat": "cli-model", "judge": "cli-judge"},
+    )
+
+    assert result.exit_code == 0
+    assert len(applier.calls) == 1
+    call = applier.calls[0]
+    assert call["models"] == {"chat": "case-model", "judge": "cli-judge"}
+    assert call["client"] is None
+    assert call["base_url"] == "http://example.test"
+    assert call["user_id"] and call["chat_id"]
+
+
+def test_the_applier_runs_after_preparation_and_before_the_first_turn(
+    tmp_path: Path,
+) -> None:
+    """The applier sees a prepared run and runs before any turn executes."""
+    events: list[str] = []
+    prepared: list[Path] = []
+
+    def probe() -> None:
+        root = tmp_path / "workspace"
+        prepared.extend(path for path in root.rglob("*") if path.is_dir())
+
+    applier = ModelApplier(events=events, probe=probe)
+
+    def execute_turn(_context: Any, turn: Any) -> dict[str, Any]:
+        events.append("turn")
+        return {"content": f"reply to turn {turn.turn_number}", "latency_ms": 1.0}
+
+    result = _run_with_applier(
+        tmp_path,
+        [_case("case-1", [_turn(1, "user", "Hello")])],
+        applier,
+        model_overrides={"chat": "model-a"},
+        execute_turn=execute_turn,
+    )
+
+    assert result.exit_code == 0
+    assert len(applier.calls) == 1
+    assert events == ["apply", "turn"]
+    assert prepared
+
+
+def test_resolved_models_are_persisted_in_run_json_and_metrics(
+    tmp_path: Path,
+) -> None:
+    """The resolved map lands in run.json and in the run's own metrics."""
+    models = {"chat": "model-a", "judge": "model-b"}
+    applier = ModelApplier(resolved=models)
+    result = _run_with_applier(
+        tmp_path,
+        [_case("case-1", [_turn(1, "user", "Hello")])],
+        applier,
+        model_overrides={"chat": "model-a", "judge": "model-b"},
+    )
+
+    output_dir = Path(result.runs[0].output_dir)
+    stored = load_stored_run(output_dir)
+    summary = metrics.load_run(output_dir)
+
+    assert stored.metadata.resolved_models == models
+    assert summary.resolved_models == models
+
+
+def test_a_model_override_failure_fails_the_case_without_a_turn(
+    tmp_path: Path,
+) -> None:
+    """An applier failure fails the case, runs no turn and publishes nothing."""
+    applier = ModelApplier(error=ModelOverrideError("unknown role 'chat'"))
+    executor = Recorder()
+    result = _run_with_applier(
+        tmp_path,
+        [_case("case-1", [_turn(1, "user", "Hello")])],
+        applier,
+        model_overrides={"chat": "model-a"},
+        execute_turn=executor,
+    )
+
+    assert executor.calls == []
+    assert result.runs[0].status == "failed"
+    assert "ModelOverrideError" in (result.runs[0].error or "")
+    assert result.exit_code == 1
+    assert _run_json_paths(result.workspace_root) == []
+    assert _index_lines(result.workspace_root) == []
+
+
+def test_without_overrides_the_applier_is_never_called(tmp_path: Path) -> None:
+    """No merged override skips the applier and needs no base URL at all."""
+    applier = ModelApplier()
+    result = _run_with_applier(
+        tmp_path,
+        [_case("case-1", [_turn(1, "user", "Hello")])],
+        applier,
+        base_url=None,
+    )
+
+    assert result.exit_code == 0
+    assert applier.calls == []
+
+
+def test_overrides_without_a_base_url_are_a_configuration_error(
+    tmp_path: Path,
+) -> None:
+    """A non-empty override map without a base URL refuses to run the suite."""
+    applier = ModelApplier()
+
+    with pytest.raises(PipelineConfigError):
+        _run_with_applier(
+            tmp_path,
+            [_case("case-1", [_turn(1, "user", "Hello")])],
+            applier,
+            model_overrides={"chat": "model-a"},
+            base_url=None,
+        )
+
+    second = tmp_path / "second"
+    second.mkdir()
+    with pytest.raises(PipelineConfigError):
+        _run_with_applier(
+            second,
+            [
+                _case(
+                    "case-2",
+                    [_turn(1, "user", "Hello")],
+                    run_config={"model_overrides": {"chat": "model-a"}},
+                )
+            ],
+            applier,
+            base_url=None,
+        )
+
+    assert applier.calls == []

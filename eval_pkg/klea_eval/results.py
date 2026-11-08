@@ -29,7 +29,7 @@ import json
 import logging
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -97,6 +97,7 @@ class RunMetadata:
     case_version: str | None = None
     harness_seed: str | None = None
     models: dict[str, Any] | None = None
+    resolved_models: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         """Return the envelope as a plain, JSON-ready mapping."""
@@ -111,6 +112,7 @@ class RunMetadata:
             "case_version": self.case_version,
             "harness_seed": self.harness_seed,
             "models": models,
+            "resolved_models": dict(self.resolved_models),
         }
 
     @classmethod
@@ -138,6 +140,9 @@ class RunMetadata:
                 data.get("harness_seed"), "harness_seed", source
             ),
             models=_optional_models(data.get("models"), "models", source),
+            resolved_models=_optional_resolved_models(
+                data.get("resolved_models"), "resolved_models", source
+            ),
         )
 
 
@@ -447,6 +452,33 @@ def _optional_text(value: Any, label: str, source: str) -> str | None:
     return text or None
 
 
+def _optional_resolved_models(value: Any, label: str, source: str) -> dict[str, str]:
+    """Return the optional ``resolved_models`` mapping, empty when absent.
+
+    ``run.json`` files written before the field existed omit it, so its absence
+    is not an error and needs no schema-version bump; a present value must still
+    map role names to model strings.
+    """
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise ResultsError(
+            f"{source} field '{label}' must be an object or null, "
+            f"got {type(value).__name__}"
+        )
+
+    resolved: dict[str, str] = {}
+    for role, model in value.items():
+        if not isinstance(model, str):
+            raise ResultsError(
+                f"{source} field '{label}' entry '{role}' must be a string, "
+                f"got {type(model).__name__}"
+            )
+        resolved[str(role)] = model
+
+    return resolved
+
+
 def _optional_models(value: Any, label: str, source: str) -> dict[str, Any] | None:
     """Return the optional ``models`` mapping with string keys."""
     if value is None:
@@ -472,6 +504,7 @@ def _check_metadata(metadata: RunMetadata) -> None:
     _optional_text(metadata.case_version, "case_version", source)
     _optional_text(metadata.harness_seed, "harness_seed", source)
     _optional_models(metadata.models, "models", source)
+    _optional_resolved_models(metadata.resolved_models, "resolved_models", source)
 
 
 def _check_entry(entry: IndexEntry) -> None:
