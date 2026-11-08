@@ -203,7 +203,28 @@ def discard_run(run_id: str, root: Path | None = None) -> None:
 
 
 def _fsync_file(path: Path) -> None:
-    """Flush one regular file to disk."""
+    """Flush one regular file to disk.
+
+    Windows' ``os.fsync`` is the CRT ``_commit``, which rejects a read-only
+    descriptor, so the file is reopened for writing there and a read-only file
+    that cannot be reopened is skipped best-effort.  POSIX accepts a read-only
+    descriptor, so the strict open/fsync/close path is kept.
+    """
+    if os.name == "nt":
+        try:
+            file_fd = os.open(path, os.O_RDWR)
+        except OSError as error:
+            logger.debug(f"{path = }, {error = }")
+            return
+
+        try:
+            os.fsync(file_fd)
+        except OSError as error:
+            logger.debug(f"{path = }, {error = }")
+        finally:
+            os.close(file_fd)
+        return
+
     file_fd = os.open(path, os.O_RDONLY)
     try:
         os.fsync(file_fd)
@@ -213,6 +234,11 @@ def _fsync_file(path: Path) -> None:
 
 def _fsync_dir(path: Path) -> None:
     """Flush a directory entry to disk, where the platform supports it."""
+    if os.name == "nt":
+        # The Windows CRT cannot open a directory, so there is never a
+        # descriptor to flush; the rename is durable without it.
+        return
+
     try:
         dir_fd = os.open(path, os.O_RDONLY)
     except OSError as error:
