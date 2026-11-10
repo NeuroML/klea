@@ -150,3 +150,45 @@ class TestChatPreview:
         assert preview.startswith("line one line two ")
         assert preview.endswith("...")
         assert len(preview) == 200
+
+
+async def test_status_pane_renders_content_blocks_with_fallback(
+    fake_backend, utils_user
+):
+    """The status pane renders items and degrades unknown kinds/roles."""
+    from typing import cast
+
+    from klea_utils.ui.state import StateSection, ensure_chat
+
+    chat = ensure_chat("u", "")
+    section = {
+        "heading": "Renderer",
+        "display": "",
+        "summary": "",
+        "details": {},
+        "preformatted": False,
+        "content": [
+            {
+                "kind": "items",
+                "items": [
+                    {"text": "ok item", "role": "ok"},
+                    {"text": "error item", "role": "error"},
+                    {"text": "current item", "role": "current"},
+                    {"text": "pending item", "role": "pending"},
+                    {"text": "unknown role item", "role": "mystery"},
+                ],
+            },
+            {"kind": "mystery", "text": "unknown kind item"},
+            {"kind": "text", "text": "plain item"},
+        ],
+    }
+    chat["state_sections"]["render"] = cast(StateSection, section)
+
+    await utils_user.open("/")
+    await utils_user.should_see("ok item")
+    await utils_user.should_see("error item")
+    await utils_user.should_see("current item")
+    await utils_user.should_see("pending item")
+    await utils_user.should_see("unknown role item")
+    await utils_user.should_see("unknown kind item")
+    await utils_user.should_see("plain item")
