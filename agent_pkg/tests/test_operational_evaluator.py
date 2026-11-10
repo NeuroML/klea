@@ -523,7 +523,7 @@ class TestOperationalEvaluator(unittest.TestCase):
         evaluator = self._evaluator()
         status = evaluator._get_status(self._state(), LLMNodeContext())
         assert status is not None
-        self.assertEqual(status.heading, "Plan")
+        self.assertEqual(status.heading, self._state().plan.status_heading())
         self.assertEqual(status.key, "plan")
         self.assertTrue(status.preformatted)
         self.assertIn("2 step(s)", status.summary)

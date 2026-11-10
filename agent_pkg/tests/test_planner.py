@@ -1389,6 +1389,23 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         assert status is not None
         self.assertIn("1 step(s)", status.summary)
 
+    def test_status_heading_reports_progress(self):
+        """The status heading counts resolved steps and rounds to a percentage."""
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, status="done"),
+                StepSchema(step_number=2, status="done"),
+                StepSchema(step_number=3, status="skipped"),
+                StepSchema(step_number=4, status="pending"),
+            ]
+        )
+        self.assertEqual(plan.status_heading(), "Plan (3/4, 75%)")
+
+    def test_status_heading_bare_label_when_empty(self):
+        """A plan with no steps yields the bare label."""
+        self.assertEqual(PlanSchema().status_heading(), "Plan")
+        self.assertEqual(PlanSchema().status_heading("Progress"), "Progress")
+
 
 if __name__ == "__main__":
     unittest.main()
