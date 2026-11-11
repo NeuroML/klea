@@ -369,11 +369,17 @@ async def test_web_fetch_cloudflare_challenge_retries_honest_ua():
 
 
 def test_honest_user_agent_uses_package_version():
+    import importlib.metadata
+
     ua = web_fetch_module.honest_user_agent()
     assert ua.startswith("klea-web-fetch/")
     # Version tag resolves to the installed klea_utils version or 'dev'.
     tag = ua.split("/", 1)[1]
-    assert tag in ("dev", "0.6.0")
+    try:
+        expected = importlib.metadata.version("klea_utils")
+    except importlib.metadata.PackageNotFoundError:
+        expected = "dev"
+    assert tag == expected
 
 
 def test_honest_user_agent_fallback_when_no_metadata(monkeypatch):
