@@ -6,6 +6,7 @@
 
 ### Added
 
+- The plan pane now marks the steps dispatched in the current parallel round, so a fan-out round no longer looks idle.
 - Chat-renderable tool results and status sections can now carry structured content blocks (plain text, ordered item lists, labelled field lists) whose items are tagged with a status role (`ok`, `error`, `current`, `pending`, `plain`), so the frontends mark the step that is currently in progress instead of re-parsing free text; a reader that does not know a block's contract version falls back to the plain display text.
 
 ### Changed
