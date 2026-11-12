@@ -589,3 +589,33 @@ class TestSessionsDelete:
             "user_u1:chat_c2",
         ]
         assert (await sessions_client.get("/chat/u1")).json() == []
+
+
+class TestSessionsRename:
+    """A rename that updates no rows is a 404, not a silent success."""
+
+    async def test_rename_missing_chat_is_404(self, sessions_app, sessions_client):
+        response = await sessions_client.patch("/chat/u1/nope", json={"title": "x"})
+        assert response.status_code == 404
+
+    async def test_zero_row_rename_is_404(
+        self, sessions_app, sessions_client, monkeypatch
+    ):
+        await sessions_client.post("/chat/u1", json={"chat_id": "c1"})
+        monkeypatch.setattr(
+            sessions_app.state.chat_sessions, "rename_chat", lambda *a, **k: False
+        )
+
+        response = await sessions_client.patch("/chat/u1/c1", json={"title": "New"})
+
+        assert response.status_code == 404
+
+    async def test_rename_success_returns_new_title(
+        self, sessions_app, sessions_client
+    ):
+        await sessions_client.post("/chat/u1", json={"chat_id": "c1"})
+
+        response = await sessions_client.patch("/chat/u1/c1", json={"title": "New"})
+
+        assert response.status_code == 200
+        assert response.json()["title"] == "New"

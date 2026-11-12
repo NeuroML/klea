@@ -975,9 +975,12 @@ class KleaTuiApp(App[None]):
         from klea_utils.ui.client import rename_chat_on_server
         from klea_utils.ui.state import ensure_chat
 
-        await rename_chat_on_server(
+        ok = await rename_chat_on_server(
             self.ctx.server_url, self.ctx.user_id, chat_id, title
         )
+        if not ok:
+            self.notify(f"Failed to rename chat to {title!r}.", severity="error")
+            return
         chat = ensure_chat(self.ctx.user_id, chat_id)
         chat["name"] = title
         if chat_id == self.ctx.chat_id and self._screen is not None:

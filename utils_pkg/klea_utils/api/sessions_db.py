@@ -307,7 +307,7 @@ class SessionStore:
                 "INSERT OR IGNORE INTO chat_sessions "
                 "(user_id, chat_id, title, created_at, updated_at, overrides) "
                 "VALUES (?, ?, ?, ?, ?, '{}')",
-                (user_id, chat_id, self._display_title(chat_id, title), now, now),
+                (user_id, chat_id, title.strip(), now, now),
             )
             self._conn.commit()
         logger.debug("create_chat(%s, %s, title=%r)", user_id, chat_id, title)
@@ -347,16 +347,21 @@ class SessionStore:
             self._conn.commit()
         logger.debug("delete_user_chats(%s)", user_id)
 
-    def rename_chat(self, user_id: str, chat_id: str, title: str) -> None:
-        """Update the display title of a chat."""
+    def rename_chat(self, user_id: str, chat_id: str, title: str) -> bool:
+        """Update the display title of a chat.
+
+        :return: ``True`` when a chat row was updated, else ``False``.
+        """
         with self._lock:
-            self._conn.execute(
+            cur = self._conn.execute(
                 "UPDATE chat_sessions SET title = ?, updated_at = ? "
                 "WHERE user_id = ? AND chat_id = ?",
                 (title, self._now(), user_id, chat_id),
             )
+            updated = cur.rowcount > 0
             self._conn.commit()
         logger.debug("rename_chat(%s, %s, title=%r)", user_id, chat_id, title)
+        return updated
 
     def touch_chat(self, user_id: str, chat_id: str) -> None:
         """Bump ``updated_at`` without changing any other field."""

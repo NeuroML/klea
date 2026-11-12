@@ -167,20 +167,30 @@ def attach_chat_list(ctx: PageContext) -> None:
         ctx.refresh_chat_list()
 
     def _apply_rename(chat_id: str, name: str) -> None:
-        """Rename *chat_id* locally and persist it on the server.
+        """Rename *chat_id* on the server and refresh the chat list.
 
         Shared by the chat-list rename dialog and the client ``/rename``
-        command (ADR-0047).  The server PATCH runs in the background so callers
-        stay synchronous.
+        command (ADR-0047).  The sync hook contract cannot await, so the PATCH
+        runs in one background task: the cached name and the views are updated
+        only when the server accepts the rename, and a failure is surfaced as a
+        notification instead of being ignored.
         """
-        chat = ensure_chat(ctx.user_id, chat_id)
-        chat["name"] = name
+
+        async def _do_rename() -> None:
+            ok = await rename_chat_on_server(ctx.server_url, ctx.user_id, chat_id, name)
+            if not ok:
+                ui.notification(
+                    f"Failed to rename chat to {name!r}.",
+                    type="negative",
+                    timeout=10000,
+                    close_button=True,
+                )
+                return
+            ctx.refresh_chat_list()
+            ctx.refresh_status_pane()
+
         logger.debug("renaming chat=%s to %r", chat_id, name)
-        background_tasks.create(
-            rename_chat_on_server(ctx.server_url, ctx.user_id, chat_id, name)
-        )
-        ctx.refresh_chat_list()
-        ctx.refresh_status_pane()
+        background_tasks.create(_do_rename())
 
     def _rename_chat(chat_id: str) -> None:
         """Open a dialog to rename a chat and persist on server."""

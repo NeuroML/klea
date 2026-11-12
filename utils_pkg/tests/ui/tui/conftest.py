@@ -146,8 +146,9 @@ def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
 
     async def _rename_chat_on_server(
         server_url: str, user_id: str, chat_id: str, title: str
-    ) -> None:
+    ) -> bool:
         backend.renames.append({"chat_id": chat_id, "title": title})
+        return True
 
     monkeypatch.setattr(
         "klea_utils.ui.client.rename_chat_on_server", _rename_chat_on_server
