@@ -22,6 +22,7 @@ from klea_utils.nodes.tools_picker import MAX_BATCH_STEPS
 from klea_utils.tools import tool_call_errors
 from langchain_core.messages import AIMessage
 
+from klea_agent.nodes.plan_content import plan_content_blocks
 from klea_agent.schemas import (
     EVALUATION_OVERALL_LABELS,
     STEP_VERDICT_LABELS,
@@ -485,12 +486,14 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         the evaluator's ``inspect`` payload and the final answer.
         """
         plan = state.plan
+
         return NodeStreamData(
-            heading="Plan",
+            heading=plan.status_heading(),
             summary=f"{len(plan.step_list)} step(s); status={plan.status}",
             display=plan.render(markdown=True),
             key="plan",
             preformatted=True,
+            content=plan_content_blocks(plan),
         )
 
     @override

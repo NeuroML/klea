@@ -438,6 +438,26 @@ class PlanSchema(PlannerPlanSchema):
             default=0,
         )
 
+    def status_heading(self, label: str = "Plan") -> str:
+        """Return ``"<label> (<complete>/<total>, <percent>%)"`` for the plan.
+
+        *complete* counts the steps whose status is ``done`` or ``skipped``
+        (the resolution convention used by :meth:`frontier`); *percent* uses
+        the integer arithmetic ``(100 * complete + total // 2) // total``.  A
+        plan with no steps returns the bare *label*.
+
+        :param label: The heading label to prefix.
+        :returns: The progress heading, or *label* when there are no steps.
+        """
+        total = len(self.step_list)
+        if total == 0:
+            return label
+        complete = sum(
+            1 for step in self.step_list if step.status in ("done", "skipped")
+        )
+        percent = (100 * complete + total // 2) // total
+        return f"{label} ({complete}/{total}, {percent}%)"
+
 
 #: Maximum number of superseded plan versions retained for the Planner and the
 #: guidance HITL ask.  The active plan is shown separately, so this keeps the

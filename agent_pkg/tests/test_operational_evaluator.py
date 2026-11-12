@@ -23,6 +23,7 @@ from klea_agent.schemas import (
     StepEvaluation,
     StepSchema,
 )
+from klea_utils.content_blocks import ItemsBlock
 from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.prompts import ChatPromptTemplate
@@ -523,10 +524,32 @@ class TestOperationalEvaluator(unittest.TestCase):
         evaluator = self._evaluator()
         status = evaluator._get_status(self._state(), LLMNodeContext())
         assert status is not None
-        self.assertEqual(status.heading, "Plan")
+        self.assertEqual(status.heading, self._state().plan.status_heading())
         self.assertEqual(status.key, "plan")
         self.assertTrue(status.preformatted)
         self.assertIn("2 step(s)", status.summary)
+        self.assertTrue(status.display)
+        state = self._state()
+        _content = status.content
+        assert _content is not None
+        self.assertEqual(len(_content), 1)
+        block = cast(ItemsBlock, _content[0])
+        self.assertEqual(block.kind, "items")
+        steps = state.plan.step_list
+        self.assertEqual(len(block.items), len(steps))
+        for step, item in zip(steps, block.items):
+            self.assertEqual(item.text, f"Step {step.step_number}: {step.summary}")
+            if step.status == "done":
+                self.assertEqual(item.role, "ok")
+            elif step.status == "failed":
+                self.assertEqual(item.role, "error")
+            elif step.status == "skipped":
+                self.assertEqual(item.role, "plain")
+            else:
+                self.assertIn(item.role, {"current", "pending"})
+        self.assertLessEqual(
+            sum(1 for item in block.items if item.role == "current"), 1
+        )
 
 
 if __name__ == "__main__":

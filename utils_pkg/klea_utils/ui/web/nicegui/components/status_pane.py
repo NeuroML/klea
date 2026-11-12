@@ -194,6 +194,62 @@ def attach_status_pane(ctx: PageContext) -> None:
                 ui.separator().classes("my-0.5")
 
             # The state sections scroll under the sticky header.
+            _role_classes = {
+                "ok": "text-green",
+                "error": "text-red",
+                "current": "font-bold",
+                "pending": "text-grey-6",
+            }
+
+            def _role_class(role: object) -> str:
+                """Return the CSS class for a block/item role (empty if unknown).
+
+                Unknown roles degrade to the default text colour instead of
+                raising, so new emitter roles still render.
+                """
+                if isinstance(role, str):
+                    return _role_classes.get(role, "")
+                return ""
+
+            def _text_label(text: object, classes: str) -> object:
+                """Create a plain label for *text*, styled by *classes*."""
+                return ui.label(str(text)).classes(f"text-xs w-full {classes}".strip())
+
+            def _block_widgets(block: object) -> list:
+                """Render one content block into widgets, never raising.
+
+                Supported kinds are ``items``, ``fields`` and ``text``; any
+                unknown kind (or malformed block) degrades to plain text and
+                empty items are skipped without dropping the rest.
+                """
+                if not isinstance(block, dict):
+                    text = str(block) if block else ""
+                    return [_text_label(text, "")] if text else []
+                kind = block.get("type") or block.get("kind") or "text"
+                role = _role_class(block.get("role"))
+                widgets: list = []
+                if kind == "items":
+                    for item in block.get("items") or ():
+                        if isinstance(item, dict):
+                            text = str(item.get("text") or item.get("label") or "")
+                            classes = _role_class(item.get("role"))
+                        else:
+                            text = str(item) if item else ""
+                            classes = ""
+                        if text:
+                            widgets.append(_text_label(text, classes))
+                    return widgets
+                if kind == "fields":
+                    fields = block.get("fields") or {}
+                    if isinstance(fields, dict):
+                        for label, value in fields.items():
+                            widgets.append(_text_label(f"{label}: {value}", role))
+                    return widgets
+                text = block.get("text")
+                if text is None:
+                    text = block.get("content") or ""
+                return [_text_label(text, role)] if text else []
+
             with ui.column().classes("w-full gap-0 px-2 pb-2"):
                 sections = current_chat.get("state_sections", {})
                 if not sections:
@@ -214,8 +270,19 @@ def attach_status_pane(ctx: PageContext) -> None:
                             ui.row().classes("w-full flex-nowrap items-center"),
                         ):
                             ui.label(section.get("heading", node_label))
+                        content = section.get("content")
+                        rendered = False
+                        if content:
+                            blocks = (
+                                content
+                                if isinstance(content, (list, tuple))
+                                else [content]
+                            )
+                            for block in blocks:
+                                if _block_widgets(block):
+                                    rendered = True
                         display = section.get("display", "")
-                        if display:
+                        if not rendered and display:
                             if section.get("preformatted"):
                                 # Aligned/literal content (e.g. the plan): a
                                 # plain code block, so columns line up and
@@ -232,7 +299,7 @@ def attach_status_pane(ctx: PageContext) -> None:
                                     "text-xs w-full"
                                 )
                         summary = section.get("summary", "")
-                        if summary and not display:
+                        if summary and not rendered and not display:
                             ui.label(summary).classes("text-xs text-grey-6 mb-1 w-full")
                         details = section.get("details", {})
                         if details:

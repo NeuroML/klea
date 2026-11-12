@@ -128,17 +128,103 @@ def _section_id(key: str) -> str:
     return f"status-section-{slug or 'section'}"
 
 
+_ROLE_STYLES: dict[str, str] = {
+    "ok": "green",
+    "error": "red",
+    "current": "bold",
+    "pending": "dim",
+}
+
+
+def _escape_markup(text: str) -> str:
+    """Escape Rich markup in *text* so literal content is not parsed as tags.
+
+    :param text: The raw block text.
+    :returns: The text with Rich markup escaped.
+    """
+    return text.replace("\\", "\\\\").replace("[", "\\[")
+
+
+def _styled(text: str, role: Any) -> str:
+    """Wrap *text* in the tint for *role*, degrading unknown roles to plain.
+
+    :param text: The block text to style.
+    :param role: The block/item role (``ok``/``error``/``current``/``pending``).
+    :returns: Rich markup for the styled text (plain when the role is unknown).
+    """
+    style = _ROLE_STYLES.get(role) if isinstance(role, str) else None
+    escaped = _escape_markup(text)
+    return f"[{style}]{escaped}[/{style}]" if style else escaped
+
+
+def _block_lines(block: Any) -> list[str]:
+    """Render one content block to styled Rich-markup lines.
+
+    Supported kinds are ``items``, ``fields`` and ``text``; any unknown kind
+    (or malformed block) degrades to plain text instead of raising.
+
+    :param block: A content block (a mapping with a ``type``/``kind`` key).
+    :returns: The rendered lines, possibly empty.
+    """
+    if not isinstance(block, Mapping):
+        return [str(block)] if block else []
+    kind = block.get("type") or block.get("kind") or "text"
+    if kind == "items":
+        lines: list[str] = []
+        for item in block.get("items") or ():
+            if isinstance(item, Mapping):
+                text = str(item.get("text") or item.get("label") or "")
+                lines.append(_styled(text, item.get("role")) if text else "")
+            else:
+                lines.append(_styled(str(item), None) if item else "")
+        return lines
+    if kind == "fields":
+        lines = []
+        fields = block.get("fields") or {}
+        if isinstance(fields, Mapping):
+            for label, value in fields.items():
+                lines.append(_styled(f"{label}: {value}", block.get("role")))
+        return lines
+    text = block.get("text")
+    if text is None:
+        text = block.get("content") or ""
+    return [_styled(str(text), block.get("role"))] if text else []
+
+
+def _content_body(content: Any) -> list[SelectableStatic]:
+    """Render a section's structured content into body widgets.
+
+    :param content: The stored ``content`` (a list of content blocks).
+    :returns: One widget per non-empty rendered line, never raising.
+    """
+    if not isinstance(content, (list, tuple)):
+        content = [content]
+    widgets: list[SelectableStatic] = []
+    for block in content:
+        for line in _block_lines(block):
+            if line:
+                widgets.append(SelectableStatic(line))
+    return widgets
+
+
 def _section_body(section: Mapping[str, Any]) -> list[SelectableStatic]:
     """Build the body widgets for one ``state`` section.
 
-    :param section: The stored section (display/summary/details/...).
+    Structured ``content`` (when the emitter provided it) is rendered block by
+    block; otherwise the plain ``display`` (honouring ``preformatted``) is used
+    as a fallback.
+
+    :param section: The stored section (content/display/summary/details/...).
     :returns: The body widgets, never empty.
     """
     display = section.get("display", "")
     summary = section.get("summary", "")
     details = section.get("details", {})
+    content = section.get("content")
     body: list[SelectableStatic] = []
-    if display:
+    if content:
+        body.extend(_content_body(content))
+    elif display:
         if section.get("preformatted"):
             # Aligned/literal content (e.g. the plan): render as-is so columns
             # line up and markup-like characters are not interpreted.

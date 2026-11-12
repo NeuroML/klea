@@ -80,6 +80,7 @@ terminal and the web UI.  The derived tokens are installed by
 | `--klea-hint` | `hint` | faintest inspector/status text (`.inspector-hint`, `.cred-status--muted`) |
 | `--klea-muted` | `muted` | secondary text, inactive/unknown state (`.inspector-muted`) |
 | `--klea-error` | `error` | credential failure text (`.cred-status--error`) |
+| `--klea-current` | `current` | the item in progress or most recently reached in a status section; paired with the `font-bold` class, so the emphasis does not come from colour alone |
 
 Always reference the role token, never a literal `#rrggbb`, so the role keeps
 its light/dark pairing.
