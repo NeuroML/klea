@@ -135,6 +135,98 @@ async def test_forwards_client_context_to_pooled_dispatch(monkeypatch):
     assert seen == [("thread-1", ClientContext(cwd="/tmp/project"))]
 
 
+class _StandInStep(BaseModel):
+    """Minimal stand-in for a plan step (utils has no agent plan schema)."""
+
+    step_number: int = 1
+    status: str = "pending"
+    summary: str = "step"
+
+
+class _StandInPlan(BaseModel):
+    """Minimal stand-in for the plan the caller renders in its status pane."""
+
+    step_list: list[_StandInStep] = Field(default_factory=list)
+    status: str = "in_progress"
+    #: The ``current_numbers`` argument of the last ``render`` call.
+    rendered_current: set[int] = Field(default_factory=set)
+
+    def status_heading(self) -> str:
+        """Return the pane heading, as ``PlanSchema`` does."""
+        return "Plan"
+
+    def render(
+        self, *, markdown: bool = False, current_numbers: set[int] | None = None
+    ) -> str:
+        """Render the preformatted pane body, recording the current steps."""
+        self.rendered_current = set(current_numbers or set())
+        lines = []
+        for step in self.step_list:
+            marker = "[*]" if step.step_number in self.rendered_current else "[ ]"
+            lines.append(f"{marker} Step {step.step_number}: {step.summary}")
+        return "\n\n".join(lines)
+
+
+class _PlanState(MiniState):
+    plan: _StandInPlan = Field(default_factory=_StandInPlan)
+
+
+async def test_running_section_marks_dispatched_plan_steps():
+    """The round-start plan section highlights the batch's steps.
+
+    Render-only: the plan itself is untouched, only the dispatched pending
+    steps are marked current, and a later plan event is not pre-empted.
+    """
+    plan = _StandInPlan(
+        step_list=[
+            _StandInStep(step_number=1, summary="one"),
+            _StandInStep(step_number=2, summary="two"),
+            _StandInStep(step_number=3, summary="three"),
+        ]
+    )
+    state = _PlanState(
+        plan=plan,
+        tool_calls=[
+            ToolCallSchema(tool="a", step=1),
+            ToolCallSchema(tool="b", step=2),
+        ],
+    )
+    client = FakeMCPClient()
+    node = _make_node(client=client)
+    events: list[dict] = []
+    _record_stream(node, events)
+
+    await node.execute(state)
+
+    plan_events = [e for e in events if e["data"].get("key") == "plan"]
+    assert len(plan_events) == 1
+    data = plan_events[0]["data"]
+    assert data["heading"] == "Plan"
+    assert data["summary"] == "3 step(s); status=in_progress"
+    assert data["preformatted"] is True
+    # Only the dispatched steps are marked current, not the other pending one.
+    assert plan.rendered_current == {1, 2}
+    display = data["display"]
+    assert "[*] Step 1: one" in display
+    assert "[*] Step 2: two" in display
+    assert "[ ] Step 3: three" in display
+    # Render-only: no plan or step status write.
+    assert plan.status == "in_progress"
+    assert [step.status for step in plan.step_list] == ["pending"] * 3
+
+
+async def test_running_section_without_plan_emits_no_plan_entry():
+    """A state without a plan (Klea RAG) emits no plan entry and no error."""
+    client = FakeMCPClient()
+    node = _make_node(client=client)
+    events: list[dict] = []
+    _record_stream(node, events)
+
+    await node.execute(MiniState(tool_calls=[ToolCallSchema(tool="a", step=1)]))
+
+    assert [e for e in events if e["data"].get("key") == "plan"] == []
+
+
 async def test_dispatches_and_returns_tool_results():
     client = FakeMCPClient()
     node = _make_node(client=client)

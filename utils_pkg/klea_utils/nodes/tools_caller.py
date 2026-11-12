@@ -146,10 +146,48 @@ class ToolsCallerNode(
         # marked ``running`` together); the end-of-round ``_get_status``
         # replaces the section with ``ok``/``error``.
         running = self._get_running_status(state)
+        # Mark the batch's plan steps as current in that same section.  The
+        # plan render is added only when the batch stamped step numbers and the
+        # state carries a plan (the shared RAG state does not), so a plan-less
+        # run emits exactly the previous entries.  ``current_numbers`` marks
+        # every pending step in the batch, which is what parallel work needs;
+        # the structured content blocks stay with the agent-side emitters
+        # (``klea_agent.nodes.plan_content`` is a higher package and must not
+        # be imported here), leaving the preformatted ``display`` fallback.
+        dispatched = sorted(
+            {
+                step
+                for step in (getattr(call, "step", None) for call in tool_calls)
+                if isinstance(step, int) and step > 0
+            }
+        )
         if running:
             self.write_custom_stream(
                 NodeStreamEvent(
                     type="state", node=self.label, data=running
+                ).model_dump()
+            )
+        # Mark the batch's plan steps in their own pane entry (separate from
+        # the running-tools entry above), render-only: the plan itself is not
+        # written.  Omitted when the state has no plan (shared RAG state), when
+        # the plan object cannot render, or when the batch stamped no step
+        # numbers.
+        plan = getattr(state, "plan", None)
+        if plan is not None and hasattr(plan, "render") and dispatched:
+            self.logger.debug(f"{dispatched = }")
+            self.write_custom_stream(
+                NodeStreamEvent(
+                    type="state",
+                    node=self.label,
+                    data=NodeStreamData(
+                        heading=plan.status_heading(),
+                        summary=f"{len(plan.step_list)} step(s); status={plan.status}",
+                        display=plan.render(
+                            markdown=True, current_numbers=set(dispatched)
+                        ),
+                        key="plan",
+                        preformatted=True,
+                    ),
                 ).model_dump()
             )
         session_id = self._session_id_for_dispatch(state)
