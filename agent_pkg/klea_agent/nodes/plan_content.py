@@ -59,6 +59,26 @@ def _step_role(step: StepSchema, current_number: int | None) -> str:
     return ROLE_PENDING
 
 
+def _step_text(step: StepSchema) -> str:
+    """Return the one-line item text for one plan step.
+
+    The item is the compact status-pane render (the frontends add the status
+    marker), so the dependency suffix is the only execution-order detail it
+    carries.  A step with no dependencies keeps a bare ``Step N: summary``:
+    omitting the suffix reads better than printing ``(none)``, and the
+    preformatted ``display`` fallback still shows the explicit form.
+
+    :param step: The plan step to render.
+    :returns: ``"Step N: summary"``, or ``"Step N: summary (depends on: 1, 2)"``
+        when the step declares dependencies.
+    """
+    text = f"Step {step.step_number}: {step.summary}"
+    if step.depends_on:
+        deps = ", ".join(str(number) for number in step.depends_on)
+        text += f" (depends on: {deps})"
+    return text
+
+
 def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
     """Return the plan as structured content blocks for the status pane.
 
@@ -79,7 +99,7 @@ def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
     current_number = current.step_number if current is not None else None
     items = [
         Item(
-            text=f"Step {step.step_number}: {step.summary}",
+            text=_step_text(step),
             role=_step_role(step, current_number),
         )
         for step in plan.step_list

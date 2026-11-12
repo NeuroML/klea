@@ -6,7 +6,16 @@
 
 ### Added
 
+- The plan pane now marks the steps dispatched in the current parallel round, so a fan-out round no longer looks idle.
 - Chat-renderable tool results and status sections can now carry structured content blocks (plain text, ordered item lists, labelled field lists) whose items are tagged with a status role (`ok`, `error`, `current`, `pending`, `plain`), so the frontends mark the step that is currently in progress instead of re-parsing free text; a reader that does not know a block's contract version falls back to the plain display text.
+
+### Changed
+
+- Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
+
+### Fixed
+
+- A chat created without an explicit title now shows a derived display name (for example "Olivine Caracal" for `olivine-caracal`) in the web chat list instead of a blank label.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
@@ -122,6 +131,7 @@
 - Model overrides store only the model string; provider API keys are managed through the provider-scoped credential store and injected per run.
 - A bare `huggingface:<model>` now resolves to the hosted Inference Providers API (`auto`) instead of the local pipeline backend, which downloaded the model as a side effect; `:local` opts into running locally, and `:<provider>` / `:cheapest|:fastest|:preferred` select the inference provider or routing policy.
 - `GET .../models/overrides` masks any legacy inline `api_key`; a startup migration moves legacy inline keys into the credential store and strips them from overrides.
+- The model override endpoints reject an unknown model role with a 422 naming the supported roles, instead of storing it silently; stored roles the app does not declare are ignored when the active config is resolved.
 - Web UI: the inspect pane updates live as the graph runs and keeps a collapsible section per query (timestamp plus the query text) for the browser session, instead of showing entries only when a query completes.
 - Web UI: the inspect pane renders streamed `details` as readable JSON - multi-line string values (prompts) are expanded and JSON-encoded values inlined - with syntax highlighting and a copy button, instead of escaping every value into one long line.
 - Graph diagrams (`*-lang-graph.png` and their `.mmd` source) are written only when debug logging is enabled (`--debug` / `KLEA_LOG_LEVEL=debug`), instead of on every graph build.
@@ -199,6 +209,7 @@
 
 ### Added
 
+- Session command `/mcp` (and `/mcp list`) lists the MCP servers configured for the backend and the tools each exposed at setup (issue 226; enable/disable and runtime add/remove come later).
 - The agent's user-facing answer nodes (`RouteDecision` for inline chat, `AnswerFromResults` for task answers) report the effective model that produced the reply, so questions like "which model are you running" are answerable.
 - The chat transcript shows concise progress notices for evaluator verdicts and reasoning conclusions via a new `notice` stream event/role. Notices are persisted as transcript rows but kept out of graph conversation memory.
 - Agent terminal UI (`klea tui`): a full-screen Textual client with the operating-mode and tool-access selectors in the status panel (choosing one sends `/mode` or `/access`), per-role model and credential dialogs, and the HITL / permission modals (ADR-0030/0037/0050).

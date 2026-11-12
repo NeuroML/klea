@@ -176,6 +176,22 @@ section in place (empty = key by node label); the Planner and Evaluator share
 renders `display` as monospace `<pre>` (the plan) so tool names with `_` are
 not parsed as markdown.
 
+The shared `ToolsCallerNode` also emits its own `state` event at the start of a
+dispatch round, alongside (not inside) the running-tools entry, marking the
+steps in the batch.  Its data is a `NodeStreamData` with `key="plan"`.  It
+renders the plan with `current_numbers` set to the distinct `.step` numbers
+stamped on `state.tool_calls`, so every pending step of a parallel batch is
+marked current instead of only the next runnable one.  This is **render-only**:
+no plan write and no persisted `in_progress` status -- the plan is still
+authored, advanced and resolved exclusively by the Planner and the Evaluator,
+whose own plan event follows the round.  The entry is emitted only when the
+state carries a plan and the batch stamped at least one step number, so a
+plan-less run (Klea RAG) emits exactly the status entries it emitted before:
+no plan, no render, no dispatched step numbers.  The caller lives in the lower
+`klea_utils` package, so it contributes only the preformatted `display`
+fallback and no structured content blocks; those stay with the agent-side
+emitters (`klea_agent.nodes.plan_content`), which this package must not import.
+
 ### `notice` (chat progress note)
 
 A concise, user-facing progress note derived from an internal node result: the
@@ -245,6 +261,15 @@ The role vocabulary is:
 | `current` | the item in progress, or the most recently reached |
 | `pending` | not started yet |
 | `plain` | no status meaning; the default when `role` is absent or unknown |
+
+A frontend renders each role as the marker from its shared glyph table -- `ok`
+is `[\u2714]`, `error` `[\u2718]`, `current` `[\u203a]`, `pending` `[\u25cb]`
+and `plain` `[\u00b7]` in the Unicode table; the ASCII fallback brackets its own
+markers (`[x]`, `[!]`, `[*]`, `[ ]`, `[-]`).  Every marker is bracketed, so it
+is distinguished from the item's own text.  An unknown or non-string `role`
+renders the `plain` marker instead of failing, and consecutive items in one
+section are separated, with no separator before the first item or after the
+last.
 
 Every block also carries `content_version`; see the next subsection.
 

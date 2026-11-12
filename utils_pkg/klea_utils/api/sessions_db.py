@@ -227,6 +227,9 @@ class SessionStore:
         human-readable idea of what the chat is about without fetching every
         chat's messages.  ``None`` when the chat has no user message yet (a
         freshly created chat).
+
+        Each row's ``title`` is the stored title when non-empty, otherwise a
+        human-readable label derived from the chat id.
         """
         with self._lock:
             rows = self._conn.execute(
@@ -241,31 +244,70 @@ class SessionStore:
                 (CHAT_PREVIEW_MAX_CHARS, user_id),
             ).fetchall()
         result = [dict(r) for r in rows]
+        for row in result:
+            stored_title = row.get("title") or ""
+            row["title"] = self._display_title(row.get("chat_id", ""), stored_title)
+            if not stored_title.strip():
+                logger.debug(
+                    "list_chats(%s): derived title %r for chat %s",
+                    user_id,
+                    row["title"],
+                    row.get("chat_id"),
+                )
         logger.debug("list_chats(%s): %d chat(s)", user_id, len(result))
         return result
 
     def get_chat(self, user_id: str, chat_id: str) -> dict[str, Any] | None:
-        """Return a single chat or ``None``."""
+        """Return a single chat or ``None``.
+
+        An empty stored title is rendered as a human-readable label derived
+        from the chat id.
+        """
         with self._lock:
             row = self._conn.execute(
                 "SELECT * FROM chat_sessions WHERE user_id = ? AND chat_id = ?",
                 (user_id, chat_id),
             ).fetchone()
         result = dict(row) if row else None
+        if result is not None:
+            stored_title = result.get("title") or ""
+            result["title"] = self._display_title(chat_id, stored_title)
+            if not stored_title.strip():
+                logger.debug(
+                    "get_chat(%s, %s): derived title %r",
+                    user_id,
+                    chat_id,
+                    result["title"],
+                )
         logger.debug(
             "get_chat(%s, %s): %s", user_id, chat_id, "found" if result else "not found"
         )
         return result
 
+    def _display_title(self, chat_id: str, title: str) -> str:
+        """Derive a human-readable label from a coolname slug when no title is stored."""
+        return (
+            title.strip()
+            or " ".join(
+                p.capitalize() for p in chat_id.replace("_", "-").split("-") if p
+            )
+            or chat_id
+        )
+
     def create_chat(self, user_id: str, chat_id: str, title: str = "") -> None:
-        """Insert a chat row if it does not already exist."""
+        """Insert a chat row if it does not already exist.
+
+        The stored ``title`` may be empty; readers (``list_chats``/
+        ``get_chat``) render an empty title as a human-readable label derived
+        from the chat id.
+        """
         now = self._now()
         with self._lock:
             self._conn.execute(
                 "INSERT OR IGNORE INTO chat_sessions "
                 "(user_id, chat_id, title, created_at, updated_at, overrides) "
                 "VALUES (?, ?, ?, ?, ?, '{}')",
-                (user_id, chat_id, title, now, now),
+                (user_id, chat_id, self._display_title(chat_id, title), now, now),
             )
             self._conn.commit()
         logger.debug("create_chat(%s, %s, title=%r)", user_id, chat_id, title)

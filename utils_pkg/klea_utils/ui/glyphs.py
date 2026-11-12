@@ -36,6 +36,9 @@ class GlyphSet:
 
     Keeping every glyph on one dataclass means callers never mix Unicode
     and ASCII characters in a single frame.
+
+    The ``marker_*`` fields are status role markers resolved by
+    :func:`role_marker`.
     """
 
     success: str  # completed step / passing check
@@ -45,10 +48,20 @@ class GlyphSet:
     prompt: str  # input prompt caret
     separator: str  # vertical rule between panes / rows
     overflow: str  # truncation marker for clipped text
+    marker_ok: str  # completed / passing item
+    marker_error: str  # failed item
+    marker_current: str  # item being worked on
+    marker_pending: str  # item not yet started
+    marker_plain: str  # item with no recognised role
 
 
 #: Unicode glyph table used for capable terminals and the web (the default).
 UNICODE_GLYPHS = GlyphSet(
+    marker_ok="[\u2714]",  # U+2714 heavy check mark
+    marker_error="[\u2718]",  # U+2718 heavy ballot X
+    marker_current="[\u203a]",  # U+203A single right-pointing angle quotation mark
+    marker_pending="[\u25cb]",  # U+25CB white circle
+    marker_plain="[\u00b7]",  # U+00B7 middle dot
     success="\u2714",  # U+2714 heavy check mark
     failure="\u2718",  # U+2718 heavy ballot X
     pending="\u22ef",  # U+22EF midline horizontal ellipsis
@@ -61,6 +74,11 @@ UNICODE_GLYPHS = GlyphSet(
 
 #: Pure-ASCII fallback table for non-Unicode terminals.
 ASCII_GLYPHS = GlyphSet(
+    marker_ok="[x]",
+    marker_error="[!]",
+    marker_current="[*]",
+    marker_pending="[ ]",
+    marker_plain="[-]",
     success="[ok]",
     failure="[x]",
     pending="...",
@@ -152,3 +170,32 @@ def get_glyphs(stream: TextIO | None = None) -> GlyphSet:
     """
 
     return UNICODE_GLYPHS if detect_unicode_support(stream) else ASCII_GLYPHS
+
+
+#: Status role -> :class:`GlyphSet` field holding that role's marker.
+_ROLE_MARKER_FIELDS: dict[str, str] = {
+    "ok": "marker_ok",
+    "error": "marker_error",
+    "current": "marker_current",
+    "pending": "marker_pending",
+}
+
+
+def role_marker(glyphs: GlyphSet, role: object) -> str:
+    """Return the status marker glyph for *role*.
+
+    The marker is chosen from a fixed role table; unknown roles and roles
+    that are not strings fall back to ``glyphs.marker_plain``.  The lookup
+    never raises and never inspects the item's text, so emitters may send
+    new roles without breaking rendering.
+
+    :param glyphs: The glyph set selected for the active frontend.
+    :param role: The block/item role (``ok``/``error``/``current``/``pending``).
+    :returns: The matching marker (the plain fallback when unknown).
+    """
+
+    if isinstance(role, str):
+        field = _ROLE_MARKER_FIELDS.get(role)
+        if field is not None:
+            return getattr(glyphs, field)
+    return glyphs.marker_plain

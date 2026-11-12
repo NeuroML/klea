@@ -19,6 +19,7 @@ from klea_utils.ui.glyphs import (
     ascii_forced,
     detect_unicode_support,
     get_glyphs,
+    role_marker,
 )
 
 
@@ -210,3 +211,85 @@ def test_get_glyphs_unknown_encoding_ignores_ascii_hint_terms() -> None:
             return True
 
     assert get_glyphs(cast("TextIO", _AnonTtyStream(""))) == UNICODE_GLYPHS
+
+
+# --- role markers ----------------------------------------------------------
+
+#: Status role -> the :class:`GlyphSet` field that holds its marker.
+_ROLE_MARKER_FIELDS: dict[str, str] = {
+    "ok": "marker_ok",
+    "error": "marker_error",
+    "current": "marker_current",
+    "pending": "marker_pending",
+}
+
+
+#: Status role -> (Unicode marker, ASCII marker); both tables bracket their
+#: markers so a rendered marker is visually distinct from the item text.
+_BRACKETED_MARKERS: dict[str, tuple[str, str]] = {
+    "ok": ("[\u2714]", "[x]"),
+    "error": ("[\u2718]", "[!]"),
+    "current": ("[\u203a]", "[*]"),
+    "pending": ("[\u25cb]", "[ ]"),
+}
+
+
+@pytest.mark.parametrize(("role", "markers"), sorted(_BRACKETED_MARKERS.items()))
+def test_role_markers_are_bracketed_in_both_tables(
+    role: str, markers: tuple[str, str]
+) -> None:
+    """Every role marker is bracketed in both the Unicode and ASCII tables."""
+
+    unicode_marker, ascii_marker = markers
+    assert role_marker(UNICODE_GLYPHS, role) == unicode_marker
+    assert role_marker(ASCII_GLYPHS, role) == ascii_marker
+    assert unicode_marker.startswith("[") and unicode_marker.endswith("]")
+    assert ascii_marker.startswith("[") and ascii_marker.endswith("]")
+
+
+@pytest.mark.parametrize("glyph_set", [UNICODE_GLYPHS, ASCII_GLYPHS])
+def test_plain_marker_is_bracketed_and_used_for_unknown_roles(
+    glyph_set: GlyphSet,
+) -> None:
+    """The plain marker is bracketed and resolves for unknown/non-str roles."""
+
+    assert glyph_set.marker_plain.startswith("[")
+    assert glyph_set.marker_plain.endswith("]")
+    for role in ("mystery", None, 42):
+        assert role_marker(glyph_set, role) == glyph_set.marker_plain
+    assert UNICODE_GLYPHS.marker_plain == "[\u00b7]"
+    assert ASCII_GLYPHS.marker_plain == "[-]"
+
+
+@pytest.mark.parametrize("glyph_set", [UNICODE_GLYPHS, ASCII_GLYPHS])
+@pytest.mark.parametrize(("role", "field"), sorted(_ROLE_MARKER_FIELDS.items()))
+def test_role_marker_resolves_each_known_role(
+    glyph_set: GlyphSet, role: str, field: str
+) -> None:
+    """Every known role resolves to its own marker field in both tables."""
+
+    assert role_marker(glyph_set, role) == getattr(glyph_set, field)
+
+
+@pytest.mark.parametrize("glyph_set", [UNICODE_GLYPHS, ASCII_GLYPHS])
+def test_role_marker_falls_back_to_plain_for_unknown_roles(
+    glyph_set: GlyphSet,
+) -> None:
+    """Unknown and non-string roles resolve safely to ``marker_plain``."""
+
+    for role in ("mystery", "", "OK", "ok ", None, 42, object()):
+        assert role_marker(glyph_set, role) == glyph_set.marker_plain
+
+
+def test_ascii_role_markers_are_pure_ascii() -> None:
+    """The ASCII marker fields never emit non-ASCII characters."""
+
+    for field in (*_ROLE_MARKER_FIELDS.values(), "marker_plain"):
+        getattr(ASCII_GLYPHS, field).encode("ascii")
+
+
+def test_role_markers_differ_between_the_tables() -> None:
+    """Each role marker differs between the Unicode and ASCII tables."""
+
+    for field in _ROLE_MARKER_FIELDS.values():
+        assert getattr(UNICODE_GLYPHS, field) != getattr(ASCII_GLYPHS, field)

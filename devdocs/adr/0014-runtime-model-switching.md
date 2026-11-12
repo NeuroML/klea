@@ -14,6 +14,12 @@ the ``configurable_fields="any"`` model, sessions-db per-chat override
 sourcing, the three-layer merge, and key masking -- remain governing.
 This file is retained for that record.*
 
+*Amendment: override role names are validated against ``graph.llm_models``.
+An unknown role is rejected with HTTP 422 and the detail lists the supported
+roles, so a typo cannot be stored silently; a DELETE is still allowed for a
+stale stored role.  Stored roles the graph does not declare are ignored when
+the active configuration is resolved.*
+
 ## Context and Problem Statement
 
 When Klea started, the LLM models for each role (``chat``,

@@ -22,6 +22,7 @@ from typing import Any
 from nicegui import ui
 
 from klea_utils.llm import missing_required_roles, parse_model_name
+from klea_utils.ui.glyphs import UNICODE_GLYPHS, role_marker
 from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.state import ChatData, chats, format_token_usage, missing_credentials
 from klea_utils.ui.web.nicegui.components.context import PageContext
@@ -229,15 +230,34 @@ def attach_status_pane(ctx: PageContext) -> None:
                 role = _role_class(block.get("role"))
                 widgets: list = []
                 if kind == "items":
+                    rendered_items: list[tuple[str, str]] = []
                     for item in block.get("items") or ():
                         if isinstance(item, dict):
+                            item_role = item.get("role")
                             text = str(item.get("text") or item.get("label") or "")
-                            classes = _role_class(item.get("role"))
+                            classes = _role_class(item_role)
                         else:
+                            item_role = None
                             text = str(item) if item else ""
                             classes = ""
                         if text:
-                            widgets.append(_text_label(text, classes))
+                            marker = role_marker(UNICODE_GLYPHS, item_role)
+                            rendered_items.append((f"{marker} {text}", classes))
+                    # Separate consecutive items with a bottom margin on every
+                    # item but the last: no space before the first, none after
+                    # the last, and no extra spacer elements.
+                    # A ``compact`` layout suppresses the margin; any other
+                    # or absent value falls back to the spaced default.
+                    layout = block.get("layout", "spaced")
+                    last_index = len(rendered_items) - 1
+                    for index, (label, item_classes) in enumerate(rendered_items):
+                        spacing = (
+                            "mb-2" if index < last_index and layout != "compact" else ""
+                        )
+                        joined = " ".join(
+                            part for part in (item_classes, spacing) if part
+                        )
+                        widgets.append(_text_label(label, joined))
                     return widgets
                 if kind == "fields":
                     fields = block.get("fields") or {}

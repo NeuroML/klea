@@ -250,7 +250,14 @@ def attach_chat_list(ctx: PageContext) -> None:
                         ui.icon(indicator.icon).classes(indicator.classes)
                 with ui.item_section():
                     label_cls = "text-xs font-bold" if is_current else "text-xs"
-                    ui.label(sdata["name"]).classes(label_cls)
+                    # Fall back to a prettified chat id when the server has no
+                    # title yet (a chat created before its first query).
+                    display_name = sdata["name"] or " ".join(
+                        part.capitalize()
+                        for part in chat_id_.replace("_", "-").split("-")
+                        if part
+                    )
+                    ui.label(display_name).classes(label_cls)
                 tooltip = "Created: " + datetime.fromtimestamp(
                     sdata["created"]
                 ).astimezone().strftime("%a %d %b %Y at %X")
