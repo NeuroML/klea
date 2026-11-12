@@ -257,6 +257,7 @@ def apply_retention(
             logger.warning(
                 "api: could not purge the run directory %s (%s)", directory, exc
             )
+            dropped = dropped - {position}
 
     survivors = [
         entry for position, entry in enumerate(entries) if position not in dropped
