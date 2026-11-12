@@ -340,6 +340,40 @@ def test_run_json_is_written_before_the_complete_marker(
     assert len(_index_lines(result.workspace_root)) == 1
 
 
+def test_complete_run_without_an_index_line_is_reindexed(tmp_path: Path) -> None:
+    """A stored run whose index line was lost is re-indexed, never re-run."""
+    cases = [_case("case-1", [_turn(1, "user", "Hello")])]
+    executor = Recorder()
+    _suite, first = _run(tmp_path, cases, execute_turn=executor)
+    assert first.exit_code == 0
+    assert len(_index_lines(first.workspace_root)) == 1
+    results.index_path(first.workspace_root).unlink()
+    calls_before = list(executor.calls)
+
+    _suite, second = _run(tmp_path, cases, execute_turn=executor)
+
+    assert executor.calls == calls_before
+    assert second.runs[0].status == "completed"
+    assert second.exit_code == 0
+    index_ids = [entry.run_id for entry in results.read_index(second.workspace_root)]
+    assert index_ids == [first.runs[0].run_id]
+
+
+def test_complete_run_that_is_indexed_is_left_untouched(tmp_path: Path) -> None:
+    """An indexed complete run is skipped and gains no duplicate index line."""
+    cases = [_case("case-1", [_turn(1, "user", "Hello")])]
+    executor = Recorder()
+    _suite, first = _run(tmp_path, cases, execute_turn=executor)
+    assert len(_index_lines(first.workspace_root)) == 1
+    calls_before = list(executor.calls)
+
+    _suite, second = _run(tmp_path, cases, execute_turn=executor)
+
+    assert executor.calls == calls_before
+    assert second.runs[0].status == "skipped"
+    assert len(_index_lines(second.workspace_root)) == 1
+
+
 # ---------------------------------------------------------------------------
 # CLI: stubbed pipeline
 # ---------------------------------------------------------------------------

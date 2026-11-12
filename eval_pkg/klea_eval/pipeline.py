@@ -253,13 +253,22 @@ def _run_one_case(
     complete = workspace.detect_state(run_id, root) is workspace.RunState.COMPLETE
 
     if complete and not overwrite:
+        output_dir = workspace.run_dir(run_id, root)
+        if not _is_indexed(run_id, root):
+            reindexed = _reindex_run(run_id, output_dir, root)
+            if reindexed is not None:
+                logger.info(
+                    "pipeline: run %s was complete but unindexed, re-indexing it",
+                    run_id,
+                )
+                return reindexed
         logger.info("pipeline: run %s is already complete, skipping it", run_id)
         return CaseRun(
             case_id=case.case_id,
             status=run_manager.STATUS_SKIPPED,
             run_id=run_id,
-            output_dir=workspace.run_dir(run_id, root),
-            metrics=_stored_metrics(workspace.run_dir(run_id, root)),
+            output_dir=output_dir,
+            metrics=_stored_metrics(output_dir),
         )
 
     try:
@@ -566,6 +575,38 @@ def _stored_metrics(run_dir: Path) -> metrics.RunMetrics | None:
     except metrics.MetricsError as exc:
         logger.debug(f"{run_dir = }, {exc = }")
         return None
+
+
+def _is_indexed(run_id: str, root: Path) -> bool:
+    """Whether ``runs/index.jsonl`` already carries the line of ``run_id``."""
+    try:
+        entries = results.read_index(root)
+    except results.ResultsError as exc:
+        logger.debug(f"{root = }, {exc = }")
+        return False
+
+    indexed = any(entry.run_id == run_id for entry in entries)
+    logger.debug(f"{run_id = }, {indexed = }")
+    return indexed
+
+
+def _reindex_run(run_id: str, output_dir: Path, root: Path) -> CaseRun | None:
+    """Append the missing index line of a stored run; ``None`` if unreadable."""
+    try:
+        metadata = results.read_metadata(output_dir)
+        results.append_index_entry(results.to_index_entry(metadata), root)
+    except (results.ResultsError, OSError) as exc:
+        logger.warning("pipeline: could not re-index run %s: %s", run_id, exc)
+        return None
+
+    logger.debug(f"{run_id = }, {output_dir = }, {root = }")
+    return CaseRun(
+        case_id=metadata.case_id,
+        status=run_manager.STATUS_COMPLETED,
+        run_id=run_id,
+        output_dir=output_dir,
+        metrics=_stored_metrics(output_dir),
+    )
 
 
 def _resolve_executor(
