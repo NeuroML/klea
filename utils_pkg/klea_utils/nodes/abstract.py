@@ -24,6 +24,7 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import Runnable, RunnableConfig
 from pydantic import BaseModel, Field
 
+from klea_utils.content_blocks import ContentBlock
 from klea_utils.graph.schemas import TokenUsage
 from klea_utils.llm import extract_llm_output_content
 from klea_utils.nodes.context import LLMNodeContext, NodeContext
@@ -72,6 +73,20 @@ class NodeStreamData(BaseModel):
             "Render ``display`` as preformatted monospace text (``<pre>``) "
             "instead of markdown.  Use for aligned, literal content such as a "
             "plan with tool names, where markdown would mangle ``_``/``*``."
+        ),
+    )
+    content_version: int = Field(
+        default=1,
+        description=(
+            "Version discriminator for ``content`` (a contract version, not a "
+            "monotonic counter).  Readers skip versions they do not understand."
+        ),
+    )
+    content: list[ContentBlock] | None = Field(
+        default=None,
+        description=(
+            "Structured content blocks for the status pane.  ``None`` (default) "
+            "means the frontend falls back to ``display`` (the current path)."
         ),
     )
 

@@ -25,6 +25,7 @@ from klea_agent.schemas import (
     RouteSchema,
     StepSchema,
 )
+from klea_utils.content_blocks import ItemsBlock
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.nodes.context import LLMNodeContext
 
@@ -1378,6 +1379,27 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         self.assertNotEqual(status.display, "(no plan)")
         self.assertEqual(status.key, "plan")
         self.assertTrue(status.preformatted)
+        self.assertTrue(status.display)
+        _content = status.content
+        assert _content is not None
+        self.assertEqual(len(_content), 1)
+        block = cast(ItemsBlock, _content[0])
+        self.assertEqual(block.kind, "items")
+        steps = ctx.state_updates["plan"].step_list
+        self.assertEqual(len(block.items), len(steps))
+        for step, item in zip(steps, block.items):
+            self.assertEqual(item.text, f"Step {step.step_number}: {step.summary}")
+            if step.status == "done":
+                self.assertEqual(item.role, "ok")
+            elif step.status == "failed":
+                self.assertEqual(item.role, "error")
+            elif step.status == "skipped":
+                self.assertEqual(item.role, "plain")
+            else:
+                self.assertIn(item.role, {"current", "pending"})
+        self.assertLessEqual(
+            sum(1 for item in block.items if item.role == "current"), 1
+        )
 
     def test_status_falls_back_to_state_plan(self):
         """Without state updates, status falls back to the incoming state plan."""
@@ -1388,6 +1410,23 @@ class TestPlannerToolDisclosure(unittest.TestCase):
 
         assert status is not None
         self.assertIn("1 step(s)", status.summary)
+
+    def test_status_heading_reports_progress(self):
+        """The status heading counts resolved steps and rounds to a percentage."""
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, status="done"),
+                StepSchema(step_number=2, status="done"),
+                StepSchema(step_number=3, status="skipped"),
+                StepSchema(step_number=4, status="pending"),
+            ]
+        )
+        self.assertEqual(plan.status_heading(), "Plan (3/4, 75%)")
+
+    def test_status_heading_bare_label_when_empty(self):
+        """A plan with no steps yields the bare label."""
+        self.assertEqual(PlanSchema().status_heading(), "Plan")
+        self.assertEqual(PlanSchema().status_heading("Progress"), "Progress")
 
 
 if __name__ == "__main__":

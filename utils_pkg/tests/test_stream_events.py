@@ -707,6 +707,39 @@ class TestStopStream:
         assert calls == []
 
 
+class TestNodeStreamDataContent:
+    """``NodeStreamData`` content fields stay backward compatible (step 3).
+
+    A TypedDict cannot carry a literal default, so ``StateSection``'s
+    ``content_version``/``content`` must be supplied by the reducer/producers;
+    ``NodeStreamData`` (a Pydantic model) carries the real 1/None defaults.
+    """
+
+    def test_old_payload_round_trips_without_content(self):
+        from klea_utils.nodes.abstract import NodeStreamData
+
+        # A producer that predates the content fields: still valid, and the
+        # fields it did set are untouched by the new defaults.
+        data = NodeStreamData(heading="H", summary="S", display="D")
+        assert data.content_version == 1
+        assert data.content is None
+        dumped = data.model_dump()
+        assert dumped["display"] == "D"
+        assert dumped["content"] is None
+        assert NodeStreamData(**dumped).display == "D"
+
+    def test_content_items_block_round_trips(self):
+        from klea_utils.nodes.abstract import NodeStreamData
+
+        data = NodeStreamData(content=[{"kind": "items", "items": [{"text": "alpha"}]}])
+        dumped = data.model_dump()
+        assert dumped["content"][0]["kind"] == "items"
+        assert dumped["content"][0]["items"][0]["text"] == "alpha"
+        restored = NodeStreamData(**dumped)
+        assert restored.content is not None
+        assert restored.content[0].kind == "items"
+
+
 class TestReplayChatEvents:
     """Unit tests for :func:`replay_chat_events` (ADR-0032 update)."""
 
@@ -740,3 +773,91 @@ class TestReplayChatEvents:
         replay_chat_events(chat, [])
         assert chat["inspector_entries"] == []
         assert chat["state_sections"] == {}
+
+    def test_unknown_block_kind_falls_back_to_display(self, chat):
+        """A state event with an unknown block kind must not raise and keeps
+        the preformatted ``display`` as the fallback."""
+        replay_chat_events(
+            chat,
+            [
+                {
+                    "type": "state",
+                    "node": "Plan",
+                    "data": {
+                        "key": "plan",
+                        "display": "[x] Step 1",
+                        "content_version": 1,
+                        "content": [{"kind": "not-a-known-kind"}],
+                    },
+                },
+            ],
+        )
+
+        assert chat["state_sections"]["plan"]["display"] == "[x] Step 1"
+
+    def test_unknown_role_falls_back_to_display(self, chat):
+        """A content item with an unknown role must not raise and keeps the
+        preformatted ``display`` as the fallback."""
+        replay_chat_events(
+            chat,
+            [
+                {
+                    "type": "state",
+                    "node": "Plan",
+                    "data": {
+                        "key": "plan",
+                        "display": "[x] Step 1",
+                        "content_version": 1,
+                        "content": [
+                            {
+                                "kind": "items",
+                                "items": [{"role": "mystery", "text": "a"}],
+                            }
+                        ],
+                    },
+                },
+            ],
+        )
+
+        assert chat["state_sections"]["plan"]["display"] == "[x] Step 1"
+
+    def test_future_content_version_falls_back_to_display(self, chat):
+        """A content_version above the frontend's known value must not raise
+        and keeps the preformatted ``display`` as the fallback."""
+        replay_chat_events(
+            chat,
+            [
+                {
+                    "type": "state",
+                    "node": "Plan",
+                    "data": {
+                        "key": "plan",
+                        "display": "[x] Step 1",
+                        "content_version": 999,
+                        "content": [{"kind": "items", "items": [{"text": "a"}]}],
+                    },
+                },
+            ],
+        )
+
+        assert chat["state_sections"]["plan"]["display"] == "[x] Step 1"
+
+    def test_content_survives_apply_stream_event(self, chat):
+        """A known block kind is kept on the stored section (reducer whitelist)."""
+        apply_stream_event(
+            chat,
+            {
+                "type": "state",
+                "node": "Plan",
+                "data": {
+                    "key": "plan",
+                    "display": "[x] Step 1",
+                    "content_version": 1,
+                    "content": [{"kind": "items", "items": [{"text": "alpha"}]}],
+                },
+            },
+        )
+
+        assert chat["state_sections"]["plan"]["content"] == [
+            {"kind": "items", "items": [{"text": "alpha"}]}
+        ]

@@ -20,6 +20,7 @@ from datetime import datetime
 from typing import Any, Literal, NamedTuple, NotRequired, TypedDict
 
 from klea_utils.api.hitl import render_interrupt_response
+from klea_utils.content_blocks import ContentBlock
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +96,8 @@ class StateSection(TypedDict):
     summary: str
     details: dict[str, Any]
     preformatted: bool
+    content_version: NotRequired[int]
+    content: NotRequired[list[ContentBlock] | None]
 
 
 class InspectorEntry(TypedDict):

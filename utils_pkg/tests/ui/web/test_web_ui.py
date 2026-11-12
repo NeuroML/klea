@@ -150,3 +150,99 @@ class TestChatPreview:
         assert preview.startswith("line one line two ")
         assert preview.endswith("...")
         assert len(preview) == 200
+
+
+async def test_status_pane_renders_content_blocks_with_fallback(
+    fake_backend, utils_user
+):
+    """The status pane renders items and degrades unknown kinds/roles."""
+    from typing import cast
+
+    from klea_utils.ui.state import StateSection, ensure_chat
+
+    chat = ensure_chat("u", "")
+    section = {
+        "heading": "Renderer",
+        "display": "",
+        "summary": "",
+        "details": {},
+        "preformatted": False,
+        "content": [
+            {
+                "kind": "items",
+                "items": [
+                    {"text": "ok item", "role": "ok"},
+                    {"text": "error item", "role": "error"},
+                    {"text": "current item", "role": "current"},
+                    {"text": "pending item", "role": "pending"},
+                    {"text": "unknown role item", "role": "mystery"},
+                ],
+            },
+            {"kind": "mystery", "text": "unknown kind item"},
+            {"kind": "text", "text": "plain item"},
+        ],
+    }
+    chat["state_sections"]["render"] = cast(StateSection, section)
+
+    await utils_user.open("/")
+    await utils_user.should_see("ok item")
+    await utils_user.should_see("error item")
+    await utils_user.should_see("current item")
+    await utils_user.should_see("pending item")
+    await utils_user.should_see("unknown role item")
+    await utils_user.should_see("unknown kind item")
+    await utils_user.should_see("plain item")
+
+
+async def test_status_pane_styles_the_current_role_and_degrades_unknown_roles(
+    fake_backend, utils_user
+):
+    """'current' items are bold; an unknown role still renders unstyled."""
+    from typing import cast
+
+    from klea_utils.ui.state import StateSection, ensure_chat
+
+    chat = ensure_chat("u", "")
+    section = {
+        "heading": "Roles",
+        "display": "",
+        "summary": "",
+        "details": {},
+        "preformatted": False,
+        "content": [
+            {
+                "kind": "items",
+                "items": [
+                    {"text": "bold current item", "role": "current"},
+                    {"text": "mystery role item", "role": "mystery"},
+                ],
+            }
+        ],
+    }
+    chat["state_sections"]["roles"] = cast(StateSection, section)
+
+    await utils_user.open("/")
+    await utils_user.should_see("bold current item")
+    await utils_user.should_see("mystery role item")
+
+    labels = {
+        getattr(label, "text", ""): label
+        for label in utils_user.find(ui.label).elements
+    }
+
+    def _css_classes(label) -> str:
+        """Return a rendered label's CSS classes (version tolerant)."""
+        classes = getattr(label, "_classes", None)
+        if classes is None:
+            attr = getattr(label, "classes", "")
+            classes = attr() if callable(attr) else attr
+        if isinstance(classes, (list, tuple, set)):
+            return " ".join(str(name) for name in classes)
+        return str(classes)
+
+    assert "bold current item" in labels
+    assert "mystery role item" in labels
+    current_classes = _css_classes(labels["bold current item"])
+    unknown_classes = _css_classes(labels["mystery role item"])
+    assert "font-bold" in current_classes
+    assert "font-bold" not in unknown_classes

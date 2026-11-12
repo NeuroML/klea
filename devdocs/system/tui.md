@@ -421,6 +421,7 @@ semantic color token, so a theme change re-colours the interface consistently:
 | `agent` | `$surface` | agent turn text: the raised base layer of the screen |
 | `tool_success` | `$success` | a tool call or check that completed cleanly |
 | `tool_error` | `$error` | a tool call that failed or was rejected |
+| `current` | `$text` | the item in progress, or the most recently reached, in a status section; rendered bold, so the emphasis does not come from colour alone |
 | `notice` | `$warning` | non-fatal warnings and advisory banners |
 | `composer` | `$surface` | the input composer / prompt area |
 

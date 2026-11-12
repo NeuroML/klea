@@ -113,13 +113,24 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
         # so nodes can share one section (e.g. a live plan updated by the
         # Planner and the Evaluator) instead of each owning a duplicate.
         section_key = data.get("key") or node
-        chat.setdefault("state_sections", {})[section_key] = {
+        section = {
             "heading": data.get("heading", ""),
             "display": data.get("display", ""),
             "summary": data.get("summary", ""),
             "details": data.get("details", {}),
             "preformatted": data.get("preformatted", False),
         }
+        # Structured content (and its version) is optional: copy it verbatim
+        # when the emitter provided it so replay renders the same blocks
+        # instead of silently dropping them.
+        for key in ("content", "content_version"):
+            if key in data:
+                section[key] = data[key]
+        from typing import cast
+
+        from .state import StateSection
+
+        chat.setdefault("state_sections", {})[section_key] = cast(StateSection, section)
         return "state"
 
     if t == "notice":

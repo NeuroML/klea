@@ -220,6 +220,46 @@ window is the bound), so no payload is replaced by a summary. Every tool result
 is shown inline in the chat, so the synthesised answer summarises it rather than
 reprinting it.
 
+### Content blocks
+
+A `tool` entry may carry a structured content block, so a consumer renders the
+result from data instead of re-parsing free text.  The block is a union
+discriminated by `type`:
+
+* `text` - `{type: "text", text, role?}`: one run of text.
+* `items` - `{type: "items", items, role?}`: an ordered list of `Item`s.
+* `fields` - `{type: "fields", fields, role?}`: an ordered list of
+  `{label, value}` pairs.
+
+An `Item` is either a plain string or an object whose `role` is a plain string
+(never a nested object or a serialised enum), and an item with no `role` of its
+own inherits the enclosing block's `role`.  Keeping `role` a plain string means
+a reader that does not know the vocabulary still renders the payload.
+
+The role vocabulary is:
+
+| Role | Meaning |
+|------|---------|
+| `ok` | the step or item succeeded |
+| `error` | the step or item failed |
+| `current` | the item in progress, or the most recently reached |
+| `pending` | not started yet |
+| `plain` | no status meaning; the default when `role` is absent or unknown |
+
+Every block also carries `content_version`; see the next subsection.
+
+### Contract versions
+
+`content_version` is the **contract version** of the content-block payload, not
+a counter of runs, events or items: it identifies the shape the emitter
+produced, and it changes only when that shape changes incompatibly, so one
+value always means one payload shape.
+
+Readers compare it with the versions they know.  An unknown version is not an
+error: the reader skips the structured block and falls back to the entry's
+`display` text, so an older frontend keeps rendering a newer payload as plain
+text instead of guessing at fields it does not understand.
+
 ### `token` (gated)
 
 Emitted from the `messages` channel only for node labels in
