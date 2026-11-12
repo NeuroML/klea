@@ -199,6 +199,7 @@
 
 ### Added
 
+- Session command `/mcp` (and `/mcp list`) lists the MCP servers configured for the backend and the tools each exposed at setup (issue 226; enable/disable and runtime add/remove come later).
 - The agent's user-facing answer nodes (`RouteDecision` for inline chat, `AnswerFromResults` for task answers) report the effective model that produced the reply, so questions like "which model are you running" are answerable.
 - The chat transcript shows concise progress notices for evaluator verdicts and reasoning conclusions via a new `notice` stream event/role. Notices are persisted as transcript rows but kept out of graph conversation memory.
 - Agent terminal UI (`klea tui`): a full-screen Textual client with the operating-mode and tool-access selectors in the status panel (choosing one sends `/mode` or `/access`), per-role model and credential dialogs, and the HITL / permission modals (ADR-0030/0037/0050).

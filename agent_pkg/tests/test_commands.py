@@ -14,7 +14,12 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from klea_agent.commands import _INIT_PROMPT, build_agent_commands
+from klea_agent.commands import (
+    _INIT_PROMPT,
+    build_agent_commands,
+    format_mcp_servers,
+    group_tools_by_server,
+)
 from klea_agent.klea_agent import KleaAgent
 from klea_agent.schemas import Discovery, DiscoveryItem, KleaAgentState
 from klea_utils.commands.common import Command, CommandRegistry, Subcommand
@@ -35,9 +40,19 @@ def _state(query: str) -> KleaAgentState:
     return KleaAgentState(query=query, messages=[HumanMessage(content=query)])
 
 
-def _agent_node(events: list, *, source_available: bool = False) -> CommandNode:
+def _agent_node(
+    events: list,
+    *,
+    source_available: bool = False,
+    mcp_servers: list[str] | None = None,
+    mcp_tools: list[str] | None = None,
+) -> CommandNode:
     """Return an agent CommandNode capturing emitted stream events."""
-    registry, handlers = build_agent_commands(source_available=source_available)
+    registry, handlers = build_agent_commands(
+        source_available=source_available,
+        mcp_servers=mcp_servers or (),
+        mcp_tools=mcp_tools or (),
+    )
     node = CommandNode(logger, "Running command", registry=registry, handlers=handlers)
     cast(Any, node).write_custom_stream = events.append
     return node
@@ -117,6 +132,17 @@ class TestCatalogue:
         assert [sub.name for sub in paths.subcommands] == ["list", "add", "remove"]
         assert "paths" in handlers
 
+    def test_mcp_is_implemented_with_list_verb(self):
+        registry, handlers = build_agent_commands(source_available=False)
+        mcp = registry.get("mcp")
+        assert mcp is not None
+        assert mcp.side == "server"
+        assert mcp.klass == "session-state"
+        assert mcp.persists == "checkpoint"
+        assert mcp.implemented is True
+        assert [sub.name for sub in mcp.subcommands] == ["list"]
+        assert "mcp" in handlers
+
 
 class TestDisabledCommands:
     def test_disabled_command_is_not_registered(self):
@@ -134,6 +160,13 @@ class TestDisabledCommands:
         registry, _ = build_agent_commands(source_available=False, disabled=["mode"])
         # A server stub (not yet implemented) is still registered.
         assert registry.get("access") is not None
+
+    def test_disabled_mcp_is_not_registered(self):
+        registry, handlers = build_agent_commands(
+            source_available=False, disabled=["mcp"]
+        )
+        assert registry.get("mcp") is None
+        assert "mcp" not in handlers
 
 
 class TestModeHandler:
@@ -190,6 +223,76 @@ class TestAccessHandler:
         updates = await node.execute(_state("/access bogus"))
         assert "Unknown access level" in updates["message_for_user"]
         assert "access_level" not in updates
+
+
+class TestMcpHelpers:
+    def test_group_single_server_keeps_all_tools(self):
+        grouped = group_tools_by_server(["bundled"], ["read_file", "write_file"])
+        assert grouped == {"bundled": ["read_file", "write_file"]}
+
+    def test_group_multi_server_uses_prefix(self):
+        grouped = group_tools_by_server(
+            ["bundled", "NeuroML"],
+            ["bundled_read_file", "NeuroML_list_models", "orphan"],
+        )
+        assert grouped == {
+            "bundled": ["bundled_read_file"],
+            "NeuroML": ["NeuroML_list_models"],
+        }
+
+    def test_format_empty(self):
+        assert format_mcp_servers([], {}) == "No MCP servers configured."
+
+    def test_format_with_tools_and_empty_server(self):
+        message = format_mcp_servers(
+            ["bundled", "empty"],
+            {"bundled": ["read_file"], "empty": []},
+        )
+        assert "MCP servers (2):" in message
+        assert "  bundled:" in message
+        assert "  - read_file" in message
+        assert "  empty:" in message
+        assert "  - (no tools)" in message
+
+
+class TestMcpHandler:
+    async def test_bare_lists_when_empty(self):
+        node = _agent_node([])
+        updates = await node.execute(_state("/mcp"))
+        assert updates["message_for_user"] == "No MCP servers configured."
+        assert updates["messages"] == []
+
+    async def test_list_verb_shows_servers_and_tools(self):
+        events: list = []
+        node = _agent_node(
+            events,
+            mcp_servers=["bundled"],
+            mcp_tools=["read_file", "write_file"],
+        )
+        updates = await node.execute(_state("/mcp list"))
+        message = updates["message_for_user"]
+        assert "MCP servers (1):" in message
+        assert "  bundled:" in message
+        assert "  - read_file" in message
+        assert "  - write_file" in message
+        assert any(e.get("type") == "inspect" for e in events)
+
+    async def test_multi_server_grouping(self):
+        node = _agent_node(
+            [],
+            mcp_servers=["bundled", "NeuroML"],
+            mcp_tools=["bundled_read_file", "NeuroML_list_models"],
+        )
+        updates = await node.execute(_state("/mcp"))
+        message = updates["message_for_user"]
+        assert "  - bundled_read_file" in message
+        assert "  - NeuroML_list_models" in message
+
+    async def test_unknown_verb(self):
+        node = _agent_node([])
+        updates = await node.execute(_state("/mcp enable"))
+        assert "Unknown subcommand" in updates["message_for_user"]
+        assert "list" in updates["message_for_user"]
 
 
 class TestCwdHandler:
