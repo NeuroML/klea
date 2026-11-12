@@ -229,7 +229,7 @@ _ROLE_MARKER_FIELDS: dict[str, str] = {
 _BRACKETED_MARKERS: dict[str, tuple[str, str]] = {
     "ok": ("[\u2714]", "[x]"),
     "error": ("[\u2718]", "[!]"),
-    "current": ("[\u25b6]", "[*]"),
+    "current": ("[\u203a]", "[*]"),
     "pending": ("[\u25cb]", "[ ]"),
 }
 

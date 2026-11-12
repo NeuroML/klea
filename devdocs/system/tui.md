@@ -384,7 +384,7 @@ characters and a single environment variable switches the whole interface:
 | `overflow` | `\u2026` | `~` | the truncation marker for clipped text |
 | `marker_ok` | `[\u2714]` | `[x]` | a completed / passing status-section item |
 | `marker_error` | `[\u2718]` | `[!]` | a failed status-section item |
-| `marker_current` | `[\u25b6]` | `[*]` | the item in progress, or the most recently reached |
+| `marker_current` | `[\u203a]` | `[*]` | the item in progress, or the most recently reached |
 | `marker_pending` | `[\u25cb]` | `[ ]` | a status-section item that has not started |
 | `marker_plain` | `[\u00b7]` | `[-]` | a status-section item with no recognised role |
 

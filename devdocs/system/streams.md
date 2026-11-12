@@ -247,7 +247,7 @@ The role vocabulary is:
 | `plain` | no status meaning; the default when `role` is absent or unknown |
 
 A frontend renders each role as the marker from its shared glyph table -- `ok`
-is `[\u2714]`, `error` `[\u2718]`, `current` `[\u25b6]`, `pending` `[\u25cb]`
+is `[\u2714]`, `error` `[\u2718]`, `current` `[\u203a]`, `pending` `[\u25cb]`
 and `plain` `[\u00b7]` in the Unicode table; the ASCII fallback brackets its own
 markers (`[x]`, `[!]`, `[*]`, `[ ]`, `[-]`).  Every marker is bracketed, so it
 is distinguished from the item's own text.  An unknown or non-string `role`
