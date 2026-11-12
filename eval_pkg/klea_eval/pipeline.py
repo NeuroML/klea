@@ -304,6 +304,7 @@ def _run_one_case(
         resolved_models = applied or {}
 
     try:
+        _write_run_metadata(context, case, resolved_models)
         outcome = run_manager.run_case(
             context,
             case,
@@ -375,15 +376,13 @@ def _run_one_case(
     )
 
 
-def _store_run(
+def _run_metadata(
     context: RunContext,
     case: TestCase,
-    output_dir: Path,
-    root: Path,
     resolved_models: Mapping[str, str] | None = None,
-) -> None:
-    """Write ``run.json`` and the single index line of a completed run."""
-    metadata = results.RunMetadata(
+) -> results.RunMetadata:
+    """Build the ``run.json`` envelope of one completed run."""
+    return results.RunMetadata(
         run_id=context.run_id,
         case_id=context.case_id,
         status=run_manager.STATUS_COMPLETED,
@@ -395,7 +394,36 @@ def _store_run(
         attempt=context.attempt,
         revision=context.revision,
     )
-    stamped = results.write_metadata(output_dir, metadata)
+
+
+def _write_run_metadata(
+    context: RunContext,
+    case: TestCase,
+    resolved_models: Mapping[str, str] | None = None,
+) -> None:
+    """Write ``run.json`` into the staged run directory before publication.
+
+    ``workspace.publish_run`` marks a run complete by renaming its staging
+    directory, so stamping ``run.json`` first means a COMPLETE marker always
+    implies a run whose metadata is already recoverable.
+    """
+    stamped = results.write_metadata(
+        context.run_dir, _run_metadata(context, case, resolved_models)
+    )
+    logger.debug(f"{stamped.run_id = }, {context.run_dir = }")
+
+
+def _store_run(
+    context: RunContext,
+    case: TestCase,
+    output_dir: Path,
+    root: Path,
+    resolved_models: Mapping[str, str] | None = None,
+) -> None:
+    """Stamp ``run.json`` and append the single index line of a completed run."""
+    stamped = results.write_metadata(
+        output_dir, _run_metadata(context, case, resolved_models)
+    )
     results.append_index_entry(results.to_index_entry(stamped), root)
     logger.debug(f"{stamped.run_id = }, {output_dir = }, {root = }")
 

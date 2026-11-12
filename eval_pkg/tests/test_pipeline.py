@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from klea_eval import metrics, pipeline, results
+from klea_eval import metrics, pipeline, results, workspace
 from klea_eval.errors import CaseValidationError
 from klea_eval.pipeline import PipelineConfigError, PipelineError, run_suite
 from klea_eval.results import load_stored_run
@@ -312,6 +312,32 @@ def test_run_json_carries_run_metadata(tmp_path: Path) -> None:
     for path in result.workspace_root.rglob("*"):
         if path.is_file():
             assert "pass_at_k" not in path.read_text(encoding="utf-8"), path
+
+
+def test_run_json_is_written_before_the_complete_marker(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """``run.json`` is in the staging directory before the run is published."""
+    cases = [_case("case-1", [_turn(1, "user", "Hello")])]
+    seen: dict[str, bool] = {}
+
+    real_publish = workspace.publish_run
+
+    def checking_publish(run_id: str, *args: Any, **kwargs: Any) -> Path:
+        root = args[0] if args else kwargs.get("root")
+        staged = workspace.run_dir_tmp(run_id, root)
+        seen["exists_at_publish"] = results.run_metadata_path(staged).is_file()
+        return real_publish(run_id, *args, **kwargs)
+
+    monkeypatch.setattr(workspace, "publish_run", checking_publish)
+
+    _suite, result = _run(tmp_path, cases, execute_turn=Recorder())
+
+    assert seen.get("exists_at_publish") is True
+    output_dir = Path(result.runs[0].output_dir)
+    assert results.run_metadata_path(output_dir).is_file()
+    assert load_stored_run(output_dir).metadata.run_id == result.runs[0].run_id
+    assert len(_index_lines(result.workspace_root)) == 1
 
 
 # ---------------------------------------------------------------------------
