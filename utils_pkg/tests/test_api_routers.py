@@ -319,6 +319,55 @@ class TestModels:
         assert response.status_code == 200
         assert "chat" in response.json()
 
+    async def test_unknown_role_rejected_session_scope(self, models_app, models_client):
+        """POST to an undeclared role at session scope is rejected and not stored."""
+        response = await models_client.post(
+            "/chat/u1/models/overrides/mystery", json={"model": "ollama:qwen3"}
+        )
+        assert response.status_code == 422
+        detail = response.json()["detail"]
+        assert "mystery" in detail
+        assert "plan" in detail
+        assert models_app.state.chat_sessions.get_session_overrides("u1") == {}
+
+    async def test_unknown_role_rejected_chat_scope(self, models_app, models_client):
+        """POST to an undeclared role at chat scope is rejected and not stored."""
+        response = await models_client.post(
+            "/chat/u1/c1/models/overrides/mystery", json={"model": "ollama:qwen3"}
+        )
+        assert response.status_code == 422
+        assert "mystery" in response.json()["detail"]
+        assert models_app.state.chat_sessions.get_overrides("u1", "c1") == {}
+
+    async def test_unknown_role_delete_rejected_unless_stored(
+        self, models_app, models_client
+    ):
+        """DELETE of an unknown role is 422, unless a stored override exists."""
+        response = await models_client.delete("/chat/u1/c1/models/overrides/mystery")
+        assert response.status_code == 422
+
+        store: SessionStore = models_app.state.chat_sessions
+        store.create_chat("u1", "c1")
+        store.set_override("u1", "c1", "mystery", {"model": "x"})
+        response = await models_client.delete("/chat/u1/c1/models/overrides/mystery")
+        assert response.status_code == 200
+        assert "mystery" not in store.get_overrides("u1", "c1")
+
+    async def test_known_role_still_accepted(self, models_client):
+        """A declared role is still accepted (the rejection is role-specific)."""
+        response = await models_client.post(
+            "/chat/u1/models/overrides/chat", json={"model": "openai:gpt-4o"}
+        )
+        assert response.status_code == 200
+
+    async def test_active_omits_stale_stored_role(self, models_app, models_client):
+        """A stored override for an undeclared role is not surfaced as active."""
+        models_app.state.chat_sessions.set_session_override(
+            "u1", "mystery", {"model": "x"}
+        )
+        data = (await models_client.get("/chat/u1/models/active")).json()
+        assert "mystery" not in data
+
 
 def test_mask_secret():
     """mask_secret exposes only the last four characters."""

@@ -73,6 +73,26 @@ def test_session_overrides_are_per_user(store):
     assert store.get_session_overrides("u2")["chat"]["model"] == "openai:gpt-4o"
 
 
+def test_store_is_role_agnostic(store):
+    """The store validates no role names: it never sees the graph.
+
+    An arbitrary role key round-trips verbatim at both scopes, documenting
+    that valid roles belong to the callers (and their graph), not to
+    SessionStore, which has no access to ``llm_models``.
+    """
+    mystery = {"model": "ollama:qwen3"}
+    store.create_chat("u1", "c1")
+    store.set_session_override("u1", "mystery", mystery)
+    store.set_override("u1", "c1", "mystery", mystery)
+    assert store.get_session_overrides("u1") == {"mystery": mystery}
+    assert store.get_overrides("u1", "c1") == {"mystery": mystery}
+
+    store.clear_session_override("u1", "mystery")
+    store.delete_chat("u1", "c1")
+    assert store.get_session_overrides("u1") == {}
+    assert store.get_overrides("u1", "c1") == {}
+
+
 def test_delete_user_chats_clears_session_overrides(store):
     """Deleting a user session also drops its default overrides."""
     store.create_chat("u1", "c1")
