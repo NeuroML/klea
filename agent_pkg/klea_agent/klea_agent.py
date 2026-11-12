@@ -239,15 +239,22 @@ class KleaAgent(BaseLangGraph):
         """
         status = state.plan.status
         if status == "unplannable":
+            self.logger.debug("Routing: unplannable -> failure")
             return "failure"
         if status == "chat":
+            self.logger.debug("Routing: chat -> chat")
             return "chat"
         if status == "needs_input":
+            self.logger.debug("Routing: needs_input -> needs_input")
             return "needs_input"
         if status == "completed":
+            self.logger.debug("Routing: completed -> plan_done")
             return "plan_done"
         if state.plan.current_step() is None:
+            self.logger.debug("Routing: no current step -> failure")
             return "failure"
+
+        self.logger.debug("Routing: _next_dispatch")
         return self._next_dispatch(state)
 
     async def _await_human_router(self, state: KleaAgentState) -> str:
