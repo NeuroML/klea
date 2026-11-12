@@ -391,7 +391,40 @@ Last updated: 2026-11-03.
   chosen "B'" shape: `system/run-command.md`.
 
 - `/skills` (ADR-0047): **deferred** -- skills are not designed yet, so the
-  command surface is undefined.  Design skills support first.
+  command surface is undefined.  Design skills support first; tracked in
+  https://github.com/NeuroML/klea/issues/51.
+  - `/skills` lists available skills from their metadata only (the
+    `name`/`description` frontmatter of each skill), without loading bodies.
+  - The user loads a skill; its body is read on demand at activation rather
+    than kept resident for every skill.
+  - The loaded body becomes session state inside `Discovery` -- one
+    `DiscoveryItem` with `source` = skill name and `content` = skill body,
+    next to the `AGENTS.md`/`CLAUDE.md` item -- so `Discovery.render()`
+    feeds it to the Planner and the answer-composer and
+    `discovery_persistent` keeps it across turns (`InitGraphState`).  Tag
+    skill-sourced items as such, so `refresh_project_files` /
+    `_drop_instruction_items` keep their drop set limited to
+    `PROJECT_INSTRUCTION_FILES` and never evict a skill.
+  - Skills are task-scoped, user-level artifacts, not project-specific: the
+    user installs them and loads the ones a task needs, and they need not
+    live under the project root.  Their canonical location(s) are still
+    being standardised -- see https://agentskills.io/home and the open
+    location proposal,
+    https://github.com/agentskills/agentskills/issues/589.  Implement a
+    configurable, standard-derived skill search path rather than
+    `PROJECT_INSTRUCTION_FILES`-style project-root probing; follow the
+    standard as it settles instead of hard-coding a path.
+  - `/cwd`: loaded skills are user session state and survive a working-
+    directory change.  `/cwd` reconciles only the root instruction item
+    (`AGENTS.md`/`CLAUDE.md`); it must not drop loaded skill items.
+  - Open question -- one skill at a time or several at once?  Neither
+    https://agentskills.io/home nor
+    https://github.com/agentskills/agentskills/issues/589 settles it.
+    Current lean: allow several loaded skills, stacked as separate
+    `DiscoveryItem`s, with `/skills unload <name>` / `/skills clear`; cap
+    the concurrent number and bound each body, since resident bodies enter
+    the Planner and answer prompts and `Discovery` has no size budget.
+    Revisit as the standard settles.
 
 ## Streaming / tool UX
 
