@@ -290,8 +290,23 @@ def _event_type(event: SSEEvent) -> str:
 
 
 def _message_for_user(event: SSEEvent) -> str:
-    """Return the completion text carried by a ``complete`` event."""
+    """Return the completion text carried by a ``complete`` event.
+
+    The ``complete`` event must carry a decodable JSON object.  When its
+    payload is missing or cannot be parsed the turn is malformed, so a
+    :class:`RunnerStreamError` is raised instead of returning an empty message:
+    a truncated or corrupt stream can never masquerade as an empty, apparently
+    successful response.
+    """
     payload = _event_payload(event)
+    if not payload:
+        raw = getattr(event, "data", None)
+        if raw is None:
+            raw = event.payload
+        detail = f": {raw!r}" if isinstance(raw, str) and raw.strip() else ""
+        raise RunnerStreamError(
+            f"the complete event carries no parsable JSON payload{detail}"
+        )
     value = payload.get("message_for_user")
     if isinstance(value, str):
         return value

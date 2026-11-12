@@ -1,0 +1,6 @@
+: SSE fixture: a structurally valid `complete` event whose payload is not
+: valid JSON. The frame (event: + data:) parses, so the adapter treats the
+: turn as terminal but cannot decode the completion payload.
+
+event: complete
+data: {this is not valid json

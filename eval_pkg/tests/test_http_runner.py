@@ -291,6 +291,23 @@ def test_http_runner_requires_a_complete_event(tmp_path: Path) -> None:
         _run_turn(runner, _context(tmp_path), FakeTurn())
 
 
+def test_http_runner_reports_a_malformed_complete_payload(tmp_path: Path) -> None:
+    stream = (FIXTURE_DIR.parent / "malformed_complete_turn.sse").read_text(
+        encoding="utf-8"
+    )
+    runner, _ = _make_runner(_stream_handler(stream))
+    with pytest.raises(RunnerStreamError) as excinfo:
+        _run_turn(runner, _context(tmp_path), FakeTurn())
+    assert str(excinfo.value).strip()
+
+
+def test_http_runner_reports_a_truncated_complete_payload(tmp_path: Path) -> None:
+    runner, _ = _make_runner(_stream_handler(_fixture("truncated_turn.sse")))
+    with pytest.raises(RunnerStreamError) as excinfo:
+        _run_turn(runner, _context(tmp_path), FakeTurn())
+    assert str(excinfo.value).strip()
+
+
 @pytest.mark.parametrize("status", [400, 503])
 def test_http_runner_maps_an_error_status(tmp_path: Path, status: int) -> None:
     runner, _ = _make_runner(_stream_handler("boom", status=status))
