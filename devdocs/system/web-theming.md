@@ -117,6 +117,15 @@ so the two UIs cannot drift apart.  Accordingly, a tool-call header in
 the tool result is an error -- and carries the matching positive/negative role
 colours from the theme.
 
+The status pane draws its status-section markers from the same table through
+`role_marker(UNICODE_GLYPHS, role)`: each item is prefixed with its role's
+marker, and an unknown or absent role gets `marker_plain`.  Every marker is
+bracketed in both the Unicode and the ASCII table, so a marker reads as a marker
+instead of as part of the item's own text.  Consecutive items in one section are
+separated by a bottom margin on every item but the last -- no spacer elements,
+and no space before the first item or after the last -- which matches the TUI's
+blank line between steps.
+
 ### Notice rendering (phase 3)
 
 Phase 3 splits transcript rendering by role in `chat_bubble.py`: a **notice**
