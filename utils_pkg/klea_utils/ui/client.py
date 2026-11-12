@@ -290,10 +290,9 @@ async def create_chat_on_server(server_url: str, user_id: str, chat_id: str) -> 
     """POST a new chat to the server so it persists."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            title = chats.get(f"{user_id}:{chat_id}", {}).get("name", chat_id)
             resp = await client.post(
                 f"{server_url}/chat/{user_id}",
-                json={"chat_id": chat_id, "title": title},
+                json={"chat_id": chat_id},
             )
             if resp.status_code == 200:
                 chat_data = resp.json()

@@ -325,6 +325,20 @@ def test_list_chats_preview_is_none_without_messages(store):
     assert store.list_chats("u1")[0]["preview"] is None
 
 
+def test_create_chat_stores_an_empty_title(store):
+    """An empty title is stored empty; the slug fallback is read-side only."""
+    store.create_chat("u1", "stragic-tody")
+
+    raw = store._conn.execute(
+        "SELECT title FROM chat_sessions WHERE user_id = ? AND chat_id = ?",
+        ("u1", "stragic-tody"),
+    ).fetchone()
+    assert dict(raw)["title"] == ""
+    # Readers still render a readable Title-Cased fallback.
+    assert store.get_chat("u1", "stragic-tody")["title"] == "Stragic Tody"
+    assert store.list_chats("u1")[0]["title"] == "Stragic Tody"
+
+
 def test_list_chats_preview_is_truncated(store):
     """The preview is bounded server-side."""
     store.create_chat("u1", "c1", "Long")

@@ -186,8 +186,18 @@ enforcement point for each:
   chat's first user query as a truncated preview.  The preview follows the
   highlighted chat and is shown below the Rename/Delete/Cancel buttons, so it
   does not crowd the session rows.
-* Create mints a chat id (coolname slug) and `POST`s it; `--continue` resumes
-  the most recently updated session and `--resume <chat_id>` loads one.
+* Create mints a chat id (coolname slug) and `POST`s it with no title, so the
+  stored title starts empty instead of being filled from the id:
+  `create_chat_on_server` posts only the `chat_id`, `api.create_chat` no longer
+  substitutes a coolname slug, and `SessionStore.create_chat` stores the raw
+  (empty) title.  The display name is always the stored title, and a stored
+  title wins whenever it is set: `hydrate_chats` reads it from
+  `GET /chat/{user_id}` (via `SessionStore.list_chats` / `_display_title`), and
+  `ui.state.ensure_chat` seeds a new chat with an empty name.  A Title-Cased
+  slug is a read-time fallback only (server `_display_title`, web
+  `_render_chat_list`), used just to label a chat whose stored title is still
+  empty.  `--continue` resumes the most recently updated session and
+  `--resume <chat_id>` loads one.
 * `user_id` resolves through one seam (`klea_utils/ui/identity.py`):
   `--user-id` > `KLEA_USER_ID` > a persisted host-local UUID, the last only for
   a loopback server (I5).  The identity key is the server app

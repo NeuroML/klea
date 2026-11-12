@@ -307,7 +307,7 @@ class SessionStore:
                 "INSERT OR IGNORE INTO chat_sessions "
                 "(user_id, chat_id, title, created_at, updated_at, overrides) "
                 "VALUES (?, ?, ?, ?, ?, '{}')",
-                (user_id, chat_id, self._display_title(chat_id, title), now, now),
+                (user_id, chat_id, title.strip(), now, now),
             )
             self._conn.commit()
         logger.debug("create_chat(%s, %s, title=%r)", user_id, chat_id, title)

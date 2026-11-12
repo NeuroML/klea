@@ -189,7 +189,8 @@ class ChatData(TypedDict):
     dict is a frontend cache only, not an API contract.
     """
 
-    #: Human-readable display name (auto-generated, renameable).
+    #: Human-readable display name (from the stored title; empty until
+    #: hydration or a rename).
     name: str
     #: ``datetime.timestamp()`` of creation.
     created: float
@@ -250,7 +251,7 @@ def ensure_chat(user_id: str, chat_id: str) -> ChatData:
         now = datetime.now().astimezone()
         logger.debug("creating %s", key)
         chats[key] = {
-            "name": chat_id.replace("-", " ").title(),
+            "name": "",
             "created": now.timestamp(),
             "pinned": False,
             "messages": [],
