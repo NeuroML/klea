@@ -25,6 +25,7 @@ from klea_agent.schemas import (
     RouteSchema,
     StepSchema,
 )
+from klea_utils.content_blocks import ItemsBlock
 from klea_utils.mcp.schemas import ToolCallSchema, ToolInfo
 from klea_utils.nodes.context import LLMNodeContext
 
@@ -1378,6 +1379,27 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         self.assertNotEqual(status.display, "(no plan)")
         self.assertEqual(status.key, "plan")
         self.assertTrue(status.preformatted)
+        self.assertTrue(status.display)
+        _content = status.content
+        assert _content is not None
+        self.assertEqual(len(_content), 1)
+        block = cast(ItemsBlock, _content[0])
+        self.assertEqual(block.kind, "items")
+        steps = ctx.state_updates["plan"].step_list
+        self.assertEqual(len(block.items), len(steps))
+        for step, item in zip(steps, block.items):
+            self.assertEqual(item.text, f"Step {step.step_number}: {step.summary}")
+            if step.status == "done":
+                self.assertEqual(item.role, "ok")
+            elif step.status == "failed":
+                self.assertEqual(item.role, "error")
+            elif step.status == "skipped":
+                self.assertEqual(item.role, "plain")
+            else:
+                self.assertIn(item.role, {"current", "pending"})
+        self.assertLessEqual(
+            sum(1 for item in block.items if item.role == "current"), 1
+        )
 
     def test_status_falls_back_to_state_plan(self):
         """Without state updates, status falls back to the incoming state plan."""

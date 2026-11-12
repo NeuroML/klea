@@ -21,6 +21,7 @@ from klea_utils.nodes.base import BaseLLMNode
 from klea_utils.nodes.context import LLMNodeContext
 from langchain_core.messages import AIMessage
 
+from klea_agent.nodes.plan_content import plan_content_blocks
 from klea_agent.schemas import (
     EvaluationSchema,
     KleaAgentState,
@@ -794,6 +795,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             display=plan.render(markdown=True),
             key="plan",
             preformatted=True,
+            content=plan_content_blocks(plan),
         )
 
     @override
