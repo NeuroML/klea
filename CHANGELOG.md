@@ -13,6 +13,10 @@
 
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
 
+### Fixed
+
+- A chat created without an explicit title now shows a derived display name (for example "Olivine Caracal" for `olivine-caracal`) in the web chat list instead of a blank label.
+
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
 ### Breaking changes
