@@ -124,6 +124,46 @@ def _three_cases() -> list[dict[str, Any]]:
     ]
 
 
+def test_two_model_sets_produce_two_distinct_runs(tmp_path: Path) -> None:
+    """Two ``-m`` model sets for one case and seed are two distinct runs."""
+    suite = _write_suite(
+        tmp_path / "suite.jsonl", [_case("case-1", [_turn(1, "user", "hi")])]
+    )
+    workspace = tmp_path / "workspace"
+    workspace.mkdir(exist_ok=True)
+
+    def applier(
+        _existing: Any,
+        base_url: str,
+        user_id: str,
+        chat_id: str,
+        overrides: Mapping[str, str],
+    ) -> dict[str, str]:
+        return dict(overrides)
+
+    def once(model: str) -> Any:
+        return run_suite(
+            str(suite),
+            workspace_root=str(workspace),
+            execute_turn=Recorder(),
+            harness_seed=1234,
+            max_attempts=1,
+            model_overrides={"planner": model},
+            apply_models=applier,
+            base_url="http://backend.test",
+            sleep=lambda _delay: None,
+        )
+
+    first = once("model-a")
+    second = once("model-b")
+
+    assert first.runs[0].status == "completed"
+    assert second.runs[0].status == "completed"
+    assert first.runs[0].run_id != second.runs[0].run_id
+    assert first.runs[0].output_dir != second.runs[0].output_dir
+    assert len(_index_lines(workspace)) == 2
+
+
 # ---------------------------------------------------------------------------
 # Pipeline: single case
 # ---------------------------------------------------------------------------

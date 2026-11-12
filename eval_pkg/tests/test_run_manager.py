@@ -417,3 +417,39 @@ def test_injected_callables_receive_the_identity_and_each_turn(tmp_path):
 
     _run_dir, metrics_file = _output_metrics(result, context)
     assert all("score" not in record for record in _read_metrics(metrics_file))
+
+
+def test_model_overrides_and_endpoint_change_the_run_id(tmp_path):
+    """A different model set or endpoint derives a different, non-skipped run."""
+    base = Path(tmp_path)
+    case = _make_case()
+
+    default = run_manager.start_run(case, base, base / "ws-a")
+    other_models = run_manager.start_run(
+        case, base, base / "ws-b", model_overrides={"planner": "model-b"}
+    )
+    other_endpoint = run_manager.start_run(
+        case, base, base / "ws-c", endpoint="http://backend-b:8000"
+    )
+
+    assert len({default.run_id, other_models.run_id, other_endpoint.run_id}) == 3
+    assert default.run_id != other_models.run_id
+    assert default.run_id != other_endpoint.run_id
+
+
+def test_caller_model_overrides_merge_under_the_case(tmp_path):
+    """Caller defaults are merged under the case's own ``model_overrides``."""
+    base = Path(tmp_path)
+    case = _make_case(run_config={"model_overrides": {"planner": "case-model"}})
+
+    context = run_manager.start_run(
+        case,
+        base,
+        base / "ws",
+        model_overrides={"planner": "default-model", "executor": "exec-model"},
+    )
+
+    assert context.model_overrides == {
+        "planner": "case-model",
+        "executor": "exec-model",
+    }

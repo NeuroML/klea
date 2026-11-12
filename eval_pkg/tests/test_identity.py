@@ -187,3 +187,69 @@ def test_chat_id_requires_both_inputs(run_id: str, user_id: str) -> None:
     """``derive_chat_id`` rejects a blank ``run_id`` or ``user_id``."""
     with pytest.raises(ValueError, match="run_id and user_id must be non-empty"):
         derive_chat_id(run_id, user_id)
+
+
+# ---------------------------------------------------------------------------
+# Result-affecting configuration
+# ---------------------------------------------------------------------------
+
+
+def test_different_model_sets_give_different_run_ids() -> None:
+    """Two model sets for one case and seed derive two distinct run ids."""
+    first = derive_identity(
+        PINNED_CASE_ID, PINNED_SEED, model_overrides={"planner": "model-a"}
+    )
+    second = derive_identity(
+        PINNED_CASE_ID, PINNED_SEED, model_overrides={"planner": "model-b"}
+    )
+
+    assert first.run_id != second.run_id
+    assert first.user_id == second.user_id
+    assert first.chat_id != second.chat_id
+
+
+def test_different_endpoints_give_different_run_ids() -> None:
+    """Two endpoints for one case and seed derive two distinct run ids."""
+    first = derive_identity(
+        PINNED_CASE_ID, PINNED_SEED, endpoint="http://backend-a:8000"
+    )
+    second = derive_identity(
+        PINNED_CASE_ID, PINNED_SEED, endpoint="http://backend-b:8000"
+    )
+
+    assert first.run_id != second.run_id
+
+
+def test_resolved_models_give_different_run_ids() -> None:
+    """The resolved model names also participate in the run id."""
+    first = derive_identity(
+        PINNED_CASE_ID, PINNED_SEED, resolved_models={"planner": "model-a"}
+    )
+    second = derive_identity(
+        PINNED_CASE_ID, PINNED_SEED, resolved_models={"planner": "model-b"}
+    )
+
+    assert first.run_id != second.run_id
+
+
+def test_model_override_order_does_not_change_the_run_id() -> None:
+    """The configuration is serialised with sorted keys, so order is irrelevant."""
+    first = derive_run_id(
+        PINNED_CASE_ID,
+        PINNED_SEED,
+        model_overrides={"planner": "model-a", "executor": "model-b"},
+    )
+    second = derive_run_id(
+        PINNED_CASE_ID,
+        PINNED_SEED,
+        model_overrides={"executor": "model-b", "planner": "model-a"},
+    )
+
+    assert first == second
+
+
+def test_empty_configuration_keeps_the_plain_pinned_vector() -> None:
+    """No model set and no endpoint leave the pinned run id unchanged."""
+    identity = derive_identity(PINNED_CASE_ID, PINNED_SEED)
+
+    assert identity.run_id == PINNED_RUN_ID

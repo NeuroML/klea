@@ -211,6 +211,7 @@ def run_suite(
                 overwrite,
                 base_url,
                 overrides,
+                endpoint,
                 applier,
             )
         )
@@ -239,10 +240,11 @@ def _run_one_case(
     overwrite: bool,
     base_url: str | None,
     overrides: Mapping[str, str],
+    endpoint: str | None,
     applier: Callable[..., dict[str, str]],
 ) -> CaseRun:
     """Schedule, execute and store one case, isolating any failure of it."""
-    run_id = _run_id(case, harness_seed)
+    run_id = _run_id(case, harness_seed, overrides, endpoint)
     complete = workspace.detect_state(run_id, root) is workspace.RunState.COMPLETE
 
     if complete and not overwrite:
@@ -260,7 +262,14 @@ def _run_one_case(
             # The workspace layer owns deletion of a published run; clearing it
             # first lets the run manager re-prepare the same deterministic id.
             workspace.prepare_run(run_id, root, overwrite=True)
-        context = run_manager.start_run(case, fixture_base, root, harness_seed)
+        context = run_manager.start_run(
+            case,
+            fixture_base,
+            root,
+            harness_seed,
+            model_overrides=overrides,
+            endpoint=endpoint,
+        )
     except Exception as exc:
         logger.exception("pipeline: could not prepare case %s", case.case_id)
         return CaseRun(
@@ -431,6 +440,15 @@ def _case_model_overrides(case: TestCase) -> dict[str, str]:
     return {str(role): str(model) for role, model in raw.items()}
 
 
+def _merged_default_overrides(
+    defaults: Mapping[str, str], case: TestCase
+) -> dict[str, str]:
+    """Merge the caller's role defaults under the case's own overrides."""
+    merged = {str(role): str(model) for role, model in defaults.items()}
+    merged.update(_case_model_overrides(case))
+    return merged
+
+
 def _overrides_need_base_url(
     defaults: Mapping[str, str], loaded_cases: tuple[TestCase, ...]
 ) -> bool:
@@ -590,13 +608,20 @@ def _fixture_base(loaded: Any, suite_path: Path) -> Path:
     return resolved
 
 
-def _run_id(case: TestCase, harness_seed: str | int | None) -> str:
+def _run_id(
+    case: TestCase,
+    harness_seed: str | int | None,
+    overrides: Mapping[str, str],
+    endpoint: str | None = None,
+) -> str:
     """Derive the deterministic run id the run manager will use for ``case``.
 
-    The pipeline needs the id before it prepares the run, so that an already
-    complete run can be skipped instead of colliding with it; the derivation
-    mirrors :func:`klea_eval.run_manager.start_run` and reuses the identity
-    module that owns it.
+    The pipeline needs the id before it prepares the run, so that a second run
+    of the same case under a different model set or endpoint is not skipped as
+    an already complete one.  The derivation mirrors
+    :func:`klea_eval.run_manager.start_run`: the caller's ``overrides`` are
+    merged under the case's own model overrides (the case wins), and the merged
+    set plus ``endpoint`` enter the identity exactly as they do there.
     """
     if harness_seed is not None:
         seed = str(harness_seed).strip()
@@ -610,8 +635,16 @@ def _run_id(case: TestCase, harness_seed: str | int | None) -> str:
             f"case '{case.case_id}' does not define a usable harness seed"
         )
 
-    derived = identity.derive_identity(case.case_id, seed)
-    logger.debug(f"{case.case_id = }, {seed = }, {derived.run_id = }")
+    merged = _merged_default_overrides(overrides, case)
+    derived = identity.derive_identity(
+        case.case_id,
+        seed,
+        model_overrides=merged,
+        endpoint=endpoint,
+    )
+    logger.debug(
+        f"{case.case_id = }, {seed = }, {merged = }, {endpoint = }, {derived.run_id = }"
+    )
     return derived.run_id
 
 

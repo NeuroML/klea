@@ -178,6 +178,9 @@ def start_run(
     fixture_base: str | Path,
     workspace_root: str | Path,
     harness_seed: str | int | None = None,
+    *,
+    model_overrides: Mapping[str, str] | None = None,
+    endpoint: str | None = None,
 ) -> RunContext:
     """Derive the run identity and prepare an empty run workspace.
 
@@ -193,8 +196,13 @@ def start_run(
     base = Path(fixture_base).resolve()
     root = Path(workspace_root).resolve()
     seed = _resolve_harness_seed(case, harness_seed)
-    overrides = _resolve_model_overrides(case)
-    identity = derive_identity(case.case_id, seed)
+    overrides = _merge_model_overrides(model_overrides, _resolve_model_overrides(case))
+    identity = derive_identity(
+        case.case_id,
+        seed,
+        model_overrides=overrides,
+        endpoint=endpoint,
+    )
     sources = _resolve_fixtures(case.fixtures, base, case.case_id)
 
     prepared = workspace.prepare_run(identity.run_id, root)
@@ -493,6 +501,23 @@ def _resolve_harness_seed(case: TestCase, harness_seed: str | int | None) -> str
         )
     logger.debug("run_manager: %s %s", f"{case.case_id = }", f"{text = }")
     return text
+
+
+def _merge_model_overrides(
+    defaults: Mapping[str, str] | None,
+    case_overrides: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    """Merge caller-level model defaults under the case's own overrides.
+
+    The case's values win, matching the pipeline's merge, so the run id the
+    pipeline derives and the one :func:`start_run` prepares stay equal.
+    """
+    merged: dict[str, Any] = {}
+    if defaults:
+        merged.update({str(role): model for role, model in defaults.items()})
+    if case_overrides:
+        merged.update({str(role): model for role, model in case_overrides.items()})
+    return merged or None
 
 
 def _resolve_model_overrides(case: TestCase) -> dict[str, Any] | None:

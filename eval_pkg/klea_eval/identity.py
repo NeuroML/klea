@@ -9,7 +9,9 @@ and re-runs are comparable and resumable (decision D6, ADR-0057, ADR-0060).
 Derivation rules:
 
 - ``run_id`` is a UUID v5 over ``RUN_NAMESPACE`` and the name
-  ``"<case_id>:<harness_seed>"``.
+  ``"<case_id>:<harness_seed>"``, suffixed with ``"|<config>"`` when a
+  result-affecting configuration (model overrides, resolved models, endpoint)
+  is supplied, where ``<config>`` is its ``sort_keys`` JSON serialisation.
 - ``user_id`` is a UUID v5 over ``USER_NAMESPACE`` and the same name, so it is
   deterministic in the same inputs while staying independent of ``run_id``.
 - ``chat_id`` is a UUID v5 over ``CHAT_NAMESPACE`` and the name
@@ -23,9 +25,12 @@ imported, so the module stays cheap to load.
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
+from collections.abc import Mapping
 from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -59,20 +64,77 @@ def _seed_text(harness_seed: str | int) -> str:
     return text
 
 
-def _case_seed_name(case_id: str, harness_seed: str | int) -> str:
-    """Build the ``"<case_id>:<harness_seed>"`` UUID v5 name."""
+def _clean_mapping(value: Any) -> dict[str, str]:
+    """Return ``value`` as a stripped ``str -> str`` mapping, dropping empties."""
+    if not isinstance(value, Mapping):
+        return {}
+    cleaned: dict[str, str] = {}
+    for key, item in value.items():
+        key_text = str(key).strip()
+        if not key_text or item is None:
+            continue
+        cleaned[key_text] = str(item).strip()
+    return cleaned
+
+
+def _config_text(
+    model_overrides: Any = None,
+    resolved_models: Any = None,
+    endpoint: str | None = None,
+) -> str:
+    """Serialise the result-affecting configuration deterministically.
+
+    The payload is dumped with ``sort_keys`` so the same configuration always
+    yields the same text.  An empty configuration yields the empty string and
+    leaves the plain ``"<case_id>:<harness_seed>"`` name unchanged.
+    """
+    payload: dict[str, Any] = {}
+    overrides = _clean_mapping(model_overrides)
+    if overrides:
+        payload["model_overrides"] = overrides
+    resolved = _clean_mapping(resolved_models)
+    if resolved:
+        payload["resolved_models"] = resolved
+    endpoint_text = str(endpoint).strip() if endpoint is not None else ""
+    if endpoint_text:
+        payload["endpoint"] = endpoint_text
+    if not payload:
+        return ""
+    return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+
+def _case_seed_name(
+    case_id: str,
+    harness_seed: str | int,
+    config: str = "",
+) -> str:
+    """Build the ``"<case_id>:<harness_seed>"`` UUID v5 name, plus ``config``."""
     case = case_id.strip()
     if not case:
         raise ValueError("case_id must be a non-empty string")
-    return f"{case}:{_seed_text(harness_seed)}"
+    name = f"{case}:{_seed_text(harness_seed)}"
+    if config:
+        name = f"{name}|{config}"
+    return name
 
 
-def derive_run_id(case_id: str, harness_seed: str | int) -> str:
+def derive_run_id(
+    case_id: str,
+    harness_seed: str | int,
+    *,
+    model_overrides: Any = None,
+    resolved_models: Any = None,
+    endpoint: str | None = None,
+) -> str:
     """Derive the deterministic ``run_id`` for ``case_id`` and ``harness_seed``.
 
-    The result is a UUID v5 string: the same inputs always give the same id.
+    The result is a UUID v5 string: the same inputs and the same
+    result-affecting configuration always give the same id.  Two different
+    model sets or endpoints for one case and seed therefore derive two
+    distinct run ids.
     """
-    name = _case_seed_name(case_id, harness_seed)
+    config = _config_text(model_overrides, resolved_models, endpoint)
+    name = _case_seed_name(case_id, harness_seed, config)
     identifier = uuid.uuid5(RUN_NAMESPACE, name)
     run_id = str(identifier)
     logger.debug(
@@ -119,9 +181,27 @@ class Identity:
     chat_id: str
 
 
-def derive_identity(case_id: str, harness_seed: str | int) -> Identity:
-    """Derive the full :class:`Identity` for ``case_id`` and ``harness_seed``."""
-    run_id = derive_run_id(case_id, harness_seed)
+def derive_identity(
+    case_id: str,
+    harness_seed: str | int,
+    *,
+    model_overrides: Any = None,
+    resolved_models: Any = None,
+    endpoint: str | None = None,
+) -> Identity:
+    """Derive the full :class:`Identity` for ``case_id`` and ``harness_seed``.
+
+    ``model_overrides``, ``resolved_models`` and ``endpoint`` are the
+    result-affecting configuration of the run: they enter the ``run_id`` name,
+    so the same case and seed under two model sets derive two distinct runs.
+    """
+    run_id = derive_run_id(
+        case_id,
+        harness_seed,
+        model_overrides=model_overrides,
+        resolved_models=resolved_models,
+        endpoint=endpoint,
+    )
     user_id = derive_user_id(case_id, harness_seed)
     chat_id = derive_chat_id(run_id, user_id)
     identity = Identity(
