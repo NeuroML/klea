@@ -6,12 +6,12 @@ Builds the agent's **server-side** command catalogue (served to frontends via
 ``GET /commands``) and the graph handlers the command node dispatches to.
 Client-side commands (``/model``, ``/help``, ...) belong to the frontends, not
 here: the backend cannot know them without a circular dependency, so a
-client-side command reaching the graph is simply unknown.  ``/mode`` and
-``/access`` are implemented graph commands; ``/compact`` (memory-gated) hands
-off to the compaction node, and ``/init`` hands off back into the normal path
-with a synthesised query.  The rest are documented stubs that reply "not
-implemented yet" until each lands.  See
-``devdocs/system/session-commands.md``.
+client-side command reaching the graph is simply unknown.  ``/mode``,
+``/access``, and ``/mcp`` (list configured servers/tools) are implemented
+graph commands; ``/compact`` (memory-gated) hands off to the compaction
+node, and ``/init`` hands off back into the normal path with a synthesised
+query.  The rest are documented stubs that reply "not implemented yet"
+until each lands.  See ``devdocs/system/session-commands.md``.
 
 File: klea_agent/commands.py
 
@@ -20,7 +20,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -109,6 +109,24 @@ _PATHS_COMMAND = Command(
             name="remove",
             summary="Revoke a directory or sensitive-file approval",
             arg_hint="<path>",
+        ),
+    ),
+)
+
+#: ``/mcp``: list the MCP servers configured for this backend and the tools
+#: each exposed at setup (issue 226).  A bare ``/mcp`` lists; ``list`` is the
+#: explicit verb.  Enable/disable and runtime add/remove come later.
+_MCP_COMMAND = Command(
+    name="mcp",
+    summary="List configured MCP servers and their tools",
+    side="server",
+    klass="session-state",
+    persists="checkpoint",
+    while_streaming="block",
+    subcommands=(
+        Subcommand(
+            name="list",
+            summary="List configured MCP servers and their tools",
         ),
     ),
 )
@@ -542,8 +560,94 @@ def _handle_init(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
     )
 
 
+def group_tools_by_server(
+    server_names: Iterable[str], tool_names: Iterable[str]
+) -> dict[str, list[str]]:
+    """Group tool names under the MCP server that owns them.
+
+    Matches :meth:`klea_utils.graph.base.BaseLangGraph._build_tools_info`:
+    with a single server every tool belongs to it; with several servers a
+    tool name must start with ``{server}_``.
+
+    :param server_names: Configured MCP server ids, in display order.
+    :param tool_names: Flat tool names from ``tools_info``.
+    :returns: ``{server: [tool, ...]}`` (sorted tool lists; empty when a
+        server exposed nothing).
+    """
+    names = list(server_names)
+    tools = sorted(tool_names)
+    grouped: dict[str, list[str]] = {name: [] for name in names}
+    if not names:
+        return grouped
+    if len(names) == 1:
+        grouped[names[0]] = tools
+        return grouped
+    for tool in tools:
+        for server in names:
+            if tool.startswith(f"{server}_"):
+                grouped[server].append(tool)
+                break
+    return grouped
+
+
+def format_mcp_servers(
+    server_names: Iterable[str], tools_by_server: Mapping[str, Iterable[str]]
+) -> str:
+    """Return the user-facing MCP server listing for ``/mcp``."""
+    names = list(server_names)
+    if not names:
+        return "No MCP servers configured."
+    lines = [f"MCP servers ({len(names)}):"]
+    for name in names:
+        tools = list(tools_by_server.get(name, ()))
+        lines.append(f"  {name}:")
+        if tools:
+            lines.extend(f"  - {tool}" for tool in tools)
+        else:
+            lines.append("  - (no tools)")
+    return "\n".join(lines)
+
+
+def _handle_mcp(
+    server_names: tuple[str, ...],
+    tools_by_server: Mapping[str, list[str]],
+) -> GraphCommandHandler:
+    """Return the ``/mcp`` graph handler (issue 226, list slice).
+
+    Bare ``/mcp`` and ``/mcp list`` both report the servers and tools known
+    at graph setup.  Enable/disable and add/remove are not implemented yet.
+    """
+
+    def handler(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
+        verb = parsed.verb
+        logger.debug(f"command /mcp: {verb = } servers={list(server_names)}")
+        if verb not in ("", "list"):
+            # ``resolve_subcommand`` rejects unknown verbs before dispatch;
+            # keep a fail-closed branch for safety.
+            return GraphCommandResult(message=f"Unknown /mcp subcommand: {verb}")
+        message = format_mcp_servers(server_names, tools_by_server)
+        return GraphCommandResult(
+            message=message,
+            summary="MCP servers",
+            details={
+                "action": "list",
+                "servers": list(server_names),
+                "tools": {
+                    name: list(tools_by_server.get(name, ())) for name in server_names
+                },
+            },
+        )
+
+    return handler
+
+
 def build_agent_commands(
-    *, source_available: bool, disabled: Iterable[str] = (), memory: bool = True
+    *,
+    source_available: bool,
+    disabled: Iterable[str] = (),
+    memory: bool = True,
+    mcp_servers: Iterable[str] = (),
+    mcp_tools: Iterable[str] = (),
 ) -> tuple[CommandRegistry, dict[str, GraphCommandHandler]]:
     """Build the agent's server-side command registry and graph handlers.
 
@@ -554,6 +658,10 @@ def build_agent_commands(
     :param memory: Whether conversation memory is enabled.  ``/compact`` is
         registered only when it is (its handoff target, the compaction node,
         exists only then).
+    :param mcp_servers: Configured MCP server ids (from ``mcp_config``), used
+        by ``/mcp`` to list what is connected.
+    :param mcp_tools: Flat tool names from ``tools_info``, grouped under
+        *mcp_servers* for the listing.
     :returns: ``(registry, handlers)`` -- the catalogue and the graph handler
         map the command node dispatches to.
     """
@@ -564,6 +672,7 @@ def build_agent_commands(
         _ACCESS_COMMAND,
         _CWD_COMMAND,
         _PATHS_COMMAND,
+        _MCP_COMMAND,
         _INIT_COMMAND,
         *_STUB_COMMANDS,
     ]
@@ -574,6 +683,8 @@ def build_agent_commands(
             logger.info(f"session command /{command.name} disabled by config")
             continue
         registry.register(command)
+    server_names = tuple(mcp_servers)
+    tools_by_server = group_tools_by_server(server_names, mcp_tools)
     handlers: dict[str, GraphCommandHandler] = {}
     if registry.get("mode") is not None:
         handlers["mode"] = _handle_mode(source_available)
@@ -583,6 +694,8 @@ def build_agent_commands(
         handlers["cwd"] = _handle_cwd
     if registry.get("paths") is not None:
         handlers["paths"] = _handle_paths
+    if registry.get("mcp") is not None:
+        handlers["mcp"] = _handle_mcp(server_names, tools_by_server)
     if registry.get("init") is not None:
         handlers["init"] = _handle_init
     if registry.get("compact") is not None:
