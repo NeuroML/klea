@@ -8,6 +8,10 @@
 
 - Chat-renderable tool results and status sections can now carry structured content blocks (plain text, ordered item lists, labelled field lists) whose items are tagged with a status role (`ok`, `error`, `current`, `pending`, `plain`), so the frontends mark the step that is currently in progress instead of re-parsing free text; a reader that does not know a block's contract version falls back to the plain display text.
 
+### Changed
+
+- Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
+
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
 ### Breaking changes
@@ -201,6 +205,7 @@
 
 ### Added
 
+- Session command `/mcp` (and `/mcp list`) lists the MCP servers configured for the backend and the tools each exposed at setup (issue 226; enable/disable and runtime add/remove come later).
 - The agent's user-facing answer nodes (`RouteDecision` for inline chat, `AnswerFromResults` for task answers) report the effective model that produced the reply, so questions like "which model are you running" are answerable.
 - The chat transcript shows concise progress notices for evaluator verdicts and reasoning conclusions via a new `notice` stream event/role. Notices are persisted as transcript rows but kept out of graph conversation memory.
 - Agent terminal UI (`klea tui`): a full-screen Textual client with the operating-mode and tool-access selectors in the status panel (choosing one sends `/mode` or `/access`), per-role model and credential dialogs, and the HITL / permission modals (ADR-0030/0037/0050).

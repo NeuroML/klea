@@ -382,6 +382,17 @@ characters and a single environment variable switches the whole interface:
 | `prompt` | `\u276f` | `>` | the input prompt caret |
 | `separator` | `\u2502` | `|` | the vertical rule between panes / rows |
 | `overflow` | `\u2026` | `~` | the truncation marker for clipped text |
+| `marker_ok` | `[\u2714]` | `[x]` | a completed / passing status-section item |
+| `marker_error` | `[\u2718]` | `[!]` | a failed status-section item |
+| `marker_current` | `[\u203a]` | `[*]` | the item in progress, or the most recently reached |
+| `marker_pending` | `[\u25cb]` | `[ ]` | a status-section item that has not started |
+| `marker_plain` | `[\u00b7]` | `[-]` | a status-section item with no recognised role |
+
+Every marker is bracketed in both tables, so a rendered marker reads as a
+marker instead of running into the item's own text.  `role_marker` maps a
+status role to its field and falls back to `marker_plain` for an unknown or
+non-string role.  Consecutive step items in a status section are separated by
+one blank line, with no separator before the first item or after the last.
 
 Unicode is the default.  `get_glyphs(stream=sys.stdout)` picks the ASCII
 table from the following checks, evaluated in this order:

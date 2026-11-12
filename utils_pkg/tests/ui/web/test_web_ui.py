@@ -225,6 +225,13 @@ async def test_status_pane_styles_the_current_role_and_degrades_unknown_roles(
     await utils_user.should_see("bold current item")
     await utils_user.should_see("mystery role item")
 
+    from klea_utils.ui.glyphs import UNICODE_GLYPHS
+
+    # The pane prefixes every item with its role marker, so the rendered label
+    # text carries the marker ahead of the item text.
+    current_text = f"{UNICODE_GLYPHS.marker_current} bold current item"
+    unknown_text = f"{UNICODE_GLYPHS.marker_plain} mystery role item"
+
     labels = {
         getattr(label, "text", ""): label
         for label in utils_user.find(ui.label).elements
@@ -240,9 +247,96 @@ async def test_status_pane_styles_the_current_role_and_degrades_unknown_roles(
             return " ".join(str(name) for name in classes)
         return str(classes)
 
-    assert "bold current item" in labels
-    assert "mystery role item" in labels
-    current_classes = _css_classes(labels["bold current item"])
-    unknown_classes = _css_classes(labels["mystery role item"])
+    assert current_text in labels
+    assert unknown_text in labels
+    current_classes = _css_classes(labels[current_text])
+    unknown_classes = _css_classes(labels[unknown_text])
     assert "font-bold" in current_classes
     assert "font-bold" not in unknown_classes
+
+
+async def test_status_pane_renders_the_role_markers(fake_backend, utils_user):
+    """Each role renders its Unicode marker; unknown roles use the plain one."""
+    from typing import cast
+
+    from klea_utils.ui.glyphs import UNICODE_GLYPHS
+    from klea_utils.ui.state import StateSection, ensure_chat
+
+    chat = ensure_chat("u", "")
+    section = {
+        "heading": "Markers",
+        "display": "",
+        "summary": "",
+        "details": {},
+        "preformatted": False,
+        "content": [
+            {
+                "kind": "items",
+                "items": [
+                    {"text": "ok item", "role": "ok"},
+                    {"text": "error item", "role": "error"},
+                    {"text": "current item", "role": "current"},
+                    {"text": "pending item", "role": "pending"},
+                    {"text": "unknown role item", "role": "mystery"},
+                ],
+            }
+        ],
+    }
+    chat["state_sections"]["markers"] = cast(StateSection, section)
+    # A two-item section pins the inter-item spacing: every item but the last
+    # carries the spacing margin, and the last item carries none.
+    chat["state_sections"]["spacing"] = cast(
+        StateSection,
+        {
+            "heading": "Spacing",
+            "display": "",
+            "summary": "",
+            "details": {},
+            "content": [
+                {
+                    "type": "items",
+                    "items": [
+                        {"text": "first spaced item", "role": "ok"},
+                        {"text": "second spaced item", "role": "ok"},
+                    ],
+                }
+            ],
+        },
+    )
+
+    await utils_user.open("/")
+    await utils_user.should_see("ok item", retries=50)
+
+    rendered = {
+        getattr(label, "text", "") for label in utils_user.find(ui.label).elements
+    }
+    expected = {
+        f"{UNICODE_GLYPHS.marker_ok} ok item",
+        f"{UNICODE_GLYPHS.marker_error} error item",
+        f"{UNICODE_GLYPHS.marker_current} current item",
+        f"{UNICODE_GLYPHS.marker_pending} pending item",
+        f"{UNICODE_GLYPHS.marker_plain} unknown role item",
+    }
+    assert expected <= rendered, f"missing markers: {sorted(expected - rendered)}"
+
+    def _label_classes(text: str) -> str:
+        """Return the CSS classes of the rendered label whose text is *text*."""
+        matches = [
+            element
+            for element in utils_user.find(ui.label).elements
+            if getattr(element, "text", "") == text
+        ]
+        assert matches, f"missing label: {text}"
+        classes = getattr(matches[0], "_classes", None)
+        if classes is None:
+            attr = getattr(matches[0], "classes", "")
+            classes = attr() if callable(attr) else attr
+        if isinstance(classes, (list, tuple, set)):
+            return " ".join(str(name) for name in classes)
+        return str(classes)
+
+    # Only items followed by another item carry the spacing margin.
+    assert "mb-2" in _label_classes(f"{UNICODE_GLYPHS.marker_ok} first spaced item")
+    assert "mb-2" not in _label_classes(
+        f"{UNICODE_GLYPHS.marker_ok} second spaced item"
+    )

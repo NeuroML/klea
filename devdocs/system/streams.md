@@ -246,6 +246,15 @@ The role vocabulary is:
 | `pending` | not started yet |
 | `plain` | no status meaning; the default when `role` is absent or unknown |
 
+A frontend renders each role as the marker from its shared glyph table -- `ok`
+is `[\u2714]`, `error` `[\u2718]`, `current` `[\u203a]`, `pending` `[\u25cb]`
+and `plain` `[\u00b7]` in the Unicode table; the ASCII fallback brackets its own
+markers (`[x]`, `[!]`, `[*]`, `[ ]`, `[-]`).  Every marker is bracketed, so it
+is distinguished from the item's own text.  An unknown or non-string `role`
+renders the `plain` marker instead of failing, and consecutive items in one
+section are separated, with no separator before the first item or after the
+last.
+
 Every block also carries `content_version`; see the next subsection.
 
 ### Contract versions

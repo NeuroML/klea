@@ -619,10 +619,20 @@ class KleaAgent(BaseLangGraph):
         num_history_chars = int(getattr(memory_config, "num_history_chars", 20_000))
         #: The app's command catalogue (ADR-0047); read by the ``GET /commands``
         #: endpoint via ``app.state.graph``.
+        mcp_servers = (
+            list(self.mcp_config.mcpServers.keys())
+            if self.mcp_config is not None and self.mcp_config.mcpServers
+            else []
+        )
+        mcp_tools = [
+            name for domain_tools in self.tools_info.values() for name in domain_tools
+        ]
         self.command_registry, self._command_handlers = build_agent_commands(
             source_available=source_available,
             disabled=disabled_commands,
             memory=self.memory,
+            mcp_servers=mcp_servers,
+            mcp_tools=mcp_tools,
         )
         self._command_node = CommandNode(
             logger=self.logger,
