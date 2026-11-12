@@ -44,10 +44,13 @@ def test_items_block_renders_one_line_per_item_with_roles():
         ],
     }
     assert _block_lines(block) == [
-        f"[green]{UNICODE_GLYPHS.marker_ok} ok item[/green]",
-        f"[red]{UNICODE_GLYPHS.marker_error} error item[/red]",
-        f"[bold]{UNICODE_GLYPHS.marker_current} current item[/bold]",
-        f"[dim]{UNICODE_GLYPHS.marker_pending} pending item[/dim]",
+        f"[green]{_escaped(UNICODE_GLYPHS.marker_ok)} ok item[/green]",
+        " ",
+        f"[red]{_escaped(UNICODE_GLYPHS.marker_error)} error item[/red]",
+        " ",
+        f"[bold]{_escaped(UNICODE_GLYPHS.marker_current)} current item[/bold]",
+        " ",
+        f"[dim]{_escaped(UNICODE_GLYPHS.marker_pending)} pending item[/dim]",
     ]
 
 
@@ -64,7 +67,8 @@ def test_unknown_item_role_renders_plain_without_raising():
     lines = _block_lines(
         {"type": "items", "items": [{"text": "plain", "role": "mystery"}]}
     )
-    assert lines == [f"{UNICODE_GLYPHS.marker_plain} plain"]
+    # A single item has no separator before or after it.
+    assert lines == [f"{_escaped(UNICODE_GLYPHS.marker_plain)} plain"]
 
 
 def test_unknown_block_kind_degrades_to_text_without_raising():
@@ -85,7 +89,27 @@ def test_high_content_version_is_never_consulted():
         "content_version": 10_000_000,
         "items": [{"text": "kept", "role": "ok"}],
     }
-    assert _block_lines(block) == [f"[green]{UNICODE_GLYPHS.marker_ok} kept[/green]"]
+    # A single item has no separator before or after it.
+    assert _block_lines(block) == [
+        f"[green]{_escaped(UNICODE_GLYPHS.marker_ok)} kept[/green]"
+    ]
+
+
+def test_items_are_separated_with_a_blank_line_without_a_trailing_separator() -> None:
+    """Consecutive items are separated by one blank line; the last has none."""
+
+    block = {
+        "type": "items",
+        "items": [
+            {"text": "first", "role": "ok"},
+            {"text": "second", "role": "ok"},
+        ],
+    }
+    assert _block_lines(block) == [
+        f"[green]{_escaped(UNICODE_GLYPHS.marker_ok)} first[/green]",
+        " ",
+        f"[green]{_escaped(UNICODE_GLYPHS.marker_ok)} second[/green]",
+    ]
 
 
 def test_content_body_renders_blocks_without_an_app():
@@ -97,7 +121,9 @@ def test_content_body_renders_blocks_without_an_app():
             {"type": "text", "text": "plain", "role": "mystery"},
         ]
     )
-    assert len(widgets) == 4
+    # Two items render as item, spacer line, item (the inter-item blank
+    # line), then the mystery line and the plain line: five widgets.
+    assert len(widgets) == 5
 
 
 def _escaped(text: str) -> str:
@@ -130,8 +156,12 @@ def test_ascii_markers_are_rendered_when_the_ascii_table_is_selected(monkeypatch
     }
     assert _block_lines(block) == [
         f"[green]{_escaped(ASCII_GLYPHS.marker_ok)} ok item[/green]",
+        " ",
         f"[red]{_escaped(ASCII_GLYPHS.marker_error)} error item[/red]",
+        " ",
         f"[bold]{_escaped(ASCII_GLYPHS.marker_current)} current item[/bold]",
+        " ",
         f"[dim]{_escaped(ASCII_GLYPHS.marker_pending)} pending item[/dim]",
+        " ",
         f"{_escaped(ASCII_GLYPHS.marker_plain)} plain item",
     ]

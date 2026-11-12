@@ -230,6 +230,7 @@ def attach_status_pane(ctx: PageContext) -> None:
                 role = _role_class(block.get("role"))
                 widgets: list = []
                 if kind == "items":
+                    rendered_items: list[tuple[str, str]] = []
                     for item in block.get("items") or ():
                         if isinstance(item, dict):
                             item_role = item.get("role")
@@ -241,7 +242,17 @@ def attach_status_pane(ctx: PageContext) -> None:
                             classes = ""
                         if text:
                             marker = role_marker(UNICODE_GLYPHS, item_role)
-                            widgets.append(_text_label(f"{marker} {text}", classes))
+                            rendered_items.append((f"{marker} {text}", classes))
+                    # Separate consecutive items with a bottom margin on every
+                    # item but the last: no space before the first, none after
+                    # the last, and no extra spacer elements.
+                    last_index = len(rendered_items) - 1
+                    for index, (label, item_classes) in enumerate(rendered_items):
+                        spacing = "mb-2" if index < last_index else ""
+                        joined = " ".join(
+                            part for part in (item_classes, spacing) if part
+                        )
+                        widgets.append(_text_label(label, joined))
                     return widgets
                 if kind == "fields":
                     fields = block.get("fields") or {}

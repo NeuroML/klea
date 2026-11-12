@@ -57,11 +57,11 @@ class GlyphSet:
 
 #: Unicode glyph table used for capable terminals and the web (the default).
 UNICODE_GLYPHS = GlyphSet(
-    marker_ok="\u2714",  # U+2714 heavy check mark
-    marker_error="\u2718",  # U+2718 heavy ballot X
-    marker_current="\u25b6",  # U+25B6 black right-pointing triangle
-    marker_pending="\u25cb",  # U+25CB white circle
-    marker_plain="\u00b7",  # U+00B7 middle dot
+    marker_ok="[\u2714]",  # U+2714 heavy check mark
+    marker_error="[\u2718]",  # U+2718 heavy ballot X
+    marker_current="[\u25b6]",  # U+25B6 black right-pointing triangle
+    marker_pending="[\u25cb]",  # U+25CB white circle
+    marker_plain="[\u00b7]",  # U+00B7 middle dot
     success="\u2714",  # U+2714 heavy check mark
     failure="\u2718",  # U+2718 heavy ballot X
     pending="\u22ef",  # U+22EF midline horizontal ellipsis

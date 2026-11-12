@@ -224,6 +224,43 @@ _ROLE_MARKER_FIELDS: dict[str, str] = {
 }
 
 
+#: Status role -> (Unicode marker, ASCII marker); both tables bracket their
+#: markers so a rendered marker is visually distinct from the item text.
+_BRACKETED_MARKERS: dict[str, tuple[str, str]] = {
+    "ok": ("[\u2714]", "[x]"),
+    "error": ("[\u2718]", "[!]"),
+    "current": ("[\u25b6]", "[*]"),
+    "pending": ("[\u25cb]", "[ ]"),
+}
+
+
+@pytest.mark.parametrize(("role", "markers"), sorted(_BRACKETED_MARKERS.items()))
+def test_role_markers_are_bracketed_in_both_tables(
+    role: str, markers: tuple[str, str]
+) -> None:
+    """Every role marker is bracketed in both the Unicode and ASCII tables."""
+
+    unicode_marker, ascii_marker = markers
+    assert role_marker(UNICODE_GLYPHS, role) == unicode_marker
+    assert role_marker(ASCII_GLYPHS, role) == ascii_marker
+    assert unicode_marker.startswith("[") and unicode_marker.endswith("]")
+    assert ascii_marker.startswith("[") and ascii_marker.endswith("]")
+
+
+@pytest.mark.parametrize("glyph_set", [UNICODE_GLYPHS, ASCII_GLYPHS])
+def test_plain_marker_is_bracketed_and_used_for_unknown_roles(
+    glyph_set: GlyphSet,
+) -> None:
+    """The plain marker is bracketed and resolves for unknown/non-str roles."""
+
+    assert glyph_set.marker_plain.startswith("[")
+    assert glyph_set.marker_plain.endswith("]")
+    for role in ("mystery", None, 42):
+        assert role_marker(glyph_set, role) == glyph_set.marker_plain
+    assert UNICODE_GLYPHS.marker_plain == "[\u00b7]"
+    assert ASCII_GLYPHS.marker_plain == "[-]"
+
+
 @pytest.mark.parametrize("glyph_set", [UNICODE_GLYPHS, ASCII_GLYPHS])
 @pytest.mark.parametrize(("role", "field"), sorted(_ROLE_MARKER_FIELDS.items()))
 def test_role_marker_resolves_each_known_role(

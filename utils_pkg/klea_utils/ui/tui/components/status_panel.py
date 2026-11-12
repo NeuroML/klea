@@ -189,7 +189,16 @@ def _block_lines(block: Any) -> list[str]:
                     lines.append(_styled(f"{marker} {item}", None))
                 else:
                     lines.append("")
-        return lines
+        # Separate consecutive visible step items with one blank line.  The
+        # spacer is a single space, not an empty string: ``_content_body``
+        # drops falsy lines before they can be mounted as widgets.
+        rendered = [line for line in lines if line]
+        spaced: list[str] = []
+        for line in rendered:
+            if spaced:
+                spaced.append(" ")
+            spaced.append(line)
+        return spaced
     if kind == "fields":
         lines = []
         fields = block.get("fields") or {}
