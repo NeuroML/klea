@@ -52,11 +52,39 @@ class ModelPayload(BaseModel):
 
 
 def _role_is_modifiable(graph: object, role: str) -> bool:
-    """Return whether a model role can be modified by the user."""
+    """Return whether a model role can be modified by the user.
+
+    Unknown roles are rejected earlier by ``_require_known_role`` (HTTP
+    422), so the ``entry is None -> True`` branch below is not reachable
+    from the router; it only keeps the helper total for direct callers.
+
+    :param graph: The graph, whose ``llm_models`` holds the role entries.
+    :param role: The role to check.
+    :returns: The entry's ``modifiable`` flag, defaulting to ``True``.
+    """
     entry = getattr(graph, "llm_models", {}).get(role)
     if entry is None:
         return True
     return getattr(entry, "modifiable", True)
+
+
+def _require_known_role(graph: object, role: str) -> None:
+    """Reject a model role the graph does not declare.
+
+    :param graph: The graph, whose ``llm_models`` names the supported roles.
+    :param role: The role named in the request path.
+    :raises HTTPException: 422 when the role is not declared, listing the
+        supported roles so the client can correct the request.
+    """
+    known = set(getattr(graph, "llm_models", {}))
+    if role in known:
+        return
+    logger.warning("Rejected model override for unknown role=%s", role)
+    raise HTTPException(
+        status_code=422,
+        detail=f"Unknown model role {role!r}; supported roles: "
+        f"{', '.join(sorted(known))}.",
+    )
 
 
 def _role_config(
@@ -114,9 +142,17 @@ def _resolve_active(
     llm_models = getattr(graph, "llm_models", {})
 
     roles: list[str] = list(llm_models)
-    for role in (*session_overrides, *chat_overrides):
-        if role not in roles:
-            roles.append(role)
+    # Stored overrides for roles the graph does not declare are ignored: no
+    # node can ever select them, so surfacing them would only show an empty
+    # model in the UI.
+    ignored_roles = [
+        role for role in (*session_overrides, *chat_overrides) if role not in roles
+    ]
+    if ignored_roles:
+        logger.warning(
+            f"Ignoring stored model override(s) for undeclared role(s): "
+            f"{ignored_roles} (not in graph.llm_models)"
+        )
     logger.debug(
         f"{user_id = }\n{chat_id = }\n"
         f"{list(session_overrides) = }\n{list(chat_overrides) = }\n{roles = }"
@@ -224,6 +260,7 @@ def create_models_router() -> APIRouter:
         """Set the session default model for a role."""
         logger.debug(f"{user_id = }\n{role = }\n{payload.model = }")
         graph, store = _graph_and_store(request)
+        _require_known_role(graph, role)
         if not _role_is_modifiable(graph, role):
             logger.warning(
                 "Rejected model update for locked role=%s user=%s", role, user_id
@@ -246,6 +283,8 @@ def create_models_router() -> APIRouter:
         """Clear the session default model override for a role."""
         logger.debug(f"{user_id = }\n{role = }")
         graph, store = _graph_and_store(request)
+        if role not in store.get_session_overrides(user_id):
+            _require_known_role(graph, role)
         if not _role_is_modifiable(graph, role):
             logger.warning(
                 "Rejected model reset for locked role=%s user=%s", role, user_id
@@ -302,6 +341,7 @@ def create_models_router() -> APIRouter:
             f"{payload.model = }\n{payload.promote_default = }"
         )
         graph, store = _graph_and_store(request)
+        _require_known_role(graph, role)
         if not _role_is_modifiable(graph, role):
             logger.warning(
                 "Rejected model update for locked role=%s user=%s chat=%s",
@@ -340,6 +380,8 @@ def create_models_router() -> APIRouter:
         """Clear a chat's model override (falls back to the session default)."""
         logger.debug(f"{user_id = }\n{chat_id = }\n{role = }")
         graph, store = _graph_and_store(request)
+        if role not in store.get_overrides(user_id, chat_id):
+            _require_known_role(graph, role)
         if not _role_is_modifiable(graph, role):
             logger.warning(
                 "Rejected model reset for locked role=%s user=%s chat=%s",

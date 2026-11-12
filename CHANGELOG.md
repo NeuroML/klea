@@ -131,6 +131,7 @@
 - Model overrides store only the model string; provider API keys are managed through the provider-scoped credential store and injected per run.
 - A bare `huggingface:<model>` now resolves to the hosted Inference Providers API (`auto`) instead of the local pipeline backend, which downloaded the model as a side effect; `:local` opts into running locally, and `:<provider>` / `:cheapest|:fastest|:preferred` select the inference provider or routing policy.
 - `GET .../models/overrides` masks any legacy inline `api_key`; a startup migration moves legacy inline keys into the credential store and strips them from overrides.
+- The model override endpoints reject an unknown model role with a 422 naming the supported roles, instead of storing it silently; stored roles the app does not declare are ignored when the active config is resolved.
 - Web UI: the inspect pane updates live as the graph runs and keeps a collapsible section per query (timestamp plus the query text) for the browser session, instead of showing entries only when a query completes.
 - Web UI: the inspect pane renders streamed `details` as readable JSON - multi-line string values (prompts) are expanded and JSON-encoded values inlined - with syntax highlighting and a copy button, instead of escaping every value into one long line.
 - Graph diagrams (`*-lang-graph.png` and their `.mmd` source) are written only when debug logging is enabled (`--debug` / `KLEA_LOG_LEVEL=debug`), instead of on every graph build.
