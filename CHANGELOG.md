@@ -4,6 +4,10 @@
 
 ## Unreleased  ---  `klea_utils` / `klea_rag`
 
+### Added
+
+- Chat-renderable tool results and status sections can now carry structured content blocks (plain text, ordered item lists, labelled field lists) whose items are tagged with a status role (`ok`, `error`, `current`, `pending`, `plain`), so the frontends mark the step that is currently in progress instead of re-parsing free text; a reader that does not know a block's contract version falls back to the plain display text.
+
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
 ### Breaking changes
