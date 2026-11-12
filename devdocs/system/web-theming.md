@@ -126,6 +126,15 @@ separated by a bottom margin on every item but the last -- no spacer elements,
 and no space before the first item or after the last -- which matches the TUI's
 blank line between steps.
 
+### Layout hint on items blocks
+
+Content blocks may carry a closed, backend-owned `layout` hint
+(`ItemsBlock.layout`, currently `spaced` or `compact`).  Frontends resolve it
+to their own native spacing -- the TUI emits a spacer line, the web UI applies
+a margin class -- and must treat an unknown value as the default (`spaced`).
+The hint is intent, not a style or CSS payload, so arbitrary style strings are
+not accepted.
+
 ### Notice rendering (phase 3)
 
 Phase 3 splits transcript rendering by role in `chat_bubble.py`: a **notice**

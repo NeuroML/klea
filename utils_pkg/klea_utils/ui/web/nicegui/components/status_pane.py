@@ -246,9 +246,14 @@ def attach_status_pane(ctx: PageContext) -> None:
                     # Separate consecutive items with a bottom margin on every
                     # item but the last: no space before the first, none after
                     # the last, and no extra spacer elements.
+                    # A ``compact`` layout suppresses the margin; any other
+                    # or absent value falls back to the spaced default.
+                    layout = block.get("layout", "spaced")
                     last_index = len(rendered_items) - 1
                     for index, (label, item_classes) in enumerate(rendered_items):
-                        spacing = "mb-2" if index < last_index else ""
+                        spacing = (
+                            "mb-2" if index < last_index and layout != "compact" else ""
+                        )
                         joined = " ".join(
                             part for part in (item_classes, spacing) if part
                         )

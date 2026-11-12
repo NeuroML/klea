@@ -193,9 +193,13 @@ def _block_lines(block: Any) -> list[str]:
         # spacer is a single space, not an empty string: ``_content_body``
         # drops falsy lines before they can be mounted as widgets.
         rendered = [line for line in lines if line]
+        # The block may ask for compact spacing; any other or absent value
+        # falls back to the spaced default.  The positional rule below is
+        # unchanged: nothing before the first item and nothing after the last.
+        layout = block.get("layout", "spaced")
         spaced: list[str] = []
         for line in rendered:
-            if spaced:
+            if spaced and layout != "compact":
                 spaced.append(" ")
             spaced.append(line)
         return spaced

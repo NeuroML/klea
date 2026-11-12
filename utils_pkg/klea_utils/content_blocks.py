@@ -48,6 +48,10 @@ class ItemsBlock(BaseModel):
 
     kind: Literal["items"] = "items"
     items: list[Item] = Field(default_factory=list, description="Block items")
+    layout: Literal["spaced", "compact"] = Field(
+        default="spaced",
+        description="Item arrangement hint (closed set; unknown values render as spaced)",
+    )
 
 
 class FieldsBlock(BaseModel):
