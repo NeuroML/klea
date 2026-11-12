@@ -104,6 +104,14 @@ def test_delete_user_chats_clears_session_overrides(store):
     assert store.get_chat("u1", "c1") is None
 
 
+def test_rename_chat_reports_missing_chat(store):
+    """Renaming a missing chat returns False; an existing chat returns True."""
+    assert store.rename_chat("u1", "nope", "x") is False
+    store.create_chat("u1", "c1")
+    assert store.rename_chat("u1", "c1", "New") is True
+    assert store.get_chat("u1", "c1")["title"] == "New"
+
+
 def test_credential_empty_by_default(store):
     """A provider with no stored credential returns None."""
     assert store.get_credential("u1", "openai") is None

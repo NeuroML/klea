@@ -196,8 +196,16 @@ enforcement point for each:
   `ui.state.ensure_chat` seeds a new chat with an empty name.  A Title-Cased
   slug is a read-time fallback only (server `_display_title`, web
   `_render_chat_list`), used just to label a chat whose stored title is still
-  empty.  `--continue` resumes the most recently updated session and
-  `--resume <chat_id>` loads one.
+  empty.  A rename is reported, not silently dropped: `rename_chat_on_server`
+  checks the PATCH status and returns a bool, updating the cached name only on
+  success; a 404 (unknown chat) or any other non-2xx response is surfaced to
+  the user -- a negative notification in the web UI, a `notify` in the TUI --
+  instead of being ignored.  `SessionStore.rename_chat` reports whether a row
+  was updated, and `update_chat` turns zero rows into a 404, so a rename
+  against a chat that has vanished fails loudly.  The web UI dispatches the
+  PATCH in one background task (its `/rename` hook is synchronous), and the TUI
+  refreshes the chat header and picker only on success.  `--continue` resumes
+  the most recently updated session and `--resume <chat_id>` loads one.
 * `user_id` resolves through one seam (`klea_utils/ui/identity.py`):
   `--user-id` > `KLEA_USER_ID` > a persisted host-local UUID, the last only for
   a loopback server (I5).  The identity key is the server app
