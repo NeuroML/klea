@@ -137,7 +137,7 @@ def test_prepare_run_rejects_a_completed_run(tmp_path, caplog):
     assert not workspace.run_dir_tmp("done", tmp_path).exists()
 
 
-def test_prepare_run_overwrite_replaces_a_completed_run(tmp_path):
+def test_prepare_run_overwrite_keeps_the_previous_run_until_publish(tmp_path):
     final_dir = _make_complete_run(tmp_path, "done")
     (final_dir / "stale.txt").write_text("old")
 
@@ -145,8 +145,16 @@ def test_prepare_run_overwrite_replaces_a_completed_run(tmp_path):
 
     assert tmp_dir == workspace.run_dir_tmp("done", tmp_path)
     assert tmp_dir.is_dir()
-    assert not final_dir.exists()
+    assert final_dir.exists()
+    assert (final_dir / "stale.txt").exists()
     assert not (tmp_dir / "stale.txt").exists()
+
+    published = workspace.publish_run("done", root=tmp_path)
+
+    assert published == final_dir
+    assert workspace.is_complete(final_dir)
+    assert not (final_dir / "stale.txt").exists()
+    assert not tmp_dir.exists()
 
 
 # -- leftover .tmp recovery ----------------------------------------------
@@ -224,6 +232,22 @@ def test_publish_run_refuses_to_clobber_a_published_run(tmp_path):
         workspace.publish_run("clash", root=tmp_path)
 
     assert not workspace.is_complete(final_dir)
+
+
+def test_publish_run_with_overwrite_replaces_the_previous_run(tmp_path):
+    final_dir = _make_complete_run(tmp_path, "replace-me")
+    (final_dir / "stale.txt").write_text("old")
+
+    tmp_dir = workspace.prepare_run("replace-me", root=tmp_path, overwrite=True)
+    (tmp_dir / "fresh.txt").write_text("new")
+
+    published = workspace.publish_run("replace-me", root=tmp_path, overwrite=True)
+
+    assert published == final_dir
+    assert workspace.is_complete(final_dir)
+    assert (final_dir / "fresh.txt").read_text() == "new"
+    assert not (final_dir / "stale.txt").exists()
+    assert not tmp_dir.exists()
 
 
 def test_publish_run_requires_a_tmp_tree(tmp_path):

@@ -243,6 +243,35 @@ def test_overwrite_reruns_and_appends_index_line(tmp_path: Path) -> None:
     assert len(executor.calls) == 2
 
 
+def test_failed_overwrite_keeps_the_previous_run_and_index_line(
+    tmp_path: Path,
+) -> None:
+    """A failed overwrite leaves the previous run and its index line intact."""
+    cases = [_case("case-1", [_turn(1, "user", "Hello")])]
+
+    _suite, first = _run(tmp_path, cases, execute_turn=Recorder())
+    assert first.exit_code == 0
+    assert len(_index_lines(first.workspace_root)) == 1
+    original_run_id = first.runs[0].run_id
+    original_output = Path(first.runs[0].output_dir)
+    assert workspace.is_complete(original_output)
+
+    _suite, failed = _run(
+        tmp_path,
+        cases,
+        execute_turn=Recorder(error=RuntimeError("boom")),
+        overwrite=True,
+    )
+
+    assert failed.runs[0].status == "failed"
+    assert failed.exit_code == 1
+    assert workspace.is_complete(original_output)
+    assert load_stored_run(original_output).metadata.run_id == original_run_id
+    assert _index_case_ids(failed.workspace_root) == ["case-1"]
+    index_ids = [entry.run_id for entry in results.read_index(failed.workspace_root)]
+    assert index_ids == [original_run_id]
+
+
 # ---------------------------------------------------------------------------
 # Pipeline: rejected suites and configuration faults
 # ---------------------------------------------------------------------------

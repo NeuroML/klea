@@ -130,11 +130,15 @@ def prepare_run(run_id: str, root: Path | None = None, overwrite: bool = False) 
     """Create a fresh ``runs/<run_id>.tmp/`` skeleton and return it.
 
     A completed run is rejected with :class:`RunAlreadyCompleteError` unless
-    ``overwrite`` is set; a leftover ``.tmp`` (or an unpublished final) directory
-    is logged as an incomplete run and discarded before the skeleton is rebuilt.
-    ``metrics.jsonl`` and ``run.json`` are not created here; the ADR-0059 writer
-    owns them.
+    ``overwrite`` is set.  With ``overwrite`` the existing published run is left
+    untouched here and is replaced only once the new attempt reaches
+    :func:`publish_run`, so a failure mid-run never loses the previous results
+    or its index line.  A leftover ``.tmp`` directory is logged as an incomplete
+    run and discarded before the skeleton is rebuilt.  ``metrics.jsonl`` and
+    ``run.json`` are not created here; the ADR-0059 writer owns them.
     """
+    if _overwrite_marker(run_id, root).is_file():
+        overwrite = True
     final_dir = run_dir(run_id, root)
     if final_dir.exists():
         if is_complete(final_dir) and not overwrite:
@@ -142,13 +146,18 @@ def prepare_run(run_id: str, root: Path | None = None, overwrite: bool = False) 
             raise RunAlreadyCompleteError(
                 f"run {run_id!r} is already complete at {final_dir}"
             )
-        logger.warning(f"discarding existing run directory {final_dir} for {run_id = }")
-        shutil.rmtree(final_dir)
+        logger.warning(
+            f"keeping existing run directory {final_dir} for {run_id = } "
+            "until its replacement is published"
+        )
 
     tmp_dir = run_dir_tmp(run_id, root)
     if tmp_dir.exists():
         logger.warning(f"discarding incomplete run {tmp_dir} for {run_id = }")
         discard_run(run_id, root)
+
+    if final_dir.exists() and overwrite:
+        _overwrite_marker(run_id, root).write_text("", encoding="utf-8")
 
     fixtures_dir = tmp_dir / WORKSPACE_DIR_NAME / FIXTURES_DIR_NAME
     outputs_dir = tmp_dir / WORKSPACE_DIR_NAME / OUTPUTS_DIR_NAME
@@ -159,12 +168,45 @@ def prepare_run(run_id: str, root: Path | None = None, overwrite: bool = False) 
     return tmp_dir
 
 
-def publish_run(run_id: str, root: Path | None = None) -> Path:
+def run_dir_superseded(run_id: str, root: Path | None = None) -> Path:
+    """Return ``runs/<run_id>.superseded/``, the backup of a replaced run.
+
+    The directory only exists while an overwrite is being published: the
+    previous run is moved here after the new one is complete and removed once
+    the new one is in place, or moved back if the final rename fails.
+    """
+    final_dir = run_dir(run_id, root)
+    path = final_dir.with_name(f"{final_dir.name}.superseded")
+    logger.debug(f"{run_id = }, {path = }")
+    return path
+
+
+def _overwrite_marker(run_id: str, root: Path | None = None) -> Path:
+    """Return ``runs/<run_id>.overwrite``, the pending-overwrite sentinel.
+
+    :func:`prepare_run` writes it when it is told to overwrite, so that
+    :func:`publish_run` knows the staged attempt may replace the published run
+    without any caller having to thread a flag through.  It is removed once the
+    new run is in place (or when the attempt is discarded), so a plain publish
+    still refuses to clobber an existing run.
+    """
+    final_dir = run_dir(run_id, root)
+    path = final_dir.with_name(f"{final_dir.name}.overwrite")
+    logger.debug(f"{run_id = }, {path = }")
+    return path
+
+
+def publish_run(run_id: str, root: Path | None = None, overwrite: bool = False) -> Path:
     """Publish ``runs/<run_id>.tmp/`` as ``runs/<run_id>/`` atomically.
 
     Every regular file is flushed and fsynced, the zero-byte ``COMPLETE`` marker
     is written last, and the directory is renamed in one atomic operation. An
-    already published run is never clobbered.
+    already published run is never clobbered: it raises
+    :class:`RunAlreadyCompleteError` unless ``overwrite`` is set.  With
+    ``overwrite`` the previous run is moved aside only once the new run is
+    complete, so the old run stays readable (and indexed) if anything before the
+    final rename fails; it is restored if that rename fails, and removed after
+    it succeeds.
     """
     tmp_dir = run_dir_tmp(run_id, root)
     final_dir = run_dir(run_id, root)
@@ -173,7 +215,10 @@ def publish_run(run_id: str, root: Path | None = None) -> Path:
         logger.debug(f"{run_id = }, {tmp_dir = }")
         raise WorkspaceError(f"no run under construction at {tmp_dir}")
 
-    if final_dir.exists():
+    overwrite_marker = _overwrite_marker(run_id, root)
+    overwrite = overwrite or overwrite_marker.is_file()
+
+    if final_dir.exists() and not overwrite:
         logger.debug(f"{run_id = }, {final_dir = }")
         raise RunAlreadyCompleteError(f"run {run_id!r} already exists at {final_dir}")
 
@@ -189,16 +234,43 @@ def publish_run(run_id: str, root: Path | None = None) -> Path:
         os.close(marker_fd)
 
     _fsync_dir(tmp_dir)
-    os.replace(tmp_dir, final_dir)
+
+    superseded_dir = run_dir_superseded(run_id, root)
+    moved_aside = False
+    if final_dir.exists():
+        if superseded_dir.exists():
+            logger.warning(f"discarding stale backup {superseded_dir} for {run_id = }")
+            shutil.rmtree(superseded_dir, ignore_errors=True)
+        logger.debug(f"{run_id = }, {final_dir = }, {superseded_dir = }")
+        os.replace(final_dir, superseded_dir)
+        moved_aside = True
+
+    try:
+        os.replace(tmp_dir, final_dir)
+    except OSError:
+        if moved_aside:
+            logger.warning(f"restoring previous run {superseded_dir} for {run_id = }")
+            os.replace(superseded_dir, final_dir)
+        raise
+
+    if moved_aside:
+        shutil.rmtree(superseded_dir, ignore_errors=True)
+
+    overwrite_marker.unlink(missing_ok=True)
 
     logger.debug(f"{run_id = }, {marker_path = }, {final_dir = }")
     return final_dir
 
 
 def discard_run(run_id: str, root: Path | None = None) -> None:
-    """Remove ``runs/<run_id>.tmp/`` as one unit, if present."""
+    """Remove ``runs/<run_id>.tmp/`` as one unit, if present.
+
+    A pending-overwrite sentinel is dropped with the staging directory so an
+    abandoned attempt can never replace an existing run later.
+    """
     tmp_dir = run_dir_tmp(run_id, root)
     shutil.rmtree(tmp_dir, ignore_errors=True)
+    _overwrite_marker(run_id, root).unlink(missing_ok=True)
     logger.debug(f"{run_id = }, {tmp_dir = }")
 
 
