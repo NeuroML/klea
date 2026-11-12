@@ -235,6 +235,24 @@ def test_chat_events_round_trip_in_order(store):
     assert store.get_chat_events("u1", "c1") == _events()
 
 
+def test_chat_events_round_trip_verbatim_with_content(store):
+    """An event carrying a nested content block reloads verbatim."""
+    events = [
+        {
+            "type": "state",
+            "node": "Plan",
+            "data": {
+                "key": "plan",
+                "display": "[x] Step 1",
+                "content_version": 1,
+                "content": [{"kind": "items", "items": [{"text": "alpha"}]}],
+            },
+        }
+    ]
+    store.add_chat_events("u1", "c1", events)
+    assert store.get_chat_events("u1", "c1") == events
+
+
 def test_chat_events_empty_is_a_noop(store):
     """An empty batch stores nothing."""
     store.add_chat_events("u1", "c1", [])
