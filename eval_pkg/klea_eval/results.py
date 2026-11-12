@@ -98,6 +98,9 @@ class RunMetadata:
     harness_seed: str | None = None
     models: dict[str, Any] | None = None
     resolved_models: dict[str, str] = field(default_factory=dict)
+    chat_id: str | None = None
+    attempt: int = 0
+    revision: int = 0
 
     def to_dict(self) -> dict[str, Any]:
         """Return the envelope as a plain, JSON-ready mapping."""
@@ -113,6 +116,9 @@ class RunMetadata:
             "harness_seed": self.harness_seed,
             "models": models,
             "resolved_models": dict(self.resolved_models),
+            "chat_id": self.chat_id,
+            "attempt": self.attempt,
+            "revision": self.revision,
         }
 
     @classmethod
@@ -143,6 +149,9 @@ class RunMetadata:
             resolved_models=_optional_resolved_models(
                 data.get("resolved_models"), "resolved_models", source
             ),
+            chat_id=_optional_text(data.get("chat_id"), "chat_id", source),
+            attempt=_optional_counter(data.get("attempt"), "attempt", source),
+            revision=_optional_counter(data.get("revision"), "revision", source),
         )
 
 
@@ -492,6 +501,21 @@ def _optional_models(value: Any, label: str, source: str) -> dict[str, Any] | No
     return {str(key): item for key, item in value.items()}
 
 
+def _optional_counter(value: Any, label: str, source: str) -> int:
+    """Return an optional non-negative attempt or revision counter, else ``0``.
+
+    Envelopes written before the field existed omit it, so an absent counter is
+    ``0``; a present value must still be a non-negative integer.
+    """
+    if value is None:
+        return 0
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise ResultsError(
+            f"{source} field '{label}' must be a non-negative integer, got {value!r}"
+        )
+    return value
+
+
 def _check_metadata(metadata: RunMetadata) -> None:
     """Validate the fields of an envelope before it is written."""
     source = "run metadata"
@@ -505,6 +529,9 @@ def _check_metadata(metadata: RunMetadata) -> None:
     _optional_text(metadata.harness_seed, "harness_seed", source)
     _optional_models(metadata.models, "models", source)
     _optional_resolved_models(metadata.resolved_models, "resolved_models", source)
+    _optional_text(metadata.chat_id, "chat_id", source)
+    _optional_counter(metadata.attempt, "attempt", source)
+    _optional_counter(metadata.revision, "revision", source)
 
 
 def _check_entry(entry: IndexEntry) -> None:

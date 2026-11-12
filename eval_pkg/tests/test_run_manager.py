@@ -22,6 +22,7 @@ from klea_eval.run_manager import (
     RunManagerError,
     RunPreparationError,
 )
+from klea_eval.runners.http import _build_payload
 
 
 def _make_case(
@@ -453,3 +454,35 @@ def test_caller_model_overrides_merge_under_the_case(tmp_path):
         "planner": "case-model",
         "executor": "exec-model",
     }
+
+
+def test_attempts_and_overwrites_get_fresh_chat_ids(tmp_path):
+    """A retry and an overwrite keep the run id and post a fresh chat id."""
+    base = Path(tmp_path)
+    root = base / "workspace"
+    root.mkdir(parents=True, exist_ok=True)
+    case = _make_case()
+    turn = case.turns[0]
+
+    first = run_manager.start_run(case, base, root)
+    retried = run_manager.start_run(case, base, root, attempt=1)
+    overwritten = run_manager.start_run(case, base, root, revision=1)
+
+    assert first.run_id == retried.run_id == overwritten.run_id
+    assert len({first.chat_id, retried.chat_id, overwritten.chat_id}) == 3
+
+    contexts = (first, retried, overwritten)
+    payloads = [_build_payload(context, turn) for context in contexts]
+    assert len({payload["chat_id"] for payload in payloads}) == 3
+    assert [payload["run_id"] for payload in payloads] == [first.run_id] * 3
+
+
+@pytest.mark.parametrize("bad", [-1, 1.5, True, "1"])
+def test_invalid_attempt_is_rejected(tmp_path, bad):
+    """A non-integer or negative attempt cannot identify a run."""
+    base = Path(tmp_path)
+    root = base / "workspace"
+    case = _make_case()
+
+    with pytest.raises(RunPreparationError):
+        run_manager.start_run(case, base, root, attempt=bad)

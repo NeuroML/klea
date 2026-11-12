@@ -15,7 +15,9 @@ Derivation rules:
 - ``user_id`` is a UUID v5 over ``USER_NAMESPACE`` and the same name, so it is
   deterministic in the same inputs while staying independent of ``run_id``.
 - ``chat_id`` is a UUID v5 over ``CHAT_NAMESPACE`` and the name
-  ``"<run_id>:<user_id>"``, matching ADR-0057 and ADR-0060.
+  ``"<run_id>:<user_id>"``, suffixed with ``"|attempt=<n>"`` and/or
+  ``"|revision=<n>"`` when a run is retried or overwritten, so every attempt
+  starts a fresh backend chat history (ADR-0057, ADR-0060).
 
 The namespace constants are fixed :class:`uuid.UUID` literals and must never
 be changed: doing so would silently change every derived identifier. Nothing
@@ -154,19 +156,60 @@ def derive_user_id(case_id: str, harness_seed: str | int) -> str:
     return user_id
 
 
-def derive_chat_id(run_id: str, user_id: str) -> str:
+def _checked_counter(value: Any, label: str) -> int:
+    """Validate a non-negative ``attempt`` or ``revision`` counter."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"{label} must be a non-negative integer")
+    if value < 0:
+        raise ValueError(f"{label} must be a non-negative integer")
+    return value
+
+
+def _chat_discriminator(attempt: int, revision: int) -> str:
+    """Return the ``attempt``/``revision`` suffix of the ``chat_id`` name."""
+    attempts = _checked_counter(attempt, "attempt")
+    revisions = _checked_counter(revision, "revision")
+    parts: list[str] = []
+    if attempts:
+        parts.append(f"attempt={attempts}")
+    if revisions:
+        parts.append(f"revision={revisions}")
+    return "|".join(parts)
+
+
+def derive_chat_id(
+    run_id: str,
+    user_id: str,
+    *,
+    attempt: int = 0,
+    revision: int = 0,
+) -> str:
     """Derive the deterministic ``chat_id`` for a run and its user.
 
     The name is ``"<run_id>:<user_id>"`` over :data:`CHAT_NAMESPACE`
-    (ADR-0057, ADR-0060).
+    (ADR-0057, ADR-0060).  A non-zero ``attempt`` or ``revision`` appends a
+    ``"|attempt=<n>"`` and/or ``"|revision=<n>"`` discriminator, so a retried
+    run and an overwritten run each start a fresh backend chat while the plain
+    derivation stays pinned.
     """
     run_text = run_id.strip()
     user_text = user_id.strip()
     if not run_text or not user_text:
         raise ValueError("run_id and user_id must be non-empty strings")
-    identifier = uuid.uuid5(CHAT_NAMESPACE, f"{run_text}:{user_text}")
+    name = f"{run_text}:{user_text}"
+    suffix = _chat_discriminator(attempt, revision)
+    if suffix:
+        name = f"{name}|{suffix}"
+    identifier = uuid.uuid5(CHAT_NAMESPACE, name)
     chat_id = str(identifier)
-    logger.debug("identity: %s %s %s", f"{run_id = }", f"{user_id = }", f"{chat_id = }")
+    logger.debug(
+        "identity: %s %s %s %s %s",
+        f"{run_id = }",
+        f"{user_id = }",
+        f"{chat_id = }",
+        f"{attempt = }",
+        f"{revision = }",
+    )
     return chat_id
 
 
@@ -179,6 +222,8 @@ class Identity:
     run_id: str
     user_id: str
     chat_id: str
+    attempt: int = 0
+    revision: int = 0
 
 
 def derive_identity(
@@ -188,12 +233,16 @@ def derive_identity(
     model_overrides: Any = None,
     resolved_models: Any = None,
     endpoint: str | None = None,
+    attempt: int = 0,
+    revision: int = 0,
 ) -> Identity:
     """Derive the full :class:`Identity` for ``case_id`` and ``harness_seed``.
 
     ``model_overrides``, ``resolved_models`` and ``endpoint`` are the
     result-affecting configuration of the run: they enter the ``run_id`` name,
     so the same case and seed under two model sets derive two distinct runs.
+    ``attempt`` and ``revision`` only enter the ``chat_id`` name: a retried or
+    overwritten run keeps its ``run_id`` but starts a fresh backend chat.
     """
     run_id = derive_run_id(
         case_id,
@@ -203,13 +252,15 @@ def derive_identity(
         endpoint=endpoint,
     )
     user_id = derive_user_id(case_id, harness_seed)
-    chat_id = derive_chat_id(run_id, user_id)
+    chat_id = derive_chat_id(run_id, user_id, attempt=attempt, revision=revision)
     identity = Identity(
         case_id=case_id,
         harness_seed=str(harness_seed),
         run_id=run_id,
         user_id=user_id,
         chat_id=chat_id,
+        attempt=attempt,
+        revision=revision,
     )
     logger.debug("identity: %s", f"{identity = }")
     return identity

@@ -680,3 +680,40 @@ def test_overrides_without_a_base_url_are_a_configuration_error(
         )
 
     assert applier.calls == []
+
+
+# ---------------------------------------------------------------------------
+# Pipeline: retries and overwrites
+# ---------------------------------------------------------------------------
+def test_attempt_and_overwrite_are_recorded_in_run_metadata(
+    tmp_path: Path,
+) -> None:
+    """A retry and an overwrite record a fresh chat id in ``run.json``."""
+    suite = _write_suite(
+        tmp_path / "suite.jsonl", [_case("case-1", [_turn(1, "user", "Hello")])]
+    )
+
+    def once(workspace: Path, **options: Any) -> results.RunMetadata:
+        workspace.mkdir(exist_ok=True)
+        outcome = run_suite(
+            str(suite),
+            workspace_root=str(workspace),
+            execute_turn=Recorder(),
+            harness_seed=1234,
+            max_attempts=1,
+            sleep=lambda _delay: None,
+            **options,
+        )
+        assert outcome.exit_code == 0
+        output_dir = outcome.runs[0].output_dir
+        assert output_dir is not None
+        return load_stored_run(Path(output_dir)).metadata
+
+    first = once(tmp_path / "ws-first")
+    retried = once(tmp_path / "ws-retry", attempt=1)
+    overwritten = once(tmp_path / "ws-first", overwrite=True)
+
+    assert first.run_id == retried.run_id == overwritten.run_id
+    assert len({first.chat_id, retried.chat_id, overwritten.chat_id}) == 3
+    assert (first.attempt, retried.attempt, overwritten.attempt) == (0, 1, 0)
+    assert (first.revision, retried.revision, overwritten.revision) == (0, 0, 1)

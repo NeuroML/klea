@@ -253,3 +253,24 @@ def test_empty_configuration_keeps_the_plain_pinned_vector() -> None:
     identity = derive_identity(PINNED_CASE_ID, PINNED_SEED)
 
     assert identity.run_id == PINNED_RUN_ID
+
+
+def test_attempts_and_revisions_get_fresh_chat_ids() -> None:
+    """A retry and an overwrite keep the run id but change the chat id."""
+    base = derive_identity(PINNED_CASE_ID, PINNED_SEED)
+    retried = derive_identity(PINNED_CASE_ID, PINNED_SEED, attempt=1)
+    overwritten = derive_identity(PINNED_CASE_ID, PINNED_SEED, revision=1)
+
+    assert base.run_id == retried.run_id == overwritten.run_id
+    assert base.chat_id == PINNED_CHAT_ID
+    assert len({base.chat_id, retried.chat_id, overwritten.chat_id}) == 3
+    assert (retried.attempt, retried.revision) == (1, 0)
+    assert (overwritten.attempt, overwritten.revision) == (0, 1)
+
+
+def test_derive_chat_id_rejects_negative_counters() -> None:
+    """A negative attempt or revision cannot identify a backend chat."""
+    with pytest.raises(ValueError, match="non-negative"):
+        derive_chat_id(PINNED_RUN_ID, PINNED_USER_ID, attempt=-1)
+    with pytest.raises(ValueError, match="non-negative"):
+        derive_chat_id(PINNED_RUN_ID, PINNED_USER_ID, revision=-1)

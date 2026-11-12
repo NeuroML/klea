@@ -123,6 +123,8 @@ class RunContext:
     fixtures: dict[str, Any] | None = None
     fixture_sources: dict[str, Any] | None = None
     model_overrides: dict[str, Any] | None = None
+    attempt: int = 0
+    revision: int = 0
 
     @property
     def case_id(self) -> str:
@@ -181,6 +183,8 @@ def start_run(
     *,
     model_overrides: Mapping[str, str] | None = None,
     endpoint: str | None = None,
+    attempt: int = 0,
+    revision: int = 0,
 ) -> RunContext:
     """Derive the run identity and prepare an empty run workspace.
 
@@ -189,6 +193,11 @@ def start_run(
     object does not carry its owning suite file, so the caller supplies it and
     the current working directory is never guessed.  Every declared fixture is
     copied into ``<run dir>/fixtures/``; the originals are left untouched.
+
+    ``attempt`` counts a retry of the same run and ``revision`` counts an
+    overwrite of it.  Both only enter the ``chat_id``, so a retried or
+    overwritten run keeps its ``run_id`` and directory but starts a fresh
+    backend chat history.
     """
     if not isinstance(case, TestCase):
         raise RunPreparationError(f"expected a TestCase, got {type(case).__name__}")
@@ -196,12 +205,16 @@ def start_run(
     base = Path(fixture_base).resolve()
     root = Path(workspace_root).resolve()
     seed = _resolve_harness_seed(case, harness_seed)
+    attempt_number = _checked_counter(attempt, "attempt")
+    revision_number = _checked_counter(revision, "revision")
     overrides = _merge_model_overrides(model_overrides, _resolve_model_overrides(case))
     identity = derive_identity(
         case.case_id,
         seed,
         model_overrides=overrides,
         endpoint=endpoint,
+        attempt=attempt_number,
+        revision=revision_number,
     )
     sources = _resolve_fixtures(case.fixtures, base, case.case_id)
 
@@ -218,6 +231,8 @@ def start_run(
         fixtures=copied,
         fixture_sources=sources,
         model_overrides=overrides,
+        attempt=attempt_number,
+        revision=revision_number,
     )
     logger.debug(
         "run_manager: %s %s %s",
@@ -501,6 +516,15 @@ def _resolve_harness_seed(case: TestCase, harness_seed: str | int | None) -> str
         )
     logger.debug("run_manager: %s %s", f"{case.case_id = }", f"{text = }")
     return text
+
+
+def _checked_counter(value: Any, label: str) -> int:
+    """Validate a non-negative ``attempt`` or ``revision`` counter."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise RunPreparationError(f"{label} must be a non-negative integer")
+    if value < 0:
+        raise RunPreparationError(f"{label} must be a non-negative integer")
+    return value
 
 
 def _merge_model_overrides(

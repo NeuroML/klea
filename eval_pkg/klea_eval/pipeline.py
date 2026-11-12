@@ -148,6 +148,7 @@ def run_suite(
     overwrite: bool = False,
     model_overrides: Mapping[str, str] | None = None,
     apply_models: Callable[..., dict[str, str]] | None = None,
+    attempt: int = 0,
 ) -> SuiteResult:
     """Execute every case of ``suite_path`` and store each completed run.
 
@@ -175,6 +176,8 @@ def run_suite(
         raise PipelineConfigError("score_turn must be callable or None")
     if sleep is not None and not callable(sleep):
         raise PipelineConfigError("sleep must be callable or None")
+    if isinstance(attempt, bool) or not isinstance(attempt, int) or attempt < 0:
+        raise PipelineConfigError("attempt must be a non-negative integer")
 
     executor = _resolve_executor(execute_turn, runner, base_url, endpoint, timeout)
     overrides = _checked_model_overrides(model_overrides)
@@ -213,6 +216,7 @@ def run_suite(
                 overrides,
                 endpoint,
                 applier,
+                attempt,
             )
         )
 
@@ -242,6 +246,7 @@ def _run_one_case(
     overrides: Mapping[str, str],
     endpoint: str | None,
     applier: Callable[..., dict[str, str]],
+    attempt: int = 0,
 ) -> CaseRun:
     """Schedule, execute and store one case, isolating any failure of it."""
     run_id = _run_id(case, harness_seed, overrides, endpoint)
@@ -269,6 +274,8 @@ def _run_one_case(
             harness_seed,
             model_overrides=overrides,
             endpoint=endpoint,
+            attempt=attempt,
+            revision=1 if overwrite else 0,
         )
     except Exception as exc:
         logger.exception("pipeline: could not prepare case %s", case.case_id)
@@ -384,6 +391,9 @@ def _store_run(
         case_version=case.schema_version,
         models=context.model_overrides,
         resolved_models=dict(resolved_models or {}),
+        chat_id=context.chat_id,
+        attempt=context.attempt,
+        revision=context.revision,
     )
     stamped = results.write_metadata(output_dir, metadata)
     results.append_index_entry(results.to_index_entry(stamped), root)
@@ -513,6 +523,9 @@ def _append_run_envelope(
         "status": run_manager.STATUS_COMPLETED,
         "metrics": {},
         "resolved_models": dict(resolved_models),
+        "chat_id": context.chat_id,
+        "attempt": context.attempt,
+        "revision": context.revision,
     }
     run_manager.append_metric(Path(workspace.metrics_path(output_dir)), record)
     logger.debug(f"{context.run_id = }, {output_dir = }")
