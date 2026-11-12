@@ -22,6 +22,7 @@ from typing import Any
 from nicegui import ui
 
 from klea_utils.llm import missing_required_roles, parse_model_name
+from klea_utils.ui.glyphs import UNICODE_GLYPHS, role_marker
 from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.state import ChatData, chats, format_token_usage, missing_credentials
 from klea_utils.ui.web.nicegui.components.context import PageContext
@@ -231,13 +232,16 @@ def attach_status_pane(ctx: PageContext) -> None:
                 if kind == "items":
                     for item in block.get("items") or ():
                         if isinstance(item, dict):
+                            item_role = item.get("role")
                             text = str(item.get("text") or item.get("label") or "")
-                            classes = _role_class(item.get("role"))
+                            classes = _role_class(item_role)
                         else:
+                            item_role = None
                             text = str(item) if item else ""
                             classes = ""
                         if text:
-                            widgets.append(_text_label(text, classes))
+                            marker = role_marker(UNICODE_GLYPHS, item_role)
+                            widgets.append(_text_label(f"{marker} {text}", classes))
                     return widgets
                 if kind == "fields":
                     fields = block.get("fields") or {}

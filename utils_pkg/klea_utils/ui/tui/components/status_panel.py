@@ -28,6 +28,7 @@ from textual.containers import Vertical, VerticalScroll
 from textual.widgets import Collapsible
 
 from klea_utils.llm import missing_required_roles, parse_model_name
+from klea_utils.ui.glyphs import get_glyphs, role_marker
 from klea_utils.ui.inspect_format import format_details
 from klea_utils.ui.model_config import role_label
 from klea_utils.ui.state import format_token_usage, missing_credentials
@@ -171,12 +172,23 @@ def _block_lines(block: Any) -> list[str]:
     kind = block.get("type") or block.get("kind") or "text"
     if kind == "items":
         lines: list[str] = []
+        # Marker table for the active terminal (ASCII under KLEA_TUI_ASCII or
+        # when the stream cannot render Unicode).
+        glyphs = get_glyphs()
         for item in block.get("items") or ():
             if isinstance(item, Mapping):
                 text = str(item.get("text") or item.get("label") or "")
-                lines.append(_styled(text, item.get("role")) if text else "")
+                if text:
+                    marker = role_marker(glyphs, item.get("role"))
+                    lines.append(_styled(f"{marker} {text}", item.get("role")))
+                else:
+                    lines.append("")
             else:
-                lines.append(_styled(str(item), None) if item else "")
+                if item:
+                    marker = role_marker(glyphs, None)
+                    lines.append(_styled(f"{marker} {item}", None))
+                else:
+                    lines.append("")
         return lines
     if kind == "fields":
         lines = []
