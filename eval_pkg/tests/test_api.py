@@ -497,3 +497,33 @@ def test_cli_summary_prints_the_aggregate(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert "suite_score" in result.output
     assert "pass_at_k" in result.output
+
+
+def test_cli_report_writes_per_case_lines_and_summary(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    _make_run(root, "run-a", "case-a", passed=True)
+    _make_run(root, "run-b", "case-b", passed=False)
+    runner = CliRunner()
+    target = tmp_path / "reports" / "report.txt"
+
+    result = runner.invoke(app, ["report", str(root), "-o", str(target)])
+
+    assert result.exit_code == 0
+    text = target.read_text(encoding="utf-8")
+    assert f"Evaluation report for {root}" in text
+    assert "run-a case=case-a status=completed" in text
+    assert "run-b case=case-b status=completed" in text
+    assert "completed=2 failed=0 skipped=0 ungraded=0 total=2" in text
+
+
+def test_cli_report_renders_an_empty_index(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    runner = CliRunner()
+    target = tmp_path / "report.txt"
+
+    result = runner.invoke(app, ["report", str(root), "-o", str(target)])
+
+    assert result.exit_code == 0
+    text = target.read_text(encoding="utf-8")
+    assert f"Evaluation report for {root}" in text
+    assert "completed=0 failed=0 skipped=0 ungraded=0 total=0" in text

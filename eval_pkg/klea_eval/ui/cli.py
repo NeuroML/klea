@@ -217,7 +217,7 @@ def report(
     """Render a report from already collected evaluation results."""
     # Deferred import: the reporting stack pulls in the renderers and is only
     # needed once a command actually renders something.
-    from klea_eval.reporting import write_report  # ty: ignore[import-not-found]
+    from klea_eval.reporting import write_report
 
     logger.debug("klea-eval: rendering report for %s", results)
     write_report(results, output)
