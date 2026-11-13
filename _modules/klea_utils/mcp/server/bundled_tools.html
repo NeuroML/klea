@@ -1,0 +1,1397 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../genindex.html"><link rel="search" title="Search" href="../../../../search.html">
+        <link rel="prefetch" href="../../../../_static/klea-logo.png" as="image">
+
+    <link rel="shortcut icon" href="../../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
+        <title>klea_utils.mcp.server.bundled_tools - Klea</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/sphinxcontrib_typer.css" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/custom.css?v=06e26041" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../../index.html"><div class="brand">Klea</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../../../../_static/klea-logo.png" alt="Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="../../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../concepts/index.html">Concepts</a><input aria-label="Toggle navigation of Concepts" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../concepts/rag.html">RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../concepts/mcp.html">MCP</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../components/rag.html">Klea RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../components/tools.html">Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../components/commands.html">Session commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../components/tui.html">Terminal interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../components/agent.html">Klea Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../components/utils.html">Klea Utils</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../guides/index.html">Guides</a><input aria-label="Toggle navigation of Guides" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../guides/create-and-use-rag.html">Create and use a RAG system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../guides/huggingface.html">Deploying Klea RAG on HuggingFace Spaces</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../cli/index.html">CLI Reference</a><input aria-label="Toggle navigation of CLI Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../cli/klea-stores-create.html">klea-stores-create</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../cli/klea-rag-serve.html">klea-rag-serve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../cli/klea-rag.html">klea-rag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../cli/nml-mcp.html">nml-mcp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../cli/klea.html">klea</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../cli/klea-serve.html">klea-serve</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Develop</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../developer-info.html">Developer info</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../developer-guides/index.html">Developer guides</a><input aria-label="Toggle navigation of Developer guides" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../../developer-guides/writing-mcp-tools.html">Writing MCP tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/klea_utils.html">klea_utils</a><input aria-label="Toggle navigation of klea_utils" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/graph.html">Orchestrator framework</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/stores.html">Vector stores</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/biblio.html">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/llm.html">LLM utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/mcp.html">MCP utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/models_catalog.html">Model catalog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/api.html">API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/commands.html">Commands</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-tui.html">UI - terminal client</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-cli.html">UI — client CLI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/imports.html">Optional-dependency imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/net.html">Host helpers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/client_context.html">Runtime client context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/paths.html">Path utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/plogging.html">Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/errors.html">Error types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/utils/tools.html">Tool formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../getting-help.html">Getting help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../code-of-conduct.html">Code of Conduct</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../license.html">License</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for klea_utils.mcp.server.bundled_tools</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="sd">"""</span>
+<span class="sd">FastMCP tool wrappers for the shared Klea bundled tools.</span>
+
+<span class="sd">File: klea_utils/mcp/server/bundled_tools.py</span>
+
+<span class="sd">Copyright 2026 Ankur Sinha</span>
+<span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Annotated</span><span class="p">,</span> <span class="n">Any</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp</span><span class="w"> </span><span class="kn">import</span> <span class="n">Context</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">fastmcp.tools</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolResult</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">Field</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.registry</span><span class="w"> </span><span class="kn">import</span> <span class="n">tool_meta</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.schemas</span><span class="w"> </span><span class="kn">import</span> <span class="n">ToolInfo</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.download_file</span><span class="w"> </span><span class="kn">import</span> <span class="n">download_file</span> <span class="k">as</span> <span class="n">download_file_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.edit_file</span><span class="w"> </span><span class="kn">import</span> <span class="n">edit_file</span> <span class="k">as</span> <span class="n">edit_file_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.find_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">find_files</span> <span class="k">as</span> <span class="n">find_files_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.grep</span><span class="w"> </span><span class="kn">import</span> <span class="n">grep</span> <span class="k">as</span> <span class="n">grep_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.grep_hunks</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DEFAULT_CONTEXT_LINES</span><span class="p">,</span>
+    <span class="n">MAX_CONTEXT_LINES</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.list_files</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_files</span> <span class="k">as</span> <span class="n">list_files_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.papers.search</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DEFAULT_MAX_RESULTS</span> <span class="k">as</span> <span class="n">PAPERS_DEFAULT_MAX_RESULTS</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.papers.search</span><span class="w"> </span><span class="kn">import</span> <span class="n">MAX_RESULTS</span> <span class="k">as</span> <span class="n">PAPERS_MAX_RESULTS</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.papers.search</span><span class="w"> </span><span class="kn">import</span> <span class="n">Domain</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.papers.search</span><span class="w"> </span><span class="kn">import</span> <span class="n">search_papers</span> <span class="k">as</span> <span class="n">search_papers_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.read_file</span><span class="w"> </span><span class="kn">import</span> <span class="n">read_file</span> <span class="k">as</span> <span class="n">read_file_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.run_command</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">DEFAULT_MAX_OUTPUT_CHARS</span><span class="p">,</span>
+    <span class="n">DEFAULT_MAX_TIMEOUT_SECONDS</span><span class="p">,</span>
+    <span class="n">DEFAULT_TIMEOUT_SECONDS</span><span class="p">,</span>
+    <span class="n">MAX_TIMEOUT_ENV_VAR</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.run_command</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_command</span> <span class="k">as</span> <span class="n">run_command_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_fetch</span><span class="w"> </span><span class="kn">import</span> <span class="n">web_fetch</span> <span class="k">as</span> <span class="n">web_fetch_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_search</span><span class="w"> </span><span class="kn">import</span> <span class="n">DEFAULT_MAX_RESULTS</span><span class="p">,</span> <span class="n">MAX_RESULTS</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.web_search</span><span class="w"> </span><span class="kn">import</span> <span class="n">web_search</span> <span class="k">as</span> <span class="n">web_search_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.write_file</span><span class="w"> </span><span class="kn">import</span> <span class="n">write_file</span> <span class="k">as</span> <span class="n">write_file_impl</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_result</span><span class="w"> </span><span class="kn">import</span> <span class="n">to_result</span>
+
+<span class="c1">#: Common tags carried by every bundled tool, so "enable the common set"</span>
+<span class="c1">#: is a single `include_tags: ["bundled"]` in the app config.</span>
+<span class="n">BUNDLED_TAG</span> <span class="o">=</span> <span class="s2">"bundled"</span>
+
+
+<div class="viewcode-block" id="web_fetch">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.web_fetch">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span><span class="n">ToolInfo</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"web"</span><span class="p">},</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">web_fetch</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">Context</span><span class="p">,</span>
+    <span class="n">url</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
+    <span class="n">timeout</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mf">120.0</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">30.0</span><span class="p">,</span>
+    <span class="n">max_chars</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">1_000_000</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">100_000</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Fetch a URL and return its text content.</span>
+
+<span class="sd">    Use this tool to read web pages, docs, or other HTTP resources.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - Reading a page or document from the web.</span>
+<span class="sd">    - Checking a URL that a user or another tool referenced.</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - Downloading a file to disk (use the download file tool instead).</span>
+
+<span class="sd">    Example: web_fetch(url="https://example.com")</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        url: HTTP or HTTPS URL to fetch.</span>
+<span class="sd">        timeout: Request timeout in seconds.</span>
+<span class="sd">        max_chars: Maximum number of characters of content to return.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with url, status_code, content_type, content, truncated, error.</span>
+<span class="sd">    """</span>
+    <span class="n">session</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">lifespan_context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"http_session"</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">web_fetch_impl</span><span class="p">(</span>
+        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+        <span class="n">url</span><span class="o">=</span><span class="n">url</span><span class="p">,</span>
+        <span class="n">timeout</span><span class="o">=</span><span class="n">timeout</span><span class="p">,</span>
+        <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="search_papers">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.search_papers">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span><span class="n">ToolInfo</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"web"</span><span class="p">},</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">open_world</span><span class="o">=</span><span class="kc">True</span><span class="p">))</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search_papers</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">Context</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">"Keywords to search for, e.g. 'hodgkin huxley'"</span><span class="p">,</span> <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span>
+        <span class="p">),</span>
+    <span class="p">],</span>
+    <span class="n">domain</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="n">Domain</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"'general' for all fields, or 'life-sciences' to search "</span>
+                <span class="s2">"biomedical literature (Europe PMC, PubMed) first"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"general"</span><span class="p">,</span>
+    <span class="n">preprints</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Also search preprints (not peer reviewed). Set only when the "</span>
+                <span class="s2">"user asks for preprints, or the peer reviewed results are "</span>
+                <span class="s2">"not enough"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">max_results</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Maximum number of peer reviewed results, and separately of "</span>
+                <span class="s2">"preprint results"</span>
+            <span class="p">),</span>
+            <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">le</span><span class="o">=</span><span class="n">PAPERS_MAX_RESULTS</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="n">PAPERS_DEFAULT_MAX_RESULTS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Search academic papers by keywords.</span>
+
+<span class="sd">    Use this tool to find published research papers on a topic, with their</span>
+<span class="sd">    title, authors, year, journal, DOI, link and abstract.  Peer reviewed</span>
+<span class="sd">    papers are searched first; preprints are only included when</span>
+<span class="sd">    ``preprints`` is true, and are marked with ``peer_reviewed: false``.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - Finding papers or references on a scientific topic.</span>
+<span class="sd">    - Looking for the source of a model, method or result.</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - Reading a paper's full text (use the web fetch or download tool).</span>
+<span class="sd">    - General web pages, news or docs (use the web search tool instead).</span>
+
+<span class="sd">    When you cite a preprint, tell the user it has not been peer reviewed.</span>
+
+<span class="sd">    Example: search_papers(query="hodgkin huxley", domain="life-sciences")</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        query: Keywords to search for.</span>
+<span class="sd">        domain: 'general' or 'life-sciences'.</span>
+<span class="sd">        preprints: Also search preprints, listed after the peer reviewed results.</span>
+<span class="sd">        max_results: Maximum results from the peer reviewed sources and preprints.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with query, domain, preprints, results (title, authors,</span>
+<span class="sd">        year, journal, abstract, doi, url, peer_reviewed, source), error and</span>
+<span class="sd">        note.</span>
+<span class="sd">    """</span>
+    <span class="n">session</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">lifespan_context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"http_session"</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">search_papers_impl</span><span class="p">(</span>
+        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+        <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+        <span class="n">domain</span><span class="o">=</span><span class="n">domain</span><span class="p">,</span>
+        <span class="n">preprints</span><span class="o">=</span><span class="n">preprints</span><span class="p">,</span>
+        <span class="n">max_results</span><span class="o">=</span><span class="n">max_results</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="web_search">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.web_search">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"web"</span><span class="p">,</span> <span class="s2">"search"</span><span class="p">},</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">open_world</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">web_search</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">Context</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
+    <span class="n">max_results</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="n">MAX_RESULTS</span><span class="p">)]</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_RESULTS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Search the web and return ranked results with snippets.</span>
+
+<span class="sd">    Use this tool to discover current information, documentation, or sources</span>
+<span class="sd">    online, then read a chosen result with the web fetch tool.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - You need to find information on the web (discovery).</span>
+<span class="sd">    - You want links and snippets before fetching a page.</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - Reading the content of a specific URL (use the web fetch tool instead).</span>
+<span class="sd">    - Downloading a file to disk (use the download file tool instead).</span>
+
+<span class="sd">    Example: web_search(query="NeuroML specification")</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        query: Free-text search query.</span>
+<span class="sd">        max_results: Maximum number of results to return (1-20).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with query, provider, results (list of title, url,</span>
+<span class="sd">        snippet, published, score), and error.</span>
+<span class="sd">    """</span>
+    <span class="n">session</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">lifespan_context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"http_session"</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">web_search_impl</span><span class="p">(</span>
+        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+        <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+        <span class="n">max_results</span><span class="o">=</span><span class="n">max_results</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<span class="c1">#: Tag marking the tool as searching the deployment's document stores.</span>
+<span class="n">STORES_TAG</span> <span class="o">=</span> <span class="s2">"stores"</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_stores_description</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Render the store-search description from the resolved configuration.</span>
+
+<span class="sd">    The domain list is read from the stores configuration resolved by</span>
+<span class="sd">    :func:`klea_utils.stores.utils.resolve_stores_config_path` so the model</span>
+<span class="sd">    sees what it can search without first calling the tool in catalogue</span>
+<span class="sd">    mode.  A domain is shown with its description when it has one, and as</span>
+<span class="sd">    its bare key otherwise.  Any resolution or load failure (no</span>
+<span class="sd">    configuration, missing file, invalid contents) leaves the domain section</span>
+<span class="sd">    out, so the description stays usable and the tool reports the problem</span>
+<span class="sd">    itself.</span>
+
+<span class="sd">    :returns: The tool description.</span>
+<span class="sd">    """</span>
+    <span class="n">description</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="s2">"Search the deployment's configured document stores for one domain.</span><span class="se">\n\n</span><span class="s2">"</span>
+        <span class="s2">"Use this tool to answer a question from the deployment's document "</span>
+        <span class="s2">"collections: it queries the domain's vector and BM25 stores, fuses "</span>
+        <span class="s2">"their results, re-ranks them and returns character-budgeted "</span>
+        <span class="s2">"reference material.</span><span class="se">\n\n</span><span class="s2">"</span>
+        <span class="s2">"Use when:</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"- Answering a question from the deployment's document collections.</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"- Looking up material held in a vector store or BM25 corpus.</span><span class="se">\n\n</span><span class="s2">"</span>
+        <span class="s2">"Do not use for:</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"- Reading a local file (use the read file tool instead).</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"- General web pages (use the web search tool instead).</span><span class="se">\n\n</span><span class="s2">"</span>
+        <span class="s2">"Call it with mode 'catalogue' (or an empty domain) to list the "</span>
+        <span class="s2">"domains with the filter fields each accepts.</span><span class="se">\n\n</span><span class="s2">"</span>
+        <span class="s2">"Args:</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    query: Search string; required unless mode is 'catalogue'.</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    domain: Domain to search, or empty to list the catalogue.</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    mode: One of 'hybrid', 'vector', 'bm25' or 'catalogue'.</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    top_k: Documents fetched per store (1-50).</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    rerank: Re-rank the fused results with the cross-encoder.</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    metadata_filter: Optional metadata filter in the store filter "</span>
+        <span class="s2">"DSL.</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    max_chars: Character budget for the returned reference "</span>
+        <span class="s2">"material.</span><span class="se">\n\n</span><span class="s2">"</span>
+        <span class="s2">"Returns:</span><span class="se">\n</span><span class="s2">"</span>
+        <span class="s2">"    Dictionary with query, domain, mode, top_k, results, count, "</span>
+        <span class="s2">"content, catalogue, truncated, error and note."</span>
+    <span class="p">)</span>
+
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.stores.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+            <span class="n">load_retriever_config</span><span class="p">,</span>
+            <span class="n">resolve_stores_config_path</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">path</span> <span class="o">=</span> <span class="n">resolve_stores_config_path</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">path</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">description</span>
+        <span class="n">config</span> <span class="o">=</span> <span class="n">load_retriever_config</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+    <span class="k">except</span> <span class="p">(</span><span class="ne">ImportError</span><span class="p">,</span> <span class="ne">OSError</span><span class="p">,</span> <span class="ne">ValueError</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">description</span>
+
+    <span class="n">lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">domain_config</span> <span class="ow">in</span> <span class="n">config</span><span class="o">.</span><span class="n">domains</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">text</span> <span class="o">=</span> <span class="p">(</span><span class="n">domain_config</span><span class="o">.</span><span class="n">description</span> <span class="ow">or</span> <span class="s2">""</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+        <span class="n">lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">"- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">text</span><span class="si">}</span><span class="s2">"</span> <span class="k">if</span> <span class="n">text</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">"- </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">lines</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">description</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">description</span><span class="si">}</span><span class="se">\n\n</span><span class="s2">Available domains:</span><span class="se">\n</span><span class="s2">"</span> <span class="o">+</span> <span class="s2">"</span><span class="se">\n</span><span class="s2">"</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="search_stores">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.search_stores">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span>
+        <span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">,</span> <span class="n">STORES_TAG</span><span class="p">},</span>
+        <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">idempotent</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">open_world</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">search_stores</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">Context</span><span class="p">,</span>
+    <span class="n">query</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Search string."</span><span class="p">)]</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">domain</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Domain to search, or empty to list the catalogue."</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"One of 'hybrid', 'vector', 'bm25' or 'catalogue'."</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"hybrid"</span><span class="p">,</span>
+    <span class="n">top_k</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Documents fetched per store"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">50</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+    <span class="n">rerank</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Re-rank the fused results with the cross-encoder"</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">metadata_filter</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Optional metadata filter in the store filter DSL"</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">max_chars</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="s2">"Character budget for the returned reference material"</span><span class="p">,</span>
+            <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+            <span class="n">le</span><span class="o">=</span><span class="mi">200_000</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">20000</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Search the deployment's document stores for one domain."""</span>
+    <span class="c1"># Lazy: the implementation pulls in the retrieval layer (LangChain, the</span>
+    <span class="c1"># embedding model), so importing the CLI/bundled server stays light.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.mcp.tool_impls.stores</span><span class="w"> </span><span class="kn">import</span> <span class="n">search_stores</span> <span class="k">as</span> <span class="n">search_stores_impl</span>
+
+    <span class="c1"># The client may name the stores configuration for this request in the</span>
+    <span class="c1"># tool-call metadata instead of relying on the server's own default.</span>
+    <span class="c1"># Every lookup is guarded so an absent request context, absent meta, or a</span>
+    <span class="c1"># missing key simply falls back to the configured default.</span>
+    <span class="n">stores_config</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">request_context</span> <span class="o">=</span> <span class="nb">getattr</span><span class="p">(</span><span class="n">ctx</span><span class="p">,</span> <span class="s2">"request_context"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span>
+    <span class="n">meta</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">getattr</span><span class="p">(</span><span class="n">request_context</span><span class="p">,</span> <span class="s2">"meta"</span><span class="p">,</span> <span class="kc">None</span><span class="p">)</span> <span class="k">if</span> <span class="n">request_context</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">meta</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">klea_utils.stores.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">STORES_CONFIG_META_KEY</span>
+
+        <span class="n">value</span> <span class="o">=</span> <span class="n">meta</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">STORES_CONFIG_META_KEY</span><span class="p">)</span> <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">meta</span><span class="p">,</span> <span class="s2">"get"</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">str</span><span class="p">)</span> <span class="ow">and</span> <span class="n">value</span><span class="p">:</span>
+            <span class="n">stores_config</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">search_stores_impl</span><span class="p">(</span>
+        <span class="n">query</span><span class="o">=</span><span class="n">query</span><span class="p">,</span>
+        <span class="n">domain</span><span class="o">=</span><span class="n">domain</span><span class="p">,</span>
+        <span class="n">mode</span><span class="o">=</span><span class="n">mode</span><span class="p">,</span>
+        <span class="n">top_k</span><span class="o">=</span><span class="n">top_k</span><span class="p">,</span>
+        <span class="n">rerank</span><span class="o">=</span><span class="n">rerank</span><span class="p">,</span>
+        <span class="n">metadata_filter</span><span class="o">=</span><span class="n">metadata_filter</span><span class="p">,</span>
+        <span class="n">max_chars</span><span class="o">=</span><span class="n">max_chars</span><span class="p">,</span>
+        <span class="n">configured</span><span class="o">=</span><span class="n">stores_config</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<span class="c1">#: Domain names come from the deployment's configuration, so the description</span>
+<span class="c1">#: is rendered once, after the function exists, and used by fastmcp at</span>
+<span class="c1">#: registration time.</span>
+<span class="n">search_stores</span><span class="o">.</span><span class="vm">__doc__</span> <span class="o">=</span> <span class="n">_stores_description</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="list_files">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.list_files">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">,</span> <span class="s2">"files"</span><span class="p">},</span> <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"path"</span><span class="p">],</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">list_files</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Directory path to list. Must be relative to current working "</span>
+                <span class="s2">"directory and cannot contain '..' for security. Defaults to '.'"</span>
+            <span class="p">),</span>
+            <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"."</span><span class="p">,</span>
+    <span class="n">max_depth</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Maximum directory depth to traverse. 'None' for unlimited"</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">pattern</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+<span class="w">                </span><span class="sd">"""</span>
+<span class="sd">                Space separated file patterns to filter based on files type.</span>
+<span class="sd">                Correct: '*.py'</span>
+<span class="sd">                Correct: '*.md'</span>
+<span class="sd">                Correct: '*.py *.md'</span>
+<span class="sd">            """</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"*"</span><span class="p">,</span>
+    <span class="n">include_files</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Whether to include files in results"</span><span class="p">)</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">include_directories</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Whether to include directories in results"</span><span class="p">)</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">recursive</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"If True, traverse subdirectories recursively"</span><span class="p">)</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">max_results</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Maximum number of entries to return"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">10000</span><span class="p">)</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""List files and directories with filtering and metadata.</span>
+
+<span class="sd">    Use this tool to explore the local file system structure and find</span>
+<span class="sd">    specific files.</span>
+
+<span class="sd">    Use when:</span>
+
+<span class="sd">    - Discovering what files exist in the working directory.</span>
+<span class="sd">    - Finding files by name, type, or location.</span>
+
+<span class="sd">    Do not use for:</span>
+
+<span class="sd">    - Reading a file's contents (use the read file tool instead).</span>
+<span class="sd">    - Finding a file anywhere under a directory tree by path pattern (use</span>
+<span class="sd">      the find files tool instead).</span>
+
+<span class="sd">    If the ``pattern`` or the ``include_*`` filters match nothing but the</span>
+<span class="sd">    directory is not empty, the unfiltered listing is returned instead and</span>
+<span class="sd">    ``note`` explains why, so the response still shows what is there.</span>
+
+<span class="sd">    Example: ``list_files(path=".", pattern="*.py", recursive=True)``</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        path: Directory path to list. Must be relative to the current working</span>
+<span class="sd">            directory and cannot contain '..' for security. Defaults to the</span>
+<span class="sd">            current directory ('.').</span>
+<span class="sd">        max_depth: Maximum directory depth to traverse. 'None' for unlimited.</span>
+<span class="sd">        pattern: Space separated file patterns to filter files by type.</span>
+<span class="sd">        include_files: Whether to include files in results.</span>
+<span class="sd">        include_directories: Whether to include directories in results.</span>
+<span class="sd">        recursive: If True, traverse subdirectories recursively.</span>
+<span class="sd">        max_results: Maximum number of entries to return.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with list of files, truncated flag, error, and note (empty</span>
+<span class="sd">        unless a filter matched nothing and the unfiltered listing was</span>
+<span class="sd">        substituted).</span>
+<span class="sd">    """</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">list_files_impl</span><span class="p">(</span>
+        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+        <span class="n">max_depth</span><span class="o">=</span><span class="n">max_depth</span><span class="p">,</span>
+        <span class="n">pattern</span><span class="o">=</span><span class="n">pattern</span><span class="p">,</span>
+        <span class="n">include_files</span><span class="o">=</span><span class="n">include_files</span><span class="p">,</span>
+        <span class="n">include_directories</span><span class="o">=</span><span class="n">include_directories</span><span class="p">,</span>
+        <span class="n">recursive</span><span class="o">=</span><span class="n">recursive</span><span class="p">,</span>
+        <span class="n">max_results</span><span class="o">=</span><span class="n">max_results</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="find_files">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.find_files">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">,</span> <span class="s2">"files"</span><span class="p">},</span> <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"path"</span><span class="p">],</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">find_files</span><span class="p">(</span>
+    <span class="n">pattern</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Glob pattern matched against file paths, e.g. '*.py' or "</span>
+                <span class="s2">"'**/*.py'. Use '*' to list every file"</span>
+            <span class="p">),</span>
+            <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"*"</span><span class="p">,</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Directory to search. Must be relative to the current working "</span>
+                <span class="s2">"directory and cannot contain '..' for security"</span>
+            <span class="p">),</span>
+            <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"."</span><span class="p">,</span>
+    <span class="n">include_ignored</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Also list files ignored by .gitignore. Default false, which "</span>
+                <span class="s2">"skips ignored files (and skips .git/cache directories always)"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">max_results</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Maximum number of file paths to return"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">10000</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Find files by path pattern anywhere under a directory.</span>
+
+<span class="sd">    Use this tool to locate files by name or extension when you do not know</span>
+<span class="sd">    where they are in the tree.  It returns file paths only, without</span>
+<span class="sd">    contents or directory entries.</span>
+
+<span class="sd">    Use when:</span>
+
+<span class="sd">    - Finding files by name or extension across a project tree.</span>
+<span class="sd">    - Discovering where a file lives before reading it.</span>
+
+<span class="sd">    Do not use for:</span>
+
+<span class="sd">    - Listing the contents of a specific directory, including its</span>
+<span class="sd">      subdirectories (use the list files tool instead).</span>
+<span class="sd">    - Searching inside file contents (use the grep tool instead).</span>
+
+<span class="sd">    Example: ``find_files(pattern="**/*.py")``</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        pattern: Glob pattern matched against file paths; ``"*"`` lists all.</span>
+<span class="sd">        path: Directory to search, relative to the project directory.</span>
+<span class="sd">        include_ignored: Also list .gitignore-ignored files.</span>
+<span class="sd">        max_results: Maximum number of file paths to return.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with files (paths relative to the search directory),</span>
+<span class="sd">        truncated, error.</span>
+<span class="sd">    """</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">find_files_impl</span><span class="p">(</span>
+        <span class="n">pattern</span><span class="o">=</span><span class="n">pattern</span><span class="p">,</span>
+        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+        <span class="n">include_ignored</span><span class="o">=</span><span class="n">include_ignored</span><span class="p">,</span>
+        <span class="n">max_results</span><span class="o">=</span><span class="n">max_results</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="read_file">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.read_file">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">,</span> <span class="s2">"files"</span><span class="p">},</span> <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"path"</span><span class="p">],</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">read_file</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"File path to read. Must be relative to current working "</span>
+                <span class="s2">"directory and cannot contain '..' for security. Defaults to '.'"</span>
+            <span class="p">),</span>
+            <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"."</span><span class="p">,</span>
+    <span class="n">offset</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"1-indexed line to start reading from. Negative values count "</span>
+                <span class="s2">"from the end: -1 is the last line, -N is the Nth line from the "</span>
+                <span class="s2">"end"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+    <span class="n">char_offset</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"0-indexed character position within the start line; only "</span>
+                <span class="s2">"needed to continue inside a line longer than the character cap"</span>
+            <span class="p">),</span>
+            <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">limit</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Maximum number of lines to return (&gt;=1). None removes the "</span>
+                <span class="s2">"line limit, but the server character budget still caps the "</span>
+                <span class="s2">"response"</span>
+            <span class="p">),</span>
+            <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">500</span><span class="p">,</span>
+    <span class="n">line_numbers</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Prefix each returned line with its line number (default true). "</span>
+                <span class="s2">"Set false to get raw line text, e.g. to copy into an edit"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Read a file and return a slice of its text content.</span>
+
+<span class="sd">    Use this tool to inspect source files, logs, or documents as plain text.</span>
+<span class="sd">    Document formats (PDF, office files) are converted to Markdown first.</span>
+
+<span class="sd">    Use when:</span>
+
+<span class="sd">    - You need to see the contents of a file in the project.</span>
+<span class="sd">    - You want to page through a large file by line numbers.</span>
+<span class="sd">    - You need the end of a large file, such as the tail of a build log: use a</span>
+<span class="sd">      negative offset (``offset=-100``) instead of paging from the start.</span>
+
+<span class="sd">    Read file chunks instead of complete files. Use the grep tool to locate the</span>
+<span class="sd">    region you need first, then read around it with ``offset``/``limit``.</span>
+
+<span class="sd">    Do not use for:</span>
+
+<span class="sd">    - Listing a directory (use the list files tool instead).</span>
+<span class="sd">    - Fetching remote content (use the web fetch tool instead).</span>
+
+<span class="sd">    Examples:</span>
+
+<span class="sd">    - ``read_file(path="README.md", offset=1, limit=100)``</span>
+<span class="sd">    - ``read_file(path="build.log", offset=-100)``</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        path: File path to read. Must be relative to the current working</span>
+<span class="sd">            directory and cannot contain '..' for security. Defaults to the</span>
+<span class="sd">            current directory ('.'), which is not a file, so an omitted path</span>
+<span class="sd">            yields the nearby-entries fallback instead of a validation error.</span>
+<span class="sd">        offset: 1-indexed line to start reading from. A negative value counts</span>
+<span class="sd">            from the end: -1 is the last line, -N is the Nth line from the end.</span>
+<span class="sd">        char_offset: 0-indexed character position within the start line; used</span>
+<span class="sd">            only to continue inside a single line longer than the character</span>
+<span class="sd">            cap (see ``next_char_offset`` in the result).</span>
+<span class="sd">        limit: Maximum number of lines to return. ``None`` removes only the line</span>
+<span class="sd">            limit; the server character budget still caps the response, so a</span>
+<span class="sd">            ``None`` read can still be truncated with ``next_offset``. For a</span>
+<span class="sd">            negative offset, this counts forward from the tail start.</span>
+<span class="sd">        line_numbers: Prefix each line with its line number; set false for raw</span>
+<span class="sd">            text to copy into an edit.</span>
+
+<span class="sd">    The response size is always capped by a server-side character budget,</span>
+<span class="sd">    reported as ``char_budget``; a large file is read by paging</span>
+<span class="sd">    (``offset``/``limit``) or from the end rather than returned in one call.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with content, line range, total_lines, truncated,</span>
+<span class="sd">        truncation_reason, char_budget, next_offset, next_char_offset, error</span>
+<span class="sd">        and note.  ``line_start``/``line_end`` and ``next_offset`` are negative</span>
+<span class="sd">        for a tail read, with -1 as the last line.  ``total_lines`` is ``null``</span>
+<span class="sd">        when a streamed read stops before the relevant end (EOF for a forward</span>
+<span class="sd">        read, the file start for a tail read); a tail that reaches past the</span>
+<span class="sd">        start clamps to the first line and reports the exact total.  A partial</span>
+<span class="sd">        tail that reaches EOF has ``truncated: false``, ``next_offset: null``</span>
+<span class="sd">        and ``line_end: -1``.  ``char_budget`` is the effective server</span>
+<span class="sd">        character cap, and ``truncation_reason`` is ``char_budget``,</span>
+<span class="sd">        ``line_limit`` or ``scan_cap`` when truncated (empty otherwise), so a</span>
+<span class="sd">        ``limit=None`` read shows why it was cut.  A truncated read is a</span>
+<span class="sd">        success (empty ``error``) that normally ends on a line boundary and</span>
+<span class="sd">        carries ``next_offset`` (and an explanatory ``note``) so the caller can</span>
+<span class="sd">        continue.  A single line longer than the character cap is paged by</span>
+<span class="sd">        characters: continue with the same ``offset`` and the returned</span>
+<span class="sd">        ``next_char_offset``.  On a missing/not-a-file error, ``nearby``</span>
+<span class="sd">        (entries in the nearest existing directory) and ``note`` are populated</span>
+<span class="sd">        so the caller can see what exists instead.</span>
+<span class="sd">    """</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">read_file_impl</span><span class="p">(</span>
+        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+        <span class="n">offset</span><span class="o">=</span><span class="n">offset</span><span class="p">,</span>
+        <span class="n">char_offset</span><span class="o">=</span><span class="n">char_offset</span><span class="p">,</span>
+        <span class="n">limit</span><span class="o">=</span><span class="n">limit</span><span class="p">,</span>
+        <span class="n">line_numbers</span><span class="o">=</span><span class="n">line_numbers</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="write_file">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.write_file">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span>
+        <span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">,</span> <span class="s2">"files"</span><span class="p">},</span> <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"path"</span><span class="p">],</span> <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">write_file</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
+    <span class="n">content</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Complete content to write to the file"</span><span class="p">),</span>
+    <span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Create a new file or overwrite an existing one with the given content.</span>
+
+<span class="sd">    Use this tool to create a file, or to replace a file's entire contents.</span>
+<span class="sd">    The write is atomic and an existing file's mode is preserved.</span>
+
+<span class="sd">    Use when:</span>
+
+<span class="sd">    - Creating a new file.</span>
+<span class="sd">    - Replacing the whole content of a small file.</span>
+
+<span class="sd">    Do not use for:</span>
+
+<span class="sd">    - Reading a file (use the read file tool instead).</span>
+<span class="sd">    - Listing a directory (use the list files tool instead).</span>
+<span class="sd">    - Making a small change to an existing file (use the edit file tool instead).</span>
+
+<span class="sd">    Example: write_file(path="notes.txt", content="hello world")</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        path: File path to write, relative to the project directory. Missing</span>
+<span class="sd">            parent directories are created.</span>
+<span class="sd">        content: Complete file content.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with path, created, bytes_written, additions, deletions,</span>
+<span class="sd">        diff, error.</span>
+<span class="sd">    """</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">write_file_impl</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span> <span class="n">content</span><span class="o">=</span><span class="n">content</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="edit_file">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.edit_file">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span>
+        <span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">,</span> <span class="s2">"files"</span><span class="p">},</span> <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"path"</span><span class="p">],</span> <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">edit_file</span><span class="p">(</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
+    <span class="n">old_string</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">description</span><span class="o">=</span><span class="s2">"Exact text to replace"</span><span class="p">),</span>
+    <span class="p">],</span>
+    <span class="n">new_string</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Replacement text"</span><span class="p">)],</span>
+    <span class="n">replace_all</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Replace every occurrence instead of requiring one"</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Replace an exact span of text in an existing file.</span>
+
+<span class="sd">    Use this tool for targeted changes.  To supply ``old_string``, first read</span>
+<span class="sd">    the file with ``read_file(line_numbers=false)`` so the text matches</span>
+<span class="sd">    exactly, including whitespace and indentation.</span>
+
+<span class="sd">    Use when:</span>
+
+<span class="sd">    - Changing a small part of an existing file.</span>
+<span class="sd">    - Updating one occurrence, or every occurrence with ``replace_all``.</span>
+
+<span class="sd">    Do not use for:</span>
+
+<span class="sd">    - Creating a file or replacing its entire content (use the write file</span>
+<span class="sd">      tool instead).</span>
+<span class="sd">    - Reading a file (use the read file tool instead).</span>
+
+<span class="sd">    Example: edit_file(path="a.py", old_string="x = 1", new_string="x = 2")</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        path: File path to edit, relative to the project directory.</span>
+<span class="sd">        old_string: Exact text to replace; must occur once unless</span>
+<span class="sd">            ``replace_all`` is set.</span>
+<span class="sd">        new_string: Replacement text.</span>
+<span class="sd">        replace_all: Replace every occurrence (default: require a unique</span>
+<span class="sd">            match).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with path, replacements, additions, deletions, matcher,</span>
+<span class="sd">        diff, error.  On a missing/not-a-file error, ``nearby`` (entries in</span>
+<span class="sd">        the nearest existing directory) and ``note`` are populated so the</span>
+<span class="sd">        caller can see what exists instead.</span>
+<span class="sd">    """</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">edit_file_impl</span><span class="p">(</span>
+        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+        <span class="n">old_string</span><span class="o">=</span><span class="n">old_string</span><span class="p">,</span>
+        <span class="n">new_string</span><span class="o">=</span><span class="n">new_string</span><span class="p">,</span>
+        <span class="n">replace_all</span><span class="o">=</span><span class="n">replace_all</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="grep">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.grep">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span><span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">,</span> <span class="s2">"files"</span><span class="p">},</span> <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"path"</span><span class="p">],</span> <span class="n">read_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">grep</span><span class="p">(</span>
+    <span class="n">pattern</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
+    <span class="n">path</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Directory to search. Must be relative to the current working "</span>
+                <span class="s2">"directory and cannot contain '..' for security"</span>
+            <span class="p">),</span>
+            <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="s2">"."</span><span class="p">,</span>
+    <span class="n">include</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Space separated glob patterns to restrict which files are "</span>
+                <span class="s2">"searched, e.g. '*.py' or '*.py *.md'. Omit to search all files"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">case_sensitive</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Whether the search is case sensitive"</span><span class="p">)</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">include_ignored</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Also search files ignored by .gitignore. Default false, which "</span>
+                <span class="s2">"skips ignored files (and skips .git/cache directories always)"</span>
+            <span class="p">)</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">context_lines</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Lines of context before and after each match (0-7). The "</span>
+                <span class="s2">"default of 2 usually shows enough surrounding code to avoid a "</span>
+                <span class="s2">"follow-up read_file; raise it for denser blocks"</span>
+            <span class="p">),</span>
+            <span class="n">ge</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+            <span class="n">le</span><span class="o">=</span><span class="n">MAX_CONTEXT_LINES</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_CONTEXT_LINES</span><span class="p">,</span>
+    <span class="n">max_results</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Maximum number of matching lines to return"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">le</span><span class="o">=</span><span class="mi">1000</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="mi">100</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Search file contents for lines matching a regular expression.</span>
+
+<span class="sd">    Use this tool to find where a symbol, string, or pattern occurs in the</span>
+<span class="sd">    files under a directory.</span>
+
+<span class="sd">    Use when:</span>
+
+<span class="sd">    - Locating a definition, call site, or error message in the codebase.</span>
+<span class="sd">    - Searching the contents of many files without reading each one.</span>
+
+<span class="sd">    Do not use for:</span>
+
+<span class="sd">    - Listing files by name without searching their contents (use the list</span>
+<span class="sd">      files tool instead).</span>
+<span class="sd">    - Reading a whole file (use the read file tool instead).</span>
+
+<span class="sd">    Example: ``grep(pattern="def main", include="*.py")``</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        pattern: Regular expression to search for.</span>
+<span class="sd">        path: Directory to search, relative to the project directory.</span>
+<span class="sd">        include: Space separated glob patterns restricting which files are</span>
+<span class="sd">            searched.</span>
+<span class="sd">        case_sensitive: Whether the search is case sensitive.</span>
+<span class="sd">        include_ignored: Also search .gitignore-ignored files.</span>
+<span class="sd">        context_lines: Lines of context before and after each match (0-7).</span>
+<span class="sd">        max_results: Maximum number of matching lines to return.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with pattern, path, match hunks, truncated, files_scanned,</span>
+<span class="sd">        error.  Each hunk is ``{path, start_line, end_line, lines}`` with one</span>
+<span class="sd">        ``{line_number, line, match}`` entry per line, so callers get the</span>
+<span class="sd">        surrounding code without a separate read.</span>
+<span class="sd">    """</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">grep_impl</span><span class="p">(</span>
+        <span class="n">pattern</span><span class="o">=</span><span class="n">pattern</span><span class="p">,</span>
+        <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">,</span>
+        <span class="n">include</span><span class="o">=</span><span class="n">include</span><span class="p">,</span>
+        <span class="n">case_sensitive</span><span class="o">=</span><span class="n">case_sensitive</span><span class="p">,</span>
+        <span class="n">include_ignored</span><span class="o">=</span><span class="n">include_ignored</span><span class="p">,</span>
+        <span class="n">context_lines</span><span class="o">=</span><span class="n">context_lines</span><span class="p">,</span>
+        <span class="n">max_results</span><span class="o">=</span><span class="n">max_results</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="download_file">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.download_file">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span>
+        <span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"web"</span><span class="p">,</span> <span class="s2">"download"</span><span class="p">},</span>
+        <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"file_path"</span><span class="p">],</span>
+        <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">open_world</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">download_file</span><span class="p">(</span>
+    <span class="n">ctx</span><span class="p">:</span> <span class="n">Context</span><span class="p">,</span>
+    <span class="n">url</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
+    <span class="n">file_path</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Field</span><span class="p">(</span><span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">)],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Download a URL to a local file.</span>
+
+<span class="sd">    Use this tool to fetch binary or text resources from the web and save</span>
+<span class="sd">    them to disk for later reading or processing.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - Downloading a file such as a PDF, dataset, or archive.</span>
+<span class="sd">    - Saving remote content locally before inspecting it.</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - Reading a web page as text (use the web fetch tool instead).</span>
+
+<span class="sd">    Example: download_file(url="https://example.com/paper.pdf", file_path="paper.pdf")</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        url: HTTP or HTTPS URL to download.</span>
+<span class="sd">        file_path: Destination path, relative to the working directory.</span>
+<span class="sd">            Existing files are overwritten.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with the saved path, or an error on failure.</span>
+<span class="sd">    """</span>
+    <span class="n">session</span> <span class="o">=</span> <span class="n">ctx</span><span class="o">.</span><span class="n">lifespan_context</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"http_session"</span><span class="p">)</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="k">await</span> <span class="n">download_file_impl</span><span class="p">(</span>
+        <span class="n">session</span><span class="o">=</span><span class="n">session</span><span class="p">,</span>
+        <span class="n">url</span><span class="o">=</span><span class="n">url</span><span class="p">,</span>
+        <span class="n">file_path</span><span class="o">=</span><span class="n">file_path</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">if</span> <span class="n">target</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span>
+            <span class="p">{</span>
+                <span class="s2">"error"</span><span class="p">:</span> <span class="s2">"Download failed (check the URL, network, or file path permissions)."</span><span class="p">,</span>
+                <span class="s2">"display"</span><span class="p">:</span> <span class="p">{</span>
+                    <span class="s2">"mime"</span><span class="p">:</span> <span class="s2">"text/plain"</span><span class="p">,</span>
+                    <span class="s2">"data"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"download_file: </span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s2"> failed"</span><span class="p">,</span>
+                <span class="p">},</span>
+            <span class="p">}</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span>
+        <span class="p">{</span>
+            <span class="s2">"saved_to"</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">target</span><span class="p">),</span>
+            <span class="s2">"error"</span><span class="p">:</span> <span class="s2">""</span><span class="p">,</span>
+            <span class="s2">"display"</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">"mime"</span><span class="p">:</span> <span class="s2">"text/plain"</span><span class="p">,</span>
+                <span class="s2">"data"</span><span class="p">:</span> <span class="sa">f</span><span class="s2">"downloaded </span><span class="si">{</span><span class="n">url</span><span class="si">}</span><span class="s2"> -&gt; </span><span class="si">{</span><span class="n">target</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span>
+            <span class="p">},</span>
+        <span class="p">}</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="run_command">
+<a class="viewcode-back" href="../../../../api/utils/mcp.html#klea_utils.mcp.server.bundled_tools.run_command">[docs]</a>
+<span class="nd">@tool_meta</span><span class="p">(</span>
+    <span class="n">ToolInfo</span><span class="p">(</span>
+        <span class="n">tags</span><span class="o">=</span><span class="p">{</span><span class="n">BUNDLED_TAG</span><span class="p">,</span> <span class="s2">"local"</span><span class="p">,</span> <span class="s2">"code"</span><span class="p">},</span>
+        <span class="n">checkpaths</span><span class="o">=</span><span class="p">[</span><span class="s2">"working_directory"</span><span class="p">],</span>
+        <span class="n">destructive</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+        <span class="n">open_world</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+<span class="k">async</span> <span class="k">def</span><span class="w"> </span><span class="nf">run_command</span><span class="p">(</span>
+    <span class="n">command</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Shell command string to run. Pipes, '&amp;&amp;' and redirection are "</span>
+                <span class="s2">"supported. Scope the command to the requested target; do not "</span>
+                <span class="s2">"run a broader command or suite than asked (for example run the "</span>
+                <span class="s2">"one named test file, not the whole suite)."</span>
+            <span class="p">),</span>
+            <span class="n">min_length</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">],</span>
+    <span class="n">working_directory</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Directory to run the command in; must be inside the project "</span>
+                <span class="s2">"directory. Defaults to the project directory."</span>
+            <span class="p">),</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">timeout_seconds</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">float</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span>
+            <span class="n">description</span><span class="o">=</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Seconds before the command is killed. Defaults to "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">DEFAULT_TIMEOUT_SECONDS</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">; the maximum is set by the "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">MAX_TIMEOUT_ENV_VAR</span><span class="si">}</span><span class="s2"> environment variable (default "</span>
+                <span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">DEFAULT_MAX_TIMEOUT_SECONDS</span><span class="si">:</span><span class="s2">g</span><span class="si">}</span><span class="s2">)."</span>
+            <span class="p">),</span>
+            <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_TIMEOUT_SECONDS</span><span class="p">,</span>
+    <span class="n">max_output_chars</span><span class="p">:</span> <span class="n">Annotated</span><span class="p">[</span>
+        <span class="nb">int</span><span class="p">,</span>
+        <span class="n">Field</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">"Maximum characters captured per output stream"</span><span class="p">,</span> <span class="n">ge</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+    <span class="p">]</span> <span class="o">=</span> <span class="n">DEFAULT_MAX_OUTPUT_CHARS</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ToolResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Run a shell command and return its exit status and output.</span>
+
+<span class="sd">    Use this tool to inspect or act on the workspace: print the working</span>
+<span class="sd">    directory, list processes, run a build or test, or invoke a script.</span>
+
+<span class="sd">    Use when:</span>
+<span class="sd">    - You need a fact about the environment (working directory, host, date).</span>
+<span class="sd">    - You need to run a build, test, or script in the project.</span>
+
+<span class="sd">    Do not use for:</span>
+<span class="sd">    - Reading a file (use the read file tool instead).</span>
+<span class="sd">    - Listing a directory (use the list files tool instead).</span>
+
+<span class="sd">    A non-zero exit code is a normal result, not an error: many tools signal</span>
+<span class="sd">    conditions with it (``diff``/``grep`` return 1 for differences/no match, a</span>
+<span class="sd">    failing test returns non-zero).  Judge the outcome from ``returncode`` and</span>
+<span class="sd">    ``stdout``; ``error`` is set only when the command could not be run or was</span>
+<span class="sd">    killed.</span>
+
+<span class="sd">    A timed-out or cancelled command has its process group killed, but a</span>
+<span class="sd">    command that detaches its children (for example daemonises or calls</span>
+<span class="sd">    ``setsid``) may leave processes running; check with ``ps``/``pgrep`` and</span>
+<span class="sd">    clean up if needed.</span>
+
+<span class="sd">    Example: run_command(command="pwd &amp;&amp; ls", working_directory=".")</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        command: Shell command string to run.</span>
+<span class="sd">        working_directory: Directory to run in; must be inside the project.</span>
+<span class="sd">        timeout_seconds: Seconds before the command is killed.</span>
+<span class="sd">        max_output_chars: Maximum characters captured per output stream.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        Dictionary with command, working_directory, returncode, stdout,</span>
+<span class="sd">        stderr, truncated, error.</span>
+<span class="sd">    """</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="k">await</span> <span class="n">run_command_impl</span><span class="p">(</span>
+        <span class="n">command</span><span class="o">=</span><span class="n">command</span><span class="p">,</span>
+        <span class="n">working_directory</span><span class="o">=</span><span class="n">working_directory</span><span class="p">,</span>
+        <span class="n">timeout_seconds</span><span class="o">=</span><span class="n">timeout_seconds</span><span class="p">,</span>
+        <span class="n">max_output_chars</span><span class="o">=</span><span class="n">max_output_chars</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">to_result</span><span class="p">(</span><span class="n">result</span><span class="p">)</span></div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, NeuroML contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>
