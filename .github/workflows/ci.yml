@@ -71,9 +71,10 @@ jobs:
       run: |
         if [ "$RUNNER_OS" == "Windows" ]; then
           # neuroml-mcp needs NEURON (via pyneuroml[all]), which has no Windows wheels
-          uv pip install "./utils_pkg[dev]" "./rag_pkg[dev]" "./agent_pkg[dev]"
+          uv pip install "./utils_pkg[dev]" "./rag_pkg[dev]" "./agent_pkg[dev]" "./eval_pkg[dev]"
         else
           uv pip install -r ./requirements.txt
+          uv pip install "./eval_pkg[dev]"
         fi
 
     - name: List packages so far
@@ -111,6 +112,11 @@ jobs:
         else
           bash ./scripts/run_tests.sh
         fi
+
+    - name: Run eval-marked tests
+      run: |
+        cd eval_pkg
+        pytest -q -m eval
 
     - name: Lint with ruff
       run: |

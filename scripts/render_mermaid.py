@@ -23,8 +23,8 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
 
 import typer
 
@@ -80,7 +80,7 @@ def _is_within(path: Path, directory: Path) -> bool:
     return True
 
 
-def find_markdown_files(devdocs_dir: Path) -> List[Path]:
+def find_markdown_files(devdocs_dir: Path) -> list[Path]:
     """Recursively find Markdown files below *devdocs_dir*."""
     if not devdocs_dir.is_dir():
         return []
@@ -91,9 +91,9 @@ def find_markdown_files(devdocs_dir: Path) -> List[Path]:
     )
 
 
-def find_mmd_files(repo_root: Path, extra_excludes: Sequence[Path] = ()) -> List[Path]:
+def find_mmd_files(repo_root: Path, extra_excludes: Sequence[Path] = ()) -> list[Path]:
     """Recursively find ``.mmd`` files below *repo_root*."""
-    results: List[Path] = []
+    results: list[Path] = []
     for path in repo_root.rglob("*.mmd"):
         if not path.is_file():
             continue
@@ -105,9 +105,9 @@ def find_mmd_files(repo_root: Path, extra_excludes: Sequence[Path] = ()) -> List
     return sorted(results)
 
 
-def extract_mermaid_blocks(markdown_text: str) -> List[str]:
+def extract_mermaid_blocks(markdown_text: str) -> list[str]:
     """Return the body of every ```mermaid fence in *markdown_text*."""
-    blocks: List[str] = []
+    blocks: list[str] = []
     for match in MERMAID_FENCE_RE.finditer(markdown_text):
         body = match.group("body").strip("\n").rstrip()
         if body.strip():
@@ -141,7 +141,7 @@ def _render(
     output: Path,
     scale: float,
     background: str,
-    puppeteer_config: Optional[Path],
+    puppeteer_config: Path | None,
 ) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     command = [
@@ -169,23 +169,23 @@ def main(
         min=1.0,
         help="Scale factor passed to mmdc (2-3 recommended).",
     ),
-    output_dir: Path = typer.Option(
+    output_dir: Path = typer.Option(  # noqa: B008 - typer CLI declaration
         Path("devdocs/system/diagrams"),
         "--output-dir",
         "-o",
         help="Directory that receives the rendered SVG files.",
     ),
-    work_dir: Path = typer.Option(
+    work_dir: Path = typer.Option(  # noqa: B008 - typer CLI declaration
         Path("build/mermaid/src"),
         "--work-dir",
         help="Directory that receives the extracted .mmd sources.",
     ),
-    devdocs_dir: Path = typer.Option(
+    devdocs_dir: Path = typer.Option(  # noqa: B008 - typer CLI declaration
         Path("devdocs"),
         "--devdocs-dir",
         help="Directory scanned recursively for Markdown files.",
     ),
-    repo_root: Path = typer.Option(
+    repo_root: Path = typer.Option(  # noqa: B008 - typer CLI declaration
         Path("."),
         "--repo-root",
         help="Repository root scanned recursively for .mmd files.",
@@ -201,7 +201,7 @@ def main(
         "-b",
         help="Background colour passed to mmdc.",
     ),
-    puppeteer_config: Optional[Path] = typer.Option(
+    puppeteer_config: Path | None = typer.Option(  # noqa: B008 - typer CLI declaration
         None,
         "--puppeteer-config",
         "-p",
@@ -222,7 +222,7 @@ def main(
         )
         raise typer.Exit(code=1)
 
-    jobs: List[Tuple[str, str]] = []
+    jobs: list[tuple[str, str]] = []
 
     for markdown in find_markdown_files(devdocs_dir):
         blocks = extract_mermaid_blocks(markdown.read_text(encoding="utf-8"))

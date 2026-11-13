@@ -1,0 +1,16 @@
+: SSE fixture: one complete turn (progress, usage, inspect, tool, complete).
+
+event: progress
+data: {"type": "progress", "node": "planner", "data": {"heading": "Planning the work"}}
+
+event: usage
+data: {"type": "usage", "node": "answer", "data": {"details": {"input_tokens": 120, "output_tokens": 40, "total_tokens": 160, "cached_tokens": 20, "reasoning_tokens": 0, "role": "execute"}}}
+
+event: inspect
+data: {"type": "inspect", "node": "answer", "data": {"heading": "Answer", "summary": "Wrote notes.txt", "details": "the full answer text"}}
+
+event: tool
+data: {"type": "tool", "node": "tools", "data": {"tools": [{"tool": "write_file", "title": "Write file", "header": "notes.txt", "mime": "text/plain", "data": "hello", "meta": {}, "display": "wrote notes.txt"}]}}
+
+event: complete
+data: {"type": "complete", "message_for_user": "Done: wrote notes.txt."}
