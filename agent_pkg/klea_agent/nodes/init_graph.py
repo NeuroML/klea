@@ -22,6 +22,8 @@ from langgraph.runtime import get_runtime
 from klea_agent.discovery import refresh_project_files
 from klea_agent.schemas import CodeSchema, Discovery, KleaAgentState, RouteSchema
 
+logger = logging.getLogger(__name__)
+
 
 class InitGraphState(
     AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]
@@ -66,7 +68,21 @@ class InitGraphState(
         (the TUI's working directory), else the process working directory.
         """
         self._emit_progress()
+        self.logger.debug("InitGraphState.execute: entry %s", f"{state.query=}")
         project_root = self._effective_project_root(state)
+        self.logger.debug(
+            "InitGraphState.execute: resetting keys %s",
+            [
+                "guard_decision",
+                "message_for_user",
+                "command_route",
+                "route",
+                "discovery_per_step",
+                "code",
+            ],
+        )
+        self.logger.debug("InitGraphState.execute: before %s", f"{state.route=}")
+        self.logger.debug("InitGraphState.execute: before %s", f"{state.code=}")
         return {
             "guard_decision": "safe",
             "message_for_user": "",
@@ -93,6 +109,9 @@ class InitGraphState(
         try:
             runtime_context = get_runtime().context
         except RuntimeError:
+            self.logger.debug(
+                "InitGraphState._effective_project_root: no runtime context; using default root"
+            )
             return None
         client_context = client_context_from_context(runtime_context)
         return client_context.cwd if client_context else None
