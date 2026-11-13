@@ -80,7 +80,7 @@ flowchart TD
         awaitInput["Awaiting input<br/>AwaitHuman (non-LLM)<br/>answers a blocked step's questions; ADR-0046"]
         cancelled["Cancelled<br/>FixedAnswer (shared)<br/>terminal: run cancelled"]
         picker["Binding tool calls<br/>ToolCallBinder (tool_picker)<br/>binds args for one suggested-tool group; ADR-0020/0034/0035"]
-        caller["Running tools<br/>ToolsCallerNode (shared)<br/>dispatch + access gate; ADR-0007/0037"]
+        caller["Running tools<br/>ToolsCallerNode (shared); AgentToolsCaller (agent)<br/>dispatch + access gate; plan-section override; ADR-0007/0037"]
         triage["Triaging<br/>TriageRouter (deterministic router)<br/>retry vs evaluate vs replan"]
         reasoning["Reasoning<br/>ReasoningNode (chat)<br/>conclusion as str StepOutput"]
         evaluator["Evaluating<br/>OperationalEvaluator (chat)<br/>EvaluationSchema verdict"]
@@ -343,7 +343,7 @@ field-level details.
 | Preparing review | ``klea_agent/nodes/review_progress.py`` | ``ReviewProgress`` (``chat``): synthesizes the human-facing digest of work since the last review, immediately before each review gate | ``ReviewProgressSchema``; no tools; reads ``step_outputs`` since the last approved gate; skips with no new work (ADR-0051) |
 | Awaiting review / input | ``klea_agent/nodes/await_human.py`` | ``AwaitHuman`` (ADR-0046/ADR-0051): reusable HITL node, two instances -- review pauses at a ``review`` step (plan approval or checkpoint; presents the digest + all pending steps; writes ``human_feedback``); input answers a blocked step's questions (writes ``human_input``) | Non-LLM; ``interrupt``/``Command(resume=...)``; approve resolves the review step -> execution, revise -> Planner, cancel -> terminal |
 | Binding tool calls | ``klea_agent/nodes/tool_call_binder.py`` | ``ToolCallBinder`` (``tool_picker``): a ``ToolsPicker`` subclass that binds arguments for one contiguous group of steps sharing ``suggested_tools`` | ``ToolCallBinder_*`` prompts; only the group's tools are disclosed; accumulates ``binding_calls`` until the batch is bound; ``on_unusable`` callback; never substitutes a tool (ADR-0020/0034/0035) |
-| Running tools | ``klea_utils/nodes/tools_caller.py`` | ``ToolsCallerNode`` (shared): dispatches the batch | ``dispatch_tool_calls`` (parallel), ``checkpaths``/access gate, ``isError`` synthesis; ``post_dispatch`` callback (ADR-0003/0007/0037) |
+| Running tools | ``utils_pkg/klea_utils/nodes/tools_caller.py``, ``agent_pkg/klea_agent/nodes/agent_tools_caller.py`` | ``ToolsCallerNode`` (shared): dispatches the batch; the agent's ``AgentToolsCaller`` overrides ``_get_running_steps_state`` to attach ``content=plan_content_blocks(plan)`` to the ``key="plan"`` section | ``dispatch_tool_calls`` (parallel), ``checkpaths``/access gate, ``isError`` synthesis; ``post_dispatch`` callback (ADR-0003/0007/0037) |
 | Triaging | ``klea_agent/nodes/triage_router.py`` | ``TriageRouter`` (deterministic router): mechanical tool-error triage | ``retry`` (re-pick same tool) / ``evaluate`` / ``replan``; ADaPT counter via ``update_tool_retry_counts`` (ADR-0035) |
 | Reasoning | ``klea_agent/nodes/reasoning.py`` | ``ReasoningNode`` (``chat``): produces a step conclusion | ``ReasoningSchema``; records a ``str`` ``StepOutput`` + ``rationale``; no picker/caller (ADR-0035) |
 | Evaluating | ``klea_agent/nodes/operational_evaluator.py`` | ``OperationalEvaluator`` (``chat``): judges the current step | ``EvaluationSchema`` verdict ``step_incomplete``/``step_done``/``plan_done``/``need_replan``/``abort`` (ADR-0035) |
@@ -371,7 +371,9 @@ field-level details.
   fallback (``devdocs/system/structured-output-fallback.md``), and the
   ``BaseLangGraph`` per-request model switching (ADR-0014).
 * ``ToolsPicker``/``ToolsCallerNode`` are shared with RAG (ADR-0020); the
-  agent uses ``ToolCallBinder``, a ``ToolsPicker`` subclass that binds one
+  agent subclasses both -- ``ToolCallBinder`` (binder) and
+  ``AgentToolsCaller`` (caller) -- for its plan-aware needs.
+  ``ToolCallBinder`` is a ``ToolsPicker`` subclass that binds one
   suggested-tool group at a time and accumulates calls until the batch is
   bound (``on_unusable`` -> synthetic error + ``replan_reason``), and passes
   evaluator ``step_incomplete`` reasons back as ``step_feedback``, plus the
