@@ -22,6 +22,8 @@ from langchain_core.messages import AIMessage
 from klea_agent.nodes.triage_router import current_step_key
 from klea_agent.schemas import KleaAgentState, ReasoningSchema, StepOutput
 
+logger = logging.getLogger(__name__)
+
 #: Conclusion recorded when the model produced no usable reasoning output.
 #: Non-empty so the base node's empty-result guard sees a meaningful result
 #: and the Evaluator recognises an explicit failure, instead of a silent empty
@@ -85,11 +87,19 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
     @override
     def _pre_exec(self, state: KleaAgentState, ctx: LLMNodeContext[Any]) -> bool:
         """Run only when there is a current plan step to reason about."""
+        self.logger.debug(
+            "ReasoningNode._pre_exec: entry plan_status=%s", state.plan.status
+        )
         return state.plan.current_step() is not None
 
     @override
     def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with the goal, plan, current step and observations."""
+        self.logger.debug(
+            "ReasoningNode._get_prompt_variables: entry plan_status=%s outputs=%d",
+            state.plan.status,
+            len(state.step_outputs or {}),
+        )
         goal_text = state.goal.goal or "(none)"
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
@@ -134,6 +144,11 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
         """
         step = current_step_key(state)
         conclusion = result.conclusion.strip()
+        self.logger.debug(
+            "ReasoningNode._update_state: entry step=%s conclusion_empty=%s",
+            step,
+            not conclusion,
+        )
         entry = StepOutput(
             result=conclusion,
             tool="",
@@ -153,7 +168,12 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
             "tool_results": [],
             "messages_internal": [*state.messages_internal, AIMessage(content=message)],
         }
-        self.logger.debug(f"{step = }\n{conclusion = }\n{len(outputs[step]) = }")
+        self.logger.debug(
+            "ReasoningNode._update_state: processed step=%s conclusion_chars=%d attempts=%d",
+            step,
+            len(conclusion),
+            len(outputs[step]),
+        )
         return update
 
     @override
@@ -185,4 +205,7 @@ class ReasoningNode(BaseLLMNode[KleaAgentState, ReasoningSchema]):
     @override
     def _get_default_error_result(self, ctx: Any) -> ReasoningSchema:
         """Return an explicit failure conclusion so the step cannot pass silently."""
+        self.logger.error(
+            "ReasoningNode._get_default_error_result: returning failure conclusion"
+        )
         return ReasoningSchema(conclusion=NO_CONCLUSION_FALLBACK)

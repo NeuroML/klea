@@ -49,13 +49,26 @@ def _step_role(step: StepSchema, current_number: int | None) -> str:
     :returns: One of the ``ROLE_*`` constants.
     """
     if step.status == "done":
+        logger.debug("_step_role: step %d branch done -> %s", step.step_number, ROLE_OK)
         return ROLE_OK
     if step.status == "failed":
+        logger.debug(
+            "_step_role: step %d branch failed -> %s", step.step_number, ROLE_ERROR
+        )
         return ROLE_ERROR
     if step.status == "skipped":
+        logger.debug(
+            "_step_role: step %d branch skipped -> %s", step.step_number, ROLE_SKIPPED
+        )
         return ROLE_SKIPPED
     if step.status == "pending" and step.step_number == current_number:
+        logger.debug(
+            "_step_role: step %d branch pending-current -> %s",
+            step.step_number,
+            ROLE_CURRENT,
+        )
         return ROLE_CURRENT
+    logger.debug("_step_role: step %d fallback -> %s", step.step_number, ROLE_PENDING)
     return ROLE_PENDING
 
 
@@ -97,6 +110,12 @@ def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
     """
     current = plan.current_step()
     current_number = current.step_number if current is not None else None
+    logger.debug(
+        "plan_content_blocks: entry status=%s steps=%d current_step=%s",
+        plan.status,
+        len(plan.step_list),
+        current_number,
+    )
     items = [
         Item(
             text=_step_text(step),

@@ -26,7 +26,6 @@ from klea_utils.nodes.fixed_answer import FixedAnswer
 from klea_utils.nodes.guard import GuardNode
 from klea_utils.nodes.guard_router import GuardRouterNode
 from klea_utils.nodes.summarise_memory import SummariseMemoryNode
-from klea_utils.nodes.tools_caller import ToolsCallerNode
 from klea_utils.nodes.tools_picker import MAX_BATCH_STEPS
 from klea_utils.paths import STORAGE_ROOT_ENV
 from klea_utils.tools import tool_call_errors
@@ -34,6 +33,7 @@ from langgraph.graph import END, START, StateGraph
 from mcp.types import TextContent
 
 from klea_agent.commands import build_agent_commands
+from klea_agent.nodes.agent_tools_caller import AgentToolsCaller
 from klea_agent.nodes.answer_from_results import AnswerFromResults
 from klea_agent.nodes.answer_user import AnswerUser
 from klea_agent.nodes.await_human import AwaitHuman
@@ -734,7 +734,7 @@ class KleaAgent(BaseLangGraph):
             tools_info=self.tools_info,
             on_unusable=self._record_picker_failure,
         )
-        self._tools_caller_node = ToolsCallerNode(
+        self._tools_caller_node = AgentToolsCaller(
             logger=self.logger,
             label="Running tools",
             mcp_client=self.mcp_client,

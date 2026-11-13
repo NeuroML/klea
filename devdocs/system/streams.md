@@ -187,10 +187,18 @@ authored, advanced and resolved exclusively by the Planner and the Evaluator,
 whose own plan event follows the round.  The entry is emitted only when the
 state carries a plan and the batch stamped at least one step number, so a
 plan-less run (Klea RAG) emits exactly the status entries it emitted before:
-no plan, no render, no dispatched step numbers.  The caller lives in the lower
-`klea_utils` package, so it contributes only the preformatted `display`
-fallback and no structured content blocks; those stay with the agent-side
-emitters (`klea_agent.nodes.plan_content`), which this package must not import.
+no plan, no render, no dispatched step numbers.
+
+The payload is built in the overridable `_get_running_steps_state` hook, which
+returns `None` when its guard fails (`execute` then emits nothing).  The caller
+lives in the lower `klea_utils` package, so the base hook contributes only the
+preformatted `display` fallback and no structured content blocks: those stay
+with the agent-side emitters (`klea_agent.nodes.plan_content`), which this
+package must not import.  Klea Agent subclasses the caller
+(`AgentToolsCaller`) and overrides the hook to attach
+`content=plan_content_blocks(plan)`, so all three `key="plan"` emitters (the
+Planner, the Evaluator and the tools caller) carry structured blocks; RAG keeps
+the base behaviour and its payload is unchanged.
 
 ### `notice` (chat progress note)
 

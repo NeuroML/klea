@@ -22,6 +22,8 @@ from pydantic import BaseModel
 
 from klea_agent.schemas import KleaAgentState, StepSchema
 
+logger = logging.getLogger(__name__)
+
 
 class ReviewProgressSchema(BaseModel):
     # The review-progress node's structured output.  Prompt rules live in
@@ -82,7 +84,11 @@ class ReviewProgress(BaseLLMNode[KleaAgentState, ReviewProgressSchema]):
         (approve or revise), so a skipped run never shows a stale digest.
         """
         has_work = bool(state.work_since_review())
-        self.logger.debug(f"{has_work = }")
+        self.logger.debug(
+            "ReviewProgress._pre_exec: branch has_work=%s -> %s",
+            has_work,
+            "run digest" if has_work else "skip (no work since last review)",
+        )
         return has_work
 
     @staticmethod
@@ -112,7 +118,13 @@ class ReviewProgress(BaseLLMNode[KleaAgentState, ReviewProgressSchema]):
             "review_step": review_step,
             "progress_observations": state.work_since_review_text(),
         }
-        self.logger.debug(f"{variables = }")
+        self.logger.debug(
+            "ReviewProgress._get_prompt_variables: entry review_step=%s "
+            "goal_chars=%d observations_chars=%d",
+            review_step,
+            len(goal_text),
+            len(variables["progress_observations"]),
+        )
         return variables
 
     @override
@@ -121,7 +133,12 @@ class ReviewProgress(BaseLLMNode[KleaAgentState, ReviewProgressSchema]):
     ) -> dict[str, Any]:
         """Write the digest into the transient ``review_progress`` slot."""
         summary = result.summary.strip()
-        self.logger.debug(f"{summary = }")
+        self.logger.debug(
+            "ReviewProgress._update_state: parsed digest summary_chars=%d "
+            "summary_empty=%s",
+            len(summary),
+            not summary,
+        )
         return {"review_progress": summary}
 
     @override
@@ -152,4 +169,8 @@ class ReviewProgress(BaseLLMNode[KleaAgentState, ReviewProgressSchema]):
     @override
     def _get_default_error_result(self, ctx: Any) -> ReviewProgressSchema:
         """Return an empty digest; the gate still fires with the plan alone."""
+        self.logger.error(
+            "ReviewProgress._get_default_error_result: returning empty digest; "
+            "the gate will fire with the plan alone"
+        )
         return ReviewProgressSchema()
