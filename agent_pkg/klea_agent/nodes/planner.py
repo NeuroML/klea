@@ -425,7 +425,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 "status is 'needs_input' but no step has questions; "
                 "attach the questions to the blocked step(s)"
             )
-        return "; ".join(errors) if errors else None
+        retval = "; ".join(errors) if errors else None
+        self.logger.debug(f"{retval = }")
+        return retval
 
     @staticmethod
     def _preserved_plan(
