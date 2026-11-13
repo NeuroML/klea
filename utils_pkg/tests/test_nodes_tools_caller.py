@@ -727,12 +727,12 @@ def test_get_status_none_when_all_names_empty():
     assert node._get_status(state, _ctx(results)) is None
 
 
-def test_get_running_status_lists_tools_with_titles():
+def test_get_running_tools_lists_tools_with_titles():
     """The pre-dispatch section marks each tool ``running`` (status pane)."""
     node = _make_node(tool_infos={"a": ToolInfo(title="Alpha tool")})
     state = MiniState(tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")])
 
-    status = node._get_running_status(state)
+    status = node._get_running_tools(state)
 
     assert status is not None
     assert status.heading == "Tool Execution"
@@ -740,16 +740,16 @@ def test_get_running_status_lists_tools_with_titles():
     assert status.display == "- **Alpha tool**: running\n- **b**: running"
 
 
-def test_get_running_status_none_without_tool_calls():
-    assert _make_node()._get_running_status(MiniState()) is None
+def test_get_running_tools_none_without_tool_calls():
+    assert _make_node()._get_running_tools(MiniState()) is None
 
 
-def test_get_running_status_skips_empty_name_calls():
+def test_get_running_tools_skips_empty_name_calls():
     """Matches ``_get_status``: an empty-name call is not rendered."""
     node = _make_node(tool_infos={"read": ToolInfo(title="Read file")})
     state = MiniState(tool_calls=[ToolCallSchema(tool=""), ToolCallSchema(tool="read")])
 
-    status = node._get_running_status(state)
+    status = node._get_running_tools(state)
 
     assert status is not None
     assert status.display == "- **Read file**: running"
