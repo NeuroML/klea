@@ -61,9 +61,11 @@ class AgentToolsCaller(ToolsCallerNode):
         if plan is None:
             logger.debug("plan section without content: state carries no plan")
             return data
+        state_goal = getattr(state, "goal", None)
+        goal = getattr(state_goal, "goal", "") or ""
         logger.debug(
             "attaching plan content blocks: steps=%d status=%s",
             len(plan.step_list),
             plan.status,
         )
-        return data.model_copy(update={"content": plan_content_blocks(plan)})
+        return data.model_copy(update={"content": plan_content_blocks(plan, goal=goal)})

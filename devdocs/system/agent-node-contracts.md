@@ -126,7 +126,7 @@ The graph has the following registered application-node labels. Route labels are
 | `Resetting state` | Task boundary | [`reset_state.py`](../../agent_pkg/klea_agent/nodes/reset_state.py) | Applies the full task reset or continuation reset. |
 | `Planning` | Plan producer | [`planner.py`](../../agent_pkg/klea_agent/nodes/planner.py) | Authors and validates a plan or a structured planner status. |
 | `Binding tool calls` | Binder | [`tool_call_binder.py`](../../agent_pkg/klea_agent/nodes/tool_call_binder.py), [`tools_picker.py`](../../utils_pkg/klea_utils/nodes/tools_picker.py) | Binds planned steps to disclosed tools. |
-| `Running tools` | Tool dispatcher | [`tools_caller.py`](../../utils_pkg/klea_utils/nodes/tools_caller.py), [`agent_tools_caller.py`](../../agent_pkg/klea_agent/nodes/agent_tools_caller.py) | Dispatches bound calls and records results or synthetic errors. Klea Agent runs the `AgentToolsCaller` subclass, which overrides the `key="plan"` status hook to attach the structured plan blocks. |
+| `Running tools` | Tool dispatcher | [`tools_caller.py`](../../utils_pkg/klea_utils/nodes/tools_caller.py), [`agent_tools_caller.py`](../../agent_pkg/klea_agent/nodes/agent_tools_caller.py) | Dispatches bound calls and records results or synthetic errors. Klea Agent runs the `AgentToolsCaller` subclass, which overrides the `key="plan"` status hook to attach the structured plan blocks and the leading truncated goal line. |
 | `Reasoning` | Work step | [`reasoning.py`](../../agent_pkg/klea_agent/nodes/reasoning.py) | Produces the result for a reasoning plan step. |
 | `Evaluating` | Evaluator | [`operational_evaluator.py`](../../agent_pkg/klea_agent/nodes/operational_evaluator.py) | Evaluates work and advances, fails, aborts, or requests replanning. |
 | `Preparing review` | Review preparation | [`review_progress.py`](../../agent_pkg/klea_agent/nodes/review_progress.py) | Creates a review digest only when pending work exists. |
@@ -419,7 +419,7 @@ for old checkpointed plans; new plans serialize `summary`.
 
 ### 5.11 `Running tools`
 
-Klea Agent runs `AgentToolsCaller` (`agent_pkg/klea_agent/nodes/agent_tools_caller.py`), a `ToolsCallerNode` subclass whose only difference is the overridden `_get_running_steps_state` hook: it delegates the guard to the shared hook and then attaches `content=plan_content_blocks(plan)` to the `key="plan"` status section, so the tools caller's plan section carries the same structured `items` block as the Planner and the Evaluator. Dispatch, the access and path gates, and the running/end-of-round status sections are inherited unchanged; Klea RAG keeps the shared base behaviour (preformatted `display` only).
+Klea Agent runs `AgentToolsCaller` (`agent_pkg/klea_agent/nodes/agent_tools_caller.py`), a `ToolsCallerNode` subclass whose only difference is the overridden `_get_running_steps_state` hook: it delegates the guard to the shared hook, forwards the state's goal (`state.goal.goal`), and then attaches `content=plan_content_blocks(plan, goal=goal)` to the `key="plan"` status section, so the tools caller's plan section carries the same structured `items` block as the Planner and the Evaluator, preceded by the single truncated goal line when the run carries a goal. Dispatch, the access and path gates, and the running/end-of-round status sections are inherited unchanged; Klea RAG keeps the shared base behaviour (preformatted `display` only).
 
 **Purpose.** Dispatch the bound calls and record each tool result or synthetic error.
 

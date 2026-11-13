@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import logging
 
-from klea_utils.content_blocks import ContentBlock, Item, ItemsBlock
+from klea_utils.content_blocks import ContentBlock, Item, ItemsBlock, TextBlock
+from klea_utils.nodes.tools_caller import truncate_plan_goal
 
 from klea_agent.schemas import PlanSchema, StepSchema
 
@@ -92,7 +93,7 @@ def _step_text(step: StepSchema) -> str:
     return text
 
 
-def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
+def plan_content_blocks(plan: PlanSchema, goal: str = "") -> list[ContentBlock]:
     """Return the plan as structured content blocks for the status pane.
 
     A single ``items`` block lists the plan's steps in ``step_list`` order, one
@@ -105,8 +106,12 @@ def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
     does not understand these blocks still renders the plan unchanged.
 
     :param plan: The plan to render.
-    :returns: The content blocks; a single ``items`` block, possibly empty when
-        the plan has no steps.
+    :param goal: The plan's goal statement.  When it holds any text it is
+        emitted as a leading ``text`` block (``Goal: <bounded one line>``) so
+        the goal renders above the steps on both frontends; empty or absent
+        leaves the previous single-block output unchanged.
+    :returns: The content blocks: the optional goal ``text`` block followed by
+        a single ``items`` block, possibly empty when the plan has no steps.
     """
     current = plan.current_step()
     current_number = current.step_number if current is not None else None
@@ -129,4 +134,9 @@ def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
         len(plan.step_list),
         plan.status,
     )
-    return [ItemsBlock(items=items)]
+    blocks: list[ContentBlock] = []
+    goal_text = truncate_plan_goal(goal)
+    if goal_text:
+        blocks.append(TextBlock(text=f"Goal: {goal_text}", format="plain"))
+    blocks.append(ItemsBlock(items=items))
+    return blocks
