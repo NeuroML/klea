@@ -420,7 +420,11 @@ the run; not rendered into downstream prompts):
 * ``human_input: dict[int, list[str]]`` -- the answers to a blocked step's
   questions, written by ``AwaitHuman`` (input) and read/cleared by the Planner.
 * ``replan_reason: str`` -- the unified automated-replan trigger, set by the
-  Evaluator on ``need_replan`` and by the tool-round recorder from the failed
+  Evaluator on ``need_replan``, by the Planner router when the dependency
+  frontier is empty while pending steps remain (a failed step blocking pending
+  work, or pending steps whose dependencies are unresolved; on that path the
+  Planner derives a short prompt reason itself), and by the tool-round recorder
+  from the failed
   batch digest (every failed call with its tool, path/URI arguments and error);
   read by the Planner, recorded on the superseded plan's ``plan_history``
   entry, then cleared.
