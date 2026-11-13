@@ -32,9 +32,16 @@ from klea_agent.schemas import (
     StepEvaluation,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def _notice_step_line(verdict: StepEvaluation) -> str:
     """Return one human-readable step line for the transcript notice."""
+    logger.debug(
+        "_notice_step_line: entry step=%s verdict=%s",
+        verdict.step_number,
+        verdict.verdict,
+    )
     label = STEP_VERDICT_LABELS.get(verdict.verdict, verdict.verdict.upper())
     reason = verdict.reason.strip()
     line = f"Step {verdict.step_number}: {label}"
@@ -110,6 +117,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         consumers through :func:`klea_agent.evidence.render_step_observations`
         (deferred import to avoid a module-level cycle with ``schemas``).
         """
+        self.logger.debug(
+            "OperationalEvaluator._observations_text: entry plan_status=%s steps=%d",
+            state.plan.status,
+            len(state.plan.step_list),
+        )
         from klea_agent.evidence import depends_on_closure, render_step_observations
 
         batch_numbers = {
@@ -122,6 +134,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
     @override
     def _get_prompt_variables(self, state: KleaAgentState, ctx: Any) -> dict:
         """Format prompt with goal, plan, per-step executed tools and observations."""
+        self.logger.debug(
+            "OperationalEvaluator._get_prompt_variables: entry plan_status=%s steps=%d",
+            state.plan.status,
+            len(state.plan.step_list),
+        )
         goal_text = state.goal.goal or "(none)"
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
@@ -143,7 +160,14 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 "Validation feedback", ctx.validation_feedback
             ),
         }
-        self.logger.debug(f"{variables = }")
+        self.logger.debug(
+            "OperationalEvaluator._get_prompt_variables: evidence goal_chars=%d "
+            "observations_chars=%d executed_tools_chars=%d batch_steps=%s",
+            len(goal_text),
+            len(variables["observations"]),
+            len(variables["executed_tools"]),
+            sorted(batch_numbers),
+        )
         return variables
 
     @staticmethod
@@ -209,6 +233,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
 
         :returns: An error description, or ``None`` when consistent.
         """
+        self.logger.debug(
+            "OperationalEvaluator._validate_result: entry overall=%s evaluations=%d",
+            getattr(result, "overall", None),
+            len(getattr(result, "evaluations", []) or []),
+        )
         if not isinstance(result, EvaluationSchema):
             return None
         plan = state.plan
@@ -245,6 +274,10 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 "all steps are resolved but no overall was set; judge the goal "
                 "and set plan_done or abort"
             )
+        self.logger.debug(
+            "OperationalEvaluator._validate_result: validate errors=%s",
+            errors,
+        )
         return "; ".join(errors) if errors else None
 
     @override
@@ -260,12 +293,23 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         ``plan_done`` completes the plan only when no pending step remains;
         otherwise the plan is sent back to the Planner (post-retry fallback).
         """
+        self.logger.debug(
+            "OperationalEvaluator._update_state: entry overall=%s evaluations=%d "
+            "plan_status=%s",
+            result.overall,
+            len(result.evaluations),
+            state.plan.status,
+        )
         update: dict[str, Any] = {"evaluation": result}
         plan = state.plan
 
         # An empty evaluation (for example the node's LLM call failed) must not
         # silently continue the loop: escalate deterministically to a replan for
         # the current step, or abort when there is none.
+        self.logger.debug(
+            "OperationalEvaluator._update_state: empty_evaluation=%s",
+            not result.evaluations and not result.overall,
+        )
         if not result.evaluations and result.overall == "":
             current = plan.current_step()
             if current is not None:
@@ -288,6 +332,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         replan_reasons: list[str] = []
         for verdict in result.evaluations:
             number = verdict.step_number
+            self.logger.debug(
+                "OperationalEvaluator._update_state: verdict step=%d verdict=%s",
+                number,
+                verdict.verdict,
+            )
             if verdict.verdict == "step_incomplete":
                 attempts[number] = attempts.get(number, 0) + 1
                 if attempts[number] >= self.max_step_attempts:
@@ -302,6 +351,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 attempts.pop(number, None)
             step = by_number.get(number)
             if step is None:
+                self.logger.warning(
+                    "OperationalEvaluator._update_state: verdict for unknown step "
+                    "%d ignored",
+                    number,
+                )
                 continue
             if verdict.verdict == "step_done":
                 step.status = "done"
@@ -321,6 +375,12 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         # Completion requires ``plan_done`` (the goal is met) with no pending
         # step left; an unneeded pending step must be judged ``step_skipped``.
         pending = [s for s in plan.step_list if s.status == "pending"]
+        self.logger.debug(
+            "OperationalEvaluator._update_state: overall branch overall=%s "
+            "pending_steps=%s",
+            result.overall,
+            [s.step_number for s in pending],
+        )
         if result.overall == "abort":
             current = plan.current_step()
             if current is not None:
@@ -374,6 +434,12 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         # Planner's automated-replan budget; at the boundary it stops replanning
         # and lets the gate fire, so a readiness issue can never turn into a
         # failed run.
+        self.logger.debug(
+            "OperationalEvaluator._update_state: review_readiness=%s "
+            "upcoming_review=%s",
+            result.review_readiness,
+            self._upcoming_review(plan),
+        )
         if (
             result.review_readiness == "not_ready"
             and result.overall != "abort"
@@ -444,6 +510,10 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         assert ctx.output is not None
         assert ctx.result is not None
         result = ctx.result
+        self.logger.debug(
+            "OperationalEvaluator._get_inspect: entry result_type=%s",
+            type(result).__name__,
+        )
         details: dict[str, Any]
         if isinstance(result, EvaluationSchema):
             parts = [f"step {v.step_number}: {v.verdict}" for v in result.evaluations]
@@ -486,6 +556,11 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
         the evaluator's ``inspect`` payload and the final answer.
         """
         plan = state.plan
+        self.logger.debug(
+            "OperationalEvaluator._get_status: entry plan_status=%s steps=%d",
+            plan.status,
+            len(plan.step_list),
+        )
 
         return NodeStreamData(
             heading=plan.status_heading(),
@@ -499,4 +574,8 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
     @override
     def _get_default_error_result(self, ctx: Any) -> EvaluationSchema:
         """Return an empty evaluation; ``_update_state`` escalates to replan."""
+        self.logger.error(
+            "OperationalEvaluator._get_default_error_result: evaluation failed; "
+            "returning empty evaluation so _update_state escalates to a replan"
+        )
         return EvaluationSchema()
