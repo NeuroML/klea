@@ -77,6 +77,11 @@ def update_tool_retry_counts(
     counts = dict(getattr(state, "tool_retry_counts", None) or {})
     default_step = current_step_key(state)
     batch = results if results is not None else (state.tool_results or [])
+    logger.debug(
+        "update_tool_retry_counts: entry default_step=%d results=%d",
+        default_step,
+        len(batch),
+    )
     errored: dict[int, bool] = {}
     for i, result in enumerate(batch):
         step = _result_step(state, i, default_step)
@@ -89,8 +94,16 @@ def update_tool_retry_counts(
     for step, had_error in errored.items():
         if had_error:
             counts[step] = counts.get(step, 0) + 1
+            logger.debug(
+                "update_tool_retry_counts: step %d failure incremented to %d",
+                step,
+                counts[step],
+            )
         else:
             counts.pop(step, None)
+            logger.debug(
+                "update_tool_retry_counts: step %d progress; counter cleared", step
+            )
     logger.debug(f"updated tool retry counts\n{errored = }\n{counts = }")
     return counts
 
@@ -144,19 +157,41 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
             if getattr(r, "is_error", False)
         }
         self.logger.debug(
+            "TriageRouter.decide: entry results=%d default_step=%d",
+            len(results),
+            default_step,
+        )
+        self.logger.debug(
             f"triage decide\n{errored_steps = }\n{counts = }\n{self.max_retries = }"
         )
         if not errored_steps:
+            self.logger.debug("TriageRouter.decide: branch no-error -> route=evaluate")
             return "evaluate"
         if any(int(counts.get(step, 0)) > self.max_retries for step in errored_steps):
+            self.logger.debug(
+                "TriageRouter.decide: branch retries-exhausted -> route=replan "
+                "errored_steps=%s max_retries=%d",
+                sorted(errored_steps),
+                self.max_retries,
+            )
             return "replan"
+        self.logger.debug(
+            "TriageRouter.decide: branch retries-remain -> route=retry errored_steps=%s",
+            sorted(errored_steps),
+        )
         return "retry"
 
     @override
     async def execute(self, state: KleaAgentState) -> str:
         """Emit progress/info and return the routing label."""
         self._emit_progress()
+        self.logger.debug(
+            "TriageRouter.execute: entry plan_status=%s results=%d",
+            state.plan.status,
+            len(getattr(state, "tool_results", None) or []),
+        )
         route = self.decide(state)
+        self.logger.debug("TriageRouter.execute: decided route=%s", route)
 
         results = getattr(state, "tool_results", None) or []
         info = NodeStreamData(

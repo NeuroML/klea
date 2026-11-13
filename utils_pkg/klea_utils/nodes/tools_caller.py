@@ -145,22 +145,7 @@ class ToolsCallerNode(
         # Signal the round start in the status pane (coarse: every call is
         # marked ``running`` together); the end-of-round ``_get_status``
         # replaces the section with ``ok``/``error``.
-        running = self._get_running_status(state)
-        # Mark the batch's plan steps as current in that same section.  The
-        # plan render is added only when the batch stamped step numbers and the
-        # state carries a plan (the shared RAG state does not), so a plan-less
-        # run emits exactly the previous entries.  ``current_numbers`` marks
-        # every pending step in the batch, which is what parallel work needs;
-        # the structured content blocks stay with the agent-side emitters
-        # (``klea_agent.nodes.plan_content`` is a higher package and must not
-        # be imported here), leaving the preformatted ``display`` fallback.
-        dispatched = sorted(
-            {
-                step
-                for step in (getattr(call, "step", None) for call in tool_calls)
-                if isinstance(step, int) and step > 0
-            }
-        )
+        running = self._get_running_tools(state)
         if running:
             self.write_custom_stream(
                 NodeStreamEvent(
@@ -169,25 +154,14 @@ class ToolsCallerNode(
             )
         # Mark the batch's plan steps in their own pane entry (separate from
         # the running-tools entry above), render-only: the plan itself is not
-        # written.  Omitted when the state has no plan (shared RAG state), when
-        # the plan object cannot render, or when the batch stamped no step
-        # numbers.
-        plan = getattr(state, "plan", None)
-        if plan is not None and hasattr(plan, "render") and dispatched:
-            self.logger.debug(f"{dispatched = }")
+        # written.  The hook owns the guard and returns ``None`` when the state
+        # has no plan (shared RAG state), when the plan object cannot render,
+        # or when the batch stamped no step numbers.
+        plan_state = self._get_running_steps_state(state)
+        if plan_state:
             self.write_custom_stream(
                 NodeStreamEvent(
-                    type="state",
-                    node=self.label,
-                    data=NodeStreamData(
-                        heading=plan.status_heading(),
-                        summary=f"{len(plan.step_list)} step(s); status={plan.status}",
-                        display=plan.render(
-                            markdown=True, current_numbers=set(dispatched)
-                        ),
-                        key="plan",
-                        preformatted=True,
-                    ),
+                    type="state", node=self.label, data=plan_state
                 ).model_dump()
             )
         session_id = self._session_id_for_dispatch(state)
@@ -695,7 +669,44 @@ class ToolsCallerNode(
             },
         )
 
-    def _get_running_status(self, state: BaseModel) -> NodeStreamData | None:
+    def _get_running_steps_state(self, state: BaseModel) -> NodeStreamData | None:
+        """Return the plan section marking the batch's steps as current.
+
+        Builds the ``key="plan"`` status-pane entry for a dispatch round from
+        the distinct step numbers stamped on the batch's calls.  The plan
+        render is added only when the batch stamped step numbers and the state
+        carries a plan (the shared RAG state does not), so a plan-less run
+        emits exactly the previous entries.  ``current_numbers`` marks every
+        pending step in the batch, which is what parallel work needs; the
+        structured content blocks stay with the agent-side emitters
+        (``klea_agent.nodes.plan_content`` is a higher package and must not be
+        imported here), leaving the preformatted ``display`` fallback.  A
+        subclass may override this hook to attach them.
+
+        :returns: The plan status section, or ``None`` when the state carries
+            no plan to mark or the batch stamped no step numbers.
+        """
+        tool_calls = getattr(state, "tool_calls", []) or []
+        dispatched = sorted(
+            {
+                step
+                for step in (getattr(call, "step", None) for call in tool_calls)
+                if isinstance(step, int) and step > 0
+            }
+        )
+        plan = getattr(state, "plan", None)
+        if plan is None or not hasattr(plan, "render") or not dispatched:
+            return None
+        self.logger.debug(f"{dispatched = }")
+        return NodeStreamData(
+            heading=plan.status_heading(),
+            summary=f"{len(plan.step_list)} step(s); status={plan.status}",
+            display=plan.render(markdown=True, current_numbers=set(dispatched)),
+            key="plan",
+            preformatted=True,
+        )
+
+    def _get_running_tools(self, state: BaseModel) -> NodeStreamData | None:
         """Return the status-pane section for a round that is about to run.
 
         Emitted before dispatch so the status pane shows each tool as

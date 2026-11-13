@@ -27,6 +27,8 @@ from klea_utils.nodes.context import NodeContext
 
 from klea_agent.schemas import KleaAgentState, Mode
 
+logger = logging.getLogger(__name__)
+
 
 def decide_mode(
     requested: str, *, source_available: bool
@@ -53,9 +55,21 @@ def decide_mode(
         request cannot be honoured.
     """
     requested = (requested or "general").strip().lower()
+    logger.debug(
+        "decide_mode: entry requested=%s source_available=%s",
+        requested,
+        source_available,
+    )
     if requested == "scientific" and source_available:
+        logger.debug(
+            "decide_mode: branch scientific-with-source -> resolved=scientific note="
+        )
         return ("scientific", "")
     if requested == "scientific":
+        logger.debug(
+            "decide_mode: branch scientific-without-source -> resolved=general "
+            "with explanatory note (not silently downgraded)"
+        )
         return (
             "general",
             (
@@ -65,6 +79,7 @@ def decide_mode(
                 "source, or explicitly re-run in general mode."
             ),
         )
+    logger.debug("decide_mode: branch general/default -> resolved=general")
     return ("general", "")
 
 
@@ -97,11 +112,19 @@ class ModeDecision(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeCon
         """Resolve the mode, persisting the ask and the resolution."""
         ctx = NodeContext()
         self._pre_exec_stream(ctx)
+        self.logger.debug(
+            "ModeDecision.execute: entry requested=%s source_available=%s",
+            state.mode.requested,
+            self._source_available,
+        )
         resolved, note = decide_mode(
             state.mode.requested, source_available=self._source_available
         )
         self.logger.debug(
-            f"mode decision: requested={state.mode.requested} -> {resolved}"
+            "ModeDecision.execute: resolved requested=%s -> %s has_note=%s",
+            state.mode.requested,
+            resolved,
+            bool(note),
         )
         # Result assurance is structured state (ADR-0030 invariant 4).  Every
         # result is unverified until the ADR-0029 verification workflow is
@@ -132,7 +155,12 @@ class ModeInformer(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeCon
         ctx = NodeContext()
         self._pre_exec_stream(ctx)
         note = state.mode.note or "Scientific mode is unavailable."
-        self.logger.debug(f"informing user about mode: {note}")
+        self.logger.debug(
+            "ModeInformer.execute: entry resolved=%s has_note=%s",
+            state.mode.resolved,
+            bool(state.mode.note),
+        )
+        self.logger.debug("ModeInformer.execute: informing user about mode")
         info = NodeStreamData(heading="Mode", summary=note)
         self.write_custom_stream(
             NodeStreamEvent(type="inspect", node=self.label, data=info).model_dump()

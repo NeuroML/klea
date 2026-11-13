@@ -20,6 +20,8 @@ from pydantic import BaseModel
 
 from klea_agent.schemas import KleaAgentState
 
+logger = logging.getLogger(__name__)
+
 
 class ReviewResponse(BaseModel):
     """Resume payload for a plan review (the review ``hitl_response_schema``).
@@ -75,6 +77,12 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
     @override
     def _ask(self, state: KleaAgentState) -> dict[str, Any]:
         """Return the interrupt payload shown to the user."""
+        self.logger.debug(
+            "AwaitHuman._ask: entry kind=%s plan_status=%s needs_input_steps=%s",
+            self.kind,
+            state.plan.status,
+            [step.step_number for step in state.plan.step_list if step.needs_input],
+        )
         if self.kind == "input":
             # Flatten the blocked steps' questions; a step with questions is a
             # draft step that cannot run until they are answered (ADR-0046).
@@ -88,6 +96,10 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
                 # A guidance ask follows automated replans: show the attempts
                 # that already failed so the user can give informed direction.
                 payload["sections"] = state.plan_history_sections()
+            self.logger.debug(
+                "AwaitHuman._ask: pausing for input with %d question(s)",
+                len(questions),
+            )
             return payload
         # A review is either a whole-plan approval (before any work) or a
         # progress checkpoint (after work); ``review_sections`` adapts the
@@ -96,6 +108,10 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
         # checkpoints), so the plan is shown complete; completed steps live in
         # the transcript and inspection pane.
         headline, sections = state.review_sections()
+        self.logger.debug(
+            "AwaitHuman._ask: pausing for review decision (%d section(s))",
+            len(sections),
+        )
         return {
             "kind": "review",
             "headline": headline,
@@ -117,10 +133,19 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
         self, state: KleaAgentState, answers: dict[str, Any]
     ) -> dict[str, Any]:
         """Apply the review decision, or record the supplied facts."""
+        self.logger.debug(
+            "AwaitHuman._on_answer: resume kind=%s answer_keys=%s",
+            self.kind,
+            sorted(answers.keys()),
+        )
         if self.kind == "review":
             return self._apply_review(state, answers)
         answers_list = [str(answer) for answer in (answers.get("answers") or [])]
         human_input = self._map_answers(state, answers_list)
+        self.logger.debug(
+            "AwaitHuman._on_answer: human_input_steps=%s",
+            sorted(human_input.keys()),
+        )
         return {
             "human_input": human_input,
             "replan_reason": "",

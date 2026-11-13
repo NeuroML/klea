@@ -126,7 +126,7 @@ The graph has the following registered application-node labels. Route labels are
 | `Resetting state` | Task boundary | [`reset_state.py`](../../agent_pkg/klea_agent/nodes/reset_state.py) | Applies the full task reset or continuation reset. |
 | `Planning` | Plan producer | [`planner.py`](../../agent_pkg/klea_agent/nodes/planner.py) | Authors and validates a plan or a structured planner status. |
 | `Binding tool calls` | Binder | [`tool_call_binder.py`](../../agent_pkg/klea_agent/nodes/tool_call_binder.py), [`tools_picker.py`](../../utils_pkg/klea_utils/nodes/tools_picker.py) | Binds planned steps to disclosed tools. |
-| `Running tools` | Tool dispatcher | [`tools_caller.py`](../../utils_pkg/klea_utils/nodes/tools_caller.py) | Dispatches bound calls and records results or synthetic errors. |
+| `Running tools` | Tool dispatcher | [`tools_caller.py`](../../utils_pkg/klea_utils/nodes/tools_caller.py), [`agent_tools_caller.py`](../../agent_pkg/klea_agent/nodes/agent_tools_caller.py) | Dispatches bound calls and records results or synthetic errors. Klea Agent runs the `AgentToolsCaller` subclass, which overrides the `key="plan"` status hook to attach the structured plan blocks. |
 | `Reasoning` | Work step | [`reasoning.py`](../../agent_pkg/klea_agent/nodes/reasoning.py) | Produces the result for a reasoning plan step. |
 | `Evaluating` | Evaluator | [`operational_evaluator.py`](../../agent_pkg/klea_agent/nodes/operational_evaluator.py) | Evaluates work and advances, fails, aborts, or requests replanning. |
 | `Preparing review` | Review preparation | [`review_progress.py`](../../agent_pkg/klea_agent/nodes/review_progress.py) | Creates a review digest only when pending work exists. |
@@ -419,6 +419,8 @@ for old checkpointed plans; new plans serialize `summary`.
 
 ### 5.11 `Running tools`
 
+Klea Agent runs `AgentToolsCaller` (`agent_pkg/klea_agent/nodes/agent_tools_caller.py`), a `ToolsCallerNode` subclass whose only difference is the overridden `_get_running_steps_state` hook: it delegates the guard to the shared hook and then attaches `content=plan_content_blocks(plan)` to the `key="plan"` status section, so the tools caller's plan section carries the same structured `items` block as the Planner and the Evaluator. Dispatch, the access and path gates, and the running/end-of-round status sections are inherited unchanged; Klea RAG keeps the shared base behaviour (preformatted `display` only).
+
 **Purpose.** Dispatch the bound calls and record each tool result or synthetic error.
 
 #### Inputs
@@ -426,7 +428,7 @@ for old checkpointed plans; new plans serialize `summary`.
 | Field | Kind | Requiredness | Effect and write timing | Validation, fallback, and lifetime | Evidence |
 |---|---|---|---|---|---|
 | `tool_calls` | `list` | `R` | Supplies the calls to dispatch. | Only bound and access-approved calls may reach the MCP server. | `tools_caller.py`; `mcp-permissions.md` |
-| `plan` | `Plan` or plan collection | `O` | Provides step identity for associating results and errors. | Results are associated with the originating planned step. | `tools_caller.py`; `triage_router.py` |
+| `plan` | `Plan` or plan collection | `O` | Provides step identity for associating results and errors. | Results are associated with the originating planned step. | `tools_caller.py`; `agent_tools_caller.py`; `triage_router.py` |
 
 #### Outputs
 
@@ -926,7 +928,7 @@ budget, so this route cannot loop without terminating.
 | `Deciding route` | [`route_decision.py`](../../agent_pkg/klea_agent/nodes/route_decision.py) | [`test_route_decision.py`](../../agent_pkg/tests/test_route_decision.py), [`test_general_path_graph.py`](../../agent_pkg/tests/test_general_path_graph.py) | [ADR-0035](../adr/0035-general-operational-agent-path.md) |
 | `Planning` | [`planner.py`](../../agent_pkg/klea_agent/nodes/planner.py) | [`test_planner.py`](../../agent_pkg/tests/test_planner.py), [`test_general_path_graph.py`](../../agent_pkg/tests/test_general_path_graph.py) | [ADR-0035](../adr/0035-general-operational-agent-path.md), [ADR-0041](../adr/0041-plan-step-granularity-and-parallelism.md) |
 | `Binding tool calls` | [`tool_call_binder.py`](../../agent_pkg/klea_agent/nodes/tool_call_binder.py), [`tools_picker.py`](../../utils_pkg/klea_utils/nodes/tools_picker.py) | [`test_tool_call_binder.py`](../../agent_pkg/tests/test_tool_call_binder.py), [`test_nodes_tools_picker.py`](../../utils_pkg/tests/test_nodes_tools_picker.py) | [ADR-0020](../adr/0020-unified-tool-caller.md), [ADR-0034](../adr/0034-tool-calling-mechanism.md) |
-| `Running tools` | [`tools_caller.py`](../../utils_pkg/klea_utils/nodes/tools_caller.py) | [`test_nodes_tools_caller.py`](../../utils_pkg/tests/test_nodes_tools_caller.py), [`test_general_path_graph.py`](../../agent_pkg/tests/test_general_path_graph.py) | [ADR-0020](../adr/0020-unified-tool-caller.md), [MCP permissions](mcp-permissions.md) |
+| `Running tools` | [`tools_caller.py`](../../utils_pkg/klea_utils/nodes/tools_caller.py), [`agent_tools_caller.py`](../../agent_pkg/klea_agent/nodes/agent_tools_caller.py) | [`test_nodes_tools_caller.py`](../../utils_pkg/tests/test_nodes_tools_caller.py), [`test_agent_tools_caller.py`](../../agent_pkg/tests/test_agent_tools_caller.py), [`test_general_path_graph.py`](../../agent_pkg/tests/test_general_path_graph.py) | [ADR-0020](../adr/0020-unified-tool-caller.md), [MCP permissions](mcp-permissions.md) |
 | `Reasoning` | [`reasoning.py`](../../agent_pkg/klea_agent/nodes/reasoning.py) | [`test_reasoning.py`](../../agent_pkg/tests/test_reasoning.py) | [ADR-0035](../adr/0035-general-operational-agent-path.md) |
 | `Evaluating` | [`operational_evaluator.py`](../../agent_pkg/klea_agent/nodes/operational_evaluator.py) | [`test_operational_evaluator.py`](../../agent_pkg/tests/test_operational_evaluator.py) | [ADR-0035](../adr/0035-general-operational-agent-path.md), [ADR-0041](../adr/0041-plan-step-granularity-and-parallelism.md) |
 | `Preparing review` | [`review_progress.py`](../../agent_pkg/klea_agent/nodes/review_progress.py) | [`test_review_progress.py`](../../agent_pkg/tests/test_review_progress.py) | [ADR-0051](../adr/0051-review-as-plan-step.md) |
