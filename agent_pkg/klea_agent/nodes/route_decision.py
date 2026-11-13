@@ -20,6 +20,8 @@ from klea_utils.nodes.context import LLMNodeContext
 
 from klea_agent.schemas import KleaAgentState, PlanSchema, RouteSchema
 
+logger = logging.getLogger(__name__)
+
 
 # NOTE: ``chat`` deliberately also covers direct conversational edits (for
 # example "make that shorter" or "rephrase that"), so the router answers them
@@ -101,6 +103,14 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
         that the request has already been classified as conversational, so it
         answers instead of deciding ``task`` again.
         """
+        self.logger.debug(
+            "RouteDecision._get_prompt_variables: entry query_chars=%d "
+            "history_messages=%d forced_chat=%s plan_status=%s",
+            len(state.query),
+            len(state.messages),
+            state.plan.status == "chat",
+            state.plan.status,
+        )
         override = ""
         if state.plan.status == "chat":
             parts = [
@@ -120,7 +130,12 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
             "query": state.query,
             "forced_chat_block": self._optional_section("Planner override", override),
         }
-        self.logger.debug(f"{variables = }")
+        self.logger.debug(
+            "RouteDecision._get_prompt_variables: built prompt query_chars=%d "
+            "forced_chat_block_chars=%d",
+            len(state.query),
+            len(variables["forced_chat_block"]),
+        )
         return variables
 
     @override
@@ -135,17 +150,40 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
         re-invoke.  The normal entry pass is not validated: there the router may
         legitimately choose ``task``.
         """
+        self.logger.debug(
+            "RouteDecision._validate_result: entry forced_chat=%s route=%s",
+            state.plan.status == "chat",
+            getattr(result, "route", None),
+        )
         if state.plan.status != "chat":
+            self.logger.debug(
+                "RouteDecision._validate_result: pass (normal entry; no forced chat)"
+            )
             return None
         if not isinstance(result, RouteSchema):
+            self.logger.warning(
+                "RouteDecision._validate_result: reject (expected a route decision)"
+            )
             return "expected a route decision"
         if result.route != "chat":
+            self.logger.warning(
+                "RouteDecision._validate_result: reject (route=%s; forced chat "
+                "requires 'chat')",
+                result.route,
+            )
             return (
                 "the Planner classified this request as chat; set route to "
                 "'chat' and put your conversational reply in 'answer'"
             )
         if not result.answer.strip():
+            self.logger.warning(
+                "RouteDecision._validate_result: reject (empty chat answer)"
+            )
             return "a chat reply is required; put the conversational answer in 'answer'"
+        self.logger.debug(
+            "RouteDecision._validate_result: pass (chat answer_chars=%d)",
+            len(result.answer.strip()),
+        )
         return None
 
     @override
@@ -163,6 +201,11 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
         ``chat`` even if the model ignored the override and emitted ``task``.
         An empty answer is left for ``AnswerUser``'s fallback.
         """
+        self.logger.debug(
+            "RouteDecision._update_state: entry plan_status=%s route=%s",
+            state.plan.status,
+            result.route,
+        )
         if state.plan.status == "chat":
             answer = result.answer.strip()
             state_update: dict[str, Any] = {
@@ -174,13 +217,26 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
             }
             if answer:
                 state_update["message_for_user"] = answer
-            self.logger.debug(f"forced chat: {state_update = }")
+            self.logger.debug(
+                "RouteDecision._update_state: branch forced-chat answer_chars=%d "
+                "has_answer=%s",
+                len(answer),
+                bool(answer),
+            )
             return state_update
 
+        self.logger.debug(
+            "RouteDecision._update_state: branch normal route=%s answer_chars=%d",
+            result.route,
+            len(result.answer),
+        )
         state_update = {"route": result}
         if result.route == "chat" and result.answer.strip():
             state_update["message_for_user"] = result.answer.strip()
-        self.logger.debug(f"{state_update = }")
+            self.logger.debug(
+                "RouteDecision._update_state: wrote inline chat answer (%d chars)",
+                len(result.answer.strip()),
+            )
         return state_update
 
     @override
@@ -217,4 +273,8 @@ class RouteDecision(BaseLLMNode[KleaAgentState, RouteSchema]):
     @override
     def _get_default_error_result(self, ctx: Any) -> RouteSchema:
         """Default to ``continue`` when routing fails (fail-closed)."""
+        self.logger.error(
+            "RouteDecision._get_default_error_result: routing failed; "
+            "defaulting to continue (fail-closed)"
+        )
         return RouteSchema(route="continue")
