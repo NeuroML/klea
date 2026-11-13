@@ -93,6 +93,42 @@ def _is_timeout_error(exc: BaseException) -> bool:
     return "timed out" in text or "timeout" in text
 
 
+_STREAM_LIMIT_MESSAGES = (
+    "Separator is not found, and chunk exceed the limit",
+    "Separator is found, but chunk is longer than limit",
+)
+
+
+def _tool_exception_text(tool_name: str, exc: BaseException) -> str:
+    """Render *exc* as tool-result text, with guidance for stream-limit errors.
+
+    A tool whose result is a single line larger than the asyncio
+    ``StreamReader`` limit (64 KiB) surfaces as a ``ValueError`` from the
+    transport.  That is not a caller mistake in the arguments, so the raw,
+    terse message is replaced with guidance on how to narrow the call.
+
+    :param tool_name: Name of the tool whose call raised *exc*.
+    :param exc: The exception raised while running the tool.
+    :returns: Guidance text for a stream-limit error, else the terse
+        ``"<ClassName>: <message>"`` form.
+    """
+    raw = f"{exc.__class__.__name__}: {exc}"
+    if any(message in str(exc) for message in _STREAM_LIMIT_MESSAGES):
+        logger.warning(
+            f"Tool result exceeded the MCP stream limit\n{tool_name = }\n{exc = }"
+        )
+        return (
+            f"Tool '{tool_name}' output was too large for the MCP transport: a "
+            "single response line exceeded the 64 KiB stream-reader limit. The "
+            "arguments were accepted. Narrow the call: reduce max_results, "
+            "target a single file or subdirectory with path, tighten include, "
+            "narrow the pattern, set context_lines to 0 or 1, page read_file "
+            "with offset/limit, or pipe run_command output through head/cut or "
+            f"redirect it to a file. Underlying error: {raw}"
+        )
+    return raw
+
+
 def _denied_result(denials: list[str]) -> CallToolResult:
     """Build a non-halting error result for a permission-denied tool call."""
     return CallToolResult(
@@ -505,7 +541,7 @@ async def dispatch_tool_calls(
                                 "still be running."
                             )
                         else:
-                            text = f"{res.__class__.__name__}: {res}"
+                            text = _tool_exception_text(call.tool, res)
                         results[idx] = CallToolResult(
                             content=[TextContent(type="text", text=text)],
                             structured_content=None,
