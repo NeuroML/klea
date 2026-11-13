@@ -328,7 +328,7 @@ goal/plan.
 | `plan` | `Plan` or plan collection | `C` | Supplies prior or revised plan context when replanning. | Revisions are validated like newly authored plans. | `planner.py`; ADR-0035 |
 | `human_feedback` | `str` | `C` | Supplies review revision feedback when present. | Empty feedback does not select a revision. | `await_human.py`; `planner.py` |
 | `failure_reason` | `str` | `O` | May provide prior failure context during replanning. | It is evidence for planning, not a substitute for a user answer. | `planner.py`; `operational_evaluator.py` |
-| `replan_reason` | `str` | `O` | Explains why planning was re-entered. | The reason is consumed by the planner path. | `operational_evaluator.py`; `triage_router.py` |
+| `replan_reason` | `str` | `O` | Explains why planning was re-entered. | A supplied reason always wins; when a re-entry carries none, the node derives a short reason from the retained plan (a failed step blocking pending work, or pending steps whose dependencies are unresolved) and renders that instead. | `operational_evaluator.py`; `planner.py`; `triage_router.py` |
 
 #### Observations prompt variable
 
@@ -839,13 +839,27 @@ The empty command route is represented by the empty-string key and maps to `END`
 
 | Condition | Exact route label | Target | State effect | Evidence |
 |---|---|---|---|---|
-| Plan is unplannable or has no runnable step | `failure` | `Composing answer` | None | `klea_agent.py`; `planner.py` |
+| Plan status is unplannable | `failure` | `Composing answer` | None | `klea_agent.py`; `planner.py` |
 | Plan status is chat | `chat` | `Deciding route` | None | `klea_agent.py`; `planner.py` |
 | Plan status is needs input | `needs_input` | `Awaiting input` | None | `klea_agent.py`; `planner.py` |
 | Plan status is completed | `plan_done` | `Composing answer` | None | `klea_agent.py`; `operational_evaluator.py` |
 | Frontier begins with a review step | `review` | `Preparing review` | None | `klea_agent.py`; `review_progress.py` |
 | Frontier begins with a tool step | `tool` | `Binding tool calls` | None | `klea_agent.py`; `tool_call_binder.py` |
 | Frontier begins with a reasoning step | `reasoning` | `Reasoning` | None | `klea_agent.py`; `reasoning.py` |
+| Frontier is empty: a failed step blocks pending work | `need_replan` | `Planning` | None; the reason is already set by the Evaluator | `klea_agent.py`; `operational_evaluator.py` |
+| Frontier is empty: pending work remains blocked | `need_replan` | `Planning` | None | `klea_agent.py` |
+| Frontier is empty and every step is resolved (done or skipped) | `plan_done` | `Composing answer` | None | `klea_agent.py` |
+| Frontier is empty and the plan has no steps | `failure` | `Composing answer` | None | `klea_agent.py` |
+
+An empty frontier on an `in_progress` plan is not, by itself, a failure. For a
+plan with no runnable step left, an unresolved (failed) step blocking pending
+dependants, or pending work behind an unmet dependency, the router re-enters the
+Planner with `need_replan`: the Planner is the sole authority over the plan and
+resolves or re-authors the blocking step (the `Planning` self-loop is the same as
+the `bind_next` and `review` self-loops). A plan whose steps are all `done` or
+`skipped` proceeds to the answer instead. Only a structurally empty plan fails
+closed. Re-entry is bounded by the Planner's deterministic automated-replan
+budget, so this route cannot loop without terminating.
 
 #### `_review_router`
 

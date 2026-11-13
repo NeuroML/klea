@@ -37,8 +37,10 @@ DEFAULT_MAX_TIMEOUT_SECONDS = 600.0
 #: operational bound (like ``KLEA_LOG_LEVEL``), not app configuration.
 MAX_TIMEOUT_ENV_VAR = "KLEA_RUN_COMMAND_MAX_TIMEOUT"
 
-#: Default cap on captured characters per stream (stdout, stderr).
-DEFAULT_MAX_OUTPUT_CHARS = 100_000
+#: Default cap on captured characters per stream (stdout, stderr).  Kept below
+#: the 64 KiB asyncio StreamReader frame limit (the transport frame that
+#: carries a tool result) so the whole serialized result fits it.
+DEFAULT_MAX_OUTPUT_CHARS = 48_000
 
 #: Grace period between SIGTERM and SIGKILL when killing a timed-out process
 #: group.
@@ -392,9 +394,13 @@ async def run_command(
         await asyncio.shield(_terminate_process_group(process))
         raise
 
+    from .text_limits import cap_lines
+
     stdout = stdout_b.decode("utf-8", errors="replace")
     stderr = stderr_b.decode("utf-8", errors="replace")
-    truncated = False
+    stdout, stdout_capped_lines = cap_lines(stdout)
+    stderr, stderr_capped_lines = cap_lines(stderr)
+    truncated = bool(stdout_capped_lines or stderr_capped_lines)
     if len(stdout) > max_output_chars:
         stdout = stdout[:max_output_chars]
         truncated = True

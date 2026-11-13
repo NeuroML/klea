@@ -18,6 +18,8 @@
 
 ### Fixed
 
+- The planner is now told why it was sent back to replan when no reason was supplied, so it revises against a concrete problem instead of guessing.
+- A failed step no longer ends the run while other steps are still pending: the agent replans around it instead of reporting an error.
 - Chat titles are no longer derived from the generated chat id at creation: a chat stores its own title (empty until set) and only falls back to a derived display name while that stored title is empty.
 - A chat created without an explicit title now shows a derived display name (for example "Olivine Caracal" for `olivine-caracal`) in the web chat list instead of a blank label.
 - Failed chat renames are now reported instead of being silently ignored.
@@ -28,6 +30,8 @@
 - A malformed or truncated `complete` payload now fails that eval turn instead of yielding a bogus case result.
 - Eval attempts and overwrites each allocate a fresh chat id, so retried cases no longer share conversation state.
 - An eval run's `run.json` is written before the COMPLETE marker, so an interrupted publish cannot leave a COMPLETE run without a manifest.
+- Bundled `grep`, `read_file` and `run_command` output is now capped per line with a visible truncation marker, so one over-long line no longer fails the whole call.
+- A tool result too large for the transport now returns guidance on how to narrow the call instead of a terse stream-limit error.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 

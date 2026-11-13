@@ -486,6 +486,13 @@ def read_file(
             "character budget."
         ).strip()
 
+    if any("[line truncated:" in line for line in kept):
+        cap_note = (
+            "One or more lines were capped with a '[line truncated: ...]' "
+            "marker; use grep or char_offset to read the rest."
+        )
+        note = f"{note} {cap_note}".strip() if note else cap_note
+
     if truncated and size is not None and size > _LARGE_FILE_HINT_BYTES:
         if from_end:
             note = (
@@ -827,11 +834,13 @@ def _collect_page(
         max_bytes=max_bytes,
         strip_bom=strip_bom,
     )
-    for text, _truncated in lines:
+    for text, line_truncated in lines:
         line_no += 1
         if skipped < skip_lines:
             skipped += 1
             continue
+        if line_truncated:
+            text = f"{text} ... [line truncated: exceeds {max_line_chars} chars]"
         segment = text[char_offset:] if collected == 0 and char_offset else text
         segments.append(segment)
         collected += 1

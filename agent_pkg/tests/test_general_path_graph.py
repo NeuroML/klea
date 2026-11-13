@@ -254,6 +254,38 @@ async def test_planner_router_resolves_a_trailing_review():
 
 
 @pytest.mark.asyncio
+async def test_planner_router_replans_when_a_failed_step_blocks_pending():
+    """A failed step blocking pending work replans; it does not fail the run."""
+    agent = KleaAgent(checkpoint="inmemory")
+    state = KleaAgentState()
+    state.plan = PlanSchema(
+        step_list=[
+            StepSchema(step_number=1, summary="fails", status="failed"),
+            StepSchema(step_number=2, summary="blocked", depends_on=[1]),
+        ],
+        status="in_progress",
+    )
+
+    route = await agent._planner_router(state)
+
+    assert route == "need_replan"
+    assert route != "failure"
+
+
+@pytest.mark.asyncio
+async def test_planner_router_answers_when_every_step_is_resolved():
+    """A fully resolved plan answers; an empty frontier is not a failure."""
+    agent = KleaAgent(checkpoint="inmemory")
+    state = KleaAgentState()
+    state.plan = PlanSchema(
+        step_list=[StepSchema(step_number=1, summary="done", status="done")],
+        status="in_progress",
+    )
+
+    assert await agent._planner_router(state) == "plan_done"
+
+
+@pytest.mark.asyncio
 async def test_review_router_routes_on_the_review_step():
     """A revision (feedback set) -> Planner; an approval -> the next step."""
     agent = KleaAgent(checkpoint="inmemory")
