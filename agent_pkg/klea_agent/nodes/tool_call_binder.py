@@ -57,6 +57,11 @@ class ToolCallBinder(ToolsPicker):
             for step in steps
             if (number := int(getattr(step, "step_number", 0) or 0)) > 0
         }
+        self.logger.debug(
+            "ToolCallBinder._feedback_body: entry steps=%s has_evaluation=%s",
+            sorted(step_numbers),
+            getattr(state, "evaluation", None) is not None,
+        )
         evaluation = getattr(state, "evaluation", None)
         if evaluation is not None and step_numbers:
             evaluator_feedback = evaluation.step_incomplete_feedback(step_numbers)
@@ -68,7 +73,15 @@ class ToolCallBinder(ToolsPicker):
                 )
         picker_feedback = super()._feedback_body(state, ctx)
         if picker_feedback:
+            self.logger.warning(
+                "ToolCallBinder._feedback_body: unresolved/failed call feedback: %s",
+                picker_feedback,
+            )
             parts.append(picker_feedback)
+        self.logger.debug(
+            "ToolCallBinder._feedback_body: presenting %d feedback part(s)",
+            len(parts),
+        )
         return "\n\n".join(parts)
 
     def __init__(
@@ -97,4 +110,9 @@ class ToolCallBinder(ToolsPicker):
             prompt_prefix="ToolCallBinder",
             on_unusable=on_unusable,
             bind_planned_steps=True,
+        )
+        self.logger.debug(
+            "ToolCallBinder.__init__: label=%s tool_domains=%s",
+            label,
+            sorted((tools_info or {}).keys()),
         )
