@@ -157,6 +157,11 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
   role itself, before pushing anything, against the chat's active model map.
   Making the backend reject an unknown role is a `utils_pkg` follow-up; an
   upstream issue has been filed for it.
+- Grading semantics: `metrics.py` leaves `task_success` at None for a run
+  without a grade, so the case is reported as `ungraded`; when a run should
+  infer a grade instead of staying ungraded is undecided.
+- Failed-run indexing and grading rules: whether a failed run is written to
+  `runs/index.jsonl` and graded is undecided.
 
 ## Infrastructure / correctness
 

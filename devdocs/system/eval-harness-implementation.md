@@ -305,7 +305,44 @@ Points discovered while delivering P1-P7; later phases must respect them.
   command, automatic repair or redo of leftover `.tmp` runs,
   `transcript.jsonl` writing, HITL `interrupt` resume, cost derivation (no price
   table exists), MLflow export, a persisted per-suite report artefact and the
-  Markdown reporter.
+   Markdown reporter.
+
+### Post-P9 refinements
+
+Landed after P9. Where a caveat above and a point below disagree, the point
+below is current.
+
+- Run identity (refines D6): `klea_eval.identity.derive_identity` folds the
+  attempt index, the case revision, the requested per-role model map
+  (`model_overrides`), the resolved model map (`resolved_models`) and the
+  request endpoint into the derived `run_id`, so two runs of a case differ
+  whenever their attempt, revision, requested role models, resolved models or
+  endpoint differ, while identical inputs still give a comparable, resumable
+  id.
+- Publication order: `run.json` is written before the `COMPLETE` marker is set
+  and before the `runs/index.jsonl` line is appended, so a directory that
+  carries the marker always carries its metadata.
+- Re-indexing: a run directory that carries the `COMPLETE` marker but has no
+  `runs/index.jsonl` line is re-indexed from its stored artifacts instead of
+  being re-run.
+- Overwrite safety: an overwriting run keeps the previous run directory and its
+  index line until the new run has published successfully. The previous
+  directory is held as a superseded copy and restored if the final rename
+  fails, so a failed overwrite leaves the earlier result intact.
+- Stream completion: a `complete` event whose payload is malformed or truncated
+  fails the case; it is not accepted as a clean finish.
+- Ungraded runs: a run with no grade is counted in the suite aggregate's
+  `ungraded` counter and labelled `ungraded` in the report, while its stored
+  status stays `completed` and it does not change the exit code (still `0` when
+  every case passed, `1` when a case failed its rubrics).
+- Per-case cwd: each case's turn carries its isolated run directory as
+  `client_context.cwd`, so the agent works inside the case workspace rather
+  than in the server's working directory.
+- Workspace precedence: the workspace root resolves `--workspace`, then
+  `KLEA_EVAL_WORKSPACE`, then `.`, taking the first that is set.
+- `klea-eval report`: added beside `validate`, `run`, `show`, `runs`, `prune`
+  and `summary`; it writes the stored suite results to an output path through
+  the `write_report(results, output)` writer.
 
 ---
 
