@@ -18,6 +18,8 @@ from klea_utils.nodes.context import NodeContext
 
 from klea_agent.schemas import EvaluationSchema, GoalSchema, KleaAgentState, PlanSchema
 
+logger = logging.getLogger(__name__)
+
 
 class ResetState(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeContext]):
     """Apply the task boundary selected by ``RouteDecision``.
@@ -41,19 +43,39 @@ class ResetState(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeConte
         """Reset the plan-scoped state for the selected route."""
         self._emit_progress()
         route = state.route.route
+        self.logger.debug(
+            "ResetState.execute: entry %s %s %s",
+            f"{route = }",
+            f"{state.plan.status = }",
+            f"{len(state.step_outputs or {}) = }",
+        )
+        self.logger.debug(
+            "ResetState.execute: before reset %s %s",
+            f"{state.goal.goal = }",
+            f"{state.evaluation.model_dump() = }",
+        )
         update = self._task_reset()
+        self.logger.debug(
+            "ResetState.execute: branch route=%s has_continuation_evidence=%s",
+            route,
+            state.continuation_evidence is not None,
+        )
         if route == "continue" and state.continuation_evidence is not None:
             update.pop("continuation_evidence", None)
+            self.logger.debug(
+                "ResetState.execute: preserved continuation_evidence for continue route"
+            )
         self.logger.debug(
-            f"{route = }\n"
-            f"has_continuation_evidence = {state.continuation_evidence is not None}\n"
-            f"{update.keys() = }"
+            "ResetState.execute: after reset %s cleared_fields=%d",
+            f"{update.keys() = }",
+            len(update),
         )
         return update
 
     @staticmethod
     def _task_reset() -> dict[str, Any]:
         """Return the full plan-scoped reset shared by task boundaries."""
+        logger.debug("ResetState._task_reset: building plan-scoped reset")
         return {
             "plan": PlanSchema(),
             "plan_history": [],
