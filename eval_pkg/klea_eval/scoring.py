@@ -110,6 +110,8 @@ class SuiteAggregate:
     pass_count: int = 0
     suite_score: float = 0.0
     pass_at_k: float = 0.0
+    ungraded_count: int = 0
+    grade_missing_count: int = 0
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_cached_tokens: int = 0
@@ -126,6 +128,8 @@ class SuiteAggregate:
             "pass_count": self.pass_count,
             "suite_score": self.suite_score,
             "pass_at_k": self.pass_at_k,
+            "ungraded_count": self.ungraded_count,
+            "grade_missing_count": self.grade_missing_count,
             "total_input_tokens": self.total_input_tokens,
             "total_output_tokens": self.total_output_tokens,
             "total_cached_tokens": self.total_cached_tokens,
@@ -173,6 +177,28 @@ def score_run(run: metrics.RunMetrics) -> CaseScore:
     )
 
 
+def _expects_grade(root: Path | None, run_id: str) -> bool:
+    """Return whether the stored ``run.json`` declares rubrics for ``run_id``.
+
+    The envelope is read through the same read-back the reporter uses; a missing
+    or unreadable envelope, or a legacy one without the key, counts as
+    ``False`` rather than raising.
+    """
+    import json
+
+    run_dir = workspace.run_dir(run_id, root)
+    try:
+        text = results.run_metadata_path(run_dir).read_text(encoding="utf-8")
+        payload = json.loads(text)
+    except (OSError, TypeError, ValueError):
+        logger.debug(f"unreadable run.json for {run_id = }, assuming no rubrics")
+        return False
+
+    if not isinstance(payload, dict):
+        return False
+    return bool(payload.get("expects_grade", False))
+
+
 def aggregate_suite(
     root: str | Path | None = None,
     *,
@@ -206,6 +232,10 @@ def aggregate_suite(
     missing: list[str] = []
     case_score_values: list[float] = []
     pass_count = 0
+    ungraded_count = 0
+    grade_missing_count = 0
+
+    from klea_eval import labels
 
     for case_id, chosen in groups.items():
         scores: list[float] = []
@@ -217,6 +247,19 @@ def aggregate_suite(
                 continue
             case = score_run(summary)
             cases.append(case)
+
+            if summary.task_success is None:
+                label = labels.classify_case(
+                    status=entry.status,
+                    task_success=None,
+                    expects_grade=_expects_grade(root_path, entry.run_id),
+                )
+                if label == "grade-missing":
+                    grade_missing_count += 1
+                else:
+                    ungraded_count += 1
+                continue
+
             scores.append(case.score)
             if case.passed:
                 passed_any = True
@@ -238,6 +281,8 @@ def aggregate_suite(
         pass_count=pass_count,
         suite_score=suite_score,
         pass_at_k=pass_at_k,
+        ungraded_count=ungraded_count,
+        grade_missing_count=grade_missing_count,
         total_input_tokens=sum(case.total_input_tokens for case in cases),
         total_output_tokens=sum(case.total_output_tokens for case in cases),
         total_cached_tokens=sum(case.total_cached_tokens for case in cases),

@@ -96,6 +96,28 @@ def _append_index(
     )
 
 
+def _write_run_json(
+    root: Path,
+    run_id: str,
+    case_id: str,
+    *,
+    expects_grade: bool = False,
+    status: str = metrics.STATUS_COMPLETED,
+) -> Path:
+    """Write one run's ``run.json`` envelope, recording whether it has rubrics."""
+    run_dir = _runs_dir(root) / run_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "run_id": run_id,
+        "case_id": case_id,
+        "status": status,
+        "expects_grade": expects_grade,
+    }
+    target = run_dir / results.RUN_FILE_NAME
+    target.write_text(json.dumps(payload), encoding="utf-8")
+    return target
+
+
 def _snapshot(root: Path) -> dict[str, bytes]:
     """Return every entry under ``root`` as a relative path to its bytes."""
     return {
@@ -190,6 +212,64 @@ def test_aggregate_suite_score_is_the_mean_of_case_scores(tmp_path: Path) -> Non
     payload = json.loads(json.dumps(aggregate.to_dict()))
     assert payload["case_count"] == 3
     assert payload["suite_score"] == pytest.approx(0.5)
+
+
+def test_aggregate_suite_excludes_ungraded_cases_from_the_denominator(
+    tmp_path: Path,
+) -> None:
+    _write_metrics(tmp_path, "run-graded", "case-graded", task_success=True)
+    _write_metrics(tmp_path, "run-ungraded", "case-ungraded", task_success=None)
+    _append_index(tmp_path, "run-graded", "case-graded")
+    _append_index(tmp_path, "run-ungraded", "case-ungraded")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.case_count == 1
+    assert aggregate.pass_count == 1
+    assert aggregate.ungraded_count == 1
+    assert aggregate.grade_missing_count == 0
+    assert aggregate.suite_score == pytest.approx(1.0)
+    assert aggregate.pass_at_k == pytest.approx(1.0)
+    assert {case.case_id for case in aggregate.cases} == {
+        "case-graded",
+        "case-ungraded",
+    }
+
+
+def test_aggregate_suite_of_an_all_ungraded_suite(tmp_path: Path) -> None:
+    _write_metrics(tmp_path, "run-u1", "case-u1", task_success=None)
+    _write_metrics(tmp_path, "run-u2", "case-u2", task_success=None)
+    _append_index(tmp_path, "run-u1", "case-u1")
+    _append_index(tmp_path, "run-u2", "case-u2")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.case_count == 0
+    assert aggregate.pass_count == 0
+    assert aggregate.ungraded_count == 2
+    assert aggregate.grade_missing_count == 0
+    assert aggregate.suite_score == 0.0
+    assert aggregate.pass_at_k == 0.0
+    assert len(aggregate.cases) == 2
+
+
+def test_aggregate_suite_counts_grade_missing_without_moving_the_score(
+    tmp_path: Path,
+) -> None:
+    _write_metrics(tmp_path, "run-graded", "case-graded", task_success=True)
+    _write_metrics(tmp_path, "run-missing", "case-missing", task_success=None)
+    _write_run_json(tmp_path, "run-missing", "case-missing", expects_grade=True)
+    _append_index(tmp_path, "run-graded", "case-graded")
+    _append_index(tmp_path, "run-missing", "case-missing")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.case_count == 1
+    assert aggregate.pass_count == 1
+    assert aggregate.ungraded_count == 0
+    assert aggregate.grade_missing_count == 1
+    assert aggregate.suite_score == pytest.approx(1.0)
+    assert aggregate.pass_at_k == pytest.approx(1.0)
 
 
 def test_pass_at_k_matches_a_hand_computed_value(tmp_path: Path) -> None:
