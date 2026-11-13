@@ -182,6 +182,44 @@ def test_write_metadata_round_trips_every_field(tmp_path: Path) -> None:
     assert read_back.case_version == "1.0"
 
 
+def test_expects_grade_defaults_to_false_when_read_back(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "run-1"
+
+    written = write_metadata(run_dir, _metadata())
+
+    assert written.expects_grade is False
+    payload = json.loads(run_metadata_path(run_dir).read_text(encoding="utf-8"))
+    assert payload["expects_grade"] is False
+    assert read_metadata(run_dir).expects_grade is False
+
+
+def test_expects_grade_true_survives_the_round_trip(tmp_path: Path) -> None:
+    run_dir = tmp_path / "runs" / "run-1"
+    metadata = _metadata(expects_grade=True)
+
+    written = write_metadata(run_dir, metadata)
+
+    assert written.expects_grade is True
+    payload = json.loads(run_metadata_path(run_dir).read_text(encoding="utf-8"))
+    assert payload["expects_grade"] is True
+    assert read_metadata(run_dir).expects_grade is True
+
+
+def test_read_metadata_defaults_expects_grade_for_legacy_payload(
+    tmp_path: Path,
+) -> None:
+    run_dir = tmp_path / "runs" / "run-1"
+    write_metadata(run_dir, _metadata(expects_grade=True))
+    path = run_metadata_path(run_dir)
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload.pop("expects_grade", None)
+    path.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8")
+
+    read_back = read_metadata(run_dir)
+
+    assert read_back.expects_grade is False
+
+
 def test_run_json_sits_at_the_run_root(tmp_path: Path) -> None:
     run_dir = tmp_path / "runs" / "run-1"
 

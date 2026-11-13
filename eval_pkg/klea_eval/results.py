@@ -101,6 +101,7 @@ class RunMetadata:
     chat_id: str | None = None
     attempt: int = 0
     revision: int = 0
+    expects_grade: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         """Return the envelope as a plain, JSON-ready mapping."""
@@ -119,6 +120,7 @@ class RunMetadata:
             "chat_id": self.chat_id,
             "attempt": self.attempt,
             "revision": self.revision,
+            "expects_grade": self.expects_grade,
         }
 
     @classmethod
@@ -152,6 +154,9 @@ class RunMetadata:
             chat_id=_optional_text(data.get("chat_id"), "chat_id", source),
             attempt=_optional_counter(data.get("attempt"), "attempt", source),
             revision=_optional_counter(data.get("revision"), "revision", source),
+            expects_grade=_optional_flag(
+                data.get("expects_grade"), "expects_grade", source
+            ),
         )
 
 
@@ -459,6 +464,26 @@ def _optional_text(value: Any, label: str, source: str) -> str | None:
 
     text = value.strip()
     return text or None
+
+
+def _optional_flag(value: Any, label: str, source: str) -> bool:
+    """Return an optional boolean field, defaulting to False when absent.
+
+    ``run.json`` files written before the field existed omit it, so its absence
+    (or a JSON ``null``) is not an error and needs no schema-version bump; a
+    present value must still be a real boolean and is rejected rather than
+    silently coerced.
+    """
+    if value is None:
+        logger.debug(f"{source = }, {label = }, absent flag defaults to False")
+        return False
+    if not isinstance(value, bool):
+        raise ResultsError(
+            f"{source} field '{label}' must be a boolean or null, "
+            f"got {type(value).__name__}"
+        )
+
+    return value
 
 
 def _optional_resolved_models(value: Any, label: str, source: str) -> dict[str, str]:

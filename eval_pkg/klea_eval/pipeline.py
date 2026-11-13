@@ -426,6 +426,7 @@ def _run_metadata(
         status=run_manager.STATUS_COMPLETED,
         harness_seed=context.harness_seed,
         case_version=case.schema_version,
+        expects_grade=bool(case.rubrics),
         models=context.model_overrides,
         resolved_models=dict(resolved_models or {}),
         chat_id=context.chat_id,

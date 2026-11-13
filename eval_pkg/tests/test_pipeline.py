@@ -34,7 +34,11 @@ def _turn(turn_number: int, role: str, content: str) -> dict[str, Any]:
 
 
 def _case(
-    case_id: str, turns: list[dict[str, Any]], **overrides: Any
+    case_id: str,
+    turns: list[dict[str, Any]],
+    *,
+    rubrics: Any = None,
+    **overrides: Any,
 ) -> dict[str, Any]:
     """Build a minimal valid case payload, overridable per test."""
     payload: dict[str, Any] = {
@@ -43,6 +47,8 @@ def _case(
         "description": "pipeline fixture",
         "turns": turns,
     }
+    if rubrics is not None:
+        payload["rubrics"] = rubrics
     payload.update(overrides)
     return payload
 
@@ -353,6 +359,38 @@ def test_run_json_carries_run_metadata(tmp_path: Path) -> None:
     for path in result.workspace_root.rglob("*"):
         if path.is_file():
             assert "pass_at_k" not in path.read_text(encoding="utf-8"), path
+
+
+def test_run_json_records_expects_grade_from_the_case(tmp_path: Path) -> None:
+    """run.json marks a rubric-declaring case as graded and a plain one as not."""
+    cases = [
+        _case(
+            "graded",
+            [_turn(1, "user", "Hello")],
+            rubrics=[
+                {
+                    "rubric_id": "r1",
+                    "rubric_type": "binary",
+                    "criteria": ["The reply is correct."],
+                }
+            ],
+        ),
+        _case("ungraded", [_turn(1, "user", "Hello")]),
+    ]
+
+    _suite, result = _run(tmp_path, cases)
+
+    assert result.exit_code == 0
+    payloads = {
+        payload["case_id"]: payload
+        for payload in (
+            json.loads(path.read_text(encoding="utf-8"))
+            for path in _run_json_paths(result.workspace_root)
+        )
+    }
+    assert set(payloads) == {"graded", "ungraded"}
+    assert payloads["graded"]["expects_grade"] is True
+    assert payloads["ungraded"]["expects_grade"] is False
 
 
 def test_run_json_is_written_before_the_complete_marker(
