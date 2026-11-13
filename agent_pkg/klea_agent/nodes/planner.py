@@ -32,6 +32,8 @@ from klea_agent.schemas import (
     trim_plan_history,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     """Task-path brain for the general path (ADR-0035).
@@ -137,6 +139,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             for domain_tools in tools_info.values()
             for info in domain_tools.values()
         ]
+        self.logger.debug(f"built tool descriptions: {len(parts) = }")
         return "\n\n".join(parts)
 
     def _derived_replan_reason(
@@ -166,11 +169,21 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             or validation_feedback
             or plan.status != "in_progress"
         ):
+            self.logger.debug(
+                f"no derived replan reason: "
+                f"{bool(state.replan_reason) = }, "
+                f"{bool(state.human_feedback) = }, "
+                f"{bool(validation_feedback) = }, "
+                f"{plan.status = }"
+            )
             return ""
         pending = [
             step.step_number for step in plan.step_list if step.status == "pending"
         ]
         if not pending or plan.frontier():
+            self.logger.debug(
+                f"no derived replan reason: {pending = } or a runnable frontier exists"
+            )
             return ""
         failed = {
             step.step_number for step in plan.step_list if step.status == "failed"
@@ -223,6 +236,13 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         and avoid approaches that already failed.  On a ``continue`` intent
         the bounded ``continuation_evidence`` is rendered as ``previous_work``.
         """
+        self.logger.debug(
+            f"building prompt variables: {state.query = }, "
+            f"{state.plan.status = }, {state.plan.plan_version = }, "
+            f"{state.route.route = }, {bool(state.human_feedback) = }, "
+            f"{bool(state.human_input) = }, {state.replan_reason = }, "
+            f"{ctx.validation_feedback = }"
+        )
         goal_text = state.goal.goal or "(not set)"
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
@@ -248,6 +268,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 "Previous work (evidence for this continuation)",
                 state.continuation_evidence.render(),
             )
+        self.logger.debug(
+            f"prompt variables built: {len(feedback_block) = }, {len(previous_work) = }"
+        )
         return {
             "query": state.query,
             "goal": goal_text,
@@ -283,6 +306,9 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         :returns: Human-readable errors; empty when every tool is available.
         """
         if not self._tools_info:
+            self.logger.warning(
+                f"no tools configured; step {step.step_number} cannot be a tool step"
+            )
             return [
                 (
                     f"step {step.step_number} is a tool step but no tools are "
@@ -303,6 +329,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                     f"step {step.step_number} names unknown tool '{tool}'; "
                     "use only tools from the available tools list"
                 )
+        self.logger.debug(
+            f"tool availability checked: {step.step_number = }, "
+            f"{step.suggested_tools = }, {len(errors) = }"
+        )
         return errors
 
     @override
@@ -340,9 +370,14 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         through observations.
         """
         if not isinstance(result, PlannerOutput):
+            self.logger.debug(f"validation skipped: {type(result) = }")
             return None
         errors: list[str] = []
         plan = result.plan
+        self.logger.debug(
+            f"validating plan: {plan.status = }, {len(plan.step_list) = }, "
+            f"access_level = {getattr(state, 'access_level', DEFAULT_ACCESS_LEVEL)}"
+        )
         if plan.status == "unplannable" and plan.step_list:
             errors.append(
                 "status is 'unplannable' but steps were returned; "
@@ -425,6 +460,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 "status is 'needs_input' but no step has questions; "
                 "attach the questions to the blocked step(s)"
             )
+        if errors:
+            self.logger.warning("plan validation failed with %d error(s)", len(errors))
+        else:
+            self.logger.debug("plan validation passed: no errors")
         retval = "; ".join(errors) if errors else None
         self.logger.debug(f"{retval = }")
         return retval
@@ -516,6 +555,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             reason = f"Human review: {state.human_feedback.strip()}"
         if not reason and state.human_input:
             reason = "Human supplied answers to blocked steps"
+        logger.debug(
+            f"recording superseded plan: {prior.plan_version = }, "
+            f"abandoned_reason = {reason or 'plan superseded'}"
+        )
         history.append(
             PlanRevision(
                 version=prior.plan_version,
@@ -569,6 +612,11 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         known is not special-cased: it plans a ``reasoning`` step, which bridges
         those facts into observations for the answer-composer.
         """
+        self.logger.debug(
+            f"updating state from planner output: {result.plan.status = }, "
+            f"{len(result.plan.step_list) = }, {state.plan.plan_version = }, "
+            f"{bool(state.replan_reason) = }, {bool(state.human_feedback) = }"
+        )
         # The transient human/feedback inputs are consumed on this pass: the
         # prompt just read them, so clear them from state.  The blocked state
         # below is re-derived from the plan the Planner writes.
@@ -796,6 +844,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         # nothing left to run: mark the plan complete deterministically, so the
         # graph routes to the answer instead of the step entry (ADR-0041).
         if all(step.status == "done" for step in plan.step_list):
+            self.logger.debug("every step carried forward as done; plan completed")
             plan.status = "completed"
         update["plan"] = plan
         # A replan replaces the step list: clear per-step execution state so
@@ -820,6 +869,10 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         self, state: KleaAgentState, ctx: LLMNodeContext[Any]
     ) -> NodeStreamData:
         """Return the plan summary plus prompt and raw/processed output."""
+        self.logger.debug(
+            f"building inspect data: {ctx.prompt is not None = }, "
+            f"{ctx.output is not None = }, {ctx.result is not None = }"
+        )
         assert ctx.prompt is not None
         assert ctx.output is not None
         assert ctx.result is not None
@@ -858,6 +911,11 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             plan = ctx.state_updates.get("plan")
         if plan is None:
             plan = state.plan
+        self.logger.debug(
+            f"rendering status plan: {plan.status = }, {len(plan.step_list) = }, "
+            f"from_updates = "
+            f"{bool(ctx.state_updates and ctx.state_updates.get('plan'))}"
+        )
         return NodeStreamData(
             heading=plan.status_heading(),
             summary=f"{len(plan.step_list)} step(s); status={plan.status}",
@@ -870,4 +928,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     @override
     def _get_default_error_result(self, ctx: Any) -> PlannerOutput:
         """Return an empty output; ``_update_state`` marks it ``unplannable``."""
+        self.logger.warning(
+            "planner LLM call failed; returning an empty output, which "
+            "_update_state marks unplannable"
+        )
         return PlannerOutput()
