@@ -134,7 +134,7 @@ originally written without an enumerated edge-case contract, which let
   cap.  When the cap is reached mid-hunk, the hunk ends at the last returned
   match and trailing context is dropped, so a match beyond the cap is never
   mislabelled as `match: false`.
-* `max_chars` (server-owned, 100k) counts both match and context text.  A line
+* `max_chars` (server-owned, 48,000) counts both match and context text.  A line
   that does not fit is truncated and `end_line` reflects the last emitted
   line; the result is `truncated: true`.
 * Reaching the match cap sets `truncated: true`.  The in-house backend stops
@@ -149,6 +149,48 @@ originally written without an enumerated edge-case contract, which let
   merge into one contiguous hunk (`match: true` on each).
 * `files_scanned` stays `null` for ripgrep and a count for the in-house
   walker; the `.gitignore` divergence documented above is unchanged.
+
+## Output size caps (per line, per call and transport)
+
+The per-call character budgets bound the sum of all lines, so one very long
+line (minified JSON, a generated blob, a one-line log) could still dominate the
+response.  The shared helpers are in
+`klea_utils/mcp/tool_impls/text_limits.py`.
+
+* **Per-line cap**: `DEFAULT_MAX_LINE_CHARS = 2_000` characters.  Line
+  terminators (`\n`, `\r\n`, `\r`) are preserved and not counted against it.
+* **Marker**: a capped line keeps its first 2,000 characters and then carries
+  the exact marker ` ... [line truncated: N chars omitted]`, where `N` is the
+  number of dropped characters, followed by the original terminator.  The
+  marker is appended after the kept text, so a capped line is slightly longer
+  than the cap; that is deliberate, so the truncation stays visible to the
+  model.  A marker template without the `{omitted}` placeholder is used
+  verbatim rather than raising.
+* **`read_file`**: the streaming reader caps each line at the page budget
+  (`char_offset + max_chars + _PREFIX_ALLOWANCE`) and appends
+  ` ... [line truncated: exceeds <max_line_chars> chars]` (the dropped count is
+  unknown without reading the rest of the line).  The result also carries a
+  `note` pointing at `grep` or `char_offset` to read the remainder.
+* **`grep`**: every match and context line is passed through `cap_line`; a
+  capped line sets `truncated: true`.
+* **`run_command`**: `cap_lines` is applied to both decoded streams, so a single
+  huge stdout or stderr line cannot dominate the result.
+* **Lowered total budgets**: the totals are kept below the 64 KiB asyncio
+  `StreamReader` frame limit (the transport frame that carries a tool result),
+  so a whole serialized result fits one frame.  `grep` uses
+  `DEFAULT_MAX_CHARS = 48_000` (was 100,000) and `run_command` uses
+  `DEFAULT_MAX_OUTPUT_CHARS = 48_000` characters per stream (was 100,000).
+* **Bounded ripgrep read**: `_run_rg` starts the subprocess with
+  `limit=_MAX_RECORD_BYTES * 2`.  A `ValueError` from `readline()` at that
+  limit stops collection, marks the result `truncated: true` and terminates the
+  process group, instead of propagating the error.
+* **Transport fallback**: if a response line still exceeds the 64 KiB
+  `StreamReader` limit, dispatch replaces the terse error with guidance (narrow
+  `path`, `include` or `pattern`, lower `max_results`, set `context_lines` to 0
+  or 1, page `read_file` with `offset`/`limit`, or pipe `run_command` output).
+  Both asyncio messages are recognised: "Separator is not found, and chunk
+  exceed the limit" and "Separator is found, but chunk is longer than limit"
+  (`_tool_exception_text` in `klea_utils/mcp/dispatch.py`).
 
 ## `find_files` / `rg_files` / `list_files` truncation contract
 
