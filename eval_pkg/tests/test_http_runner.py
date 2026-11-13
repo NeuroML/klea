@@ -205,6 +205,7 @@ def test_http_runner_posts_a_turn_to_the_stream_endpoint(tmp_path: Path) -> None
     assert sent["query"] == "Write notes.txt"
     assert sent["role"] == "user"
     assert sent["turn_number"] == 1
+    assert sent["client_context"] == {"cwd": str(context.run_dir)}
 
 
 def test_http_runner_buffers_a_complete_turn(tmp_path: Path) -> None:
