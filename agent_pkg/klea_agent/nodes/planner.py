@@ -139,6 +139,67 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         ]
         return "\n\n".join(parts)
 
+    def _derived_replan_reason(
+        self, state: KleaAgentState, *, validation_feedback: str = ""
+    ) -> str:
+        """Derive a short replan reason when the re-entry carried none.
+
+        The Evaluator, the triage router and the binder write ``replan_reason``
+        when they send the plan back, so the Planner prompt always shows why it
+        re-entered.  A router re-entry that carries no reason would otherwise
+        render an empty ``Replan reason`` section and hide the cause, so this
+        derives a deterministic one-liner from the retained plan.  It applies
+        only when no explicit signal (replan reason, human feedback, user
+        input, validation feedback) is present, the plan is an ``in_progress``
+        run, and pending work is blocked (no runnable step in the frontier).
+        A supplied reason is never overridden.
+
+        :param state: Current graph state (plan and transient feedback).
+        :param validation_feedback: Validation errors on this pass, if any.
+        :returns: A short ASCII reason, or ``""`` when no derivation applies.
+        """
+        plan = state.plan
+        if (
+            state.replan_reason
+            or state.human_feedback
+            or self._render_human_input(state)
+            or validation_feedback
+            or plan.status != "in_progress"
+        ):
+            return ""
+        pending = [
+            step.step_number for step in plan.step_list if step.status == "pending"
+        ]
+        if not pending or plan.frontier():
+            return ""
+        failed = {
+            step.step_number for step in plan.step_list if step.status == "failed"
+        }
+        blocked_by_failed = [
+            step.step_number
+            for step in plan.step_list
+            if step.status == "pending" and failed.intersection(step.depends_on)
+        ]
+        if failed and blocked_by_failed:
+            failed_text = ", ".join(str(number) for number in sorted(failed))
+            blocked_text = ", ".join(
+                str(number) for number in sorted(blocked_by_failed)
+            )
+            reason = (
+                f"Step {failed_text} failed and blocks pending step(s) "
+                f"{blocked_text}; revise the plan so the remaining work can "
+                "continue."
+            )
+        else:
+            pending_text = ", ".join(str(number) for number in sorted(pending))
+            reason = (
+                f"Pending step(s) {pending_text} cannot start because their "
+                "dependencies are unresolved; revise the plan so the remaining "
+                "work can run."
+            )
+        self.logger.debug(f"Derived replan reason: {reason}")
+        return reason
+
     @staticmethod
     def _render_human_input(state: KleaAgentState) -> str:
         """Render the user's needs_input answers against the steps that asked."""
@@ -170,7 +231,13 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             for section in (
                 self._optional_section("Review feedback", state.human_feedback),
                 self._optional_section("User input", self._render_human_input(state)),
-                self._optional_section("Replan reason", state.replan_reason),
+                self._optional_section(
+                    "Replan reason",
+                    state.replan_reason
+                    or self._derived_replan_reason(
+                        state, validation_feedback=ctx.validation_feedback
+                    ),
+                ),
                 self._optional_section("Validation feedback", ctx.validation_feedback),
             )
             if section

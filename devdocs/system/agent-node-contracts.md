@@ -328,7 +328,7 @@ goal/plan.
 | `plan` | `Plan` or plan collection | `C` | Supplies prior or revised plan context when replanning. | Revisions are validated like newly authored plans. | `planner.py`; ADR-0035 |
 | `human_feedback` | `str` | `C` | Supplies review revision feedback when present. | Empty feedback does not select a revision. | `await_human.py`; `planner.py` |
 | `failure_reason` | `str` | `O` | May provide prior failure context during replanning. | It is evidence for planning, not a substitute for a user answer. | `planner.py`; `operational_evaluator.py` |
-| `replan_reason` | `str` | `O` | Explains why planning was re-entered. | The reason is consumed by the planner path. | `operational_evaluator.py`; `triage_router.py` |
+| `replan_reason` | `str` | `O` | Explains why planning was re-entered. | A supplied reason always wins; when a re-entry carries none, the node derives a short reason from the retained plan (a failed step blocking pending work, or pending steps whose dependencies are unresolved) and renders that instead. | `operational_evaluator.py`; `planner.py`; `triage_router.py` |
 
 #### Observations prompt variable
 
