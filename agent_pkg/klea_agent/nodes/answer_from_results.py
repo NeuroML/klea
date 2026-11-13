@@ -23,6 +23,8 @@ from pydantic import BaseModel
 
 from klea_agent.schemas import ArtefactSchema, KleaAgentState
 
+logger = logging.getLogger(__name__)
+
 
 class AnswerSchema(BaseModel):
     # The answer-synthesis node's structured output.  Formatting rules live in
@@ -116,6 +118,13 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         curated, addressable record, not the conversation transcript (memory
         stays off for this node).
         """
+        self.logger.debug(
+            "AnswerFromResults._get_prompt_variables: entry outcome=%s "
+            "plan_status=%s artefacts=%d",
+            self._outcome(state),
+            state.plan.status,
+            len(state.artefacts or {}),
+        )
         goal_text = state.goal.goal or "(none)"
         if state.goal.success_criteria:
             goal_text += f"\nSuccess criteria: {state.goal.success_criteria}"
@@ -132,7 +141,14 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
             "artefacts": state.artefacts_text(),
             "observations": state.observations_text(),
         }
-        self.logger.debug(f"{variables = }")
+        self.logger.debug(
+            "AnswerFromResults._get_prompt_variables: evidence artefacts=%s "
+            "goal_chars=%d observations_chars=%d artefacts_chars=%d",
+            sorted((state.artefacts or {}).keys()),
+            len(goal_text),
+            len(variables["observations"]),
+            len(variables["artefacts"]),
+        )
         return variables
 
     def _outcome_details(self, state: KleaAgentState) -> str:
@@ -162,8 +178,18 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         from the goal, plan and StepOutput summaries, so a later ``continue``
         intent can re-plan without repeating the investigation.
         """
+        self.logger.debug(
+            "AnswerFromResults._update_state: entry outcome=%s answer_chars=%d",
+            self._outcome(state),
+            len(result.answer.strip()),
+        )
         answer = result.answer.strip() or self._fallback_answer(state)
         update: dict[str, Any] = {"message_for_user": answer}
+        self.logger.debug(
+            "AnswerFromResults._update_state: branch outcome=%s used_fallback=%s",
+            self._outcome(state),
+            not result.answer.strip(),
+        )
         if self._outcome(state) == "success":
             artefact = self._deliverable_artefact(state, answer)
             artefacts = dict(state.artefacts or {})
@@ -178,7 +204,13 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         update["continuation_evidence"] = state.build_continuation_evidence(
             answer, artefact_ids=artefact_ids
         )
-        self.logger.debug(f"{answer = }\n{update.get('artefacts') = }")
+        self.logger.debug(
+            "AnswerFromResults._update_state: processed answer_chars=%d "
+            "artefact_ids=%s continuation_evidence=%s",
+            len(answer),
+            sorted((update.get("artefacts") or state.artefacts or {}).keys()),
+            update.get("continuation_evidence") is not None,
+        )
         return update
 
     @staticmethod
@@ -259,6 +291,10 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
         discarding it.  Blank output and broken JSON are not recovered --
         ``_update_state`` then falls back to the plan.
         """
+        self.logger.error(
+            "AnswerFromResults._get_default_error_result: synthesis failed; "
+            "attempting raw-prose recovery"
+        )
         if ctx.output is not None:
             text = extract_llm_output_content(ctx.output).strip()
             if "</think>" in text:
@@ -268,4 +304,8 @@ class AnswerFromResults(BaseLLMNode[KleaAgentState, AnswerSchema]):
                     "Structured output could not be parsed; recovering raw prose"
                 )
                 return AnswerSchema(answer=text)
+        self.logger.warning(
+            "AnswerFromResults._get_default_error_result: no recoverable prose; "
+            "returning empty answer for the plan fallback"
+        )
         return AnswerSchema()
