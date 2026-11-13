@@ -65,8 +65,16 @@ def _valid_suite(tmp_path: Path) -> Path:
 class StubCase:
     """Just enough of a case run for the CLI to render."""
 
-    def __init__(self, case_id: str, passed: bool) -> None:
+    def __init__(
+        self,
+        case_id: str,
+        passed: bool,
+        status: str = "completed",
+        expects_grade: bool = False,
+    ) -> None:
         self.case_id = case_id
+        self.status = status
+        self.expects_grade = expects_grade
         self.metrics = SimpleNamespace(task_success=passed)
 
 

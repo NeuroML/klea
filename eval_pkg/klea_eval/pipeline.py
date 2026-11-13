@@ -83,6 +83,7 @@ class CaseRun:
     output_dir: Path | None = None
     metrics: RunMetrics | None = None
     error: str | None = None
+    expects_grade: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -298,6 +299,7 @@ def _run_one_case(
             run_id=run_id,
             output_dir=output_dir,
             metrics=_stored_metrics(output_dir),
+            expects_grade=bool(case.rubrics),
         )
 
     try:
@@ -411,6 +413,7 @@ def _run_one_case(
         run_id=run_id,
         output_dir=Path(output_dir),
         metrics=summary,
+        expects_grade=bool(case.rubrics),
     )
 
 
@@ -636,6 +639,7 @@ def _reindex_run(run_id: str, output_dir: Path, root: Path) -> CaseRun | None:
         run_id=run_id,
         output_dir=output_dir,
         metrics=_stored_metrics(output_dir),
+        expects_grade=bool(metadata.expects_grade),
     )
 
 

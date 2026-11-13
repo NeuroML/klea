@@ -191,14 +191,17 @@ def run(
         typer.echo(str(error), err=True)
         raise typer.Exit(code=2) from error
 
+    # The label vocabulary lives in the shared helper so the CLI, the report
+    # and the scorers cannot drift apart.
+    from klea_eval import labels
+
     for case_run in result.runs:
         metrics = case_run.metrics
-        if metrics is not None and metrics.task_success is None:
-            label = "ungraded"
-        elif metrics is not None and metrics.task_success is True:
-            label = "pass"
-        else:
-            label = "fail"
+        label = labels.classify_case(
+            status=case_run.status,
+            task_success=metrics.task_success if metrics is not None else None,
+            expects_grade=case_run.expects_grade,
+        )
         typer.echo(f"{case_run.case_id}: {label}")
 
     raise typer.Exit(code=result.exit_code)

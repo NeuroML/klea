@@ -41,15 +41,20 @@ def _turn_record(
     run_id: str,
     case_id: str,
     *,
-    passed: bool,
+    passed: bool | None,
+    expects_grade: bool = True,
     turn_number: int = 1,
 ) -> dict[str, object]:
     """Build one ``metrics.jsonl`` turn record in the run manager's shape."""
-    outcome = {
-        "task_success": passed,
-        "passed": passed,
-        "score": 1.0 if passed else 0.0,
-    }
+    outcome = (
+        None
+        if passed is None
+        else {
+            "task_success": passed,
+            "passed": passed,
+            "score": 1.0 if passed else 0.0,
+        }
+    )
     return {
         "case_id": case_id,
         "run_id": run_id,
@@ -60,6 +65,7 @@ def _turn_record(
         "status": COMPLETED,
         "attempts": 1,
         "task_success": passed,
+        "expects_grade": expects_grade,
         "score": outcome,
     }
 
@@ -69,7 +75,8 @@ def _make_run(
     run_id: str,
     case_id: str,
     *,
-    passed: bool = True,
+    passed: bool | None = True,
+    expects_grade: bool = True,
     status: str = COMPLETED,
     write_metrics: bool = True,
 ) -> Path:
@@ -78,7 +85,7 @@ def _make_run(
     if write_metrics:
         run_manager.append_metric(
             workspace.metrics_path(staging),
-            _turn_record(run_id, case_id, passed=passed),
+            _turn_record(run_id, case_id, passed=passed, expects_grade=expects_grade),
         )
 
     metadata = results.RunMetadata(
@@ -87,6 +94,7 @@ def _make_run(
         status=status,
         harness_seed="0",
         case_version="1.0",
+        expects_grade=expects_grade,
     )
     stamped = results.write_metadata(staging, metadata)
     published = workspace.publish_run(run_id, root)
@@ -513,7 +521,7 @@ def test_cli_report_writes_per_case_lines_and_summary(tmp_path: Path) -> None:
     assert f"Evaluation report for {root}" in text
     assert "run-a case=case-a status=completed" in text
     assert "run-b case=case-b status=completed" in text
-    assert "completed=2 failed=0 skipped=0 ungraded=0 total=2" in text
+    assert "completed=2 failed=0 skipped=0 ungraded=0 grade-missing=0 total=2" in text
 
 
 def test_cli_report_renders_an_empty_index(tmp_path: Path) -> None:
@@ -526,4 +534,20 @@ def test_cli_report_renders_an_empty_index(tmp_path: Path) -> None:
     assert result.exit_code == 0
     text = target.read_text(encoding="utf-8")
     assert f"Evaluation report for {root}" in text
-    assert "completed=0 failed=0 skipped=0 ungraded=0 total=0" in text
+    assert "completed=0 failed=0 skipped=0 ungraded=0 grade-missing=0 total=0" in text
+
+
+def test_cli_report_counts_ungraded_and_grade_missing(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    _make_run(root, "run-graded", "case-graded", passed=True, expects_grade=True)
+    _make_run(root, "run-ungraded", "case-ungraded", passed=None, expects_grade=False)
+    _make_run(root, "run-missing", "case-missing", passed=None, expects_grade=True)
+    runner = CliRunner()
+    target = tmp_path / "report.txt"
+
+    result = runner.invoke(app, ["report", str(root), "-o", str(target)])
+
+    assert result.exit_code == 0
+    text = target.read_text(encoding="utf-8")
+    assert f"Evaluation report for {root}" in text
+    assert "completed=1 failed=0 skipped=0 ungraded=1 grade-missing=1 total=3" in text

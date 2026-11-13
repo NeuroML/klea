@@ -459,9 +459,17 @@ def test_complete_run_that_is_indexed_is_left_untouched(tmp_path: Path) -> None:
 class StubCase:
     """Just enough of a case run for the CLI to render."""
 
-    def __init__(self, case_id: str, passed: bool | None) -> None:
+    def __init__(
+        self,
+        case_id: str,
+        passed: bool | None,
+        status: str = "completed",
+        expects_grade: bool = False,
+    ) -> None:
         self.case_id = case_id
         self.metrics = SimpleNamespace(task_success=passed)
+        self.status = status
+        self.expects_grade = expects_grade
 
 
 class StubResult:
@@ -507,6 +515,18 @@ def _valid_suite(tmp_path: Path) -> Path:
     return _write_suite(
         tmp_path / "valid.jsonl", [_case("case-1", [_turn(1, "user", "Hello")])]
     )
+
+
+def test_cli_run_prints_a_grade_missing_case(tmp_path: Path, monkeypatch: Any) -> None:
+    """A graded case without a recorded grade is reported as grade-missing."""
+    _stub_pipeline(monkeypatch, [StubCase("case-1", None, expects_grade=True)])
+
+    result = _cli(
+        ["run", str(_valid_suite(tmp_path)), "--base-url", "http://example.test"]
+    )
+
+    assert result.exit_code == 0, _combined(result)
+    assert "case-1: grade-missing" in _combined(result)
 
 
 def test_cli_run_reports_passing_cases(tmp_path: Path, monkeypatch: Any) -> None:
