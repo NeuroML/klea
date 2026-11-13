@@ -87,7 +87,7 @@ class TestAgentToolsCallerPlanSection(unittest.TestCase):
         self.assertEqual(block.kind, "items")
         self.assertEqual(len(block.items), len(plan.step_list))
         self.assertTrue(block.items)
-        self.assertEqual(block.items[0].text, "Step 1: only")
+        self.assertEqual(block.items[0].text, "Step 1/1: only")
 
     def test_running_steps_state_prepends_goal_block(self) -> None:
         """A goal-bearing state leads with the goal, then the unchanged steps."""
@@ -118,7 +118,7 @@ class TestAgentToolsCallerPlanSection(unittest.TestCase):
         self.assertEqual(steps_block.kind, "items")
         self.assertEqual(len(steps_block.items), len(plan.step_list))
         self.assertTrue(steps_block.items)
-        self.assertEqual(steps_block.items[0].text, "Step 1: only")
+        self.assertEqual(steps_block.items[0].text, "Step 1/1: only")
 
     def test_running_steps_state_without_plan_returns_none(self) -> None:
         """A plan-less state yields no plan section at all."""

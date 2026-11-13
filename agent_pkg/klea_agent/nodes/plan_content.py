@@ -73,20 +73,24 @@ def _step_role(step: StepSchema, current_number: int | None) -> str:
     return ROLE_PENDING
 
 
-def _step_text(step: StepSchema) -> str:
+def _step_text(step: StepSchema, total: int) -> str:
     """Return the one-line item text for one plan step.
 
     The item is the compact status-pane render (the frontends add the status
     marker), so the dependency suffix is the only execution-order detail it
-    carries.  A step with no dependencies keeps a bare ``Step N: summary``:
-    omitting the suffix reads better than printing ``(none)``, and the
-    preformatted ``display`` fallback still shows the explicit form.
+    carries.  The ``Step N/total`` counter matches the preformatted
+    ``PlanSchema.render`` output, so both plan surfaces show the same
+    position.  A step with no dependencies keeps a bare
+    ``Step N/total: summary``: omitting the suffix reads better than printing
+    ``(none)``, and the preformatted ``display`` fallback still shows the
+    explicit form.
 
     :param step: The plan step to render.
-    :returns: ``"Step N: summary"``, or ``"Step N: summary (depends on: 1, 2)"``
-        when the step declares dependencies.
+    :param total: The number of steps in the plan (the counter denominator).
+    :returns: ``"Step N/total: summary"``, or ``"Step N/total: summary
+        (depends on: 1, 2)"`` when the step declares dependencies.
     """
-    text = f"Step {step.step_number}: {step.summary}"
+    text = f"Step {step.step_number}/{total}: {step.summary}"
     if step.depends_on:
         deps = ", ".join(str(number) for number in step.depends_on)
         text += f" (depends on: {deps})"
@@ -115,6 +119,7 @@ def plan_content_blocks(plan: PlanSchema, goal: str = "") -> list[ContentBlock]:
     """
     current = plan.current_step()
     current_number = current.step_number if current is not None else None
+    total = len(plan.step_list)
     logger.debug(
         "plan_content_blocks: entry status=%s steps=%d current_step=%s",
         plan.status,
@@ -123,7 +128,7 @@ def plan_content_blocks(plan: PlanSchema, goal: str = "") -> list[ContentBlock]:
     )
     items = [
         Item(
-            text=_step_text(step),
+            text=_step_text(step, total),
             role=_step_role(step, current_number),
         )
         for step in plan.step_list
