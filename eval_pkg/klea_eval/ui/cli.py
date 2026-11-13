@@ -87,11 +87,14 @@ def _parse_model_overrides(entries: list[str]) -> dict[str, str]:
 @app.command()
 def run(
     suite: str = typer.Argument(..., help="Path to the JSONL suite to run."),
-    workspace: str = typer.Option(
-        ".",
+    workspace: str | None = typer.Option(
+        None,
         "--workspace",
         "-w",
-        help="Directory to write run artefacts into.",
+        help=(
+            "Directory to write run artefacts into (defaults to "
+            "$KLEA_EVAL_WORKSPACE, else the current directory)."
+        ),
     ),
     base_url: str = typer.Option(
         "",
@@ -146,6 +149,8 @@ def run(
     # Deferred imports: the pipeline pulls in the model client, the HTTP stack
     # and the reporting renderers, which are slow to import and are not needed
     # to render --help or to run the lightweight commands.
+    import os
+
     from klea_eval.errors import CaseValidationError
     from klea_eval.pipeline import (
         PipelineConfigError,
@@ -162,11 +167,14 @@ def run(
         raise typer.Exit(code=2)
 
     overrides = _parse_model_overrides(model)
+    env_workspace = os.environ.get("KLEA_EVAL_WORKSPACE", "").strip()
+    workspace_root = workspace or env_workspace or "."
+    logger.debug(f"{workspace_root = }")
 
     try:
         result = run_suite(
             suite,
-            workspace_root=workspace,
+            workspace_root=workspace_root,
             base_url=base_url,
             endpoint=endpoint,
             timeout=timeout,

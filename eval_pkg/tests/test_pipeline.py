@@ -586,6 +586,52 @@ def test_cli_run_forwards_options(tmp_path: Path, monkeypatch: Any) -> None:
     assert forwarded["overwrite"] is True
 
 
+def test_cli_run_workspace_flag_wins_over_env(tmp_path: Path, monkeypatch: Any) -> None:
+    """An explicit --workspace beats $KLEA_EVAL_WORKSPACE."""
+    monkeypatch.setenv("KLEA_EVAL_WORKSPACE", str(tmp_path / "env-ws"))
+    recorded = _stub_pipeline(monkeypatch, [StubCase("case-1", True)])
+    flag_workspace = tmp_path / "flag-ws"
+
+    result = _cli(
+        [
+            "run",
+            str(_valid_suite(tmp_path)),
+            "-u",
+            "http://example.test",
+            "-w",
+            str(flag_workspace),
+        ]
+    )
+
+    assert result.exit_code == 0, _combined(result)
+    assert recorded["kwargs"]["workspace_root"] == str(flag_workspace)
+
+
+def test_cli_run_workspace_env_applies_without_flag(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Without --workspace the command uses $KLEA_EVAL_WORKSPACE."""
+    env_workspace = tmp_path / "env-ws"
+    monkeypatch.setenv("KLEA_EVAL_WORKSPACE", str(env_workspace))
+    recorded = _stub_pipeline(monkeypatch, [StubCase("case-1", True)])
+
+    result = _cli(["run", str(_valid_suite(tmp_path)), "-u", "http://example.test"])
+
+    assert result.exit_code == 0, _combined(result)
+    assert recorded["kwargs"]["workspace_root"] == str(env_workspace)
+
+
+def test_cli_run_workspace_falls_back_to_cwd(tmp_path: Path, monkeypatch: Any) -> None:
+    """With neither the flag nor the env var set the command uses '.'."""
+    monkeypatch.delenv("KLEA_EVAL_WORKSPACE", raising=False)
+    recorded = _stub_pipeline(monkeypatch, [StubCase("case-1", True)])
+
+    result = _cli(["run", str(_valid_suite(tmp_path)), "-u", "http://example.test"])
+
+    assert result.exit_code == 0, _combined(result)
+    assert recorded["kwargs"]["workspace_root"] == "."
+
+
 # ---------------------------------------------------------------------------
 # Pipeline: model overrides
 # ---------------------------------------------------------------------------
