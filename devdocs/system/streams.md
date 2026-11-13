@@ -203,7 +203,10 @@ package must not import.  Klea Agent subclasses the caller
 attach `content=plan_content_blocks(plan, goal=goal)`, so all three
 `key="plan"` emitters (the Planner, the Evaluator and the tools caller) carry
 structured blocks and the tools caller's structured content leads with the goal
-line too; RAG keeps the base behaviour and its payload is unchanged.
+line too.  Its step items read `Step N/total: summary` (`N` the dispatched step
+number, `total` the number of plan steps), the same progress text the plaintext
+`display` shows, so the glyphed and plain renderings report the same position.
+RAG keeps the base behaviour and its payload is unchanged.
 
 ### `notice` (chat progress note)
 

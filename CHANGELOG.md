@@ -8,6 +8,7 @@
 
 - The plan pane now marks the steps dispatched in the current parallel round, so a fan-out round no longer looks idle.
 - Chat-renderable tool results and status sections can now carry structured content blocks (plain text, ordered item lists, labelled field lists) whose items are tagged with a status role (`ok`, `error`, `current`, `pending`, `plain`), so the frontends mark the step that is currently in progress instead of re-parsing free text; a reader that does not know a block's contract version falls back to the plain display text.
+- The plan status now opens with a truncated `Goal: ...` line, so concurrent sessions can be told apart at a glance.
 
 ### Changed
 
@@ -22,6 +23,7 @@
 - Failed chat renames are now reported instead of being silently ignored.
 - Bundled `grep`, `read_file` and `run_command` output is now capped per line with a visible truncation marker, so one over-long line no longer fails the whole call.
 - A tool result too large for the transport now returns guidance on how to narrow the call instead of a terse stream-limit error.
+- The structured plan status no longer omits the step position: its step items now show the same `Step N/total` progress text as the plaintext plan.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
