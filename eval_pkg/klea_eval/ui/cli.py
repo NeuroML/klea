@@ -184,8 +184,14 @@ def run(
         raise typer.Exit(code=2) from error
 
     for case_run in result.runs:
-        passed = case_run.metrics is not None and case_run.metrics.task_success is True
-        typer.echo(f"{case_run.case_id}: {'pass' if passed else 'fail'}")
+        metrics = case_run.metrics
+        if metrics is not None and metrics.task_success is None:
+            label = "ungraded"
+        elif metrics is not None and metrics.task_success is True:
+            label = "pass"
+        else:
+            label = "fail"
+        typer.echo(f"{case_run.case_id}: {label}")
 
     raise typer.Exit(code=result.exit_code)
 

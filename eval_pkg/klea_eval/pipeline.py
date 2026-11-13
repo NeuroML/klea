@@ -95,8 +95,8 @@ class SuiteResult:
 
     @property
     def completed(self) -> int:
-        """Number of cases that executed and were stored."""
-        return self._count(run_manager.STATUS_COMPLETED)
+        """Number of cases that executed, were stored and carried a grade."""
+        return self._count_completed(graded=True)
 
     @property
     def failed(self) -> int:
@@ -107,6 +107,11 @@ class SuiteResult:
     def skipped(self) -> int:
         """Number of cases left untouched because their run was already complete."""
         return self._count(run_manager.STATUS_SKIPPED)
+
+    @property
+    def ungraded(self) -> int:
+        """Number of cases that ran but carried no grade."""
+        return self._count_completed(graded=False)
 
     @property
     def exit_code(self) -> int:
@@ -130,6 +135,30 @@ class SuiteResult:
     def _count(self, status: str) -> int:
         """Count the case runs whose status is ``status``."""
         return sum(1 for case_run in self.runs if case_run.status == status)
+
+    def _count_completed(self, *, graded: bool) -> int:
+        """Count completed cases whose grade is present (``graded``) or absent.
+
+        A stored case that carried no grade keeps the
+        :data:`run_manager.STATUS_COMPLETED` status it was stamped with, so the
+        ``completed`` and ``ungraded`` counters split the completed cases
+        between them: together they are exhaustive over ``STATUS_COMPLETED``
+        and never count the same case twice.
+        """
+
+        def grade_present(case_run: CaseRun) -> bool:
+            """Whether ``case_run`` carries an explicit pass/fail grade."""
+            return (
+                case_run.metrics is not None
+                and case_run.metrics.task_success is not None
+            )
+
+        return sum(
+            1
+            for case_run in self.runs
+            if case_run.status == run_manager.STATUS_COMPLETED
+            and grade_present(case_run) is graded
+        )
 
 
 def run_suite(

@@ -58,6 +58,7 @@ __all__ = [
     "STATUS_COMPLETED",
     "STATUS_FAILED",
     "STATUS_SKIPPED",
+    "STATUS_UNGRADED",
     "RunContext",
     "RunManagerError",
     "RunPreparationError",
@@ -89,6 +90,7 @@ STATUS_FAILED = "failed"
 
 #: Status recorded when an already complete run is left untouched.
 STATUS_SKIPPED = "skipped"
+STATUS_UNGRADED = "ungraded"
 
 #: Workspace states that mean the run directory already holds a finished run.
 _SKIPPABLE_STATES = frozenset({"complete", "completed", "published"})

@@ -289,6 +289,18 @@ def test_failing_executor_marks_the_case_failed(tmp_path: Path) -> None:
     assert _index_lines(result.workspace_root) == []
 
 
+def test_ungraded_case_is_excluded_from_the_counts(tmp_path: Path) -> None:
+    """An ungraded run is reported, but only by the ``ungraded`` counter."""
+    _suite, result = _run(tmp_path, [_case("case-1", [_turn(1, "user", "Hello")])])
+
+    assert result.runs[0].status == "completed"
+    assert result.completed == 0
+    assert result.failed == 0
+    assert result.skipped == 0
+    assert result.ungraded == 1
+    assert result.exit_code == 0
+
+
 def test_invalid_suite_is_rejected(tmp_path: Path) -> None:
     """An invalid turn role aborts the suite before anything is stored."""
     suite = _write_suite(
@@ -409,7 +421,7 @@ def test_complete_run_that_is_indexed_is_left_untouched(tmp_path: Path) -> None:
 class StubCase:
     """Just enough of a case run for the CLI to render."""
 
-    def __init__(self, case_id: str, passed: bool) -> None:
+    def __init__(self, case_id: str, passed: bool | None) -> None:
         self.case_id = case_id
         self.metrics = SimpleNamespace(task_success=passed)
 
@@ -422,7 +434,11 @@ class StubResult:
 
     @property
     def exit_code(self) -> int:
-        return 0 if all(case.metrics.task_success for case in self.runs) else 1
+        return (
+            0
+            if all(case.metrics.task_success is not False for case in self.runs)
+            else 1
+        )
 
 
 def _stub_pipeline(monkeypatch: Any, cases: list[StubCase]) -> dict[str, Any]:
@@ -489,6 +505,22 @@ def test_cli_run_exits_one_when_a_case_fails(tmp_path: Path, monkeypatch: Any) -
 
     assert result.exit_code == 1, _combined(result)
     assert "case-2: fail" in _combined(result)
+
+
+def test_cli_run_prints_an_ungraded_case_without_failing(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """An ungraded case is labelled ``ungraded`` and keeps the exit code 0."""
+    _stub_pipeline(monkeypatch, [StubCase("case-1", True), StubCase("case-2", None)])
+
+    result = _cli(
+        ["run", str(_valid_suite(tmp_path)), "--base-url", "http://example.test"]
+    )
+    combined = _combined(result)
+
+    assert result.exit_code == 0, combined
+    assert "case-2: ungraded" in combined
+    assert "case-2: fail" not in combined
 
 
 def test_cli_run_exits_two_on_invalid_suite(tmp_path: Path, monkeypatch: Any) -> None:
