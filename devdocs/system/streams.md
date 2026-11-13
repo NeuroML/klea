@@ -181,7 +181,11 @@ dispatch round, alongside (not inside) the running-tools entry, marking the
 steps in the batch.  Its data is a `NodeStreamData` with `key="plan"`.  It
 renders the plan with `current_numbers` set to the distinct `.step` numbers
 stamped on `state.tool_calls`, so every pending step of a parallel batch is
-marked current instead of only the next runnable one.  This is **render-only**:
+marked current instead of only the next runnable one.  When the run carries a
+goal (`state.goal.goal`), the section begins with a single `Goal: ...` line
+before the steps: the goal is collapsed to one line and bounded to 80 visible
+characters, cut with an ASCII `...` when longer.  Both the plaintext `display`
+and the agent-side structured content carry that line.  This is **render-only**:
 no plan write and no persisted `in_progress` status -- the plan is still
 authored, advanced and resolved exclusively by the Planner and the Evaluator,
 whose own plan event follows the round.  The entry is emitted only when the
@@ -195,10 +199,11 @@ lives in the lower `klea_utils` package, so the base hook contributes only the
 preformatted `display` fallback and no structured content blocks: those stay
 with the agent-side emitters (`klea_agent.nodes.plan_content`), which this
 package must not import.  Klea Agent subclasses the caller
-(`AgentToolsCaller`) and overrides the hook to attach
-`content=plan_content_blocks(plan)`, so all three `key="plan"` emitters (the
-Planner, the Evaluator and the tools caller) carry structured blocks; RAG keeps
-the base behaviour and its payload is unchanged.
+(`AgentToolsCaller`) and overrides the hook to forward the state's goal and
+attach `content=plan_content_blocks(plan, goal=goal)`, so all three
+`key="plan"` emitters (the Planner, the Evaluator and the tools caller) carry
+structured blocks and the tools caller's structured content leads with the goal
+line too; RAG keeps the base behaviour and its payload is unchanged.
 
 ### `notice` (chat progress note)
 
