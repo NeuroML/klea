@@ -8,6 +8,9 @@
 
 - The plan pane now marks the steps dispatched in the current parallel round, so a fan-out round no longer looks idle.
 - Chat-renderable tool results and status sections can now carry structured content blocks (plain text, ordered item lists, labelled field lists) whose items are tagged with a status role (`ok`, `error`, `current`, `pending`, `plain`), so the frontends mark the step that is currently in progress instead of re-parsing free text; a reader that does not know a block's contract version falls back to the plain display text.
+- Eval run identity now includes the per-role model overrides, the resolved models and the endpoint URL, so runs using different models no longer collide in the results index.
+- A completed eval run that is missing from the results index is re-indexed from its stored artefacts instead of being re-run.
+- `klea-eval report` renders a per-case summary and the run counters from a results index (new `klea_eval.reporting` writer).
 
 ### Changed
 
@@ -18,6 +21,13 @@
 - Chat titles are no longer derived from the generated chat id at creation: a chat stores its own title (empty until set) and only falls back to a derived display name while that stored title is empty.
 - A chat created without an explicit title now shows a derived display name (for example "Olivine Caracal" for `olivine-caracal`) in the web chat list instead of a blank label.
 - Failed chat renames are now reported instead of being silently ignored.
+- Eval cases that completed without a grade now show as `ungraded` and are counted apart from `completed`, while the recorded case status and `run.json` stay `completed` and the exit code stays 0.
+- `klea-eval run` uses `KLEA_EVAL_WORKSPACE` when `--workspace` is not given, and only then the current directory.
+- Eval requests now send the staged per-case workspace as `client_context.cwd`, so tool and file cases no longer run in the eval process's directory.
+- An eval run whose overwrite fails keeps its previous run directory and index entry, so a failed publish no longer loses the old results.
+- A malformed or truncated `complete` payload now fails that eval turn instead of yielding a bogus case result.
+- Eval attempts and overwrites each allocate a fresh chat id, so retried cases no longer share conversation state.
+- An eval run's `run.json` is written before the COMPLETE marker, so an interrupted publish cannot leave a COMPLETE run without a manifest.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
