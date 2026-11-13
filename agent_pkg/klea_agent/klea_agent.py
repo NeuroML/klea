@@ -235,7 +235,9 @@ class KleaAgent(BaseLangGraph):
         answer; otherwise (``in_progress``) -> dispatch the next runnable step by
         ``kind`` (ADR-0041): a ``review`` step pauses for human review
         (ADR-0051), ``tool``/``reasoning`` execute.  An ``in_progress`` plan
-        with no runnable step is blocked and fails closed.
+        with no runnable step is routed back to the Planner (``need_replan``)
+        so it can resolve or re-author the blocking step, or to the answer when
+        every step is already resolved; only a structurally empty plan fails.
         """
         status = state.plan.status
         if status == "unplannable":
@@ -250,12 +252,31 @@ class KleaAgent(BaseLangGraph):
         if status == "completed":
             self.logger.debug("Routing: completed -> plan_done")
             return "plan_done"
-        if state.plan.current_step() is None:
-            self.logger.debug("Routing: no current step -> failure")
+        if state.plan.current_step() is not None:
+            self.logger.debug("Routing: _next_dispatch")
+            return self._next_dispatch(state)
+
+        # No runnable step is left.  An in_progress plan is not a failure just
+        # because its frontier is empty: the Planner is the sole authority over
+        # the plan, so a blocked one goes back to it for a revision, and a
+        # fully resolved one proceeds to the answer.
+        steps = state.plan.step_list
+        if any(step.status == "failed" for step in steps) and any(
+            step.status == "pending" for step in steps
+        ):
+            self.logger.debug("Routing: failed step blocks pending work -> need_replan")
+            return "need_replan"
+        if any(step.status == "pending" for step in steps):
+            self.logger.debug(
+                "Routing: pending work with empty frontier -> need_replan"
+            )
+            return "need_replan"
+        if not steps:
+            self.logger.debug("Routing: empty plan -> failure")
             return "failure"
 
-        self.logger.debug("Routing: _next_dispatch")
-        return self._next_dispatch(state)
+        self.logger.debug("Routing: all steps resolved -> plan_done")
+        return "plan_done"
 
     async def _await_human_router(self, state: KleaAgentState) -> str:
         """Route after a HITL fact request: back to the Planner, or cancel.
@@ -914,6 +935,7 @@ class KleaAgent(BaseLangGraph):
                 "chat": self._route_decision_node.label,
                 "tool": self._tool_call_binder_node.label,
                 "reasoning": self._reasoning_node.label,
+                "need_replan": self._planner_node.label,
             },
         )
         # The digest feeds the review gate (ADR-0051).  Both the Planner and

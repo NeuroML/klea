@@ -15,6 +15,7 @@
 
 ### Fixed
 
+- A failed step no longer ends the run while other steps are still pending: the agent replans around it instead of reporting an error.
 - Chat titles are no longer derived from the generated chat id at creation: a chat stores its own title (empty until set) and only falls back to a derived display name while that stored title is empty.
 - A chat created without an explicit title now shows a derived display name (for example "Olivine Caracal" for `olivine-caracal`) in the web chat list instead of a blank label.
 - Failed chat renames are now reported instead of being silently ignored.

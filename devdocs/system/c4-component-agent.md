@@ -115,6 +115,7 @@ flowchart TD
     planner -. review .-> reviewProgress
     planner -. failure .-> compose
     planner -. needs_input .-> awaitInput
+    planner -. need_replan .-> planner
     planner -. tool .-> picker
     planner -. reasoning .-> reasoning
     reviewProgress --> review
@@ -291,6 +292,7 @@ graph TD;
 	Initializing -. &nbsp;command&nbsp; .-> Running\20command;
 	Planning -. &nbsp;needs_input&nbsp; .-> Awaiting\20input;
 	Planning -. &nbsp;tool&nbsp; .-> Binding\20tool\20calls;
+	Planning -. &nbsp;need_replan&nbsp; .-> Planning;
 	Planning -. &nbsp;failure&nbsp; .-> Composing\20answer;
 	Planning -. &nbsp;chat&nbsp; .-> Deciding\20route;
 	Planning -. &nbsp;review&nbsp; .-> Preparing\20review;

@@ -839,13 +839,27 @@ The empty command route is represented by the empty-string key and maps to `END`
 
 | Condition | Exact route label | Target | State effect | Evidence |
 |---|---|---|---|---|
-| Plan is unplannable or has no runnable step | `failure` | `Composing answer` | None | `klea_agent.py`; `planner.py` |
+| Plan status is unplannable | `failure` | `Composing answer` | None | `klea_agent.py`; `planner.py` |
 | Plan status is chat | `chat` | `Deciding route` | None | `klea_agent.py`; `planner.py` |
 | Plan status is needs input | `needs_input` | `Awaiting input` | None | `klea_agent.py`; `planner.py` |
 | Plan status is completed | `plan_done` | `Composing answer` | None | `klea_agent.py`; `operational_evaluator.py` |
 | Frontier begins with a review step | `review` | `Preparing review` | None | `klea_agent.py`; `review_progress.py` |
 | Frontier begins with a tool step | `tool` | `Binding tool calls` | None | `klea_agent.py`; `tool_call_binder.py` |
 | Frontier begins with a reasoning step | `reasoning` | `Reasoning` | None | `klea_agent.py`; `reasoning.py` |
+| Frontier is empty: a failed step blocks pending work | `need_replan` | `Planning` | None; the reason is already set by the Evaluator | `klea_agent.py`; `operational_evaluator.py` |
+| Frontier is empty: pending work remains blocked | `need_replan` | `Planning` | None | `klea_agent.py` |
+| Frontier is empty and every step is resolved (done or skipped) | `plan_done` | `Composing answer` | None | `klea_agent.py` |
+| Frontier is empty and the plan has no steps | `failure` | `Composing answer` | None | `klea_agent.py` |
+
+An empty frontier on an `in_progress` plan is not, by itself, a failure. For a
+plan with no runnable step left, an unresolved (failed) step blocking pending
+dependants, or pending work behind an unmet dependency, the router re-enters the
+Planner with `need_replan`: the Planner is the sole authority over the plan and
+resolves or re-authors the blocking step (the `Planning` self-loop is the same as
+the `bind_next` and `review` self-loops). A plan whose steps are all `done` or
+`skipped` proceeds to the answer instead. Only a structurally empty plan fails
+closed. Re-entry is bounded by the Planner's deterministic automated-replan
+budget, so this route cannot loop without terminating.
 
 #### `_review_router`
 
