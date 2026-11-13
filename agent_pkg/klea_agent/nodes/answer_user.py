@@ -22,6 +22,8 @@ from langchain_core.messages import AIMessage
 
 from klea_agent.schemas import KleaAgentState
 
+logger = logging.getLogger(__name__)
+
 #: Maximum number of characters of the plan query echoed in the history
 #: marker.  It keeps the marker small against the conversation-history budget
 #: while leaving a one-sentence plan query intact.
@@ -47,7 +49,14 @@ class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeConte
         :returns: State update with message_for_user
         """
         self._emit_progress()
-        self.logger.debug(f"{state =}")
+        self.logger.debug(
+            "AnswerUser.execute: entry query_chars=%d answer_chars=%d "
+            "messages=%d assurance=%s",
+            len(state.query),
+            len(state.message_for_user),
+            len(state.messages),
+            state.mode.assurance,
+        )
 
         answer = state.message_for_user
         # Last-resort guard: never deliver a blank reply.  A producer may
@@ -55,8 +64,14 @@ class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeConte
         # but emitted an empty inline answer), so substitute a retry message
         # at the single delivery point.
         if not answer.strip():
+            self.logger.warning(
+                "AnswerUser.execute: empty answer; substituting fallback"
+            )
             answer = EMPTY_RESULT_FALLBACK
-        self.logger.info(f"Returning final answer to user: {answer}")
+        self.logger.info(
+            "AnswerUser.execute: returning final answer to user (%d chars)",
+            len(answer),
+        )
 
         info = NodeStreamData(
             heading="Response",
@@ -67,6 +82,10 @@ class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeConte
                 "char_count": len(answer),
                 "assurance": state.mode.assurance,
             },
+        )
+        self.logger.debug(
+            "AnswerUser.execute: built inspect payload heading=%s",
+            info.heading,
         )
         self.write_custom_stream(
             NodeStreamEvent(type="inspect", node=self.label, data=info).model_dump()
@@ -83,6 +102,12 @@ class AnswerUser(AbstractLangGraphNode[KleaAgentState, dict[str, Any], NodeConte
             history_answer = f"Final answer for plan query ({query_excerpt}): {answer}"
         else:
             history_answer = f"Final answer for plan query: {answer}"
+        self.logger.debug(
+            "AnswerUser.execute: history marker assembled query_excerpt_chars=%d "
+            "history_answer_chars=%d",
+            len(query_excerpt),
+            len(history_answer),
+        )
 
         return {
             "message_for_user": answer,
