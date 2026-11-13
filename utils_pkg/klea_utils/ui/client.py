@@ -290,10 +290,9 @@ async def create_chat_on_server(server_url: str, user_id: str, chat_id: str) -> 
     """POST a new chat to the server so it persists."""
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            title = chats.get(f"{user_id}:{chat_id}", {}).get("name", chat_id)
             resp = await client.post(
                 f"{server_url}/chat/{user_id}",
-                json={"chat_id": chat_id, "title": title},
+                json={"chat_id": chat_id},
             )
             if resp.status_code == 200:
                 chat_data = resp.json()
@@ -316,16 +315,29 @@ async def delete_chat_on_server(server_url: str, user_id: str, chat_id: str) -> 
 
 async def rename_chat_on_server(
     server_url: str, user_id: str, chat_id: str, title: str
-) -> None:
-    """PATCH the chat title on the server."""
+) -> bool:
+    """PATCH the chat title on the server.
+
+    :return: ``True`` when the server accepted the rename, else ``False``.
+    """
     try:
         async with httpx.AsyncClient(timeout=10) as client:
-            await client.patch(
+            resp = await client.patch(
                 f"{server_url}/chat/{user_id}/{chat_id}",
                 json={"title": title},
             )
+            if resp.status_code >= 400:
+                logger.error(
+                    "Failed to rename chat on server: HTTP %s for chat_id=%s",
+                    resp.status_code,
+                    chat_id,
+                )
+                return False
     except Exception as e:  # noqa: BLE001
         logger.warning("Failed to rename chat on server: %s", e)
+        return False
+    ensure_chat(user_id, chat_id)["name"] = title
+    return True
 
 
 async def set_model_override(

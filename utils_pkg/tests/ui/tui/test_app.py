@@ -1396,7 +1396,8 @@ async def test_status_panel_shows_chat_name(fake_backend, make_app):
     async with app.run_test() as pilot:
         await _settle(pilot, app)
         text = str(app.screen.query_one("#chat-name", Static).render())
-        assert "Calm River" in text
+        assert "calm-river" in text
+        assert "Calm River" not in text
         assert "calm-river" in text
 
 

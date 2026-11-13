@@ -161,6 +161,7 @@ async def _run_rg(
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             start_new_session=True,
+            limit=_MAX_RECORD_BYTES * 2,
         )
     except OSError as exc:
         logger.warning(f"Could not start ripgrep: {exc}")
@@ -181,16 +182,25 @@ async def _run_rg(
                 data += chunk[: _RG_STDERR_BYTES - len(data)]
         return data
 
-    async def _collect_stdout() -> list[bytes]:
+    async def _collect_stdout() -> tuple[list[bytes], bool]:
         lines: list[bytes] = []
+        oversized = False
         while True:
-            raw = await stdout.readline()
+            try:
+                raw = await stdout.readline()
+            except ValueError as exc:
+                logger.warning(
+                    f"Stopping ripgrep stdout read at the "
+                    f"{_MAX_RECORD_BYTES * 2}-byte line limit: {exc}"
+                )
+                oversized = True
+                break
             if not raw:
                 break
             lines.append(raw)
             if len(lines) >= max_records + 1:
                 break
-        return lines
+        return lines, oversized
 
     stderr_task = asyncio.create_task(_drain_stderr())
     stdout_task = asyncio.create_task(_collect_stdout())
@@ -209,9 +219,9 @@ async def _run_rg(
             f"Search timed out after {timeout_seconds:g} s",
         )
 
-    lines = stdout_task.result()
+    lines, oversized = stdout_task.result()
     stderr = stderr_task.result().decode("utf-8", errors="replace").strip()
-    truncated = len(lines) > max_records
+    truncated = oversized or len(lines) > max_records
     if truncated:
         lines = lines[:max_records]
         await _terminate_process_group(process)

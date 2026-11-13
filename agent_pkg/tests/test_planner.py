@@ -532,6 +532,33 @@ class TestPlannerState(unittest.TestCase):
         self.assertIn("## Replan reason", variables["feedback_block"])
         self.assertIn("no progress", variables["feedback_block"])
 
+    def test_replan_reason_is_derived_for_a_blocked_pending_step(self):
+        """A failed step blocking pending work yields a derived replan reason."""
+        state = KleaAgentState(
+            plan=PlanSchema(
+                status="in_progress",
+                step_list=[
+                    StepSchema(
+                        step_number=1,
+                        summary="s",
+                        suggested_tools=["read_file"],
+                        status="failed",
+                    ),
+                    StepSchema(
+                        step_number=2,
+                        summary="t",
+                        suggested_tools=["read_file"],
+                        depends_on=[1],
+                    ),
+                ],
+            )
+        )
+        variables = self._planner()._get_prompt_variables(state, LLMNodeContext())
+        self.assertIn("## Replan reason", variables["feedback_block"])
+        self.assertIn(
+            "Step 1 failed and blocks pending step(s) 2", variables["feedback_block"]
+        )
+
     def test_feedback_block_is_empty_by_default(self):
         """No conditional feedback means no feedback section at all."""
         variables = self._planner()._get_prompt_variables(
@@ -990,6 +1017,93 @@ class TestPlannerValidation(unittest.TestCase):
         self.assertIn("plan validation failed", update["failure_reason"])
         self.assertIn(ctx.validation_feedback, update["failure_reason"])
         self.assertIn("Planning failed", update["messages_internal"][-1].content)
+
+    def test_derived_replan_reason_suppressed_by_explicit_signals(self):
+        """An explicit re-entry signal wins over the derived replan reason.
+
+        The helper derives a one-liner only when nothing else explains the
+        re-entry, so any explicit signal -- a replan reason, human feedback,
+        answers to a needs_input question, validation feedback, or a plan that
+        is no longer in progress -- must suppress it.  The helper's second
+        wording branch (pending work blocked without a failed step) is covered
+        too.
+        """
+        import logging
+
+        # The helper only reads ``logger`` and a static prompt helper, so the
+        # LLM wiring that ``__init__`` would configure is not needed here.
+        planner = object.__new__(Planner)
+        planner.logger = logging.getLogger(__name__)
+
+        blocked = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, summary="fails", status="failed"),
+                StepSchema(step_number=2, summary="blocked", depends_on=[1]),
+            ],
+            plan_version=2,
+            status="in_progress",
+        )
+        # Baseline: the in-progress blocked plan does derive a reason.
+        self.assertIn(
+            "Step 1 failed and blocks pending step(s) 2",
+            planner._derived_replan_reason(KleaAgentState(plan=blocked)),
+        )
+
+        # (a) an explicit replan reason is kept and suppresses the derived text.
+        state = KleaAgentState(plan=blocked, replan_reason="real reason")
+        self.assertEqual(
+            planner._derived_replan_reason(state, validation_feedback=""), ""
+        )
+        self.assertEqual(state.replan_reason, "real reason")
+
+        # (b) human feedback suppresses the derived text.
+        state = KleaAgentState(plan=blocked, human_feedback="please change")
+        self.assertEqual(
+            planner._derived_replan_reason(state, validation_feedback=""), ""
+        )
+
+        # (c) answers to a needs_input question suppress the derived text.
+        state = KleaAgentState(plan=blocked, human_input={1: ["answer"]})
+        self.assertEqual(
+            planner._derived_replan_reason(state, validation_feedback=""), ""
+        )
+
+        # (d) validation feedback suppresses the derived text.
+        ctx = LLMNodeContext()
+        ctx.validation_feedback = "plan validation failed: boom"
+        self.assertEqual(
+            planner._derived_replan_reason(
+                KleaAgentState(plan=blocked),
+                validation_feedback=ctx.validation_feedback,
+            ),
+            "",
+        )
+
+        # (e) a plan that is no longer in progress suppresses the derived text.
+        settled = PlanSchema(plan_version=2, status="unplannable")
+        self.assertEqual(
+            planner._derived_replan_reason(
+                KleaAgentState(plan=settled), validation_feedback=""
+            ),
+            "",
+        )
+
+        # Second wording branch: pending work with no failed step blocking it.
+        cyclic = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, summary="waits on 2", depends_on=[2]),
+                StepSchema(step_number=2, summary="waits on 1", depends_on=[1]),
+            ],
+            plan_version=2,
+            status="in_progress",
+        )
+        self.assertIn(
+            "Pending step(s) 1, 2 cannot start because their dependencies are "
+            "unresolved",
+            planner._derived_replan_reason(
+                KleaAgentState(plan=cyclic), validation_feedback=""
+            ),
+        )
 
     def test_rejects_unplannable_with_steps(self):
         output = PlannerOutput(

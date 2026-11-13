@@ -17,6 +17,8 @@ import logging
 from collections.abc import Callable, Iterable
 from typing import Any
 
+from .text_limits import cap_line
+
 logger = logging.getLogger(__name__)
 
 #: Default number of context lines shown before and after each match.
@@ -26,7 +28,9 @@ DEFAULT_CONTEXT_LINES = 2
 MAX_CONTEXT_LINES = 7
 
 #: Default cap on the total characters of matching and context lines returned.
-DEFAULT_MAX_CHARS = 100_000
+#: Kept below the 64 KiB asyncio ``StreamReader`` frame limit (the transport
+#: frame that carries a tool result), so the whole serialized result fits it.
+DEFAULT_MAX_CHARS = 48_000
 
 
 def clamp_context_lines(context_lines: int) -> int:
@@ -103,6 +107,9 @@ def build_hunk(
         text = get_line(line_number)
         if text is None:
             continue
+        text, line_capped = cap_line(text)
+        if line_capped:
+            truncated = True
         remaining = max_chars - chars_used
         if remaining <= 0:
             truncated = True

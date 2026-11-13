@@ -55,6 +55,13 @@ entirely, heading included** - never rendered as a label with an empty value.
   body) otherwise.  For example `failure_reason`, `human_input`,
   `replan_reason`, `human_feedback`, `validation_feedback`, `picker_feedback`,
   `step_feedback`, `previous_plans_block`, `previous_work`.
+* **Derived conditional input** - when a conditional field's source is empty
+  but the condition that would populate it is derivable from state, the node
+  may synthesise a short, deterministic value instead of omitting the section.
+  For example, the Planner derives a `replan_reason` when the router re-enters
+  planning without one because a failed step blocks pending work.  An
+  explicitly supplied value always wins, and the derived text must never
+  override or mask real feedback, user input, or validation feedback.
 
 ## Rule 3 - Mechanics: `_optional_section`
 

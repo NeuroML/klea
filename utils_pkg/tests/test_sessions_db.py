@@ -104,6 +104,14 @@ def test_delete_user_chats_clears_session_overrides(store):
     assert store.get_chat("u1", "c1") is None
 
 
+def test_rename_chat_reports_missing_chat(store):
+    """Renaming a missing chat returns False; an existing chat returns True."""
+    assert store.rename_chat("u1", "nope", "x") is False
+    store.create_chat("u1", "c1")
+    assert store.rename_chat("u1", "c1", "New") is True
+    assert store.get_chat("u1", "c1")["title"] == "New"
+
+
 def test_credential_empty_by_default(store):
     """A provider with no stored credential returns None."""
     assert store.get_credential("u1", "openai") is None
@@ -323,6 +331,20 @@ def test_list_chats_preview_is_none_without_messages(store):
     store.create_chat("u1", "c1", "Empty")
 
     assert store.list_chats("u1")[0]["preview"] is None
+
+
+def test_create_chat_stores_an_empty_title(store):
+    """An empty title is stored empty; the slug fallback is read-side only."""
+    store.create_chat("u1", "stragic-tody")
+
+    raw = store._conn.execute(
+        "SELECT title FROM chat_sessions WHERE user_id = ? AND chat_id = ?",
+        ("u1", "stragic-tody"),
+    ).fetchone()
+    assert dict(raw)["title"] == ""
+    # Readers still render a readable Title-Cased fallback.
+    assert store.get_chat("u1", "stragic-tody")["title"] == "Stragic Tody"
+    assert store.list_chats("u1")[0]["title"] == "Stragic Tody"
 
 
 def test_list_chats_preview_is_truncated(store):

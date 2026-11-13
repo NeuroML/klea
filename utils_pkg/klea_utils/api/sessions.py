@@ -17,7 +17,6 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import logging
 from typing import Annotated
 
-import coolname
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
@@ -76,7 +75,7 @@ def create_sessions_router() -> APIRouter:
         request: Request,
     ):
         store: SessionStore = request.app.state.chat_sessions
-        title = payload.title or coolname.generate_slug(2)
+        title = payload.title or ""
         store.create_chat(user_id, payload.chat_id, title)
         chat = store.get_chat(user_id, payload.chat_id)
         if chat is None:
@@ -102,7 +101,11 @@ def create_sessions_router() -> APIRouter:
         if not store.get_chat(user_id, chat_id):
             logger.warning("update_chat(%s, %s): chat not found", user_id, chat_id)
             raise HTTPException(status_code=404, detail="Chat not found")
-        store.rename_chat(user_id, chat_id, payload.title)
+        if not store.rename_chat(user_id, chat_id, payload.title):
+            logger.warning(
+                "update_chat(%s, %s): rename affected no rows", user_id, chat_id
+            )
+            raise HTTPException(status_code=404, detail="Chat not found")
         logger.debug(
             "update_chat(%s, %s, title=%r): OK", user_id, chat_id, payload.title
         )
