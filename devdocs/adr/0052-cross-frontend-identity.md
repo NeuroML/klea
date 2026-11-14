@@ -64,9 +64,12 @@ identity remotely.
   `app_name` is also the log filename, so the frontends cannot share it).
   Agent and RAG therefore have separate identity files.
 * Both `klea tui` and `klea web` take `--user-id`; both resolve through the
-  seam.  The web additionally guards the file: it is used only when **both**
-  the backend URL and the requesting browser are loopback, so a `0.0.0.0`-bound
-  web server never hands the local identity to a remote browser.  Otherwise the
+  seam.  The web additionally guards the file: it is used only when the
+  backend URL is loopback **and** the requesting browser is this machine
+  (loopback, a local interface IP, or a same-machine hairpin where the client
+  IP equals the `Host` IP — so `localhost` / LAN / docker self-access share
+  one identity; issue #237).  A `0.0.0.0`-bound web server therefore never
+  hands the local identity to a remote browser on the Wi-Fi.  Otherwise the
   web falls back to the per-browser cookie (unchanged; multi-user).
 * No first-run migration/adoption: `klea-agent` is unreleased, so there is no
   existing web identity to adopt.  An existing identity can be pinned by
