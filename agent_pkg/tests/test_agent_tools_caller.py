@@ -104,7 +104,8 @@ class TestAgentToolsCallerPlanSection(unittest.TestCase):
         content = data.content
         self.assertIsNotNone(content)
         assert content is not None
-        self.assertEqual(len(content), 2)
+        # Goal text block, a blank-line spacer, then the steps block.
+        self.assertEqual(len(content), 3)
 
         # The goal text block comes first and stays on a single rendered line.
         goal_block = content[0]
@@ -113,8 +114,14 @@ class TestAgentToolsCallerPlanSection(unittest.TestCase):
         self.assertIn(goal, goal_text)
         self.assertNotIn("\n", goal_text)
 
+        # A blank-line spacer (a single space, so the renderers keep it)
+        # separates the goal line from the steps.
+        spacer_block = content[1]
+        self.assertNotEqual(spacer_block.kind, "items")
+        self.assertEqual(getattr(spacer_block, "text", "").strip(), "")
+
         # The steps block follows unchanged.
-        steps_block = cast(ItemsBlock, content[1])
+        steps_block = cast(ItemsBlock, content[2])
         self.assertEqual(steps_block.kind, "items")
         self.assertEqual(len(steps_block.items), len(plan.step_list))
         self.assertTrue(steps_block.items)

@@ -173,6 +173,15 @@ class _StandInGoal(BaseModel):
 
     goal: str = ""
 
+    def goal_label(self) -> str:
+        """Return the one-line goal label, as ``GoalSchema.goal_label`` does."""
+        text = " ".join(self.goal.split())
+        if not text:
+            return ""
+        if len(text) > 80:
+            text = text[:77].rstrip() + "..."
+        return f"Goal: {text}"
+
 
 class _PlanState(MiniState):
     plan: _StandInPlan = Field(default_factory=_StandInPlan)

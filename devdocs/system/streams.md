@@ -183,9 +183,14 @@ renders the plan with `current_numbers` set to the distinct `.step` numbers
 stamped on `state.tool_calls`, so every pending step of a parallel batch is
 marked current instead of only the next runnable one.  When the run carries a
 goal (`state.goal.goal`), the section begins with a single `Goal: ...` line
-before the steps: the goal is collapsed to one line and bounded to 80 visible
-characters, cut with an ASCII `...` when longer.  Both the plaintext `display`
-and the agent-side structured content carry that line.  This is **render-only**:
+and a blank line before the steps.  The line comes from `GoalSchema.goal_label`
+(`agent_pkg/klea_agent/schemas.py`), which renders the label and owns the
+whitespace-collapse and 80-visible-character truncation rule (cut with an ASCII
+`...` when longer).  The `klea_utils` fallback obtains it by duck typing the
+goal object's `goal_label` attribute, so it stays independent and never imports
+`klea_agent`.  Both the plaintext `display`
+and the agent-side structured content carry that line and the blank
+line after it.  This is **render-only**:
 no plan write and no persisted `in_progress` status -- the plan is still
 authored, advanced and resolved exclusively by the Planner and the Evaluator,
 whose own plan event follows the round.  The entry is emitted only when the

@@ -19,9 +19,8 @@ from __future__ import annotations
 import logging
 
 from klea_utils.content_blocks import ContentBlock, Item, ItemsBlock, TextBlock
-from klea_utils.nodes.tools_caller import truncate_plan_goal
 
-from klea_agent.schemas import PlanSchema, StepSchema
+from klea_agent.schemas import GoalSchema, PlanSchema, StepSchema
 
 logger = logging.getLogger(__name__)
 
@@ -140,8 +139,9 @@ def plan_content_blocks(plan: PlanSchema, goal: str = "") -> list[ContentBlock]:
         plan.status,
     )
     blocks: list[ContentBlock] = []
-    goal_text = truncate_plan_goal(goal)
-    if goal_text:
-        blocks.append(TextBlock(text=f"Goal: {goal_text}", format="plain"))
+    goal_line = GoalSchema(goal=goal).goal_label()
+    if goal_line:
+        blocks.append(TextBlock(text=goal_line, format="plain"))
+        blocks.append(TextBlock(text=" ", format="plain"))
     blocks.append(ItemsBlock(items=items))
     return blocks
