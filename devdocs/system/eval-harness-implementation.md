@@ -238,7 +238,9 @@ Points discovered while delivering P1-P7; later phases must respect them.
   `ResultsSchemaError` unchanged. Scoring writes no file, no run directory and
   no index line; `SuiteAggregate.to_dict()` is only the in-memory JSON-ready
   form. Still deferred: LLM-judge rubric scoring and evaluation of the rubric
-  `criteria` text (D9), cost derivation (no price table exists, so
+  `criteria` text (D9): whether a run is graded is settled (no rubrics means no
+  grade and a grade is never inferred), so only the automated judge that would
+  produce the grade is missing; cost derivation (no price table exists, so
   `cost_estimate` is only relayed and summed), `transcript.jsonl` writing, HITL
   `interrupt` resume, retention (P8), the in-process scheduler (P9), a persisted
   suite report artefact, the Markdown reporter and any CLI or API exposure of
@@ -331,10 +333,29 @@ below is current.
   fails, so a failed overwrite leaves the earlier result intact.
 - Stream completion: a `complete` event whose payload is malformed or truncated
   fails the case; it is not accepted as a clean finish.
-- Ungraded runs: a run with no grade is counted in the suite aggregate's
-  `ungraded` counter and labelled `ungraded` in the report, while its stored
-  status stays `completed` and it does not change the exit code (still `0` when
-  every case passed, `1` when a case failed its rubrics).
+- Run labels: the report and the run listings label every stored run at read
+  time as `passed`, `failed`, `skipped`, `ungraded` or `grade-missing`
+  (`klea_eval.labels.classify_case`).  `ungraded` means a completed run that
+  declared no rubrics and therefore has no grade; a grade is never inferred, so
+  `ungraded` is a terminal, legitimate outcome.  `grade-missing` means a
+  completed run that declared rubrics but recorded no grade: an error state,
+  surfaced as a label and a report counter only (it does not change the exit
+  code).  A failed run is never graded and never `grade-missing`, because run
+  success is a prerequisite for grading.
+- Rubric declaration: `run.json` records whether a case declares rubrics in
+  the `expects_grade` field.  A legacy run without the key defaults to
+  `False`, so an old ungraded run is treated as rubric-less rather than as
+  `grade-missing`.
+- Report counters: `completed`, `failed`, `skipped`, `ungraded` and
+  `grade-missing` are mutually exclusive and sum to `total`, the number of
+  index entries.
+- Score denominators: `ungraded` and `grade-missing` cases are excluded from
+  `case_count`, `suite_score` and `pass_at_k`, so a rubric-less run no longer
+  deflates the aggregate; `SuiteAggregate.ungraded_count` and
+  `grade_missing_count` expose the excluded counts, while the ungraded cases
+  stay in `cases` (and in the token and cost totals).  An all-ungraded suite
+  therefore reports `case_count == 0`, `suite_score == 0.0` and
+  `pass_at_k == 0.0`, and the stored run status stays `completed`.
 - Per-case cwd: each case's turn carries its isolated run directory as
   `client_context.cwd`, so the agent works inside the case workspace rather
   than in the server's working directory.

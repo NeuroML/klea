@@ -11,6 +11,7 @@
 - Eval run identity now includes the per-role model overrides, the resolved models and the endpoint URL, so runs using different models no longer collide in the results index.
 - A completed eval run that is missing from the results index is re-indexed from its stored artefacts instead of being re-run.
 - `klea-eval report` renders a per-case summary and the run counters from a results index (new `klea_eval.reporting` writer).
+- Eval runs record in `run.json` whether a case declares rubrics, and the report and CLI distinguish ungraded cases (no rubrics, no grade) from grade-missing cases (rubrics declared but no grade recorded).
 
 ### Changed
 
@@ -24,6 +25,7 @@
 - A chat created without an explicit title now shows a derived display name (for example "Olivine Caracal" for `olivine-caracal`) in the web chat list instead of a blank label.
 - Failed chat renames are now reported instead of being silently ignored.
 - Eval cases that completed without a grade now show as `ungraded` and are counted apart from `completed`, while the recorded case status and `run.json` stay `completed` and the exit code stays 0.
+- A completed eval case without rubrics no longer deflates the suite score and pass@k: ungraded and grade-missing cases are excluded from the case count and rate denominators, and the report's ungraded counter is no longer always zero.
 - `klea-eval run` uses `KLEA_EVAL_WORKSPACE` when `--workspace` is not given, and only then the current directory.
 - Eval requests now send the staged per-case workspace as `client_context.cwd`, so tool and file cases no longer run in the eval process's directory.
 - An eval run whose overwrite fails keeps its previous run directory and index entry, so a failed publish no longer loses the old results.

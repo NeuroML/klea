@@ -157,11 +157,19 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
   role itself, before pushing anything, against the chat's active model map.
   Making the backend reject an unknown role is a `utils_pkg` follow-up; an
   upstream issue has been filed for it.
-- Grading semantics: `metrics.py` leaves `task_success` at None for a run
-  without a grade, so the case is reported as `ungraded`; when a run should
-  infer a grade instead of staying ungraded is undecided.
-- Failed-run indexing and grading rules: whether a failed run is written to
-  `runs/index.jsonl` and graded is undecided.
+- Grading semantics (settled): no rubric means no grade.  `metrics.py` leaves
+  `task_success` at None for a run without a grade, and a grade is never
+  inferred because there is nothing to infer it from: `ungraded` is a
+  terminal, legitimate outcome for a rubrics-less run, not a pending state.
+  `grade-missing` is an error state instead: a completed run that declared
+  rubrics recorded no grade, i.e. it should have been graded but could not be.
+  It is surfaced as a per-case label and a report counter; escalating it to a
+  non-zero exit code is left open as a residual decision.
+- Failed-run grading (settled): run success is a prerequisite for grading, so a
+  failed run is labelled `failed` and is never graded and never
+  `grade-missing`.
+- Failed-run indexing (open): whether a failed run is written to
+  `runs/index.jsonl` is still undecided.
 
 ## Infrastructure / correctness
 
