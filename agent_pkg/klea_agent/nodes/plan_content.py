@@ -36,15 +36,15 @@ ROLE_CURRENT = "current"
 ROLE_PENDING = "pending"
 
 
-def _step_role(step: StepSchema, current_number: int | None) -> str:
+def _step_role(step: StepSchema, current_numbers: set[int] | None) -> str:
     """Return the display role for one plan step.
 
     Mirrors the precedence of :meth:`klea_agent.schemas.StepSchema.status_label`:
-    a resolved step keeps its status role even when its number is the plan's
-    current number, and only a ``pending`` step can be ``current``.
+    a resolved step keeps its status role even when its number is among the
+    plan's current numbers, and only a ``pending`` step can be ``current``.
 
     :param step: The plan step to classify.
-    :param current_number: The plan's current step number, or ``None`` when no
+    :param current_numbers: The plan's current step numbers, or ``None`` when no
         step is runnable.
     :returns: One of the ``ROLE_*`` constants.
     """
@@ -61,7 +61,11 @@ def _step_role(step: StepSchema, current_number: int | None) -> str:
             "_step_role: step %d branch skipped -> %s", step.step_number, ROLE_SKIPPED
         )
         return ROLE_SKIPPED
-    if step.status == "pending" and step.step_number == current_number:
+    if (
+        step.status == "pending"
+        and current_numbers is not None
+        and step.step_number in current_numbers
+    ):
         logger.debug(
             "_step_role: step %d branch pending-current -> %s",
             step.step_number,
@@ -96,7 +100,9 @@ def _step_text(step: StepSchema, total: int) -> str:
     return text
 
 
-def plan_content_blocks(plan: PlanSchema, goal: str = "") -> list[ContentBlock]:
+def plan_content_blocks(
+    plan: PlanSchema, goal: str = "", current_numbers: set[int] | None = None
+) -> list[ContentBlock]:
     """Return the plan as structured content blocks for the status pane.
 
     A single ``items`` block lists the plan's steps in ``step_list`` order, one
@@ -113,22 +119,26 @@ def plan_content_blocks(plan: PlanSchema, goal: str = "") -> list[ContentBlock]:
         emitted as a leading ``text`` block (``Goal: <bounded one line>``) so
         the goal renders above the steps on both frontends; empty or absent
         leaves the previous single-block output unchanged.
+    :param current_numbers: An explicit set of current step numbers.  ``None``
+        keeps the default single-frontier behaviour (``plan.current_step()``);
+        a set makes every listed pending step eligible for ``ROLE_CURRENT``.
     :returns: The content blocks: the optional goal ``text`` block followed by
         a single ``items`` block, possibly empty when the plan has no steps.
     """
-    current = plan.current_step()
-    current_number = current.step_number if current is not None else None
+    if current_numbers is None:
+        current = plan.current_step()
+        current_numbers = {current.step_number} if current is not None else set()
     total = len(plan.step_list)
     logger.debug(
-        "plan_content_blocks: entry status=%s steps=%d current_step=%s",
+        "plan_content_blocks: entry status=%s steps=%d current_steps=%s",
         plan.status,
         len(plan.step_list),
-        current_number,
+        sorted(current_numbers),
     )
     items = [
         Item(
             text=_step_text(step, total),
-            role=_step_role(step, current_number),
+            role=_step_role(step, current_numbers),
         )
         for step in plan.step_list
     ]
