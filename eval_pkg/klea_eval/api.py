@@ -22,12 +22,19 @@ surviving lines keep their file order.  An incomplete run, a non-completed index
 line and a leftover ``.tmp`` directory is never counted as a result and never
 deleted.
 
+:func:`check_consistency` and :func:`detect_drift` are the explicit
+check-and-repair pass over the same files (``klea-eval check``): a complete run
+the index omits is re-indexed, a duplicate or orphan index line is dropped, and
+an incomplete (``.tmp`` or unmarked) directory is only flagged, never deleted.
+
 Deliberately deferred, all belonging to later phases of the implementation plan:
 
 - the automatic post-publish retention hook in :mod:`klea_eval.pipeline`;
 - partial retention that keeps only ``run.json`` plus ``metrics.jsonl`` for a run
   beyond the window: a purged run loses its whole directory instead;
-- a startup index/directory consistency check or a rebuild-index command;
+- a startup index/directory consistency check or an automatic rebuild-index
+  command: :func:`check_consistency` is the explicit, operator-invoked pass
+  instead;
 - ``transcript.jsonl`` writing, HITL ``interrupt`` resume, cost derivation, the
   bounded worker pool, MLflow export and the Markdown reporter.
 """
@@ -51,6 +58,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "DEFAULT_RETENTION",
     "ApiError",
+    "ConsistencyResult",
     "RetentionResult",
     "RunNotFoundError",
     "RunRecord",
@@ -276,6 +284,212 @@ def apply_retention(
         f"{len(result.pruned_runs) = }"
     )
     return result
+
+
+#: Suffix of the transient backup directory created while a run is replaced.
+_SUPERSEDED_SUFFIX = ".superseded"
+
+
+@dataclass(frozen=True, slots=True)
+class ConsistencyResult:
+    """The drift :func:`detect_drift` found, and what a repair applied."""
+
+    repaired: bool = False
+    missing_entries: tuple[str, ...] = ()
+    orphan_entries: tuple[str, ...] = ()
+    duplicate_entries: tuple[str, ...] = ()
+    unmarked_directories: tuple[str, ...] = ()
+    staging_directories: tuple[str, ...] = ()
+    unrepairable_entries: tuple[str, ...] = ()
+
+    @property
+    def has_drift(self) -> bool:
+        """Whether the index disagrees with the run directories."""
+        return bool(
+            self.missing_entries
+            or self.orphan_entries
+            or self.duplicate_entries
+            or self.unmarked_directories
+        )
+
+    @property
+    def unrepairable(self) -> bool:
+        """Whether drift remains that a repair cannot fix."""
+        return bool(self.unmarked_directories or self.unrepairable_entries)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return the result as a plain, JSON-ready mapping."""
+        return {
+            "repaired": self.repaired,
+            "missing_entries": list(self.missing_entries),
+            "orphan_entries": list(self.orphan_entries),
+            "duplicate_entries": list(self.duplicate_entries),
+            "unmarked_directories": list(self.unmarked_directories),
+            "staging_directories": list(self.staging_directories),
+            "unrepairable_entries": list(self.unrepairable_entries),
+        }
+
+
+def detect_drift(root: str | Path | None = None) -> ConsistencyResult:
+    """Detect drift between ``runs/index.jsonl`` and the run directories.
+
+    The pass is read-only: it never edits the index or a run directory.  It
+    reuses :func:`klea_eval.results.read_index` for the index and
+    :func:`klea_eval.workspace.is_complete` for a directory, so no second index
+    format is introduced.  The reported classes are:
+
+    - a complete run directory that the index does not name;
+    - an index line whose run directory is absent (an orphan);
+    - a ``run_id`` named by more than one index line (a duplicate);
+    - a final run directory without the ``COMPLETE`` marker (unmarked).
+
+    A leftover ``<run_id>.tmp`` staging directory is counted separately and is
+    never drift: an interrupted run is never a result and never carries an index
+    line.
+    """
+    root_path = Path(root) if root is not None else None
+    entries = results.read_index(root_path)
+
+    complete_dirs: list[str] = []
+    unmarked: list[str] = []
+    staging: list[str] = []
+    runs_directory = workspace.runs_dir(root_path)
+    if runs_directory.is_dir():
+        for item in sorted(runs_directory.iterdir(), key=lambda path: path.name):
+            if not item.is_dir():
+                continue
+            name = item.name
+            if name.endswith(workspace.TMP_SUFFIX):
+                staging.append(name[: -len(workspace.TMP_SUFFIX)])
+                logger.debug(f"api: ignoring incomplete staging directory {item}")
+                continue
+            if name.endswith(_SUPERSEDED_SUFFIX):
+                logger.debug(f"api: ignoring superseded backup {item}")
+                continue
+            if workspace.is_complete(item):
+                complete_dirs.append(name)
+            else:
+                unmarked.append(name)
+                logger.warning("api: run directory %s has no COMPLETE marker", item)
+
+    indexed: dict[str, int] = {}
+    duplicates: list[str] = []
+    for entry in entries:
+        if entry.run_id in indexed:
+            indexed[entry.run_id] += 1
+            if entry.run_id not in duplicates:
+                duplicates.append(entry.run_id)
+            continue
+        indexed[entry.run_id] = 1
+
+    complete_ids = set(complete_dirs)
+    unmarked_ids = set(unmarked)
+    missing: list[str] = []
+    for run_id in complete_dirs:
+        if run_id not in indexed:
+            missing.append(run_id)
+            logger.warning("api: complete run %s is missing from the index", run_id)
+
+    orphans: list[str] = []
+    for run_id in indexed:
+        if run_id in complete_ids or run_id in unmarked_ids:
+            continue
+        orphans.append(run_id)
+        logger.warning("api: index line for run %s has no run directory", run_id)
+
+    for run_id in duplicates:
+        logger.warning("api: run %s has duplicate index lines", run_id)
+
+    result = ConsistencyResult(
+        missing_entries=tuple(missing),
+        orphan_entries=tuple(orphans),
+        duplicate_entries=tuple(duplicates),
+        unmarked_directories=tuple(unmarked),
+        staging_directories=tuple(staging),
+    )
+    logger.debug(f"{len(entries) = }, {result.has_drift = }, {len(staging) = }")
+    return result
+
+
+def check_consistency(
+    root: str | Path | None = None,
+    *,
+    repair: bool = False,
+) -> ConsistencyResult:
+    """Check the run index, optionally repairing the drift it finds.
+
+    Without ``repair`` this is exactly :func:`detect_drift`, so a caller can
+    inspect the drift first.  With ``repair`` each class is fixed in order:
+
+    1. a complete, unindexed run is re-indexed through
+       :func:`klea_eval.results.append_index_entry`; a run whose ``run.json``
+       cannot be read is reported as unrepairable and left untouched;
+    2. duplicate and orphan index lines are dropped by one atomic rewrite of
+       ``runs/index.jsonl``, keeping the first line of a duplicated ``run_id``.
+
+    An unmarked final directory and a leftover ``.tmp`` directory are only
+    flagged: neither is ever deleted and neither gets an index line.  The repair
+    is idempotent, so a second pass finds no repairable drift.
+    """
+    root_path = Path(root) if root is not None else None
+    detected = detect_drift(root_path)
+    if not repair or not detected.has_drift:
+        logger.debug(f"{root_path = }, {repair = }, nothing to repair")
+        return detected
+
+    unrepairable: list[str] = []
+    for run_id in detected.missing_entries:
+        directory = workspace.run_dir(run_id, root_path)
+        try:
+            metadata = results.read_metadata(directory)
+            results.append_index_entry(results.to_index_entry(metadata), root_path)
+        except (results.ResultsError, OSError) as exc:
+            logger.warning("api: could not re-index run %s: %s", run_id, exc)
+            unrepairable.append(run_id)
+            continue
+        logger.info("api: re-indexed run %s", run_id)
+
+    if detected.orphan_entries or detected.duplicate_entries:
+        survivors = _surviving_entries(
+            results.read_index(root_path),
+            set(detected.orphan_entries),
+            set(detected.duplicate_entries),
+        )
+        _rewrite_index(results.index_path(root_path), survivors)
+        for run_id in detected.orphan_entries:
+            logger.warning("api: dropped orphan index line for run %s", run_id)
+        for run_id in detected.duplicate_entries:
+            logger.warning("api: dropped duplicate index lines for run %s", run_id)
+
+    return ConsistencyResult(
+        repaired=True,
+        missing_entries=detected.missing_entries,
+        orphan_entries=detected.orphan_entries,
+        duplicate_entries=detected.duplicate_entries,
+        unmarked_directories=detected.unmarked_directories,
+        staging_directories=detected.staging_directories,
+        unrepairable_entries=tuple(unrepairable),
+    )
+
+
+def _surviving_entries(
+    entries: Sequence[results.IndexEntry],
+    orphans: set[str],
+    duplicates: set[str],
+) -> list[results.IndexEntry]:
+    """Return the index lines left after dropping orphans and duplicates."""
+    seen: set[str] = set()
+    survivors: list[results.IndexEntry] = []
+    for entry in entries:
+        if entry.run_id in orphans:
+            continue
+        if entry.run_id in duplicates and entry.run_id in seen:
+            continue
+        seen.add(entry.run_id)
+        survivors.append(entry)
+
+    logger.debug(f"{len(entries) = }, {len(survivors) = }")
+    return survivors
 
 
 def _find_entry(run_id: str, root: str | Path | None) -> results.IndexEntry:

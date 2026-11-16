@@ -342,6 +342,84 @@ def prune(
 
 
 @app.command()
+def check(
+    workspace: str = typer.Option(
+        "",
+        "--workspace",
+        "-w",
+        help=(
+            "Workspace root holding the runs directory (defaults to "
+            "$KLEA_EVAL_WORKSPACE, else the current directory)."
+        ),
+    ),
+    repair: bool = typer.Option(
+        False,
+        "--repair/--no-repair",
+        help="Repair the drift that is found instead of only reporting it.",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Emit the findings as one JSON document instead of text lines.",
+    ),
+) -> None:
+    """Check the run index against the run directories (ADR-0059)."""
+    import json
+
+    # Deferred imports: the check reads the index, the run directories and the
+    # run metadata, so the API and the results stack are only imported once
+    # this command actually runs, keeping --help and the lightweight commands
+    # instant.
+    from klea_eval.api import ApiError, check_consistency
+    from klea_eval.results import ResultsError
+
+    logger.debug("klea-eval: checking the run index, repair=%s", repair)
+    try:
+        result = check_consistency(workspace or None, repair=repair)
+    except (ApiError, ResultsError) as error:
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
+
+    if as_json:
+        typer.echo(json.dumps(result.to_dict(), sort_keys=True))
+    else:
+        findings = (
+            ("missing", result.missing_entries),
+            ("orphan", result.orphan_entries),
+            ("duplicate", result.duplicate_entries),
+            ("unmarked", result.unmarked_directories),
+            ("staging", result.staging_directories),
+            ("unrepairable", result.unrepairable_entries),
+        )
+        for label, run_ids in findings:
+            if run_ids:
+                typer.echo(f"{label}: {', '.join(run_ids)}")
+
+        if (
+            result.has_drift
+            or result.staging_directories
+            or result.unrepairable_entries
+        ):
+            typer.echo(
+                f"checked runs: {len(result.missing_entries)} missing, "
+                f"{len(result.orphan_entries)} orphan, "
+                f"{len(result.duplicate_entries)} duplicate, "
+                f"{len(result.unmarked_directories)} unmarked, "
+                f"{len(result.staging_directories)} staging"
+            )
+        else:
+            typer.echo("index consistent")
+
+    # Drift a repair cannot fix (an unmarked directory, an unreadable run.json)
+    # outranks the check-only signal, because that state needs an operator.
+    if result.unrepairable:
+        raise typer.Exit(code=3)
+    if result.has_drift and not repair:
+        raise typer.Exit(code=1)
+    raise typer.Exit(code=0)
+
+
+@app.command()
 def summary(
     workspace: str = typer.Option(
         "",
