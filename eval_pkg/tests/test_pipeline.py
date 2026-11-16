@@ -293,6 +293,10 @@ def test_failing_executor_marks_the_case_failed(tmp_path: Path) -> None:
     assert result.exit_code == 1
     assert _run_json_paths(result.workspace_root) == []
     assert _index_lines(result.workspace_root) == []
+    failed_run_id = result.runs[0].run_id
+    assert failed_run_id not in {
+        entry.run_id for entry in results.read_index(result.workspace_root)
+    }
 
 
 def test_ungraded_case_is_excluded_from_the_counts(tmp_path: Path) -> None:
