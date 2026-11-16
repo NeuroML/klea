@@ -13,7 +13,7 @@
 - `klea-eval report` renders a per-case summary and the run counters from a results index (new `klea_eval.reporting` writer).
 - `klea-eval check` verifies the eval run index against the run directories and, with `--repair`, re-indexes a completed run the index omits and drops duplicate or orphaned index lines, naming every dropped run id.
 - Eval runs record in `run.json` whether a case declares rubrics, and the report and CLI distinguish ungraded cases (no rubrics, no grade) from grade-missing cases (rubrics declared but no grade recorded).
-- The plan status now opens with a truncated `Goal: ...` line, so concurrent sessions can be told apart at a glance.
+- The plan status now opens with a truncated `Goal: ...` line followed by a blank line, so concurrent sessions can be told apart at a glance.
 
 ### Changed
 

@@ -46,29 +46,22 @@ from klea_utils.nodes.base import _current_session_id
 from klea_utils.nodes.context import ToolCallerContext
 from klea_utils.stores.utils import STORES_CONFIG_META_KEY
 
-#: Maximum number of visible characters for the one-line plan goal label.
-MAX_PLAN_GOAL_CHARS = 80
 
+def _plan_goal_line(goal_state: Any) -> str:
+    """Return the one-line ``Goal: ...`` status-pane label, when available.
 
-def truncate_plan_goal(text: str, max_chars: int = MAX_PLAN_GOAL_CHARS) -> str:
-    """Return a one-line, bounded rendering of a plan goal.
+    The label and its bounding come from the goal schema's own
+    ``GoalSchema.goal_label`` render method in ``klea_agent``, reached by duck
+    typing only (this package must not import ``klea_agent``), so the label and
+    its truncation rule stay identical across producers and frontends.
 
-    Every whitespace run (including newlines and tabs) collapses to a single
-    space, so the goal always renders as exactly one line, and an over-long
-    result is cut at *max_chars* with a trailing ASCII ``...`` marker.  The
-    same rule is used by the agent's structured plan content, so both plan
-    surfaces show an identical label.
-
-    :param text: The raw goal text.
-    :param max_chars: Maximum number of visible characters to keep.
-    :returns: The collapsed, bounded goal; ``""`` when there is no goal.
+    :param goal_state: The state's goal object, or ``None``.
+    :returns: ``"Goal: <bounded goal>"``, or ``""`` when there is none.
     """
-    collapsed = " ".join((text or "").split())
-    if max_chars <= 0:
-        return ""
-    if len(collapsed) <= max_chars:
-        return collapsed
-    return collapsed[: max_chars - 3].rstrip() + "..."
+    label = getattr(goal_state, "goal_label", None)
+    if callable(label):
+        return label()
+    return ""
 
 
 class ToolsCallerNode(
@@ -721,11 +714,10 @@ class ToolsCallerNode(
         plan = getattr(state, "plan", None)
         if plan is None or not hasattr(plan, "render") or not dispatched:
             return None
-        goal_state = getattr(state, "goal", None)
-        goal = truncate_plan_goal(getattr(goal_state, "goal", "") or "")
+        goal = _plan_goal_line(getattr(state, "goal", None))
         display = plan.render(markdown=True, current_numbers=set(dispatched))
         if goal:
-            display = f"Goal: {goal}\n{display}"
+            display = f"{goal}\n\n{display}"
         self.logger.debug(f"{dispatched = }\n{goal = }")
         return NodeStreamData(
             heading=plan.status_heading(),
