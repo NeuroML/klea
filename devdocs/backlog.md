@@ -168,8 +168,13 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
 - Failed-run grading (settled): run success is a prerequisite for grading, so a
   failed run is labelled `failed` and is never graded and never
   `grade-missing`.
-- Failed-run indexing (open): whether a failed run is written to
-  `runs/index.jsonl` is still undecided.
+- Failed-run indexing (settled): the index is completed-only, so a failed run
+  appends no `runs/index.jsonl` line. The index must stay a projection of the
+  `COMPLETE`-marked run directories so the deferred consistency check/rebuild is
+  well-defined, and one `run_id` must not carry both a failed line and the line
+  of the run its retry did not replace. Failure visibility lives in the run's
+  own `CaseRun` and label; a cross-invocation failure history would be a
+  report/observability contract question.
 
 ## Infrastructure / correctness
 

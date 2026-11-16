@@ -202,7 +202,8 @@ Points discovered while delivering P1-P7; later phases must respect them.
   the pipeline builds `klea_eval.runners.http.HttpRunner` from `base_url`,
   `endpoint` and `timeout`, and a missing executor with no base URL raises
   `PipelineConfigError`. A failing case is isolated: its failure is recorded in
-  its `CaseRun`, no `run.json` and no index line are written for it, and the
+  its `CaseRun`, its staged `run.json` is discarded with the staging directory
+  so none survives, and no index line is written for it, and the
   suite continues; only a pre-run fault (an invalid suite, an unusable
   workspace root, a missing executor) aborts the suite before any run. `run.json`
   and the single `runs/index.jsonl` line are written by the pipeline through
@@ -327,6 +328,17 @@ below is current.
 - Re-indexing: a run directory that carries the `COMPLETE` marker but has no
   `runs/index.jsonl` line is re-indexed from its stored artifacts instead of
   being re-run.
+- Index membership: `runs/index.jsonl` is written only for a completed run, so
+  the index is exactly one line per `COMPLETE`-marked run directory and a failed
+  run appends no line. A failed run is therefore invisible to `list_runs` and to
+  the index-only Aggregate stage by design; its failure is carried by its
+  `CaseRun` and its `klea_eval.labels.classify_case` label. Readers stay tolerant
+  of a non-completed line (the label, report-counter and retention paths skip
+  one), but the writer never produces it. This is what makes the deferred
+  startup index/directory consistency check and rebuild command (:277)
+  well-defined: the index is a projection of the `COMPLETE` directories, and a
+  failed retry cannot leave a second, `failed` line for the same `run_id` beside
+  the line of the run it did not replace.
 - Overwrite safety: an overwriting run keeps the previous run directory and its
   index line until the new run has published successfully. The previous
   directory is held as a superseded copy and restored if the final rename
