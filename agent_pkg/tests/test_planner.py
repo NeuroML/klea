@@ -1502,7 +1502,9 @@ class TestPlannerToolDisclosure(unittest.TestCase):
         steps = ctx.state_updates["plan"].step_list
         self.assertEqual(len(block.items), len(steps))
         for step, item in zip(steps, block.items):
-            self.assertEqual(item.text, f"Step {step.step_number}: {step.summary}")
+            self.assertEqual(
+                item.text, f"Step {step.step_number}/{len(steps)}: {step.summary}"
+            )
             if step.status == "done":
                 self.assertEqual(item.role, "ok")
             elif step.status == "failed":
