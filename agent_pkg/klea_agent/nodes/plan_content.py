@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import logging
 
-from klea_utils.content_blocks import ContentBlock, Item, ItemsBlock
+from klea_utils.content_blocks import ContentBlock, Item, ItemsBlock, TextBlock
+from klea_utils.nodes.tools_caller import truncate_plan_goal
 
 from klea_agent.schemas import PlanSchema, StepSchema
 
@@ -72,27 +73,31 @@ def _step_role(step: StepSchema, current_number: int | None) -> str:
     return ROLE_PENDING
 
 
-def _step_text(step: StepSchema) -> str:
+def _step_text(step: StepSchema, total: int) -> str:
     """Return the one-line item text for one plan step.
 
     The item is the compact status-pane render (the frontends add the status
     marker), so the dependency suffix is the only execution-order detail it
-    carries.  A step with no dependencies keeps a bare ``Step N: summary``:
-    omitting the suffix reads better than printing ``(none)``, and the
-    preformatted ``display`` fallback still shows the explicit form.
+    carries.  The ``Step N/total`` counter matches the preformatted
+    ``PlanSchema.render`` output, so both plan surfaces show the same
+    position.  A step with no dependencies keeps a bare
+    ``Step N/total: summary``: omitting the suffix reads better than printing
+    ``(none)``, and the preformatted ``display`` fallback still shows the
+    explicit form.
 
     :param step: The plan step to render.
-    :returns: ``"Step N: summary"``, or ``"Step N: summary (depends on: 1, 2)"``
-        when the step declares dependencies.
+    :param total: The number of steps in the plan (the counter denominator).
+    :returns: ``"Step N/total: summary"``, or ``"Step N/total: summary
+        (depends on: 1, 2)"`` when the step declares dependencies.
     """
-    text = f"Step {step.step_number}: {step.summary}"
+    text = f"Step {step.step_number}/{total}: {step.summary}"
     if step.depends_on:
         deps = ", ".join(str(number) for number in step.depends_on)
         text += f" (depends on: {deps})"
     return text
 
 
-def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
+def plan_content_blocks(plan: PlanSchema, goal: str = "") -> list[ContentBlock]:
     """Return the plan as structured content blocks for the status pane.
 
     A single ``items`` block lists the plan's steps in ``step_list`` order, one
@@ -105,11 +110,16 @@ def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
     does not understand these blocks still renders the plan unchanged.
 
     :param plan: The plan to render.
-    :returns: The content blocks; a single ``items`` block, possibly empty when
-        the plan has no steps.
+    :param goal: The plan's goal statement.  When it holds any text it is
+        emitted as a leading ``text`` block (``Goal: <bounded one line>``) so
+        the goal renders above the steps on both frontends; empty or absent
+        leaves the previous single-block output unchanged.
+    :returns: The content blocks: the optional goal ``text`` block followed by
+        a single ``items`` block, possibly empty when the plan has no steps.
     """
     current = plan.current_step()
     current_number = current.step_number if current is not None else None
+    total = len(plan.step_list)
     logger.debug(
         "plan_content_blocks: entry status=%s steps=%d current_step=%s",
         plan.status,
@@ -118,7 +128,7 @@ def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
     )
     items = [
         Item(
-            text=_step_text(step),
+            text=_step_text(step, total),
             role=_step_role(step, current_number),
         )
         for step in plan.step_list
@@ -129,4 +139,9 @@ def plan_content_blocks(plan: PlanSchema) -> list[ContentBlock]:
         len(plan.step_list),
         plan.status,
     )
-    return [ItemsBlock(items=items)]
+    blocks: list[ContentBlock] = []
+    goal_text = truncate_plan_goal(goal)
+    if goal_text:
+        blocks.append(TextBlock(text=f"Goal: {goal_text}", format="plain"))
+    blocks.append(ItemsBlock(items=items))
+    return blocks

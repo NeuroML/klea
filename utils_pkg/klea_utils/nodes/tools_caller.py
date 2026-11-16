@@ -46,6 +46,30 @@ from klea_utils.nodes.base import _current_session_id
 from klea_utils.nodes.context import ToolCallerContext
 from klea_utils.stores.utils import STORES_CONFIG_META_KEY
 
+#: Maximum number of visible characters for the one-line plan goal label.
+MAX_PLAN_GOAL_CHARS = 80
+
+
+def truncate_plan_goal(text: str, max_chars: int = MAX_PLAN_GOAL_CHARS) -> str:
+    """Return a one-line, bounded rendering of a plan goal.
+
+    Every whitespace run (including newlines and tabs) collapses to a single
+    space, so the goal always renders as exactly one line, and an over-long
+    result is cut at *max_chars* with a trailing ASCII ``...`` marker.  The
+    same rule is used by the agent's structured plan content, so both plan
+    surfaces show an identical label.
+
+    :param text: The raw goal text.
+    :param max_chars: Maximum number of visible characters to keep.
+    :returns: The collapsed, bounded goal; ``""`` when there is no goal.
+    """
+    collapsed = " ".join((text or "").split())
+    if max_chars <= 0:
+        return ""
+    if len(collapsed) <= max_chars:
+        return collapsed
+    return collapsed[: max_chars - 3].rstrip() + "..."
+
 
 class ToolsCallerNode(
     AbstractLangGraphNode[BaseModel, dict[str, Any], ToolCallerContext]
@@ -697,11 +721,16 @@ class ToolsCallerNode(
         plan = getattr(state, "plan", None)
         if plan is None or not hasattr(plan, "render") or not dispatched:
             return None
-        self.logger.debug(f"{dispatched = }")
+        goal_state = getattr(state, "goal", None)
+        goal = truncate_plan_goal(getattr(goal_state, "goal", "") or "")
+        display = plan.render(markdown=True, current_numbers=set(dispatched))
+        if goal:
+            display = f"Goal: {goal}\n{display}"
+        self.logger.debug(f"{dispatched = }\n{goal = }")
         return NodeStreamData(
             heading=plan.status_heading(),
             summary=f"{len(plan.step_list)} step(s); status={plan.status}",
-            display=plan.render(markdown=True, current_numbers=set(dispatched)),
+            display=display,
             key="plan",
             preformatted=True,
         )

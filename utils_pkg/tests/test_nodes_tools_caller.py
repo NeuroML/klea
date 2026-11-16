@@ -148,6 +148,7 @@ class _StandInPlan(BaseModel):
 
     step_list: list[_StandInStep] = Field(default_factory=list)
     status: str = "in_progress"
+    goal: str = ""
     #: The ``current_numbers`` argument of the last ``render`` call.
     rendered_current: set[int] = Field(default_factory=set)
 
@@ -167,8 +168,15 @@ class _StandInPlan(BaseModel):
         return "\n\n".join(lines)
 
 
+class _StandInGoal(BaseModel):
+    """Minimal stand-in for the run goal object carried on the state."""
+
+    goal: str = ""
+
+
 class _PlanState(MiniState):
     plan: _StandInPlan = Field(default_factory=_StandInPlan)
+    goal: _StandInGoal | None = None
 
 
 async def test_running_section_marks_dispatched_plan_steps():
@@ -213,6 +221,89 @@ async def test_running_section_marks_dispatched_plan_steps():
     # Render-only: no plan or step status write.
     assert plan.status == "in_progress"
     assert [step.status for step in plan.step_list] == ["pending"] * 3
+
+
+async def test_running_section_renders_goal_line_before_steps():
+    """A goal-bearing plan puts the goal line first, before the steps."""
+    plan = _StandInPlan(
+        goal="Implement the feature",
+        step_list=[
+            _StandInStep(step_number=1, summary="one"),
+            _StandInStep(step_number=2, summary="two"),
+        ],
+    )
+    state = _PlanState(
+        plan=plan,
+        goal=_StandInGoal(goal="Implement the feature"),
+        tool_calls=[
+            ToolCallSchema(tool="a", step=1),
+            ToolCallSchema(tool="b", step=2),
+        ],
+    )
+    node = _make_node(client=FakeMCPClient())
+    events: list[dict] = []
+    _record_stream(node, events)
+
+    await node.execute(state)
+
+    data = next(e for e in events if e["data"].get("key") == "plan")["data"]
+    display = data["display"]
+    lines = display.splitlines()
+    assert lines[0].startswith("Goal:")
+    assert "Implement the feature" in lines[0]
+    assert "[*] Step 1: one" in display
+    assert "[*] Step 2: two" in display
+    # The goal line precedes the rendered steps.
+    assert display.index("Goal:") < display.index("[*] Step 1: one")
+
+
+async def test_running_section_collapses_over_long_goal():
+    """An over-long goal collapses to one line, <= 80 chars, ending '...'."""
+    long_goal = "first line\nsecond line\n" + " ".join(["word"] * 40)
+    plan = _StandInPlan(
+        goal=long_goal,
+        step_list=[_StandInStep(step_number=1, summary="one")],
+    )
+    state = _PlanState(
+        plan=plan,
+        goal=_StandInGoal(goal=long_goal),
+        tool_calls=[ToolCallSchema(tool="a", step=1)],
+    )
+    node = _make_node(client=FakeMCPClient())
+    events: list[dict] = []
+    _record_stream(node, events)
+
+    await node.execute(state)
+
+    data = next(e for e in events if e["data"].get("key") == "plan")["data"]
+    display = data["display"]
+    goal_line = display.splitlines()[0]
+    assert goal_line.startswith("Goal:")
+    goal_text = goal_line.split("Goal:", 1)[1].strip()
+    assert goal_text.endswith("...")
+    assert len(goal_text) <= 80
+    # The multi-line goal is collapsed onto the single first line.
+    assert "first line\nsecond line" not in display
+    assert "[*] Step 1: one" in display
+
+
+async def test_running_section_without_goal_has_no_goal_line():
+    """A plan without a goal emits no ``Goal:`` line."""
+    plan = _StandInPlan(
+        step_list=[_StandInStep(step_number=1, summary="one")],
+    )
+    state = _PlanState(
+        plan=plan,
+        tool_calls=[ToolCallSchema(tool="a", step=1)],
+    )
+    node = _make_node(client=FakeMCPClient())
+    events: list[dict] = []
+    _record_stream(node, events)
+
+    await node.execute(state)
+
+    data = next(e for e in events if e["data"].get("key") == "plan")["data"]
+    assert "Goal:" not in data["display"]
 
 
 async def test_running_section_without_plan_emits_no_plan_entry():

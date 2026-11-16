@@ -12,6 +12,7 @@
 - A completed eval run that is missing from the results index is re-indexed from its stored artefacts instead of being re-run.
 - `klea-eval report` renders a per-case summary and the run counters from a results index (new `klea_eval.reporting` writer).
 - Eval runs record in `run.json` whether a case declares rubrics, and the report and CLI distinguish ungraded cases (no rubrics, no grade) from grade-missing cases (rubrics declared but no grade recorded).
+- The plan status now opens with a truncated `Goal: ...` line, so concurrent sessions can be told apart at a glance.
 
 ### Changed
 
@@ -34,6 +35,7 @@
 - An eval run's `run.json` is written before the COMPLETE marker, so an interrupted publish cannot leave a COMPLETE run without a manifest.
 - Bundled `grep`, `read_file` and `run_command` output is now capped per line with a visible truncation marker, so one over-long line no longer fails the whole call.
 - A tool result too large for the transport now returns guidance on how to narrow the call instead of a terse stream-limit error.
+- The structured plan status no longer omits the step position: its step items now show the same `Step N/total` progress text as the plaintext plan.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
