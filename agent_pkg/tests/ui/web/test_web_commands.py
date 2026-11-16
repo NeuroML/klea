@@ -242,8 +242,13 @@ async def test_rename_command_renames_the_session(fake_backend, agent_user):
     _send(agent_user, "/rename My Renamed Session")
     await agent_user.should_see("Renamed session", retries=50)
 
-    new_chats = [chats[key] for key in set(chats) - before]
-    assert any(data["name"] == "My Renamed Session" for data in new_chats)
+    # The rename is persisted by a background task once the server accepts
+    # the PATCH, so poll the store instead of asserting immediately.
+    assert await _wait_for(
+        lambda: any(
+            chats[key]["name"] == "My Renamed Session" for key in set(chats) - before
+        )
+    )
 
 
 def test_model_handler_calls_the_dialog_hook_silently():
