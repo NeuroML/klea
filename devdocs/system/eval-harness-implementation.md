@@ -275,7 +275,9 @@ Points discovered while delivering P1-P7; later phases must respect them.
   exists, and `eval_pkg` stays a library plus CLI. Still deferred: partial
   retention keeping only `run.json` plus `metrics.jsonl` beyond the window (a
   purged run loses its whole directory), the automatic post-publish retention
-  hook, a startup index/directory consistency check or rebuild-index command,
+  hook, an automatic startup index/directory consistency check or
+  rebuild-index command (the explicit `klea-eval check` pass is implemented
+  instead),
   `transcript.jsonl` writing, HITL `interrupt` resume, cost derivation (no
   price table exists), the bounded worker pool (P9), MLflow export and the
   Markdown reporter.
@@ -334,11 +336,32 @@ below is current.
   the index-only Aggregate stage by design; its failure is carried by its
   `CaseRun` and its `klea_eval.labels.classify_case` label. Readers stay tolerant
   of a non-completed line (the label, report-counter and retention paths skip
-  one), but the writer never produces it. This is what makes the deferred
-  startup index/directory consistency check and rebuild command (:277)
-  well-defined: the index is a projection of the `COMPLETE` directories, and a
-  failed retry cannot leave a second, `failed` line for the same `run_id` beside
-  the line of the run it did not replace.
+  one), but the writer never produces it. This is what makes the index
+  consistency check (`klea-eval check`, below) well-defined: the index is a
+  projection of the `COMPLETE` directories, and a failed retry cannot leave a
+  second, `failed` line for the same `run_id` beside the line of the run it did
+  not replace.
+- Index consistency check: `klea-eval check` is the explicit,
+  operator-invoked check-and-repair pass over the same files
+  (`klea_eval.api.detect_drift` and `klea_eval.api.check_consistency`, returning
+  a `ConsistencyResult`). Without `--repair` it only reports; with `--repair` it
+  fixes three drift classes in order: a `COMPLETE` run directory the index omits
+  is re-indexed from its `run.json` through `results.to_index_entry` plus
+  `results.append_index_entry`, and a run whose `run.json` cannot be read is
+  reported as unrepairable and left untouched; duplicate index lines for one
+  `run_id` are dropped by one atomic rewrite that keeps the first; an index line
+  whose run directory is absent (an orphan) is dropped by the same rewrite, so a
+  line never points at a missing file for `get_run`, scoring or reporting. A
+  final directory without the `COMPLETE` marker is only flagged, never deleted,
+  and a leftover `runs/<run_id>.tmp/` staging directory is counted
+  informationally and never repaired or deleted: completion is defined by the
+  atomic rename, so a `.tmp` name proves the run never completed, and
+  `workspace.prepare_run`/`scheduler.find_incomplete_runs` already own it. Every
+  dropped line is logged at WARNING with its `run_id`, so an unrecoverable lost
+  record is never silent. Exit codes: `0` consistent, also after a repair that
+  removed all drift; `1` drift found and left in place (`--no-repair`); `2` a
+  configuration or index fault; `3` drift a repair could not fix. The repair is
+  idempotent, so a second pass finds nothing to do.
 - Overwrite safety: an overwriting run keeps the previous run directory and its
   index line until the new run has published successfully. The previous
   directory is held as a superseded copy and restored if the final rename

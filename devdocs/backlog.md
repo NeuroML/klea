@@ -170,11 +170,23 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
   `grade-missing`.
 - Failed-run indexing (settled): the index is completed-only, so a failed run
   appends no `runs/index.jsonl` line. The index must stay a projection of the
-  `COMPLETE`-marked run directories so the deferred consistency check/rebuild is
+  `COMPLETE`-marked run directories so the `klea-eval check` consistency pass is
   well-defined, and one `run_id` must not carry both a failed line and the line
   of the run its retry did not replace. Failure visibility lives in the run's
   own `CaseRun` and label; a cross-invocation failure history would be a
   report/observability contract question.
+- Index consistency check (settled): `klea-eval check` is an explicit,
+  operator-invoked check-and-repair pass over `runs/index.jsonl` and the run
+  directories, not an automatic startup hook. It re-indexes a `COMPLETE` run the
+  index omits, drops duplicate index lines (keeping the first) and orphan lines
+  whose run directory is gone, and only flags an unmarked final directory or a
+  leftover `.tmp` staging directory without deleting either. Every dropped
+  `run_id` is reported and logged at WARNING, because a dropped line is
+  unrecoverable. Orphan lines are dropped rather than kept: retention (D11)
+  already proves a run directory may disappear together with its line, so an
+  index line with no directory is drift by definition, and keeping it would make
+  `get_run`, scoring and reporting fail on a missing file. No ADR is needed: the
+  index stays the completed-only projection already decided above.
 
 ## Infrastructure / correctness
 
