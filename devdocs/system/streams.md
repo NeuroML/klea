@@ -204,8 +204,9 @@ lives in the lower `klea_utils` package, so the base hook contributes only the
 preformatted `display` fallback and no structured content blocks: those stay
 with the agent-side emitters (`klea_agent.nodes.plan_content`), which this
 package must not import.  Klea Agent subclasses the caller
-(`AgentToolsCaller`) and overrides the hook to forward the state's goal and
-attach `content=plan_content_blocks(plan, goal=goal)`, so all three
+(`AgentToolsCaller`) and overrides the hook to forward the state's goal and the
+batch's dispatched step numbers as `current_numbers`, then attaches
+`content=plan_content_blocks(plan, goal=goal, current_numbers=...)`, so all three
 `key="plan"` emitters (the Planner, the Evaluator and the tools caller) carry
 structured blocks and the tools caller's structured content leads with the goal
 line too.  Its step items read `Step N/total: summary` (`N` the dispatched step

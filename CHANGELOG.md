@@ -24,6 +24,7 @@
 - Bundled `grep`, `read_file` and `run_command` output is now capped per line with a visible truncation marker, so one over-long line no longer fails the whole call.
 - A tool result too large for the transport now returns guidance on how to narrow the call instead of a terse stream-limit error.
 - The structured plan status no longer omits the step position: its step items now show the same `Step N/total` progress text as the plaintext plan.
+- The structured plan status now marks every step whose tools are being bound or run as current, matching the plaintext plan, instead of only the next runnable step.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 

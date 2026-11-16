@@ -68,4 +68,16 @@ class AgentToolsCaller(ToolsCallerNode):
             len(plan.step_list),
             plan.status,
         )
-        return data.model_copy(update={"content": plan_content_blocks(plan, goal=goal)})
+        tool_calls = getattr(state, "tool_calls", []) or []
+        current_numbers = {
+            step
+            for step in (getattr(call, "step", None) for call in tool_calls)
+            if isinstance(step, int) and step > 0
+        }
+        return data.model_copy(
+            update={
+                "content": plan_content_blocks(
+                    plan, goal=goal, current_numbers=current_numbers
+                )
+            }
+        )

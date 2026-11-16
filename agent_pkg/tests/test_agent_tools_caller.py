@@ -19,6 +19,11 @@ import unittest
 from typing import cast
 
 from klea_agent.nodes.agent_tools_caller import AgentToolsCaller
+from klea_agent.nodes.plan_content import (
+    ROLE_CURRENT,
+    ROLE_PENDING,
+    plan_content_blocks,
+)
 from klea_agent.schemas import PlanSchema, StepSchema
 from klea_utils.content_blocks import ItemsBlock
 from klea_utils.mcp.schemas import ToolCallSchema
@@ -126,6 +131,57 @@ class TestAgentToolsCallerPlanSection(unittest.TestCase):
         self.assertEqual(len(steps_block.items), len(plan.step_list))
         self.assertTrue(steps_block.items)
         self.assertEqual(steps_block.items[0].text, "Step 1/1: only")
+
+    def test_running_steps_state_marks_every_dispatched_step_current(self) -> None:
+        """A parallel batch marks each dispatched step current, the rest pending."""
+        node = _make_node()
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, summary="first"),
+                StepSchema(step_number=2, summary="second"),
+                StepSchema(step_number=3, summary="third"),
+            ]
+        )
+        state = _HookState(
+            plan=plan,
+            tool_calls=[_stamped_call(step=1), _stamped_call(step=2)],
+        )
+
+        data = node._get_running_steps_state(state)
+
+        assert data is not None
+        content = data.content
+        self.assertIsNotNone(content)
+        assert content is not None
+        self.assertEqual(len(content), 1)
+        block = cast(ItemsBlock, content[0])
+        self.assertEqual(block.kind, "items")
+        self.assertEqual(len(block.items), len(plan.step_list))
+        self.assertEqual(
+            [item.role for item in block.items],
+            [ROLE_CURRENT, ROLE_CURRENT, ROLE_PENDING],
+        )
+
+    def test_plan_content_blocks_default_marks_single_frontier_head(self) -> None:
+        """Omitting current_numbers keeps the single frontier-head behaviour."""
+        plan = PlanSchema(
+            step_list=[
+                StepSchema(step_number=1, summary="first"),
+                StepSchema(step_number=2, summary="second"),
+                StepSchema(step_number=3, summary="third"),
+            ]
+        )
+
+        blocks = plan_content_blocks(plan)
+
+        self.assertEqual(len(blocks), 1)
+        block = cast(ItemsBlock, blocks[0])
+        self.assertEqual(block.kind, "items")
+        self.assertEqual(len(block.items), len(plan.step_list))
+        self.assertEqual(
+            [item.role for item in block.items],
+            [ROLE_CURRENT, ROLE_PENDING, ROLE_PENDING],
+        )
 
     def test_running_steps_state_without_plan_returns_none(self) -> None:
         """A plan-less state yields no plan section at all."""
