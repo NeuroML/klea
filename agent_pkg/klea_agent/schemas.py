@@ -605,9 +605,47 @@ class ContinuationEvidence(BaseModel):
         return _clip_text("\n".join(lines), MAX_CONTINUATION_RENDER_CHARS)
 
 
+#: Maximum number of visible characters for the one-line plan goal label.
+MAX_PLAN_GOAL_CHARS = 80
+
+
+def truncate_plan_goal(text: str, max_chars: int = MAX_PLAN_GOAL_CHARS) -> str:
+    """Return a one-line, bounded rendering of a plan goal.
+
+    Every whitespace run (including newlines and tabs) collapses to a single
+    space, so the goal always renders as exactly one line, and an over-long
+    result is cut at *max_chars* with a trailing ASCII ``...`` marker.  The
+    same rule is used by the agent's structured plan content, so both plan
+    surfaces show an identical label.
+
+    :param text: The raw goal text.
+    :param max_chars: Maximum number of visible characters to keep.
+    :returns: The collapsed, bounded goal; ``""`` when there is no goal.
+    """
+    collapsed = " ".join((text or "").split())
+    if max_chars <= 0:
+        return ""
+    if len(collapsed) <= max_chars:
+        return collapsed
+    return collapsed[: max_chars - 3].rstrip() + "..."
+
+
 class GoalSchema(BaseModel):
     goal: str = ""
     success_criteria: str = ""
+
+    def goal_label(self) -> str:
+        """Return the bounded one-line ``Goal: ...`` status-pane label.
+
+        The single source for the plan section's goal line: the preformatted
+        display fallback and the structured plan blocks built by
+        ``klea_agent.nodes.plan_content`` both obtain it from here, so the
+        label and its bounding stay identical across producers and frontends.
+
+        :returns: ``"Goal: <bounded goal>"``, or ``""`` when there is no goal.
+        """
+        text = truncate_plan_goal(self.goal or "")
+        return f"Goal: {text}" if text else ""
 
 
 class ArtefactSchema(BaseModel):
