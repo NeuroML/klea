@@ -457,6 +457,60 @@ def test_complete_run_that_is_indexed_is_left_untouched(tmp_path: Path) -> None:
     assert len(_index_lines(second.workspace_root)) == 1
 
 
+def _archive_run(result: Any) -> Path:
+    """Mark the first run of ``result`` as archived and return its directory."""
+    output_dir = Path(result.runs[0].output_dir)
+    (output_dir / workspace.ARCHIVED_MARKER_NAME).write_text("", encoding="utf-8")
+    assert workspace.is_archived(output_dir)
+    return output_dir
+
+
+def test_archived_run_is_skipped_without_duplicate_index_line(
+    tmp_path: Path,
+) -> None:
+    """An archived run is still a result, so a re-run skips it instead of rerunning."""
+    cases = [_case("case-1", [_turn(1, "user", "Hello")])]
+    executor = Recorder()
+    _suite, first = _run(tmp_path, cases, execute_turn=executor)
+    assert first.exit_code == 0
+    assert len(_index_lines(first.workspace_root)) == 1
+
+    output_dir = _archive_run(first)
+    assert (
+        workspace.detect_state(first.runs[0].run_id, first.workspace_root)
+        is workspace.RunState.ARCHIVED
+    )
+    calls_before = list(executor.calls)
+
+    _suite, second = _run(tmp_path, cases, execute_turn=executor)
+
+    assert second.exit_code == 0
+    assert second.runs[0].status == "skipped"
+    assert executor.calls == calls_before
+    assert len(_index_lines(second.workspace_root)) == 1
+    assert Path(second.runs[0].output_dir) == output_dir
+
+
+def test_overwrite_replaces_an_archived_run(tmp_path: Path) -> None:
+    """``overwrite`` reruns an archived run and appends a fresh index line."""
+    cases = [_case("case-1", [_turn(1, "user", "Hello")])]
+    executor = Recorder()
+    _suite, first = _run(tmp_path, cases, execute_turn=executor)
+    assert len(_index_lines(first.workspace_root)) == 1
+
+    output_dir = _archive_run(first)
+    calls_before = list(executor.calls)
+
+    _suite, result = _run(tmp_path, cases, execute_turn=executor, overwrite=True)
+
+    assert result.exit_code == 0
+    assert result.runs[0].status == "completed"
+    assert len(executor.calls) == len(calls_before) + 1
+    assert len(_index_lines(result.workspace_root)) == 2
+    assert Path(result.runs[0].output_dir) == output_dir
+    assert not workspace.is_archived(output_dir)
+
+
 # ---------------------------------------------------------------------------
 # CLI: stubbed pipeline
 # ---------------------------------------------------------------------------

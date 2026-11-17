@@ -7,7 +7,9 @@ ADR-0058 and ADR-0059:
 - a run under construction lives at ``<root>/runs/<run_id>.tmp/``;
 - ``metrics.jsonl`` sits at the run root, never under ``workspace/``;
 - ``COMPLETE`` is written last, and the final directory only ever appears by an
-  atomic rename, so a reader sees no run or a complete run.
+  atomic rename, so a reader sees no run or a complete run;
+- ``ARCHIVED`` is written alongside ``COMPLETE`` only by the explicit retention
+  pass, and marks a complete run kept for the record rather than a fresh result.
 
 Run identity derivation belongs to :mod:`klea_eval.identity`, and record writing
 belongs to the ADR-0059 writer; this module only derives paths, creates the run
@@ -34,6 +36,7 @@ FIXTURES_DIR_NAME = "fixtures"
 OUTPUTS_DIR_NAME = "outputs"
 METRICS_FILE_NAME = "metrics.jsonl"
 COMPLETE_MARKER_NAME = "COMPLETE"
+ARCHIVED_MARKER_NAME = "ARCHIVED"
 TMP_SUFFIX = ".tmp"
 
 
@@ -51,6 +54,7 @@ class RunState(enum.Enum):
     NEW = "new"
     INCOMPLETE = "incomplete"
     COMPLETE = "complete"
+    ARCHIVED = "archived"
 
 
 def workspace_root(root: Path | None = None) -> Path:
@@ -108,14 +112,25 @@ def is_complete(run_dir: Path) -> bool:
     return complete
 
 
+def is_archived(run_dir: Path) -> bool:
+    """Return whether ``run_dir`` carries the zero-byte ``ARCHIVED`` marker."""
+    archived = (Path(run_dir) / ARCHIVED_MARKER_NAME).is_file()
+    logger.debug(f"{run_dir = }, {archived = }")
+    return archived
+
+
 def detect_state(run_id: str, root: Path | None = None) -> RunState:
-    """Classify a run as ``NEW``, ``INCOMPLETE`` or ``COMPLETE``.
+    """Classify a run as ``NEW``, ``INCOMPLETE``, ``COMPLETE`` or ``ARCHIVED``.
 
     A leftover ``.tmp`` directory, or a final directory without ``COMPLETE``,
     is unambiguously an incomplete run and is never treated as a result.
+    ``ARCHIVED`` requires both markers, so a complete run without ``ARCHIVED``
+    stays ``COMPLETE``.
     """
     final_dir = run_dir(run_id, root)
-    if is_complete(final_dir):
+    if is_complete(final_dir) and is_archived(final_dir):
+        state = RunState.ARCHIVED
+    elif is_complete(final_dir):
         state = RunState.COMPLETE
     elif final_dir.exists() or run_dir_tmp(run_id, root).exists():
         state = RunState.INCOMPLETE

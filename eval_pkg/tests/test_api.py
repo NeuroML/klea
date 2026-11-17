@@ -300,21 +300,41 @@ def test_apply_retention_keeps_the_last_20_per_case(tmp_path: Path) -> None:
     result = api.apply_retention(root, keep=20)
 
     assert result.keep == 20
-    assert result.removed_entries == 2
-    assert result.kept_entries == 20
-    assert result.pruned_runs == tuple(run_ids[:2])
-    assert result.kept_runs == tuple(run_ids[2:])
+    assert result.archived_runs == tuple(run_ids[:2])
+    assert result.pruned_runs == ()
+    assert result.kept_entries == 22
+    assert result.removed_entries == 0
+    assert result.kept_runs == tuple(run_ids)
 
-    assert not workspace.run_dir(run_ids[0], root).exists()
-    assert not workspace.run_dir(run_ids[1], root).exists()
-    assert workspace.run_dir(run_ids[2], root).is_dir()
-    assert workspace.run_dir(run_ids[-1], root).is_dir()
+    for run_id in run_ids[:2]:
+        directory = workspace.run_dir(run_id, root)
+        assert directory.is_dir()
+        assert workspace.is_complete(directory)
+        assert workspace.is_archived(directory)
+        assert not (directory / workspace.WORKSPACE_DIR_NAME).exists()
 
-    assert _index_ids(root) == run_ids[2:]
-    assert len(_index_lines(root)) == 20
+    for run_id in run_ids[2:]:
+        directory = workspace.run_dir(run_id, root)
+        assert directory.is_dir()
+        assert not workspace.is_archived(directory)
+
+    assert _index_ids(root) == run_ids
+    assert len(_index_lines(root)) == 22
 
     temporary = results.index_path(root).with_name("index.jsonl.tmp")
     assert not temporary.exists()
+
+    # purge mode still deletes the run instead of archiving it
+    purge_root = tmp_path / "purge"
+    purge_ids = _populate_case(purge_root, "case-a", 22, "run")
+
+    purged = api.apply_retention(purge_root, keep=20, purge=True)
+
+    assert purged.pruned_runs == tuple(purge_ids[:2])
+    assert purged.archived_runs == ()
+    assert not workspace.run_dir(purge_ids[0], purge_root).exists()
+    assert not workspace.run_dir(purge_ids[1], purge_root).exists()
+    assert _index_ids(purge_root) == purge_ids[2:]
 
 
 def test_apply_retention_defaults_to_20(tmp_path: Path) -> None:
@@ -325,9 +345,11 @@ def test_apply_retention_defaults_to_20(tmp_path: Path) -> None:
 
     assert api.DEFAULT_RETENTION == 20
     assert result.keep == 20
-    assert result.removed_entries == 3
-    assert result.pruned_runs == tuple(run_ids[:3])
-    assert _index_ids(root) == run_ids[3:]
+    assert result.archived_runs == tuple(run_ids[:3])
+    assert result.pruned_runs == ()
+    assert result.kept_entries == 23
+    assert result.removed_entries == 0
+    assert _index_ids(root) == run_ids
 
 
 def test_apply_retention_is_per_case(tmp_path: Path) -> None:
@@ -337,12 +359,15 @@ def test_apply_retention_is_per_case(tmp_path: Path) -> None:
 
     result = api.apply_retention(root, keep=20)
 
-    assert result.removed_entries == 2
-    assert result.pruned_runs == tuple(case_a[:2])
-    assert _index_ids(root) == case_a[2:] + case_b
+    assert result.archived_runs == tuple(case_a[:2])
+    assert result.pruned_runs == ()
+    assert result.removed_entries == 0
+    assert _index_ids(root) == case_a + case_b
 
     for run_id in case_b:
-        assert workspace.run_dir(run_id, root).is_dir()
+        directory = workspace.run_dir(run_id, root)
+        assert directory.is_dir()
+        assert not workspace.is_archived(directory)
 
 
 def test_apply_retention_within_the_window_is_a_noop(tmp_path: Path) -> None:
@@ -367,12 +392,17 @@ def test_apply_retention_ignores_incomplete_runs_and_tmp(tmp_path: Path) -> None
 
     result = api.apply_retention(root, keep=1)
 
-    assert result.removed_entries == 1
-    assert result.pruned_runs == (run_ids[0],)
-    assert not workspace.run_dir(run_ids[0], root).exists()
-    assert workspace.run_dir(run_ids[1], root).is_dir()
+    assert result.archived_runs == (run_ids[0],)
+    assert result.pruned_runs == ()
+    assert result.removed_entries == 0
+    archived = workspace.run_dir(run_ids[0], root)
+    assert archived.is_dir()
+    assert workspace.is_archived(archived)
+    surviving = workspace.run_dir(run_ids[1], root)
+    assert surviving.is_dir()
+    assert not workspace.is_archived(surviving)
     assert leftover.is_dir()
-    assert _index_ids(root) == [run_ids[1], "run-failed"]
+    assert _index_ids(root) == run_ids + ["run-failed"]
 
 
 def test_apply_retention_without_an_index_is_a_noop(tmp_path: Path) -> None:
@@ -403,6 +433,7 @@ def test_retention_result_to_dict(tmp_path: Path) -> None:
         keep=1,
         kept_runs=("run-b",),
         pruned_runs=("run-a",),
+        archived_runs=("run-arch",),
         kept_entries=1,
         removed_entries=1,
     )
@@ -411,6 +442,7 @@ def test_retention_result_to_dict(tmp_path: Path) -> None:
         "keep": 1,
         "kept_runs": ["run-b"],
         "pruned_runs": ["run-a"],
+        "archived_runs": ["run-arch"],
         "kept_entries": 1,
         "removed_entries": 1,
     }
@@ -479,9 +511,22 @@ def test_cli_prune_reports_the_counts(tmp_path: Path) -> None:
     result = runner.invoke(app, ["prune", "--workspace", str(root), "--keep", "20"])
 
     assert result.exit_code == 0
-    assert "kept 20 runs" in result.output
-    assert "pruned 2 runs" in result.output
-    assert len(_index_ids(root)) == 20
+    assert "kept 22 runs" in result.output
+    assert "archived 2 runs" in result.output
+    assert "pruned 0 runs" in result.output
+    assert len(_index_ids(root)) == 22
+
+    purge_root = tmp_path / "purge"
+    _populate_case(purge_root, "case-a", 22, "run")
+
+    purged = runner.invoke(
+        app, ["prune", "--workspace", str(purge_root), "--keep", "20", "--purge"]
+    )
+
+    assert purged.exit_code == 0
+    assert "kept 20 runs" in purged.output
+    assert "pruned 2 runs" in purged.output
+    assert len(_index_ids(purge_root)) == 20
 
 
 def test_cli_prune_rejects_a_bad_keep(tmp_path: Path) -> None:

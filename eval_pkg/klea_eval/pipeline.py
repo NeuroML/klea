@@ -280,7 +280,11 @@ def _run_one_case(
 ) -> CaseRun:
     """Schedule, execute and store one case, isolating any failure of it."""
     run_id = _run_id(case, harness_seed, overrides, endpoint)
-    complete = workspace.detect_state(run_id, root) is workspace.RunState.COMPLETE
+    # An archived run is still a published run, so it takes the same branch.
+    complete = workspace.detect_state(run_id, root) in {
+        workspace.RunState.COMPLETE,
+        workspace.RunState.ARCHIVED,
+    }
 
     if complete and not overwrite:
         output_dir = workspace.run_dir(run_id, root)

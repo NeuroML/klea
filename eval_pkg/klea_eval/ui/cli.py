@@ -323,22 +323,53 @@ def prune(
         "-k",
         help="Number of completed runs kept per case.",
     ),
+    purge: bool = typer.Option(
+        False,
+        "--purge/--no-purge",
+        help=(
+            "Delete the whole directory of an older run and drop its index line "
+            "instead of archiving it (the default keeps run.json, metrics.jsonl "
+            "and the index line)."
+        ),
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Report what would be archived or purged without touching the disk.",
+    ),
 ) -> None:
-    """Apply the ADR-0059 retention policy to the stored runs (P8)."""
-    # Deferred import: retention purges directories and rewrites the index, so
-    # it is only imported once this command actually runs.
+    """Apply the ADR-0059 retention policy to the stored runs (P8).
+
+    Archiving is the default: a run beyond the window loses only its
+    ``workspace/`` tree and keeps its ``run.json``, ``metrics.jsonl`` and index
+    line.  ``--purge`` removes the whole directory instead.  Retention only ever
+    runs from this explicit command, never implicitly from a run.
+    """
+    # Deferred import: retention archives or purges directories and rewrites the
+    # index, so the API and results stack are only imported once this command
+    # actually runs, keeping --help and the lightweight commands instant.
     from klea_eval.api import ApiError, apply_retention
 
-    logger.debug("klea-eval: pruning runs, keep=%d", keep)
+    logger.debug("klea-eval: pruning runs, keep=%d, purge=%s", keep, purge)
     try:
-        result = apply_retention(workspace or None, keep=keep)
+        result = apply_retention(
+            workspace or None,
+            keep=keep,
+            purge=purge,
+            dry_run=dry_run,
+        )
     except ApiError as error:
         typer.echo(str(error), err=True)
         raise typer.Exit(code=2) from error
 
-    typer.echo(
-        f"kept {len(result.kept_runs)} runs, pruned {len(result.pruned_runs)} runs"
+    summary = (
+        f"kept {len(result.kept_runs)} runs, "
+        f"archived {len(result.archived_runs)} runs, "
+        f"pruned {len(result.pruned_runs)} runs"
     )
+    if dry_run:
+        summary = f"dry-run: {summary}"
+    typer.echo(summary)
 
 
 @app.command()
@@ -389,6 +420,7 @@ def check(
             ("duplicate", result.duplicate_entries),
             ("unmarked", result.unmarked_directories),
             ("staging", result.staging_directories),
+            ("archived", result.archived_directories),
             ("unrepairable", result.unrepairable_entries),
         )
         for label, run_ids in findings:
@@ -405,7 +437,8 @@ def check(
                 f"{len(result.orphan_entries)} orphan, "
                 f"{len(result.duplicate_entries)} duplicate, "
                 f"{len(result.unmarked_directories)} unmarked, "
-                f"{len(result.staging_directories)} staging"
+                f"{len(result.staging_directories)} staging, "
+                f"{len(result.archived_directories)} archived"
             )
         else:
             typer.echo("index consistent")

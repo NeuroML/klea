@@ -16,11 +16,14 @@ every removal is delegated to the module that already owns that contract:
   so this module never re-derives a score.
 
 Retention (ADR-0059, D11) keeps the most recent ``DEFAULT_RETENTION`` completed
-runs per case, purges the whole directory of an older completed run as one unit
-and rewrites ``runs/index.jsonl`` atomically through a fsynced sibling so the
-surviving lines keep their file order.  An incomplete run, a non-completed index
-line and a leftover ``.tmp`` directory is never counted as a result and never
-deleted.
+runs per case.  By default an older run is archived: only its ``workspace/``
+tree is removed, ``run.json``, ``metrics.jsonl``, ``COMPLETE`` and its index line
+survive, and an ``ARCHIVED`` marker is written beside them so the run still
+resolves while it is no longer a fresh result.  Purge mode removes the whole
+directory of an older completed run as one unit instead and rewrites
+``runs/index.jsonl`` atomically through a fsynced sibling so the surviving lines
+keep their file order.  An incomplete run, a non-completed index line and a
+leftover ``.tmp`` directory is never counted as a result and never deleted.
 
 :func:`check_consistency` and :func:`detect_drift` are the explicit
 check-and-repair pass over the same files (``klea-eval check``): a complete run
@@ -30,8 +33,6 @@ an incomplete (``.tmp`` or unmarked) directory is only flagged, never deleted.
 Deliberately deferred, all belonging to later phases of the implementation plan:
 
 - the automatic post-publish retention hook in :mod:`klea_eval.pipeline`;
-- partial retention that keeps only ``run.json`` plus ``metrics.jsonl`` for a run
-  beyond the window: a purged run loses its whole directory instead;
 - a startup index/directory consistency check or an automatic rebuild-index
   command: :func:`check_consistency` is the explicit, operator-invoked pass
   instead;
@@ -120,6 +121,7 @@ class RetentionResult:
     keep: int = DEFAULT_RETENTION
     kept_runs: tuple[str, ...] = ()
     pruned_runs: tuple[str, ...] = ()
+    archived_runs: tuple[str, ...] = ()
     kept_entries: int = 0
     removed_entries: int = 0
 
@@ -129,6 +131,7 @@ class RetentionResult:
             "keep": self.keep,
             "kept_runs": list(self.kept_runs),
             "pruned_runs": list(self.pruned_runs),
+            "archived_runs": list(self.archived_runs),
             "kept_entries": self.kept_entries,
             "removed_entries": self.removed_entries,
         }
@@ -223,29 +226,41 @@ def apply_retention(
     root: str | Path | None = None,
     *,
     keep: int = DEFAULT_RETENTION,
+    purge: bool = False,
+    dry_run: bool = False,
 ) -> RetentionResult:
     """Keep the most recent ``keep`` completed runs per case, prune the rest.
 
     Only completed index entries are considered; they are grouped by ``case_id``
     in first-index-occurrence order and the most recent ``keep`` of each case are
-    kept (ADR-0059).  Every pruned run loses its whole directory in one removal
-    and its index line is dropped by an atomic rewrite of
-    ``runs/index.jsonl``, so a run directory is never edited in place.  An absent
-    or empty index is a no-op.
+    kept (ADR-0059).  By default a run beyond the window is archived: only its
+    ``workspace/`` tree is removed, an ``ARCHIVED`` marker is written beside the
+    surviving ``run.json``, ``metrics.jsonl`` and ``COMPLETE``, and its index
+    line is kept, so the run still resolves while no longer being a fresh
+    result.  A run that already carries ``ARCHIVED`` is skipped, so a second pass
+    is a no-op.  With ``purge`` a run loses its whole directory in one removal and
+    its index line is dropped by an atomic rewrite of ``runs/index.jsonl``, so a
+    run directory is never edited in place.  ``dry_run`` reports what would be
+    archived or purged without touching the filesystem.  An absent or empty index
+    is a no-op.
     """
     if isinstance(keep, bool) or not isinstance(keep, int):
         raise ApiError(f"keep must be an integer, got {type(keep).__name__}")
     if keep < 1:
         raise ApiError(f"keep must be at least 1, got {keep}")
+    if not isinstance(purge, bool):
+        raise ApiError(f"purge must be a boolean, got {type(purge).__name__}")
+    if not isinstance(dry_run, bool):
+        raise ApiError(f"dry_run must be a boolean, got {type(dry_run).__name__}")
 
     entries = results.read_index(root)
     if not entries:
-        logger.debug(f"{root = }, {keep = }, no index entries")
+        logger.debug(f"{root = }, {keep = }, {purge = }, no index entries")
         return RetentionResult(keep=keep)
 
     dropped = _prune_positions(entries, keep)
     if not dropped:
-        logger.debug(f"{root = }, {keep = }, nothing to prune")
+        logger.debug(f"{root = }, {keep = }, {purge = }, nothing to prune")
         return RetentionResult(
             keep=keep,
             kept_runs=tuple(entry.run_id for entry in entries),
@@ -254,34 +269,71 @@ def apply_retention(
 
     root_path = Path(root) if root is not None else None
     pruned_runs: list[str] = []
+    archived_runs: list[str] = []
+    dropped_lines: set[int] = set()
+
     for position in sorted(dropped):
         entry = entries[position]
         directory = workspace.run_dir(entry.run_id, root_path)
-        try:
-            if directory.is_dir():
-                shutil.rmtree(directory)
+
+        if purge:
+            if dry_run:
                 pruned_runs.append(entry.run_id)
+                dropped_lines.add(position)
+                logger.debug(f"api: would purge run {entry.run_id} at {directory}")
+                continue
+            try:
+                if directory.is_dir():
+                    shutil.rmtree(directory)
+                    pruned_runs.append(entry.run_id)
+            except OSError as exc:
+                logger.warning(
+                    "api: could not purge the run directory %s (%s)", directory, exc
+                )
+                continue
+            dropped_lines.add(position)
+            logger.debug(f"api: purged run {entry.run_id} at {directory}")
+            continue
+
+        if workspace.is_archived(directory):
+            logger.debug(f"api: run {entry.run_id} is already archived at {directory}")
+            continue
+        if not directory.is_dir():
+            logger.debug(f"api: run {entry.run_id} has no directory at {directory}")
+            continue
+
+        workspace_dir = directory / workspace.WORKSPACE_DIR_NAME
+        if dry_run:
+            archived_runs.append(entry.run_id)
+            logger.debug(f"api: would archive run {entry.run_id} at {directory}")
+            continue
+
+        try:
+            shutil.rmtree(workspace_dir, ignore_errors=True)
+            _write_marker(directory, workspace.ARCHIVED_MARKER_NAME)
         except OSError as exc:
-            logger.warning(
-                "api: could not purge the run directory %s (%s)", directory, exc
-            )
-            dropped = dropped - {position}
+            logger.warning("api: could not archive run %s (%s)", entry.run_id, exc)
+            continue
+        archived_runs.append(entry.run_id)
+        logger.debug(f"api: archived run {entry.run_id} at {directory}")
 
     survivors = [
-        entry for position, entry in enumerate(entries) if position not in dropped
+        entry for position, entry in enumerate(entries) if position not in dropped_lines
     ]
-    _rewrite_index(results.index_path(root), survivors)
+    if dropped_lines and not dry_run:
+        _rewrite_index(results.index_path(root), survivors)
 
     result = RetentionResult(
         keep=keep,
         kept_runs=tuple(entry.run_id for entry in survivors),
         pruned_runs=tuple(pruned_runs),
+        archived_runs=tuple(archived_runs),
         kept_entries=len(survivors),
-        removed_entries=len(dropped),
+        removed_entries=len(dropped_lines),
     )
     logger.debug(
         f"{result.kept_entries = }, {result.removed_entries = }, "
-        f"{len(result.pruned_runs) = }"
+        f"{len(result.pruned_runs) = }, {len(result.archived_runs) = }"
     )
     return result
 
@@ -300,6 +352,7 @@ class ConsistencyResult:
     duplicate_entries: tuple[str, ...] = ()
     unmarked_directories: tuple[str, ...] = ()
     staging_directories: tuple[str, ...] = ()
+    archived_directories: tuple[str, ...] = ()
     unrepairable_entries: tuple[str, ...] = ()
 
     @property
@@ -326,6 +379,7 @@ class ConsistencyResult:
             "duplicate_entries": list(self.duplicate_entries),
             "unmarked_directories": list(self.unmarked_directories),
             "staging_directories": list(self.staging_directories),
+            "archived_directories": list(self.archived_directories),
             "unrepairable_entries": list(self.unrepairable_entries),
         }
 
@@ -343,6 +397,13 @@ def detect_drift(root: str | Path | None = None) -> ConsistencyResult:
     - a ``run_id`` named by more than one index line (a duplicate);
     - a final run directory without the ``COMPLETE`` marker (unmarked).
 
+    A ``COMPLETE`` run that also carries ``ARCHIVED`` is reported separately as
+    informational: an archived directory with an index line is neither missing,
+    orphan nor unmarked, so it is excluded from :attr:`has_drift` and
+    :attr:`unrepairable`.  An archived directory with no index line is still an
+    ordinary missing entry, repairable from its retained ``run.json``; an
+    ``ARCHIVED`` marker without ``COMPLETE`` stays unmarked and unrepairable.
+
     A leftover ``<run_id>.tmp`` staging directory is counted separately and is
     never drift: an interrupted run is never a result and never carries an index
     line.
@@ -352,6 +413,7 @@ def detect_drift(root: str | Path | None = None) -> ConsistencyResult:
 
     complete_dirs: list[str] = []
     unmarked: list[str] = []
+    archived: list[str] = []
     staging: list[str] = []
     runs_directory = workspace.runs_dir(root_path)
     if runs_directory.is_dir():
@@ -366,11 +428,15 @@ def detect_drift(root: str | Path | None = None) -> ConsistencyResult:
             if name.endswith(_SUPERSEDED_SUFFIX):
                 logger.debug(f"api: ignoring superseded backup {item}")
                 continue
-            if workspace.is_complete(item):
-                complete_dirs.append(name)
-            else:
+            if not workspace.is_complete(item):
                 unmarked.append(name)
                 logger.warning("api: run directory %s has no COMPLETE marker", item)
+                continue
+            if workspace.is_archived(item):
+                archived.append(name)
+                logger.debug(f"api: run directory {item} is archived")
+                continue
+            complete_dirs.append(name)
 
     indexed: dict[str, int] = {}
     duplicates: list[str] = []
@@ -384,15 +450,20 @@ def detect_drift(root: str | Path | None = None) -> ConsistencyResult:
 
     complete_ids = set(complete_dirs)
     unmarked_ids = set(unmarked)
+    archived_ids = set(archived)
     missing: list[str] = []
     for run_id in complete_dirs:
         if run_id not in indexed:
             missing.append(run_id)
             logger.warning("api: complete run %s is missing from the index", run_id)
+    for run_id in archived:
+        if run_id not in indexed:
+            missing.append(run_id)
+            logger.warning("api: archived run %s is missing from the index", run_id)
 
     orphans: list[str] = []
     for run_id in indexed:
-        if run_id in complete_ids or run_id in unmarked_ids:
+        if run_id in complete_ids or run_id in unmarked_ids or run_id in archived_ids:
             continue
         orphans.append(run_id)
         logger.warning("api: index line for run %s has no run directory", run_id)
@@ -406,6 +477,7 @@ def detect_drift(root: str | Path | None = None) -> ConsistencyResult:
         duplicate_entries=tuple(duplicates),
         unmarked_directories=tuple(unmarked),
         staging_directories=tuple(staging),
+        archived_directories=tuple(archived),
     )
     logger.debug(f"{len(entries) = }, {result.has_drift = }, {len(staging) = }")
     return result
@@ -468,6 +540,7 @@ def check_consistency(
         duplicate_entries=detected.duplicate_entries,
         unmarked_directories=detected.unmarked_directories,
         staging_directories=detected.staging_directories,
+        archived_directories=detected.archived_directories,
         unrepairable_entries=tuple(unrepairable),
     )
 
@@ -584,6 +657,23 @@ def _rewrite_index(target: Path, entries: Sequence[results.IndexEntry]) -> None:
         raise ApiError(f"could not rewrite '{target}': {exc}") from exc
 
     logger.debug(f"{target = }, {len(entries) = }, {len(payload) = }")
+
+
+def _write_marker(directory: Path, marker_name: str) -> None:
+    """Write a zero-byte ``marker_name`` in ``directory`` and fsync it.
+
+    The marker is flushed and its directory entry fsynced through
+    :func:`klea_eval.workspace._fsync_dir`, so an archived run is as durable as a
+    published one.
+    """
+    marker_path = Path(directory) / marker_name
+    descriptor = os.open(marker_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+    workspace._fsync_dir(Path(directory))
+    logger.debug(f"{marker_path = }")
 
 
 def _json_form(value: Any) -> Any:

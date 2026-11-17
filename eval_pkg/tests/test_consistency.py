@@ -307,3 +307,92 @@ def test_cli_check_json_output_names_the_drift(tmp_path: Path) -> None:
     assert payload["duplicate_entries"] == []
     assert payload["staging_directories"] == []
     assert payload["repaired"] is False
+
+
+def test_an_archived_run_with_an_index_line_is_consistent(tmp_path: Path) -> None:
+    """A complete run carrying ``ARCHIVED`` while indexed is neither missing nor orphan."""
+    root = tmp_path / "workspace"
+    directory = _publish_run(root, "run-archived")
+    (directory / workspace.ARCHIVED_MARKER_NAME).write_text("", encoding="utf-8")
+    _index_entry(root, "run-archived")
+    assert workspace.is_archived(directory)
+
+    drift = api.detect_drift(root)
+
+    assert drift.archived_directories == ("run-archived",)
+    assert drift.missing_entries == ()
+    assert drift.orphan_entries == ()
+    assert not drift.has_drift
+    assert not drift.unrepairable
+
+    result = _invoke("--workspace", str(root))
+
+    assert result.exit_code == 0
+    assert "index consistent" in result.output
+
+
+def test_repair_reindexes_an_archived_run_missing_from_the_index(
+    tmp_path: Path,
+) -> None:
+    """An archived run with no index line is a missing entry, repaired from run.json."""
+    root = tmp_path / "workspace"
+    directory = _publish_run(root, "run-archived")
+    (directory / workspace.ARCHIVED_MARKER_NAME).write_text("", encoding="utf-8")
+    assert _index_ids(root) == []
+
+    drift = api.detect_drift(root)
+
+    assert drift.archived_directories == ("run-archived",)
+    assert drift.missing_entries == ("run-archived",)
+    assert drift.has_drift
+
+    result = api.check_consistency(root, repair=True)
+
+    assert result.repaired
+    assert result.missing_entries == ("run-archived",)
+    assert result.unrepairable_entries == ()
+    assert _index_ids(root) == ["run-archived"]
+
+    entry = results.read_index(root)[0]
+    assert entry.case_id == "case-a"
+    assert entry.status == COMPLETED
+
+
+def test_an_archived_directory_without_complete_is_unmarked(tmp_path: Path) -> None:
+    """An ``ARCHIVED`` marker without ``COMPLETE`` is unmarked and never repaired."""
+    root = tmp_path / "workspace"
+    directory = workspace.run_dir("run-half-archived", root)
+    directory.mkdir(parents=True)
+    (directory / "run.json").write_text("{}\n", encoding="utf-8")
+    (directory / workspace.ARCHIVED_MARKER_NAME).write_text("", encoding="utf-8")
+
+    drift = api.detect_drift(root)
+
+    assert drift.unmarked_directories == ("run-half-archived",)
+    assert drift.archived_directories == ()
+    assert drift.unrepairable
+
+    result = _invoke("--workspace", str(root), "--repair")
+
+    assert result.exit_code == 3
+    assert "unmarked: run-half-archived" in result.output
+    assert directory.is_dir()
+
+
+def test_an_index_line_without_a_directory_is_still_orphan_drift(
+    tmp_path: Path,
+) -> None:
+    """An index line with no run directory stays orphan drift after archiving support."""
+    root = tmp_path / "workspace"
+    _index_entry(root, "run-orphan")
+
+    drift = api.detect_drift(root)
+
+    assert drift.orphan_entries == ("run-orphan",)
+    assert drift.archived_directories == ()
+    assert drift.has_drift
+
+    result = api.check_consistency(root, repair=True)
+
+    assert result.orphan_entries == ("run-orphan",)
+    assert _index_ids(root) == []

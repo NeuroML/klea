@@ -122,6 +122,39 @@ def test_detect_state_complete_when_marker_present(tmp_path):
     assert workspace.detect_state("done", tmp_path) is RunState.COMPLETE
 
 
+def test_is_archived_false_for_a_plain_complete_run(tmp_path):
+    final_dir = _make_complete_run(tmp_path, "plain")
+
+    assert workspace.is_complete(final_dir)
+    assert not workspace.is_archived(final_dir)
+
+
+def test_detect_state_archived_when_both_markers_present(tmp_path):
+    final_dir = _make_complete_run(tmp_path, "kept")
+    (final_dir / "ARCHIVED").write_text("")
+
+    assert workspace.is_complete(final_dir)
+    assert workspace.is_archived(final_dir)
+    assert workspace.detect_state("kept", tmp_path) is RunState.ARCHIVED
+
+
+def test_detect_state_complete_without_archived_marker(tmp_path):
+    final_dir = _make_complete_run(tmp_path, "fresh")
+
+    assert not workspace.is_archived(final_dir)
+    assert workspace.detect_state("fresh", tmp_path) is RunState.COMPLETE
+
+
+def test_detect_state_incomplete_for_archived_without_complete(tmp_path):
+    final_dir = workspace.run_dir("half-archived", tmp_path)
+    final_dir.mkdir(parents=True)
+    (final_dir / "ARCHIVED").write_text("")
+
+    assert workspace.is_archived(final_dir)
+    assert not workspace.is_complete(final_dir)
+    assert workspace.detect_state("half-archived", tmp_path) is RunState.INCOMPLETE
+
+
 # -- existing completed run ----------------------------------------------
 
 
