@@ -17,6 +17,7 @@
 
 ### Changed
 
+- `klea-eval prune` now archives runs that fall outside the retention window instead of deleting them: an older run keeps its `run.json`, `metrics.jsonl` and index line, and only its workspace tree is removed; pass `--purge` to delete the whole run directory and drop its index line as before.
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
 
 ### Fixed

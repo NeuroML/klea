@@ -53,7 +53,7 @@ recorded here so later steps do not re-litigate them.
 | D8 | Test marking and CI | `eval` marker introduced in P1; CI wiring for the marked tests lands in P9. |
 | D9 | LLM judge scoring | Opt-in and out of the first cut. Deterministic metrics only until the pipeline is trusted. |
 | D10 | Suite-level pass metric | `pass_at_k` read from the run index, `k=1` by default. |
-| D11 | Retention policy | Keep the last 20 complete runs; older complete runs are pruned. |
+| D11 | Retention policy | Keep the last 20 complete runs per case; older complete runs are archived (their `workspace/` tree removed while `run.json`, `metrics.jsonl`, the `COMPLETE` marker and the index line are kept, plus an `ARCHIVED` marker), unless `--purge` deletes them outright. |
 | D12 | Commit granularity for docs | A docs-only first commit, then per-atomic-change commits thereafter. |
 
 ---
@@ -260,22 +260,30 @@ Points discovered while delivering P1-P7; later phases must respect them.
   `klea_eval.scoring.aggregate_suite`, which closes the P7 deferred item (CLI
   or API exposure of `aggregate_suite`) without redefining a score. Retention
   (`apply_retention`, D11, `DEFAULT_RETENTION = 20`) keeps the most recent 20
-  completed runs per case, groups in first-index-occurrence order, purges the
-  whole directory of an older completed run with `shutil.rmtree` and rewrites
-  `runs/index.jsonl` atomically through a fsynced sibling plus `os.replace`,
-  preserving file order; non-completed index lines and leftover `.tmp`
-  directories are neither counted nor deleted, and `keep < 1` or a bool raises
-  `ApiError`. `ApiError` and `RunNotFoundError` live in `klea_eval/api.py`,
-  following the `WorkspaceError`, `RunManagerError`, `MetricsError`,
-  `ResultsError` and `ScoringError` precedent. Retention is applied from the
-  CLI (`klea-eval prune`) and is not wired into `pipeline.run_suite`.
-  `klea-eval show`, `runs`, `prune` and `summary` were added beside the
-  existing commands, keeping the heavy imports deferred. "SSE integration"
+  completed runs per case, groups in first-index-occurrence order, and by
+  default archives an older completed run: its `workspace/` tree is removed
+  while `run.json`, `metrics.jsonl`, the `COMPLETE` marker and its
+  `runs/index.jsonl` line survive, and an `ARCHIVED` marker is written beside
+  them. With `purge=True` it instead deletes the whole run directory with
+  `shutil.rmtree` and drops its index line; with `dry_run=True` it reports the
+  plan without touching the disk, and a second archive pass is a no-op. It
+  rewrites `runs/index.jsonl` atomically through a fsynced sibling plus
+  `os.replace`, preserving file order; non-completed index lines and leftover
+  `.tmp` directories are neither counted nor deleted, and `keep < 1` or a bool
+  raises `ApiError`. `ApiError` and `RunNotFoundError` live in
+  `klea_eval/api.py`, following the `WorkspaceError`, `RunManagerError`,
+  `MetricsError`, `ResultsError` and `ScoringError` precedent. Retention is
+  lossy, so it is applied only from the explicit `klea-eval prune` command,
+  never automatically from a run, and is not wired into `pipeline.run_suite`.
+  `klea-eval show`, `runs`, `prune` (archive by default, with `--purge` and
+  `--dry-run`) and `summary` were added beside the existing commands, keeping
+  the heavy imports deferred. "SSE integration"
   here means reading stored runs: no web/ASGI server or served SSE endpoint
-  exists, and `eval_pkg` stays a library plus CLI. Still deferred: partial
-  retention keeping only `run.json` plus `metrics.jsonl` beyond the window (a
-  purged run loses its whole directory), the automatic post-publish retention
-  hook, an automatic startup index/directory consistency check or
+  exists, and `eval_pkg` stays a library plus CLI. An archived run is a
+  legitimate `COMPLETE` directory with its index line, so `klea-eval check`
+  counts it as consistent and never reports it as drift. Still deferred: the
+  re-hydration of an archived run's artifacts, a second purge horizon for
+  archived runs, and an automatic startup index/directory consistency check or
   rebuild-index command (the explicit `klea-eval check` pass is implemented
   instead),
   `transcript.jsonl` writing, HITL `interrupt` resume, cost derivation (no

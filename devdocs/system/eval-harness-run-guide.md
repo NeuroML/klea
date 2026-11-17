@@ -238,12 +238,22 @@ klea-eval runs                       # the run index, one line per run
 klea-eval runs --case-id smoke-001 --status completed
 klea-eval show <run_id>              # <run_id>: <case_id> <status> pass|fail
 klea-eval summary --k 3              # suite_score and pass_at_k
-klea-eval prune --keep 20            # ADR-0059 retention
+klea-eval prune --keep 20            # archive beyond the window (ADR-0059)
+klea-eval prune --keep 20 --purge    # delete instead of archiving
+klea-eval prune --keep 20 --dry-run  # report the plan, touch nothing
 klea-eval report results.json -o report.md
 ```
 
 `show`, `runs`, `prune` and `summary` accept `--workspace` / `-w` and fall
 back to `$KLEA_EVAL_WORKSPACE`.
+
+`prune` archives by default: a run beyond the per-case window loses only its
+`workspace/` tree, while its `run.json`, `metrics.jsonl`, `COMPLETE` marker and
+index line survive and an `ARCHIVED` marker is written beside them.  An
+archived run stays listed by `runs`, stays readable by `show` and still counts
+towards `summary`.  Pass `--purge` to delete the whole run directory and drop
+its index line instead, or `--dry-run` to report what would happen without
+touching the disk.
 
 ## 9. Troubleshooting
 

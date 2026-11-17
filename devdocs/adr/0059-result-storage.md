@@ -140,3 +140,15 @@ Harness orchestration, the CLI surface and run scheduling are out of scope here 
 - [JSONL Format Specification](https://jsonlines.org/)
 - [MADR: Markdown Any Decision Records](https://adr.github.io/madr/)
 - [POSIX `rename` atomicity](https://pubs.opengroup.org/onlinepubs/9699919799/functions/rename.html)
+
+## Update (2026-11-17): archived retention tier
+
+The retention paragraph above already requires this shape: a run beyond the window keeps `run.json` plus `metrics.jsonl` rather than the whole directory. The implementation now conforms to that requirement explicitly, as an archive step rather than a partial in-place edit, so this amendment records the conforming behaviour and changes no earlier clause.
+
+* **Marker**: archive writes a zero-byte `ARCHIVED` marker beside the existing `COMPLETE` marker. `COMPLETE` alone still means a complete, live run; `COMPLETE` plus `ARCHIVED` means an archived run. `COMPLETE` is never removed, so an archived run stays a provably complete result.
+* **Retained set**: an archived run keeps `run.json`, `metrics.jsonl`, `COMPLETE` and `ARCHIVED`. Only its `workspace/` tree (fixtures and outputs) is removed, which is the evidence directory the archive reclaims.
+* **Index line**: the `runs/index.jsonl` line of an archived run is neither removed nor rewritten. The index stays the completed-only projection of the `COMPLETE`-marked run directories, and an archived run is still listed, read through the API and counted in suite aggregation.
+* **Trigger**: archiving is the default retention action and runs only from the explicit `klea-eval prune` command, never implicitly after a publish. `--purge` deletes the whole run directory and drops its index line instead (the previous behaviour), and `--dry-run` reports what would be archived or purged without touching the disk. A second archive pass over an already archived run is a no-op.
+* **Not automatic**: retention is never applied implicitly from a run, because a publish has no knowledge of the operator's disk budget and an implicit pass would discard evidence after a run the operator has not yet inspected. Archiving remains an operator-invoked decision made through the CLI.
+
+See `devdocs/system/eval-harness-implementation.md` for the phase record and `devdocs/system/eval-harness-run-guide.md` for the `prune --keep`, `--purge` and `--dry-run` surface.

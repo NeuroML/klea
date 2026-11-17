@@ -182,11 +182,25 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
   whose run directory is gone, and only flags an unmarked final directory or a
   leftover `.tmp` staging directory without deleting either. Every dropped
   `run_id` is reported and logged at WARNING, because a dropped line is
-  unrecoverable. Orphan lines are dropped rather than kept: retention (D11)
-  already proves a run directory may disappear together with its line, so an
-  index line with no directory is drift by definition, and keeping it would make
-  `get_run`, scoring and reporting fail on a missing file. No ADR is needed: the
-  index stays the completed-only projection already decided above.
+  unrecoverable. Orphan lines are dropped rather than kept: `prune --purge`
+  (D11) removes a run directory together with its index line, whereas an
+  archived run keeps both, so an index line with no directory is drift by
+  definition, and keeping it would make `get_run`, scoring and reporting fail on
+  a missing file. No ADR is needed: the index stays the completed-only
+  projection already decided above.
+- Retention granularity (settled): retention keeps the most recent 20 completed
+  runs per case (D11); older runs are archived rather than deleted.  Archiving
+  removes only the run's `workspace/` tree and keeps `run.json`,
+  `metrics.jsonl`, the `COMPLETE` marker and its `runs/index.jsonl` line, with
+  an `ARCHIVED` marker written beside them, so an archived run stays a
+  legitimate index-and-directory pair that `get_run`, `list_runs`, `summary` and
+  `klea-eval check` all accept without reporting drift.  `prune --purge`
+  deletes the whole directory and drops the line instead, and `--dry-run`
+  reports the plan without touching the disk.  Retention is explicit-only: it
+  runs only from `klea-eval prune`, never automatically after a publish, because
+  pruning is lossy.  Residual follow-ups: re-hydrating an archived run's
+  artifacts, a second purge horizon for already-archived runs, and the automatic
+  post-publish retention hook, which is rejected rather than deferred.
 
 ## Infrastructure / correctness
 

@@ -344,9 +344,9 @@ sequenceDiagram
         W->>W: atomic rename runs/{run_id}.tmp/ to runs/{run_id}/
         W->>I: append one O_APPEND line to runs/index.jsonl with run_id, case_id, status, timestamp, schema_version, metrics path
         Note over W,I: a reader sees no run or a complete run, a leftover .tmp is an incomplete run
-        I->>R: apply retention after publish
+        I->>R: retention is explicit only: the operator runs klea-eval prune
         alt case has more than N runs
-            R->>R: purge whole older run dirs, keep only run.json plus metrics.jsonl, rewrite index atomically
+            R->>R: archive older run dirs: drop only workspace/, keep run.json, metrics.jsonl and the index line, write ARCHIVED; --purge deletes the whole dir instead
         end
     end
     D->>I: aggregate reads runs/index.jsonl only, never the run directories
@@ -390,7 +390,7 @@ sequenceDiagram
 ### Persistence (Writer)
 - **Input**: A finished run: its `run.json` envelope, `metrics.jsonl` records, `transcript.jsonl` and `workspace/`.
 - **Output**: The completed run directory `runs/<run_id>/` plus one appended line in `runs/index.jsonl`.
-- **Responsibility**: Own the single write protocol: write into `runs/<run_id>.tmp/` as the run proceeds, flush and `fsync` every file, write the zero-byte `COMPLETE` marker last, rename the directory to `runs/<run_id>/` atomically, then append one `O_APPEND` line to `runs/index.jsonl`; apply retention by keeping the full run directory for the most recent N runs per case (N from run config) and only `run.json` plus `metrics.jsonl` for older runs; a leftover `.tmp` directory is unambiguously an incomplete run.
+- **Responsibility**: Own the single write protocol: write into `runs/<run_id>.tmp/` as the run proceeds, flush and `fsync` every file, write the zero-byte `COMPLETE` marker last, rename the directory to `runs/<run_id>/` atomically, then append one `O_APPEND` line to `runs/index.jsonl`; retention is never applied by the writer: the operator invokes `klea-eval prune` explicitly, which by default archives a run beyond the most recent N per case (N from run config) by dropping only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the `COMPLETE` marker and its index line, with an `ARCHIVED` marker written beside them, or with `--purge` deletes the whole run directory and drops its index line; a leftover `.tmp` directory is unambiguously an incomplete run.
 
 ### Reporter
 - **Input**: Suite aggregates from the Aggregate stage, read from `runs/index.jsonl`.
@@ -437,7 +437,7 @@ sequenceDiagram
 - **Prompt versioning**: Prompt text and version logged in `run.json`.
 - **Fixture snapshots**: Fixtures copied under `runs/<run_id>/workspace/`; the original fixture is preserved and the copy is immutable.
 - **Artifact storage**: `run.json` plus the versioned `metrics.jsonl` (`schema_version`, `record_type`, final "run" envelope), `transcript.jsonl` and the workspace are stored for offline reproducibility.
-- **Retention**: The full run directory is kept for the most recent N runs per case (N from run config); older runs keep only `run.json` plus `metrics.jsonl` (ADR-0059).
+- **Retention**: Retention is never automatic; the operator runs `klea-eval prune`, which archives a run beyond the most recent N per case (N from run config) by removing only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the `COMPLETE` marker and the index line, with an `ARCHIVED` marker written beside them; `--purge` deletes the whole run directory and drops the index line instead, and `--dry-run` reports the plan without touching the disk (ADR-0059).
 - **Scope of determinism**: Only identifiers, ordering and derived metrics are reproducible; turn content and latency are stochastic.
 
 ---
