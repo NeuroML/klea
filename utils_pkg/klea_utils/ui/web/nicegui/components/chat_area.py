@@ -432,6 +432,114 @@ def _permission_step_lines(ask: dict[str, Any]) -> list[str]:
     return lines
 
 
+#: Heading for requests that carry no plan-step context (grouped layout only).
+PERMISSION_OTHER_HEADING = "Other paths"
+
+
+def _permission_request_steps(request: dict[str, Any]) -> list[int]:
+    """Return the plan-step numbers a request serves, sorted and de-duplicated.
+
+    :param request: One serialized permission request.
+    :returns: The step numbers, ascending; empty when the request carries none.
+    """
+    steps = request.get("steps")
+    if not isinstance(steps, list):
+        return []
+    numbers: list[int] = []
+    for step in steps:
+        if not isinstance(step, dict):
+            continue
+        number = step.get("step_number")
+        if isinstance(number, int) and number not in numbers:
+            numbers.append(number)
+    return sorted(numbers)
+
+
+def _permission_step_heading(number: int, summary: str) -> str:
+    """Return one bounded ``Step N: summary`` heading line (display only).
+
+    The summary is model-authored, so the caller renders it through
+    :func:`nicegui.ui.label` (never ``ui.html``) and it cannot inject markup.
+    It is whitespace-collapsed and cut to
+    :data:`MAX_PERMISSION_STEP_SUMMARY_CHARS` with an ASCII ``...``, matching
+    the top-of-form legacy lines.
+
+    :param number: The plan step number.
+    :param summary: The step summary, possibly empty.
+    :returns: The heading line.
+    """
+    text = " ".join(summary.split())
+    if len(text) > MAX_PERMISSION_STEP_SUMMARY_CHARS:
+        text = text[:MAX_PERMISSION_STEP_SUMMARY_CHARS].rstrip() + "..."
+    return f"Step {number}: {text}" if text else f"Step {number}"
+
+
+def _permission_groups(
+    requests: list[Any],
+) -> list[tuple[str, list[tuple[int, dict[str, Any], str]]]]:
+    """Group the permission requests under their plan-step headings.
+
+    Each request may carry its own display-only ``steps`` context (the plan
+    steps the dispatching call was bound for, ADR-0007).  A request is placed
+    under the heading of its lowest step number, keeping its payload order and
+    its original 1-based display number and path/directory decision key; a
+    request that also serves further steps gets a bounded ``Also serves step
+    N`` hint.  Requests without step context go to a trailing
+    :data:`PERMISSION_OTHER_HEADING` bucket, which is emitted only when at
+    least one request carries a step.  When no request carries step context
+    the whole payload is returned as one unheaded group, so the previous flat
+    layout is unchanged.
+
+    :param requests: The serialized permission requests, in payload order.
+    :returns: ``(heading, [(index, request, hint), ...])`` pairs; the heading
+        is empty for the flat layout.
+    """
+    entries = [
+        (index, request)
+        for index, request in enumerate(requests, start=1)
+        if isinstance(request, dict)
+    ]
+    member_steps: dict[int, list[int]] = {}
+    summaries: dict[int, str] = {}
+    for index, request in entries:
+        member_steps[index] = _permission_request_steps(request)
+        steps = request.get("steps")
+        if not isinstance(steps, list):
+            continue
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            number = step.get("step_number")
+            if not isinstance(number, int) or summaries.get(number):
+                continue
+            text = str(step.get("summary") or "").strip()
+            if text:
+                summaries[number] = text
+
+    if not any(member_steps.get(index) for index, _ in entries):
+        return [("", [(index, request, "") for index, request in entries])]
+
+    buckets: dict[int, list[tuple[int, dict[str, Any], str]]] = {}
+    others: list[tuple[int, dict[str, Any], str]] = []
+    for index, request in entries:
+        numbers = member_steps.get(index) or []
+        if not numbers:
+            others.append((index, request, ""))
+            continue
+        also = ""
+        if len(numbers) > 1:
+            also = "Also serves step " + ", ".join(str(n) for n in numbers[1:])
+        buckets.setdefault(numbers[0], []).append((index, request, also))
+
+    groups = [
+        (_permission_step_heading(number, summaries.get(number, "")), buckets[number])
+        for number in sorted(buckets)
+    ]
+    if others:
+        groups.append((PERMISSION_OTHER_HEADING, others))
+    return groups
+
+
 def _render_permission_form(
     ctx: PageContext, ask: dict[str, Any], interrupt_id: Any
 ) -> None:
@@ -462,47 +570,60 @@ def _render_permission_form(
             ui.label(str(question)).classes("text-xs text-grey-6")
         # Display-only plan-step context: the work each requested path serves.
         # Plain labels (never ``ui.html``), so the model-authored summary cannot
-        # inject markup; absent context renders nothing.
-        for step_line in _permission_step_lines(ask):
-            ui.label(step_line).classes("text-xs text-grey-6")
+        # inject markup; absent context renders nothing.  Per-request step
+        # context is grouped into the rows below, so these top-of-form lines are
+        # kept only for a legacy payload whose step context sits on the ask.
+        groups = _permission_groups(requests)
+        if not any(
+            _permission_request_steps(request)
+            for request in requests
+            if isinstance(request, dict)
+        ):
+            for step_line in _permission_step_lines(ask):
+                ui.label(step_line).classes("text-xs text-grey-6")
 
         # Re-render on select so the chosen option shows its active state
         # (``choice_buttons`` computes it at build time).
         @ui.refreshable
         def _rows() -> None:
-            for index, request in enumerate(requests, start=1):
-                if not isinstance(request, dict):
-                    continue
-                path = _permission_path_display(request)
-                if request.get("kind") == "sensitive":
-                    title = f"Sensitive file: {path}"
-                else:
-                    title = f"Outside project path: {path}"
-                title = f"{index}. {title}"
-                scope = _permission_scope(request)
-                key = _permission_key(request)
+            for heading, group in groups:
+                if heading:
+                    # Plain label (never ``ui.html``): the model-authored step
+                    # summary cannot inject markup.
+                    ui.label(heading).classes("text-xs font-bold")
+                for index, request, also in group:
+                    path = _permission_path_display(request)
+                    if request.get("kind") == "sensitive":
+                        title = f"Sensitive file: {path}"
+                    else:
+                        title = f"Outside project path: {path}"
+                    title = f"{index}. {title}"
+                    scope = _permission_scope(request)
+                    key = _permission_key(request)
 
-                def _set(value: str, k: str = key) -> None:
-                    decisions[k] = value
-                    _rows.refresh()
+                    def _set(value: str, k: str = key) -> None:
+                        decisions[k] = value
+                        _rows.refresh()
 
-                choice_buttons(
-                    title,
-                    _permission_options(request),
-                    decisions.get(key, "deny"),
-                    _set,
-                    colors={"deny": "red-5", "not_a_path": "grey-7"},
-                    label_width="20ch",
-                    group_width="16rem",
-                )
-                if scope:
-                    ui.label(scope).classes("text-xs text-grey-6")
-                _render_permission_hint(request)
-                coverage = _permission_coverage(request)
-                if coverage:
-                    ui.label(coverage).classes("text-xs text-grey-6").style(
-                        "white-space: pre-line"
+                    choice_buttons(
+                        title,
+                        _permission_options(request),
+                        decisions.get(key, "deny"),
+                        _set,
+                        colors={"deny": "red-5", "not_a_path": "grey-7"},
+                        label_width="20ch",
+                        group_width="16rem",
                     )
+                    if scope:
+                        ui.label(scope).classes("text-xs text-grey-6")
+                    if also:
+                        ui.label(also).classes("text-xs text-grey-6")
+                    _render_permission_hint(request)
+                    coverage = _permission_coverage(request)
+                    if coverage:
+                        ui.label(coverage).classes("text-xs text-grey-6").style(
+                            "white-space: pre-line"
+                        )
 
         _rows()
 

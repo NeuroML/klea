@@ -504,40 +504,161 @@ class PermissionPanel(HitlDecisionPanel):
             lines.append(f"Step {number}: {summary}" if number is not None else summary)
         return lines
 
+    #: Heading for requests that carry no plan-step context (grouped layout).
+    OTHER_HEADING = "Other paths"
+
+    @staticmethod
+    def _request_steps(request: Mapping[str, Any]) -> list[int]:
+        """Return the plan-step numbers a request serves, sorted.
+
+        :param request: One serialized permission request.
+        :returns: The step numbers, ascending; empty when it carries none.
+        """
+        steps = request.get("steps")
+        if not isinstance(steps, list):
+            return []
+        numbers: list[int] = []
+        for step in steps:
+            if not isinstance(step, Mapping):
+                continue
+            number = step.get("step_number")
+            if isinstance(number, int) and number not in numbers:
+                numbers.append(number)
+        return sorted(numbers)
+
+    @classmethod
+    def _step_heading(cls, number: int, summary: str) -> str:
+        """Return one bounded ``Step N: summary`` heading line (display only).
+
+        It is whitespace-collapsed and cut to
+        :data:`MAX_PERMISSION_STEP_SUMMARY_CHARS` with an ASCII ``...``, like
+        :meth:`_step_lines`.
+
+        :param number: The plan step number.
+        :param summary: The step summary, possibly empty.
+        :returns: The heading line.
+        """
+        text = " ".join(summary.split())
+        if len(text) > MAX_PERMISSION_STEP_SUMMARY_CHARS:
+            text = text[:MAX_PERMISSION_STEP_SUMMARY_CHARS].rstrip() + "..."
+        return f"Step {number}: {text}" if text else f"Step {number}"
+
+    @classmethod
+    def _groups(
+        cls, requests: list[Any]
+    ) -> list[tuple[str, list[tuple[int, Mapping[str, Any], str]]]]:
+        """Group the requests under their plan-step headings.
+
+        Each request may carry its own display-only ``steps`` context.  A
+        request is placed under the heading of its lowest step number, keeping
+        its global display number and its ``perm-{index}`` radio ids; a request
+        that also serves further steps gets a bounded ``Also serves step N``
+        hint.  Step-less requests go to a trailing :attr:`OTHER_HEADING`
+        bucket, shown only when at least one request carries a step.  When no
+        request carries step context the whole payload is returned as one
+        unheaded group, so the flat layout is unchanged.
+
+        :param requests: The serialized requests, in payload order.
+        :returns: ``(heading, [(index, request, hint), ...])`` pairs; the
+            heading is empty for the flat layout.
+        """
+        entries = [
+            (index, request)
+            for index, request in enumerate(requests, start=1)
+            if isinstance(request, Mapping)
+        ]
+        member_steps: dict[int, list[int]] = {}
+        summaries: dict[int, str] = {}
+        for index, request in entries:
+            member_steps[index] = cls._request_steps(request)
+            steps = request.get("steps")
+            if not isinstance(steps, list):
+                continue
+            for step in steps:
+                if not isinstance(step, Mapping):
+                    continue
+                number = step.get("step_number")
+                if not isinstance(number, int) or summaries.get(number):
+                    continue
+                text = str(step.get("summary") or "").strip()
+                if text:
+                    summaries[number] = text
+
+        if not any(member_steps.get(index) for index, _ in entries):
+            return [("", [(index, request, "") for index, request in entries])]
+
+        buckets: dict[int, list[tuple[int, Mapping[str, Any], str]]] = {}
+        others: list[tuple[int, Mapping[str, Any], str]] = []
+        for index, request in entries:
+            numbers = member_steps.get(index) or []
+            if not numbers:
+                others.append((index, request, ""))
+                continue
+            also = ""
+            if len(numbers) > 1:
+                also = "Also serves step " + ", ".join(str(n) for n in numbers[1:])
+            buckets.setdefault(numbers[0], []).append((index, request, also))
+
+        groups = [
+            (cls._step_heading(number, summaries.get(number, "")), buckets[number])
+            for number in sorted(buckets)
+        ]
+        if others:
+            groups.append((cls.OTHER_HEADING, others))
+        return groups
+
     def compose(self) -> ComposeResult:
-        """Compose one radio group per requested path, plus Submit / Cancel."""
+        """Compose one heading per plan step, then that step's requests."""
         yield SelectableStatic("Permission required", id="perm-title")
         question = self.ask.get("question")
         if question:
             yield SelectableStatic(str(question), id="perm-question")
+        requests = self._requests()
         # Display-only plan-step context: the work each requested path serves.
         # ``markup=False`` so the model-authored summary is never parsed as Rich
-        # markup; absent context renders nothing.
-        for step_line in self._step_lines(self.ask):
-            yield SelectableStatic(step_line, markup=False, classes="hitl-hint")
-        for index, request in enumerate(self._requests()):
-            if index:
-                yield Rule()
-            with Vertical(classes="perm-request"):
-                yield SelectableStatic(
-                    f"{index + 1}. {self._title(request)}", markup=False
-                )
-                scope = _permission_scope(request)
-                if scope:
-                    yield SelectableStatic(scope, classes="hitl-hint", markup=False)
-                hint = self._hint_renderable(request)
-                if hint:
-                    yield SelectableStatic(hint, classes="hitl-hint", markup=False)
-                coverage = self._coverage(request)
-                if coverage:
-                    yield SelectableStatic(coverage, classes="hitl-hint", markup=False)
-                with RadioSet(id=f"perm-{index}"):
-                    for option in self._options(request):
-                        yield RadioButton(
-                            _PERMISSION_OPTION_LABELS[option],
-                            id=f"perm-{index}-{option}",
-                            value=option == "deny",
+        # markup; absent context renders nothing.  Per-request step context is
+        # grouped into the blocks below, so these heading lines are kept only
+        # for a legacy payload whose step context sits on the ask alone.
+        if not any(
+            self._request_steps(request)
+            for request in requests
+            if isinstance(request, Mapping)
+        ):
+            for step_line in self._step_lines(self.ask):
+                yield SelectableStatic(step_line, markup=False, classes="hitl-hint")
+        shown = False
+        for heading, group in self._groups(requests):
+            if heading:
+                yield SelectableStatic(heading, markup=False, classes="hitl-hint")
+            for index, request, also in group:
+                if shown:
+                    yield Rule()
+                shown = True
+                with Vertical(classes="perm-request"):
+                    yield SelectableStatic(
+                        f"{index}. {self._title(request)}", markup=False
+                    )
+                    scope = _permission_scope(request)
+                    if scope:
+                        yield SelectableStatic(scope, classes="hitl-hint", markup=False)
+                    hint = self._hint_renderable(request)
+                    if hint:
+                        yield SelectableStatic(hint, classes="hitl-hint", markup=False)
+                    if also:
+                        yield SelectableStatic(also, classes="hitl-hint", markup=False)
+                    coverage = self._coverage(request)
+                    if coverage:
+                        yield SelectableStatic(
+                            coverage, classes="hitl-hint", markup=False
                         )
+                    radio_index = index - 1
+                    with RadioSet(id=f"perm-{radio_index}"):
+                        for option in self._options(request):
+                            yield RadioButton(
+                                _PERMISSION_OPTION_LABELS[option],
+                                id=f"perm-{radio_index}-{option}",
+                                value=option == "deny",
+                            )
         with Horizontal(classes="actions"):
             yield action_button("Submit", id="perm-submit", variant="primary")
             yield action_button("Cancel", id="perm-cancel", variant="default")

@@ -277,6 +277,57 @@ class TestPermissionPanelHelpers:
         assert PermissionPanel._step_lines({}) == []
         assert PermissionPanel._step_lines({"steps": []}) == []
 
+    def test_groups_place_requests_under_their_step(self):
+        """Requests group under their step heading, in ascending step order."""
+        groups = PermissionPanel._groups(
+            [
+                {"path": "/b", "steps": [{"step_number": 2, "summary": "Second"}]},
+                {"path": "/a", "steps": [{"step_number": 1, "summary": "First"}]},
+                {"path": "/c"},
+            ]
+        )
+
+        assert [heading for heading, _ in groups] == [
+            "Step 1: First",
+            "Step 2: Second",
+            PermissionPanel.OTHER_HEADING,
+        ]
+        assert [item[1]["path"] for item in groups[0][1]] == ["/a"]
+        assert [item[1]["path"] for item in groups[1][1]] == ["/b"]
+        # The step-less request lands in the single trailing bucket.
+        assert [item[1]["path"] for item in groups[2][1]] == ["/c"]
+        # The global 1-based display number is preserved, not renumbered.
+        assert [item[0] for item in groups[0][1]] == [2]
+        assert [item[0] for item in groups[2][1]] == [3]
+
+    def test_groups_put_multi_step_request_under_lowest_step(self):
+        """A request serving several steps sits under its lowest step number."""
+        groups = PermissionPanel._groups(
+            [
+                {
+                    "path": "/a",
+                    "steps": [
+                        {"step_number": 2, "summary": "Second"},
+                        {"step_number": 1, "summary": "First"},
+                    ],
+                }
+            ]
+        )
+
+        assert len(groups) == 1
+        heading, items = groups[0]
+        assert heading == "Step 1: First"
+        assert items[0][0] == 1
+        assert items[0][1]["path"] == "/a"
+        assert items[0][2] == "Also serves step 2"
+
+    def test_groups_flat_without_step_context(self):
+        """With no per-request step context the grouping is flat."""
+        requests = [{"path": "/a"}, {"path": "/b"}]
+        groups = PermissionPanel._groups(requests)
+
+        assert groups == [("", [(1, requests[0], ""), (2, requests[1], "")])]
+
     def test_guess_options_include_not_a_path(self):
         assert PermissionPanel._options({"confidence": "guess"}) == (
             "once",

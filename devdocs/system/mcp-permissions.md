@@ -63,9 +63,26 @@ The single enforcement point is the pre-dispatch gate in
   still key on `path`/`directory`.  Each summary is collapsed to a single
   line and cut to 160 characters with an ASCII `...`, and at most 8 step
   entries are carried (`MAX_STEP_REFS`), so a pathological plan cannot flood
-  the ask.  Both frontends render one `Step N: summary` line per entry before
-  the per-path rows and render nothing when the list is absent (an older
-  checkpoint, or a plan-less run such as Klea RAG), so the ask is unchanged.
+  the ask.
+
+  Both frontends present the ask grouped by plan step: the requested paths are
+  shown under a `Step N: summary` heading for the step they serve, in ascending
+  step order, so the work each path is wanted for is visible next to that path.
+  A request that serves several steps is placed under its lowest step number
+  and gains a bounded `Also serves step N` hint listing the rest; the per-path
+  rows keep their payload order, their 1-based display number and their
+  `path`/`directory` decision key.  Requests that carry no step context follow
+  in a trailing `Other paths` bucket, shown only when at least one request
+  carries step context.  The grouping adds no new bound: each heading summary
+  is the same collapsed, 160-character-capped text, and the hoisted list
+  carries at most 8 entries (`MAX_STEP_REFS`), so a pathological plan cannot
+  flood the ask.
+
+  With no per-request step context the ask keeps its previous flat layout: the
+  paths are listed unheadered, and any step context hoisted onto the ask alone
+  (an older checkpoint, or a plan-less run such as Klea RAG) is rendered as one
+  `Step N: summary` line before the rows.  An ask with no step context at all
+  is unchanged.
   *not a path* is offered
   only for a `guess`-tier value and keeps no memory (a genuine path is never
   silently ungated); `session` remains available for guesses because a

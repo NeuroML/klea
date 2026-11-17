@@ -262,6 +262,60 @@ async def test_permission_step_context_renders(fake_backend, agent_user):
     await agent_user.should_see("Step 1: Read the hosts file")
 
 
+async def test_permission_requests_grouped_by_step(fake_backend, agent_user):
+    """Per-request step context groups each path under its step heading."""
+    event = {
+        "type": "interrupt",
+        "node": "Running tools",
+        "data": {
+            "kind": "permission",
+            "question": "Allow the agent to access these paths?",
+            "requests": [
+                {
+                    "kind": "outside",
+                    "path": "/etc/hosts",
+                    "directory": "/etc",
+                    "steps": [{"step_number": 2, "summary": "Edit the hosts file"}],
+                },
+                {
+                    "kind": "outside",
+                    "path": "/etc/passwd",
+                    "directory": "/etc",
+                    "steps": [{"step_number": 1, "summary": "Read the passwd file"}],
+                },
+                {
+                    "kind": "outside",
+                    "path": "/etc/group",
+                    "directory": "/etc",
+                    "steps": [
+                        {"step_number": 1, "summary": "Read the passwd file"},
+                        {"step_number": 2, "summary": "Edit the hosts file"},
+                    ],
+                },
+                {"kind": "outside", "path": "/tmp/x", "directory": "/tmp"},
+            ],
+            "steps": [],
+            "interrupt_id": "p1",
+        },
+    }
+    fake_backend.stream_events = [event]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Permission required", retries=50)
+    # One heading per plan step, with that step's path rows beneath it.
+    await agent_user.should_see("Step 1: Read the passwd file", retries=50)
+    await agent_user.should_see("Step 2: Edit the hosts file", retries=50)
+    await agent_user.should_see("Outside project path: /etc/passwd", retries=50)
+    await agent_user.should_see("Outside project path: /etc/hosts", retries=50)
+    # A request serving several steps sits under its lowest and says so.
+    await agent_user.should_see("Outside project path: /etc/group", retries=50)
+    await agent_user.should_see("Also serves step 2", retries=50)
+    # A request without step context falls into the trailing bucket.
+    await agent_user.should_see("Other paths", retries=50)
+    await agent_user.should_see("Outside project path: /tmp/x", retries=50)
+
+
 def _permission_event(request: dict) -> dict:
     return {
         "type": "interrupt",
