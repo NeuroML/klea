@@ -13,6 +13,7 @@
 ### Changed
 
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
+- Permission dialogs now group the requested paths under the plan step they belong to.
 
 ### Fixed
 
