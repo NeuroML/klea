@@ -113,7 +113,17 @@ klea-eval run suites/smoke.jsonl \
 `run` executes the suite end to end (P6); configuration and validation
 faults are reported on stderr and exit 2.  Otherwise each case prints one
 line, `<case_id>: pass` or `<case_id>: fail`, and the command exits with the
-suite's `exit_code`.
+suite's `exit_code`:
+
+* `0`: every case passed.
+* `1`: a case failed its rubrics.
+* `2`: a configuration or validation fault, raised before any case ran.
+* `4`: a completed case declared rubrics but recorded no grade
+  (`EXIT_GRADE_MISSING`), a different outcome from the `1` of a real case
+  failure.
+
+A real case failure outranks a grade-missing case, so a run that has both
+exits `1`.
 
 ### The `run_id` is deterministic, so a rerun skips unless forced
 

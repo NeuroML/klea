@@ -215,9 +215,11 @@ Points discovered while delivering P1-P7; later phases must respect them.
   and the single `runs/index.jsonl` line are written by the pipeline through
   `klea_eval.results.write_metadata` and `append_index_entry` after `run_case`
   has published the run directory, because the run manager still does not write
-  them. `SuiteResult.exit_code` is `0` when every case passed and `1` when one
-  failed its rubrics; the CLI maps `CaseValidationError` and
-  `PipelineConfigError` to exit code `2`. The `klea-eval run` command forwards
+  them. `SuiteResult.exit_code` is `0` when every case passed, `1` when one
+  failed its rubrics and `4` when a completed case declared rubrics but
+  recorded no grade (`EXIT_GRADE_MISSING`, surfaced by the
+  `SuiteResult.grade_missing` property); the CLI maps `CaseValidationError`
+  and `PipelineConfigError` to exit code `2`. The `klea-eval run` command forwards
   the workspace, endpoint, timeout, harness seed, attempt budget and overwrite
   options, requires a base URL (`--base-url` or `KLEA_EVAL_BASE_URL`) before it
   calls the pipeline, and prints one `<case_id>: pass|fail` line per run.
@@ -311,7 +313,9 @@ Points discovered while delivering P1-P7; later phases must respect them.
   interrupted run and never treats it as a result. `ScheduleReport.exit_code`
   maps the ADR-0060 codes: `0` every case passed, `1` a case failed its rubrics,
   `2` a suite could not start (it outranks everything else because nothing was
-  stored for that suite), `3` incomplete `.tmp` runs were found. The D7 samples
+  stored for that suite), `3` incomplete `.tmp` runs were found, and a
+  suite-level grade-missing code `4` propagates through unchanged, matching
+  `scheduler.EXIT_GRADE_MISSING = pipeline.EXIT_GRADE_MISSING`. The D7 samples
   are three minimal ASCII suites under `eval_pkg/samples/` (`smoke.jsonl`,
   `multi_turn.jsonl`, `multi_case.jsonl`) with no fixtures: enough to exercise
   the loader, the pipeline and per-case aggregation, not a benchmark corpus. The
@@ -388,9 +392,12 @@ below is current.
   declared no rubrics and therefore has no grade; a grade is never inferred, so
   `ungraded` is a terminal, legitimate outcome.  `grade-missing` means a
   completed run that declared rubrics but recorded no grade: an error state,
-  surfaced as a label and a report counter only (it does not change the exit
-  code).  A failed run is never graded and never `grade-missing`, because run
-  success is a prerequisite for grading.
+  surfaced as a label, a report counter and the distinct exit code `4`
+  (`EXIT_GRADE_MISSING`) through `SuiteResult.exit_code`, with
+  `SuiteResult.grade_missing` as the predicate.  A real case failure keeps
+  exit code `1` and takes precedence over a grade-missing case.  A failed run
+  is never graded and never `grade-missing`, because run success is a
+  prerequisite for grading.
 - Rubric declaration: `run.json` records whether a case declares rubrics in
   the `expects_grade` field.  A legacy run without the key defaults to
   `False`, so an old ungraded run is treated as rubric-less rather than as

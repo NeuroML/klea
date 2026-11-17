@@ -167,8 +167,14 @@ phases are listed below.
   terminal, legitimate outcome for a rubrics-less run, not a pending state.
   `grade-missing` is an error state instead: a completed run that declared
   rubrics recorded no grade, i.e. it should have been graded but could not be.
-  It is surfaced as a per-case label and a report counter; escalating it to a
-  non-zero exit code is left open as a residual decision.
+  It is surfaced as a per-case label, a report counter and, for `run` and the
+  scheduler, the distinct exit code `4` (`EXIT_GRADE_MISSING`): a real case
+  failure still exits `1` and takes precedence over a grade-missing case, and
+  a suite of only ungraded or skipped cases stays `0`.  `report` is unaffected,
+  because it reads the run history from disk rather than from an exit code.
+  Amending ADR-0060's exit-code table (`0`/`1`/`2` -> `0`/`1`/`2`/`4`,
+  `devdocs/adr/0060-harness-execution.md:76-79`) is an open follow-up, not part
+  of this change.
 - Failed-run grading (settled): run success is a prerequisite for grading, so a
   failed run is labelled `failed` and is never graded and never
   `grade-missing`.
