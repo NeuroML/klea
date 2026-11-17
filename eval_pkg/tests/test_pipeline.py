@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from klea_eval import metrics, pipeline, results, workspace
+from klea_eval import labels, metrics, pipeline, results, workspace
 from klea_eval.errors import CaseValidationError
 from klea_eval.pipeline import PipelineConfigError, PipelineError, run_suite
 from klea_eval.results import load_stored_run
@@ -312,6 +312,77 @@ def test_ungraded_case_is_excluded_from_the_counts(tmp_path: Path) -> None:
     assert result.exit_code == 0
 
 
+# ---------------------------------------------------------------------------
+# Suite exit-code precedence
+# ---------------------------------------------------------------------------
+def _case_run(
+    case_id: str,
+    *,
+    passed: bool | None = None,
+    status: str = "completed",
+    expects_grade: bool = False,
+) -> pipeline.CaseRun:
+    """Build the minimal ``CaseRun`` the suite exit-code rules inspect."""
+    return pipeline.CaseRun(
+        case_id=case_id,
+        status=status,
+        metrics=metrics.RunMetrics(
+            run_id=f"run-{case_id}",
+            case_id=case_id,
+            task_success=passed,
+        ),
+        expects_grade=expects_grade,
+    )
+
+
+def _suite_result(tmp_path: Path, *runs: pipeline.CaseRun) -> pipeline.SuiteResult:
+    """Wrap ``runs`` in a suite result rooted at ``tmp_path``."""
+    return pipeline.SuiteResult(
+        suite_path=tmp_path / "suite.jsonl",
+        workspace_root=tmp_path,
+        runs=runs,
+    )
+
+
+def test_suite_exit_code_prefers_a_failed_case_over_a_grade_missing_case(
+    tmp_path: Path,
+) -> None:
+    """A failed case outranks a graded-but-ungraded case in the exit code."""
+    result = _suite_result(
+        tmp_path,
+        _case_run("case-failed", passed=False, status="failed"),
+        _case_run("case-grade", passed=None, expects_grade=True),
+    )
+
+    assert result.exit_code == pipeline.EXIT_CASE_FAILURE == 1
+    assert result.ok is False
+
+
+def test_suite_exit_code_for_a_grade_missing_case(tmp_path: Path) -> None:
+    """A graded case left without a grade exits 4 and is not ok."""
+    result = _suite_result(
+        tmp_path,
+        _case_run("case-grade", passed=None, expects_grade=True),
+    )
+
+    assert result.exit_code == pipeline.EXIT_GRADE_MISSING == 4
+    assert result.ok is False
+
+
+def test_suite_exit_code_for_an_ungraded_case(tmp_path: Path) -> None:
+    """A rubric-less case with no task outcome still exits 0."""
+    result = _suite_result(tmp_path, _case_run("case-plain", passed=None))
+
+    assert result.exit_code == pipeline.EXIT_OK == 0
+
+
+def test_suite_exit_code_for_a_skipped_case(tmp_path: Path) -> None:
+    """A suite of only skipped cases exits 0."""
+    result = _suite_result(tmp_path, _case_run("case-skipped", status="skipped"))
+
+    assert result.exit_code == pipeline.EXIT_OK == 0
+
+
 def test_invalid_suite_is_rejected(tmp_path: Path) -> None:
     """An invalid turn role aborts the suite before anything is stored."""
     suite = _write_suite(
@@ -385,7 +456,7 @@ def test_run_json_records_expects_grade_from_the_case(tmp_path: Path) -> None:
 
     _suite, result = _run(tmp_path, cases)
 
-    assert result.exit_code == 0
+    assert result.exit_code == pipeline.EXIT_GRADE_MISSING
     payloads = {
         payload["case_id"]: payload
         for payload in (
@@ -539,10 +610,23 @@ class StubResult:
 
     @property
     def exit_code(self) -> int:
-        return (
-            0
-            if all(case.metrics.task_success is not False for case in self.runs)
-            else 1
+        codes = {
+            "failed": pipeline.EXIT_CASE_FAILURE,
+            "grade-missing": pipeline.EXIT_GRADE_MISSING,
+        }
+        return max(
+            (
+                codes.get(
+                    labels.classify_case(
+                        status=case.status,
+                        task_success=case.metrics.task_success,
+                        expects_grade=case.expects_grade,
+                    ),
+                    pipeline.EXIT_OK,
+                )
+                for case in self.runs
+            ),
+            default=pipeline.EXIT_OK,
         )
 
 
@@ -584,7 +668,7 @@ def test_cli_run_prints_a_grade_missing_case(tmp_path: Path, monkeypatch: Any) -
         ["run", str(_valid_suite(tmp_path)), "--base-url", "http://example.test"]
     )
 
-    assert result.exit_code == 0, _combined(result)
+    assert result.exit_code == pipeline.EXIT_GRADE_MISSING, _combined(result)
     assert "case-1: grade-missing" in _combined(result)
 
 

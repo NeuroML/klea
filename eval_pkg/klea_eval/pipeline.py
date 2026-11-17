@@ -64,6 +64,11 @@ EXIT_CASE_FAILURE = 1
 #: Exit code of a suite that could not start at all (ADR-0060).
 EXIT_CONFIGURATION_ERROR = 2
 
+#: Exit code of a suite whose completed run declared rubrics but recorded no
+#: grade.  Kept distinct from :data:`EXIT_CASE_FAILURE` so a scoring fault is
+#: never reported as a real verdict (ADR-0060).
+EXIT_GRADE_MISSING = 4
+
 
 class PipelineError(Exception):
     """Base class for failures raised by the harness pipeline."""
@@ -115,17 +120,54 @@ class SuiteResult:
         return self._count_completed(graded=False)
 
     @property
+    def grade_missing(self) -> int:
+        """Number of cases that ran but recorded no grade despite rubrics.
+
+        The condition is :func:`klea_eval.labels.classify_case` itself, so this
+        counter cannot drift from the per-case label read by the CLI or from
+        the ``grade_missing_count`` aggregate.
+        """
+        # Deferred import: keep the pipeline's import graph light, matching the
+        # other readers that reach for the shared label helper.
+        from klea_eval import labels
+
+        return sum(
+            1
+            for case_run in self.runs
+            if labels.classify_case(
+                status=case_run.status,
+                task_success=(
+                    case_run.metrics.task_success
+                    if case_run.metrics is not None
+                    else None
+                ),
+                expects_grade=case_run.expects_grade,
+            )
+            == labels.CASE_GRADE_MISSING
+        )
+
+    @property
     def exit_code(self) -> int:
         """``0`` when every case passed, ``1`` when one failed its rubrics.
+
+        A completed case that declared rubrics but recorded no grade makes the
+        suite exit ``4`` (:data:`EXIT_GRADE_MISSING`), which is distinct from
+        ``1`` so a scoring fault is never reported as a real verdict.
 
         A configuration fault never reaches this property: it aborts the suite
         before any run starts and is mapped to ``2`` by the CLI.
         """
+        # Precedence: a real case failure always wins over a missing grade, so
+        # an infrastructure fault is never masked by a scoring gap.
         for case_run in self.runs:
             if case_run.status == run_manager.STATUS_FAILED:
                 return EXIT_CASE_FAILURE
             if case_run.metrics is not None and case_run.metrics.task_success is False:
                 return EXIT_CASE_FAILURE
+        # Nothing failed; a completed grade-missing case still signals a fault.
+        # Ungraded and skipped cases alone leave the suite at ``EXIT_OK``.
+        if self.grade_missing:
+            return EXIT_GRADE_MISSING
         return EXIT_OK
 
     @property

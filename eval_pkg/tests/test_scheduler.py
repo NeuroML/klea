@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from klea_eval import cases, pipeline, run_manager, scheduler, workspace
+from klea_eval import cases, metrics, pipeline, run_manager, scheduler, workspace
 from klea_eval.run_manager import RunContext
 
 pytestmark = pytest.mark.eval
@@ -362,6 +362,28 @@ def test_schedule_report_exit_code_for_a_failed_case(tmp_path: Path) -> None:
 
     assert suite_run.failed == 1
     assert report.exit_code == scheduler.EXIT_CASE_FAILURE
+
+
+def test_schedule_report_exit_code_for_a_grade_missing_case(tmp_path: Path) -> None:
+    case_run = pipeline.CaseRun(
+        case_id="case-grade",
+        status=run_manager.STATUS_COMPLETED,
+        metrics=metrics.RunMetrics(
+            run_id="run-grade",
+            case_id="case-grade",
+            task_success=None,
+        ),
+        expects_grade=True,
+    )
+    result = pipeline.SuiteResult(
+        suite_path=tmp_path / "a.jsonl",
+        workspace_root=tmp_path,
+        runs=(case_run,),
+    )
+    suite_run = scheduler.SuiteRun(suite_path=tmp_path / "a.jsonl", result=result)
+    report = scheduler.ScheduleReport(workspace_root=tmp_path, suites=(suite_run,))
+
+    assert report.exit_code == scheduler.EXIT_GRADE_MISSING == 4
 
 
 def test_schedule_report_to_dict_is_json_ready(tmp_path: Path) -> None:

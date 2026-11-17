@@ -48,6 +48,7 @@ __all__ = [
     "DEFAULT_SUITE_GLOB",
     "EXIT_CASE_FAILURE",
     "EXIT_CONFIGURATION_ERROR",
+    "EXIT_GRADE_MISSING",
     "EXIT_INCOMPLETE_RUNS",
     "EXIT_OK",
     "ScheduleReport",
@@ -76,6 +77,8 @@ EXIT_CASE_FAILURE = pipeline.EXIT_CASE_FAILURE
 EXIT_CONFIGURATION_ERROR = pipeline.EXIT_CONFIGURATION_ERROR
 
 #: Exit code reported when interrupted ``.tmp`` runs were found (ADR-0060).
+#: Exit code reported when a case has no grade.
+EXIT_GRADE_MISSING = pipeline.EXIT_GRADE_MISSING
 EXIT_INCOMPLETE_RUNS = 3
 
 
