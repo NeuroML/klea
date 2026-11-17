@@ -33,7 +33,7 @@ from langgraph.graph import END, START, StateGraph
 from mcp.types import TextContent
 
 from klea_agent.commands import build_agent_commands
-from klea_agent.nodes.agent_tools_caller import AgentToolsCaller
+from klea_agent.nodes.agent_tools_caller import AgentToolsCaller, plan_step_summaries
 from klea_agent.nodes.answer_from_results import AnswerFromResults
 from klea_agent.nodes.answer_user import AnswerUser
 from klea_agent.nodes.await_human import AwaitHuman
@@ -745,6 +745,11 @@ class KleaAgent(BaseLangGraph):
             # deny policy (it has no HITL interrupt path).
             permission_policy="ask",
             mcp_session_pool=self.mcp_session_pool,
+            # Label each path-permission request with the plan step its call
+            # serves, so the ask shows the work the path is wanted for (display
+            # only; decisions still key on the path/directory).  A state with
+            # no plan yields no summaries, so the ask renders unchanged.
+            step_summary_getter=plan_step_summaries,
         )
         self._triage_router_node = TriageRouter(logger=self.logger, label="Triaging")
         self._op_evaluator_node = OperationalEvaluator(

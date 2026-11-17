@@ -8,6 +8,7 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import logging
 from datetime import UTC, datetime
 from graphlib import CycleError, TopologicalSorter
 from pathlib import Path
@@ -19,6 +20,8 @@ from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.tools import last_tool_error_text, textualize_tool_results
 from langchain_core.messages import AnyMessage
 from pydantic import AliasChoices, BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 class CodeSchema(BaseModel):
@@ -170,6 +173,33 @@ class PlannerPlanSchema(BaseModel):
         "unplannable",
         "chat",
     ] = Field(default="in_progress", validate_default=True)
+
+    def step_summaries(self) -> dict[int, str]:
+        """Return the plan's step summaries keyed by step number.
+
+        Display-only context: the path-permission ask shows one short line per
+        planned step so the human can see what a tool call is for.  These
+        summaries are never a decision key -- routing, evaluation and dispatch
+        act on the plan's steps and statuses, not on this mapping.
+
+        Steps whose number cannot be read as an ``int`` and steps with an empty
+        (or whitespace-only) summary are skipped, so the mapping only holds
+        renderable ``{step_number: summary}`` pairs.
+
+        :returns: A ``{step_number: summary}`` mapping in step order.
+        """
+        summaries: dict[int, str] = {}
+        for step in self.step_list:
+            summary = step.summary.strip()
+            if not summary:
+                continue
+            try:
+                number = int(step.step_number)
+            except (TypeError, ValueError):
+                continue
+            summaries[number] = summary
+        logger.debug(f"{len(summaries) = }")
+        return summaries
 
     def render(
         self, *, markdown: bool = False, current_numbers: set[int] | None = None

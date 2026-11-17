@@ -54,7 +54,19 @@ The single enforcement point is the pre-dispatch gate in
   `preview_token_start`/`preview_token_end` (character offsets),
   `preview_omitted_before`/`preview_omitted_after` (characters elided at each
   end), `argument_length` (the full argument value's length) and `token_line`
-  (the 1-based line the token sits on).  *not a path* is offered
+  (the 1-based line the token sits on).  The ask can also carry display-only
+  plan-step context so the user sees the work each path serves: each request
+  item has a `steps` list of `{step_number, summary}` entries (the plan steps
+  the dispatching call was bound for), and the payload hoists a de-duplicated,
+  step-number-ordered `steps` list of the same shape (empty when no request
+  carries one).  The context never contributes to a decision key: decisions
+  still key on `path`/`directory`.  Each summary is collapsed to a single
+  line and cut to 160 characters with an ASCII `...`, and at most 8 step
+  entries are carried (`MAX_STEP_REFS`), so a pathological plan cannot flood
+  the ask.  Both frontends render one `Step N: summary` line per entry before
+  the per-path rows and render nothing when the list is absent (an older
+  checkpoint, or a plan-less run such as Klea RAG), so the ask is unchanged.
+  *not a path* is offered
   only for a `guess`-tier value and keeps no memory (a genuine path is never
   silently ungated); `session` remains available for guesses because a
   third-party server may have no declared/expected path.  The gate runs in the
@@ -145,7 +157,10 @@ the cross-thread/global allowlist is still a backlog item.
 The permission ask also lists every distinct path covered by a directory
 approval (`covered_paths`/`covered_paths_display`) so one session approval is
 transparent, and shell-command tokens are split with shlex punctuation mode so
-operators such as `;`, `&&` and `|` are not shown as part of a path.
+operators such as `;`, `&&` and `|` are not shown as part of a path.  Its
+per-path and top-level `steps` context (`{step_number, summary}`, bounded as
+described above) shows what plan work each path serves; it is display-only and
+absent when the run has no plan.
 
 ```mermaid
 flowchart TD
