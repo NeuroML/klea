@@ -8,7 +8,13 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
-from klea_utils.mcp.path_detect import PathRequest
+from klea_utils.mcp.path_detect import (
+    MAX_STEP_REFS,
+    MAX_STEP_SUMMARY_CHARS,
+    PathRequest,
+    StepRef,
+    bounded_step_summary,
+)
 from klea_utils.mcp.permission_hitl import (
     DEFAULT_QUESTION,
     PathDecision,
@@ -243,3 +249,76 @@ def test_payload_passes_through_preview_offsets():
     assert item["preview_omitted_before"] + item["preview_omitted_after"] == (
         item["argument_length"] - len(item["argument_preview"])
     )
+
+
+def _stepped_request(directory: str, steps: list[StepRef]) -> PathRequest:
+    """Return a request carrying plan-step context (display only)."""
+    return PathRequest(
+        tool="read_file",
+        argument="path",
+        raw=f"{directory}/x",
+        path=f"{directory}/x",
+        directory=directory,
+        confidence="declared",
+        source="checkpaths:path",
+        steps=steps,
+    )
+
+
+def test_payload_steps_present_when_supplied():
+    """A request carrying plan-step context hoists it into the payload."""
+    request = _stepped_request(
+        "/etc", [StepRef(step_number=1, summary="Read the config")]
+    )
+    payload = build_permission_payload([request])
+
+    assert payload["steps"] == [{"step_number": 1, "summary": "Read the config"}]
+    assert payload["requests"][0]["steps"] == [
+        {"step_number": 1, "summary": "Read the config"}
+    ]
+
+
+def test_payload_steps_absent_is_empty():
+    """An ask without step context carries an empty ``steps`` list."""
+    payload = build_permission_payload([_request("/etc")])
+
+    assert payload["steps"] == []
+    assert payload["requests"][0]["steps"] == []
+
+
+def test_payload_steps_dedupe_by_number_in_order():
+    """Step references from several requests merge, ordered by step number."""
+    first = _stepped_request("/etc", [StepRef(step_number=2, summary="Second step")])
+    second = _stepped_request(
+        "/opt",
+        [
+            StepRef(step_number=1, summary="First step"),
+            StepRef(step_number=2, summary="Second step"),
+        ],
+    )
+    payload = build_permission_payload([first, second])
+
+    assert [step["step_number"] for step in payload["steps"]] == [1, 2]
+
+
+def test_payload_steps_are_capped():
+    """The payload lists at most ``MAX_STEP_REFS`` steps."""
+    request = _stepped_request(
+        "/etc",
+        [
+            StepRef(step_number=number, summary=f"Step {number}")
+            for number in range(1, MAX_STEP_REFS + 5)
+        ],
+    )
+    payload = build_permission_payload([request])
+
+    assert len(payload["steps"]) == MAX_STEP_REFS
+
+
+def test_bounded_step_summary_bounds_a_long_value():
+    """A long step summary is collapsed to one bounded line."""
+    bounded = bounded_step_summary("word " * 100)
+
+    assert "\n" not in bounded
+    assert bounded.endswith("...")
+    assert len(bounded) <= MAX_STEP_SUMMARY_CHARS + len("...")

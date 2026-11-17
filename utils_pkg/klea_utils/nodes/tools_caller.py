@@ -12,7 +12,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from typing import Any, Literal
 
 from fastmcp.client.client import CallToolResult
@@ -90,6 +90,7 @@ class ToolsCallerNode(
         | None = None,
         permission_policy: Literal["deny", "ask"] = "deny",
         mcp_session_pool: Any | None = None,
+        step_summary_getter: Callable[[Any], Mapping[int, str]] | None = None,
     ):
         """Initialise the tools caller node.
 
@@ -119,6 +120,11 @@ class ToolsCallerNode(
             pooled for the current chat thread so concurrent chats do not
             share one MCP session; ``None`` (the default) keeps the shared
             client.
+        :param step_summary_getter: Optional callable mapping the run's state
+            to a ``{step_number: summary}`` mapping, used to label a detected
+            path request with the plan step its call serves (display only;
+            never a decision key).  ``None`` (the default) adds no step
+            context, so a plan-less run's ask stays valid and step-free.
 
         The path-permission boundary is the per-session ``state.project_root``
         (falling back to the process working directory); the node holds no
@@ -131,6 +137,7 @@ class ToolsCallerNode(
         self._post_dispatch = post_dispatch
         self._permission_policy = permission_policy
         self._mcp_session_pool = mcp_session_pool
+        self._step_summary_getter = step_summary_getter
 
     async def execute(self, state: BaseModel) -> dict[str, Any]:
         """Gate and dispatch the tool calls in ``state.tool_calls``.
@@ -213,6 +220,16 @@ class ToolsCallerNode(
             if self._permission_policy == "ask"
             else None
         )
+        # Plan-step context for the permission ask (display only): dispatch
+        # stamps each detected request with the step the dispatching call
+        # serves, which the resolver receives on the request objects and hoists
+        # into the ask.  A plan-less run (e.g. Klea RAG) supplies no map, so its
+        # requests stay valid and step-free.
+        step_summaries = (
+            self._step_summary_getter(state)
+            if self._step_summary_getter is not None
+            else None
+        )
         results = await dispatch_tool_calls(
             self._mcp_client,
             tool_calls,
@@ -225,6 +242,7 @@ class ToolsCallerNode(
             session_id=session_id,
             mcp_session_pool=self._mcp_session_pool,
             client_context=client_context,
+            step_summaries=step_summaries,
             **meta_kwargs,
         )
         self.logger.debug(f"{results =}")

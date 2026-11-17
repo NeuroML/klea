@@ -19,7 +19,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from typing import override
+from typing import Any, override
 
 from klea_utils.nodes.abstract import NodeStreamData
 from klea_utils.nodes.tools_caller import ToolsCallerNode
@@ -28,6 +28,35 @@ from pydantic import BaseModel
 from klea_agent.nodes.plan_content import plan_content_blocks
 
 logger = logging.getLogger(__name__)
+
+
+def plan_step_summaries(state: Any) -> dict[int, str]:
+    """Return the run's plan step summaries keyed by step number.
+
+    Supplies the display-only plan-step context for the path-permission ask:
+    the shared tools caller passes this mapping to
+    :func:`klea_utils.mcp.dispatch.dispatch_tool_calls`, which labels each
+    detected path request with the plan step the dispatching call serves, so
+    the ask can say what work each path is wanted for.
+
+    The derivation itself now lives on the plan model: this adapter only asks
+    the plan for its ``step_summaries()`` mapping and returns a defensive copy,
+    so callers cannot mutate the plan's own mapping.  A state with no usable
+    plan (no plan, or a plan type without the method) simply contributes no
+    context and the ask renders unchanged.  This is never a decision key:
+    decisions still key on ``path``/``directory``.
+
+    :param state: The current graph state.
+    :returns: A mapping of plan step number to its summary (possibly empty).
+    """
+    plan = getattr(state, "plan", None)
+    get_summaries = getattr(plan, "step_summaries", None)
+    if not callable(get_summaries):
+        logger.debug("no plan step summaries: state carries no usable plan")
+        return {}
+    summaries = dict(get_summaries())
+    logger.debug(f"Plan step summaries\n{len(summaries) = }")
+    return summaries
 
 
 class AgentToolsCaller(ToolsCallerNode):
