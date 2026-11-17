@@ -256,6 +256,27 @@ class TestCommandSuggestions:
 class TestPermissionPanelHelpers:
     """The permission panel's per-request options and context hint."""
 
+    def test_step_lines_render_bounded_lines(self):
+        """Plan-step context renders one bounded ``Step N:`` line per step."""
+        lines = PermissionPanel._step_lines(
+            {
+                "steps": [
+                    {"step_number": 1, "summary": "  Read   the config "},
+                    {"step_number": 2, "summary": "x" * 400},
+                ]
+            }
+        )
+
+        assert lines[0] == "Step 1: Read the config"
+        assert lines[1].startswith("Step 2: ")
+        assert lines[1].endswith("...")
+        assert len(lines[1]) == len("Step 2: ") + 160 + len("...")
+
+    def test_step_lines_absent_is_empty(self):
+        """An ask without step context renders no step lines."""
+        assert PermissionPanel._step_lines({}) == []
+        assert PermissionPanel._step_lines({"steps": []}) == []
+
     def test_guess_options_include_not_a_path(self):
         assert PermissionPanel._options({"confidence": "guess"}) == (
             "once",

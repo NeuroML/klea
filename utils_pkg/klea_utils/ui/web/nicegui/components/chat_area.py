@@ -390,6 +390,48 @@ def _permission_options(request: dict[str, Any]) -> dict[str, str]:
     return options
 
 
+#: Cap for one plan-step summary line in the permission ask (display only).
+MAX_PERMISSION_STEP_SUMMARY_CHARS = 160
+#: Cap for the number of step lines the permission ask renders.
+MAX_PERMISSION_STEP_LINES = 8
+
+
+def _permission_step_lines(ask: dict[str, Any]) -> list[str]:
+    """Return bounded ``Step N: summary`` lines for the permission ask.
+
+    The ask carries display-only plan-step context (``steps``) so the user can
+    see what work each requested path is wanted for (ADR-0007).  Each entry is
+    rendered as a single, whitespace-collapsed line; a summary longer than
+    :data:`MAX_PERMISSION_STEP_SUMMARY_CHARS` is cut at the end with an ASCII
+    ``...``.  The list is capped at :data:`MAX_PERMISSION_STEP_LINES`, so a
+    pathological payload cannot flood the form.  An ask without step context
+    (an older checkpoint, or a plan-less run such as Klea RAG) yields an empty
+    list, so nothing is rendered and the form is unchanged.
+
+    The summary is model-authored: it is returned as plain text and the caller
+    renders it through :func:`nicegui.ui.label`, which never interprets it as
+    markup, so it cannot inject HTML.
+
+    :param ask: The stored permission interrupt payload.
+    :returns: The bounded step lines, in the payload's order.
+    """
+    steps = ask.get("steps")
+    if not isinstance(steps, list):
+        return []
+    lines: list[str] = []
+    for step in steps[:MAX_PERMISSION_STEP_LINES]:
+        if not isinstance(step, dict):
+            continue
+        number = step.get("step_number")
+        summary = " ".join(str(step.get("summary") or "").split())
+        if not summary:
+            continue
+        if len(summary) > MAX_PERMISSION_STEP_SUMMARY_CHARS:
+            summary = summary[:MAX_PERMISSION_STEP_SUMMARY_CHARS].rstrip() + "..."
+        lines.append(f"Step {number}: {summary}" if number is not None else summary)
+    return lines
+
+
 def _render_permission_form(
     ctx: PageContext, ask: dict[str, Any], interrupt_id: Any
 ) -> None:
@@ -418,6 +460,11 @@ def _render_permission_form(
         ui.label(f"Permission required ({count} {noun})").classes("text-sm font-bold")
         if question := ask.get("question"):
             ui.label(str(question)).classes("text-xs text-grey-6")
+        # Display-only plan-step context: the work each requested path serves.
+        # Plain labels (never ``ui.html``), so the model-authored summary cannot
+        # inject markup; absent context renders nothing.
+        for step_line in _permission_step_lines(ask):
+            ui.label(step_line).classes("text-xs text-grey-6")
 
         # Re-render on select so the chosen option shows its active state
         # (``choice_buttons`` computes it at build time).
