@@ -412,7 +412,16 @@ below is current.
   `KLEA_EVAL_WORKSPACE`, then `.`, taking the first that is set.
 - `klea-eval report`: added beside `validate`, `run`, `show`, `runs`, `prune`
   and `summary`; it writes the stored suite results to an output path through
-  the `write_report(results, output)` writer.
+  the `write_report(results, output)` writer.  It also enumerates every
+  published run directory through `workspace.list_run_dirs` (excluding `.tmp`,
+  `.superseded`, `.overwrite` and hidden names), keeps the ids present in the
+  index in an `indexed` set, and renders each directory whose id is absent via
+  `_unindexed_line` with `index=missing` while incrementing
+  `counters['unindexed']`.  A complete-but-unindexed directory is classified
+  `drift`, a complete-and-archived one `archived`, and any other residue is
+  labelled from its readable `run.json`, falling back to `case=?`,
+  `status=incomplete` and `label=unknown`.  The index stays completed-only: the
+  report adds no line to it, so a failed run still gains no index entry.
 
 ---
 

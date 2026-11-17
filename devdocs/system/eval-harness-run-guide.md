@@ -256,6 +256,18 @@ towards `summary`.  Pass `--purge` to delete the whole run directory and drop
 its index line instead, or `--dry-run` to report what would happen without
 touching the disk.
 
+`report` reads the results index and, additionally, every published run
+directory under `runs/` that carries no index line: each such directory is
+listed as its own `<run_id>: <case_id> <status> ... index=missing` line and
+counted in the report's `unindexed` summary counter.  This is where a failed
+run from an earlier invocation shows up, because a failed run never appends an
+index line.  A complete-but-unindexed directory is marked `drift`, a complete
+and archived one `archived`, and any other residue (a directory without the
+`COMPLETE` marker) is labelled from its readable `run.json`, or as `case=?`,
+`status=incomplete` and `label=unknown` when that cannot be read.  Staging and
+sentinel directories (`.tmp`, `.superseded`, `.overwrite` and hidden names) are
+ignored.  The index itself stays completed-only: the report adds no line to it.
+
 ## 9. Troubleshooting
 
 Work down this list when a run does not behave as expected.

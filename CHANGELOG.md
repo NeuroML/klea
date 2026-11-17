@@ -11,6 +11,7 @@
 - Eval run identity now includes the per-role model overrides, the resolved models and the endpoint URL, so runs using different models no longer collide in the results index.
 - A completed eval run that is missing from the results index is re-indexed from its stored artefacts instead of being re-run.
 - `klea-eval report` renders a per-case summary and the run counters from a results index (new `klea_eval.reporting` writer).
+- `klea-eval report` now also lists the run directories that carry no results-index line, marking each `index=missing` and counting it in a new `unindexed` counter, so a failed run from an earlier invocation stays visible in the report.
 - `klea-eval check` verifies the eval run index against the run directories and, with `--repair`, re-indexes a completed run the index omits and drops duplicate or orphaned index lines, naming every dropped run id.
 - Eval runs record in `run.json` whether a case declares rubrics, and the report and CLI distinguish ungraded cases (no rubrics, no grade) from grade-missing cases (rubrics declared but no grade recorded).
 - The plan status now opens with a truncated `Goal: ...` line followed by a blank line, so concurrent sessions can be told apart at a glance.

@@ -172,13 +172,21 @@ phases are listed below.
 - Failed-run grading (settled): run success is a prerequisite for grading, so a
   failed run is labelled `failed` and is never graded and never
   `grade-missing`.
-- Failed-run indexing (settled): the index is completed-only, so a failed run
-  appends no `runs/index.jsonl` line. The index must stay a projection of the
-  `COMPLETE`-marked run directories so the `klea-eval check` consistency pass is
-  well-defined, and one `run_id` must not carry both a failed line and the line
-  of the run its retry did not replace. Failure visibility lives in the run's
-  own `CaseRun` and label; a cross-invocation failure history would be a
-  report/observability contract question.
+- Failed-run indexing (settled), **done**: the index is completed-only, so a
+  failed run appends no `runs/index.jsonl` line. The index must stay a
+  projection of the `COMPLETE`-marked run directories so the `klea-eval check`
+  consistency pass is well-defined, and one `run_id` must not carry both a
+  failed line and the line of the run its retry did not replace.  Failure is
+  still carried by the run's own `CaseRun` and label, and the cross-invocation
+  report/observability question is now answered: `klea-eval report` enumerates
+  every published run directory through `workspace.list_run_dirs` (excluding
+  `.tmp`, `.superseded`, `.overwrite` and hidden names) and renders each one
+  with no index line as `... index=missing`, counted in the `unindexed` summary
+  counter.  A complete-but-unindexed directory is classified `drift`, a
+  complete-and-archived one `archived`, and any other residue is labelled from
+  its readable `run.json`, else `case=?` / `status=incomplete` /
+  `label=unknown`.  The index itself stays completed-only, so no failed run
+  gains an index line.
 - Index consistency check (settled): `klea-eval check` is an explicit,
   operator-invoked check-and-repair pass over `runs/index.jsonl` and the run
   directories, not an automatic startup hook. It re-indexes a `COMPLETE` run the
