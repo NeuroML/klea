@@ -34,13 +34,13 @@ from __future__ import annotations
 import json
 import logging
 import os
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from typing import Any
 from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["ModelOverrideError", "apply_run_models"]
+__all__ = ["ModelOverrideError", "apply_run_models", "check_override_roles"]
 
 #: Largest slice of a backend error detail echoed in an exception message.
 _DETAIL_LIMIT = 500
@@ -137,6 +137,74 @@ def apply_run_models(
         "run_config: resolved %d role(s): %s", len(mapping), ", ".join(sorted(mapping))
     )
     return mapping
+
+
+def check_override_roles(
+    base_url: str,
+    user_id: str,
+    chat_id: str,
+    roles: Mapping[str, str] | Iterable[str],
+    *,
+    timeout: float | None = None,
+    client: Any | None = None,
+) -> dict[str, Any]:
+    """Confirm every role of an override is exposed, without pushing anything.
+
+    Read-only: the chat's active model map is read and a role the backend does
+    not expose is rejected with the same :class:`ModelOverrideError` the apply
+    path raises, but no credential is stored and no override is promoted.  A
+    suite can therefore run this once before its first case starts, because the
+    exposed role set is app-wide rather than per case.  ``roles`` is either the
+    role-to-model mapping an override would use or a plain collection of role
+    names.
+
+    ``client`` belongs to its caller and is left open; pass ``None`` to have one
+    created (and closed) here.  ``timeout`` defaults to
+    :data:`klea_eval.runners.http.DEFAULT_TIMEOUT_SECONDS`, the same value
+    :func:`apply_run_models` uses.
+
+    The returned mapping is the chat's full active model map, as
+    ``{role: config}``.  An empty ``roles`` selection makes no request at all
+    and returns ``{}``.
+    """
+    if isinstance(roles, Mapping):
+        raw_roles: Iterable[Any] = list(roles)
+    elif isinstance(roles, str):
+        raw_roles = [roles]
+    else:
+        raw_roles = list(roles)
+
+    requested: dict[str, str] = {}
+    for role in raw_roles:
+        name = str(role).strip()
+        if name:
+            requested[name] = name
+
+    if not requested:
+        logger.debug("run_config: no override roles to check")
+        return {}
+
+    base = _checked_base_url(base_url)
+    user = _checked_identifier(user_id, "user_id")
+    chat = _checked_identifier(chat_id, "chat_id")
+    limit = _checked_timeout(timeout)
+
+    owns_client = client is None
+    session = client
+    if session is None:
+        import httpx
+
+        session = httpx.Client(timeout=limit)
+
+    try:
+        active = _read_active_models(session, base, user, chat, limit, owns_client)
+        _require_roles(requested, active)
+    finally:
+        if owns_client and session is not None:
+            session.close()
+
+    logger.debug("run_config: checked %d override role(s)", len(requested))
+    return active
 
 
 def _normalise_models(models: Any) -> dict[str, str]:

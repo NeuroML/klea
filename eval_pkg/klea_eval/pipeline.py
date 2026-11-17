@@ -178,6 +178,7 @@ def run_suite(
     overwrite: bool = False,
     model_overrides: Mapping[str, str] | None = None,
     apply_models: Callable[..., dict[str, str]] | None = None,
+    check_models: Callable[..., dict[str, Any]] | None = None,
     attempt: int = 0,
 ) -> SuiteResult:
     """Execute every case of ``suite_path`` and store each completed run.
@@ -188,6 +189,10 @@ def run_suite(
     :class:`klea_eval.runners.http.HttpRunner` is built from ``base_url``,
     ``endpoint`` and ``timeout``.  Supplying none of the three is a
     configuration error: the suite cannot start, and nothing is stored.
+
+    ``check_models`` is the read-only pre-flight that rejects an override role
+    the backend does not expose before the first case runs; an unknown role is
+    a configuration error of the whole suite, not a failure of one case.
 
     Cases run in suite order, single-threaded (the bounded worker pool is a
     later phase).  A case that fails is recorded and skipped, never promoted to
@@ -212,6 +217,7 @@ def run_suite(
     executor = _resolve_executor(execute_turn, runner, base_url, endpoint, timeout)
     overrides = _checked_model_overrides(model_overrides)
     applier = _resolve_applier(apply_models)
+    checker = _resolve_checker(check_models)
     root = _prepare_workspace_root(workspace_root)
 
     loaded = cases.load_suite(suite_path)
@@ -228,6 +234,8 @@ def run_suite(
         raise PipelineConfigError(
             "no base URL: the model overrides need one to be applied"
         )
+
+    _check_override_roles(checker, base_url, overrides, loaded_cases, harness_seed)
 
     outcomes: list[CaseRun] = []
     for case in loaded_cases:
@@ -515,6 +523,75 @@ def _resolve_applier(
     return apply_run_models
 
 
+def _resolve_checker(
+    check_models: Callable[..., dict[str, Any]] | None,
+) -> Callable[..., dict[str, Any]] | None:
+    """Return the callable that pre-checks the override roles, if any."""
+    if check_models is not None:
+        if not callable(check_models):
+            raise PipelineConfigError("check_models must be callable")
+        logger.debug(f"{check_models = }")
+        return check_models
+
+    # The checker reads the active model map through its own lazy HTTP client;
+    # importing the module here keeps that stack out of an injected caller's
+    # import graph, exactly as the applier does.
+    from klea_eval.run_config import check_override_roles
+
+    return check_override_roles
+
+
+def _suite_override_roles(
+    defaults: Mapping[str, str], loaded_cases: tuple[TestCase, ...]
+) -> dict[str, str]:
+    """Union the caller's role defaults with every case's own overrides."""
+    roles = {str(role): str(model) for role, model in defaults.items()}
+    for case in loaded_cases:
+        roles.update(_case_model_overrides(case))
+    logger.debug(f"{roles = }")
+    return roles
+
+
+def _check_override_roles(
+    checker: Callable[..., dict[str, Any]] | None,
+    base_url: str | None,
+    defaults: Mapping[str, str],
+    loaded_cases: tuple[TestCase, ...],
+    harness_seed: str | int | None,
+) -> None:
+    """Reject an override role the backend does not expose, before any case runs.
+
+    The check is read-only and runs once for the whole suite: the exposed role
+    set is app-wide, so one read of a chat this suite will use covers the
+    caller defaults and every case's own overrides together.  A rejected role
+    aborts the suite with a :class:`PipelineConfigError` instead of leaving the
+    case loop to fail each affected case on its own, so no run, ``run.json`` or
+    index line is produced for a typo.
+    """
+    if checker is None:
+        return
+
+    roles = _suite_override_roles(defaults, loaded_cases)
+    if not roles:
+        return
+
+    # The error type belongs to the checker module, so it stays lazily imported.
+    from klea_eval.run_config import ModelOverrideError
+
+    # The active map is per chat, so address the chat the first case will use:
+    # derive its identity from the same inputs the run manager uses.
+    reference = loaded_cases[0]
+    seed = _normalized_seed(reference, harness_seed)
+    derived = identity.derive_identity(reference.case_id, seed, model_overrides=roles)
+
+    try:
+        checker(base_url, derived.user_id, derived.chat_id, roles)
+    except ModelOverrideError as exc:
+        raise PipelineConfigError(f"model overrides: {exc}") from exc
+
+    logger.debug(f"{reference.case_id = }, {len(roles) = }")
+
+
 def _case_model_overrides(case: TestCase) -> dict[str, str]:
     """Read a case's own ``model_overrides`` mapping for the pre-run check."""
     run_config = case.run_config or {}
@@ -728,6 +805,28 @@ def _fixture_base(loaded: Any, suite_path: Path) -> Path:
     return resolved
 
 
+def _normalized_seed(case: TestCase, harness_seed: str | int | None) -> str:
+    """Resolve the case's harness seed to the non-empty string the identity takes.
+
+    A caller-supplied seed wins; otherwise the case's own ``harness_seed`` is
+    read, falling back to :data:`run_manager.DEFAULT_HARNESS_SEED`, exactly as
+    :func:`klea_eval.run_manager.start_run` does.  An empty seed is a case
+    configuration error, so the identity is never derived from it.
+    """
+    if harness_seed is not None:
+        seed = str(harness_seed).strip()
+    else:
+        run_config = case.run_config or {}
+        raw = run_config.get("harness_seed", run_manager.DEFAULT_HARNESS_SEED)
+        seed = str(raw).strip()
+
+    if not seed:
+        raise PipelineConfigError(
+            f"case '{case.case_id}' does not define a usable harness seed"
+        )
+    return seed
+
+
 def _run_id(
     case: TestCase,
     harness_seed: str | int | None,
@@ -743,17 +842,7 @@ def _run_id(
     merged under the case's own model overrides (the case wins), and the merged
     set plus ``endpoint`` enter the identity exactly as they do there.
     """
-    if harness_seed is not None:
-        seed = str(harness_seed).strip()
-    else:
-        run_config = case.run_config or {}
-        raw = run_config.get("harness_seed", run_manager.DEFAULT_HARNESS_SEED)
-        seed = str(raw).strip()
-
-    if not seed:
-        raise PipelineConfigError(
-            f"case '{case.case_id}' does not define a usable harness seed"
-        )
+    seed = _normalized_seed(case, harness_seed)
 
     merged = _merged_default_overrides(overrides, case)
     derived = identity.derive_identity(

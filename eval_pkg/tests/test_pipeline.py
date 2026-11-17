@@ -157,6 +157,7 @@ def test_two_model_sets_produce_two_distinct_runs(tmp_path: Path) -> None:
             model_overrides={"planner": model},
             apply_models=applier,
             base_url="http://backend.test",
+            check_models=_accept_all_checker,
             sleep=lambda _delay: None,
         )
 
@@ -668,6 +669,37 @@ def test_cli_run_requires_base_url(tmp_path: Path, monkeypatch: Any) -> None:
     assert "base URL" in _combined(result)
 
 
+def test_an_unknown_override_role_exits_two(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unknown --model role aborts the run with exit code 2, naming the role."""
+    from klea_eval import run_config
+
+    def reject(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise run_config.ModelOverrideError(
+            "unknown role 'narrator' (the backend exposes: chat, judge)"
+        )
+
+    monkeypatch.setattr(run_config, "check_override_roles", reject)
+
+    result = _cli(
+        [
+            "run",
+            str(_valid_suite(tmp_path)),
+            "--base-url",
+            "http://example.test",
+            "--model",
+            "narrator=model-a",
+        ]
+    )
+    combined = _combined(result)
+
+    assert result.exit_code == 2, combined
+    assert "narrator" in combined
+    assert "chat" in combined
+    assert "judge" in combined
+
+
 def test_cli_run_forwards_options(tmp_path: Path, monkeypatch: Any) -> None:
     """Every pipeline option is forwarded unchanged to ``run_suite``."""
     recorded = _stub_pipeline(monkeypatch, [StubCase("case-1", True)])
@@ -792,6 +824,12 @@ class ModelApplier:
         return dict(self.resolved)
 
 
+def _accept_all_checker(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+    """Stand-in override pre-flight that accepts every requested role."""
+
+    return {}
+
+
 def _run_with_applier(
     tmp_path: Path,
     cases: list[dict[str, Any]],
@@ -800,6 +838,7 @@ def _run_with_applier(
     model_overrides: Mapping[str, str] | None = None,
     base_url: str | None = "http://example.test",
     execute_turn: Any = None,
+    check_models: Any = _accept_all_checker,
 ) -> Any:
     """Run ``cases`` with a fake model applier instead of a live backend."""
     suite = _write_suite(tmp_path / "suite.jsonl", cases)
@@ -815,6 +854,7 @@ def _run_with_applier(
         sleep=lambda _delay: None,
         model_overrides=model_overrides,
         apply_models=applier,
+        check_models=check_models,
     )
 
 
@@ -915,6 +955,69 @@ def test_a_model_override_failure_fails_the_case_without_a_turn(
     assert result.exit_code == 1
     assert _run_json_paths(result.workspace_root) == []
     assert _index_lines(result.workspace_root) == []
+
+
+def test_an_unknown_caller_role_aborts_the_suite_before_any_case(
+    tmp_path: Path,
+) -> None:
+    """An unknown caller role is a suite-level config error, not a case failure."""
+    executor = Recorder()
+
+    def reject(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise ModelOverrideError(
+            "unknown role 'narrator' (the backend exposes: chat, judge)"
+        )
+
+    with pytest.raises(PipelineConfigError) as excinfo:
+        _run_with_applier(
+            tmp_path,
+            [_case("case-1", [_turn(1, "user", "Hello")])],
+            ModelApplier(),
+            model_overrides={"narrator": "model-a"},
+            execute_turn=executor,
+            check_models=reject,
+        )
+
+    message = str(excinfo.value)
+    assert "narrator" in message
+    assert "chat" in message
+    assert executor.calls == []
+    assert _run_json_paths(tmp_path / "workspace") == []
+    assert _index_lines(tmp_path / "workspace") == []
+
+
+def test_an_unknown_case_role_aborts_the_suite_before_any_case(
+    tmp_path: Path,
+) -> None:
+    """An unknown role in a case's own overrides aborts the whole suite too."""
+    executor = Recorder()
+
+    def reject(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+        raise ModelOverrideError(
+            "unknown role 'narrator' (the backend exposes: chat, judge)"
+        )
+
+    with pytest.raises(PipelineConfigError) as excinfo:
+        _run_with_applier(
+            tmp_path,
+            [
+                _case(
+                    "case-1",
+                    [_turn(1, "user", "Hello")],
+                    run_config={"model_overrides": {"narrator": "model-a"}},
+                )
+            ],
+            ModelApplier(),
+            execute_turn=executor,
+            check_models=reject,
+        )
+
+    message = str(excinfo.value)
+    assert "narrator" in message
+    assert "chat" in message
+    assert executor.calls == []
+    assert _run_json_paths(tmp_path / "workspace") == []
+    assert _index_lines(tmp_path / "workspace") == []
 
 
 def test_without_overrides_the_applier_is_never_called(tmp_path: Path) -> None:
