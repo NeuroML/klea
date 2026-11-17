@@ -47,6 +47,11 @@ _PERMISSION_OPTION_LABELS = {
     "deny": "Deny",
 }
 
+#: Cap for one plan-step summary line in the permission ask (display only).
+MAX_PERMISSION_STEP_SUMMARY_CHARS = 160
+#: Cap for the number of step lines the permission ask renders.
+MAX_PERMISSION_STEP_LINES = 8
+
 
 @dataclass(frozen=True)
 class HitlDecision:
@@ -466,12 +471,50 @@ class PermissionPanel(HitlDecisionPanel):
         options.append("deny")
         return tuple(options)
 
+    @classmethod
+    def _step_lines(cls, ask: Mapping[str, Any]) -> list[str]:
+        """Return bounded ``Step N: summary`` lines for the permission ask.
+
+        The ask carries display-only plan-step context (``steps``) so the user
+        can see what work each requested path is wanted for (ADR-0007).  Each
+        entry is rendered as a single, whitespace-collapsed line; a summary
+        longer than :data:`MAX_PERMISSION_STEP_SUMMARY_CHARS` is cut at the end
+        with an ASCII ``...``.  The list is capped at
+        :data:`MAX_PERMISSION_STEP_LINES`, so a pathological payload cannot
+        flood the panel.  An ask without step context (an older checkpoint, or
+        a plan-less run such as Klea RAG) yields an empty list, so nothing is
+        rendered and the panel is unchanged.
+
+        :param ask: The permission interrupt payload.
+        :returns: The bounded step lines, in the payload's order.
+        """
+        steps = ask.get("steps")
+        if not isinstance(steps, list):
+            return []
+        lines: list[str] = []
+        for step in steps[:MAX_PERMISSION_STEP_LINES]:
+            if not isinstance(step, Mapping):
+                continue
+            number = step.get("step_number")
+            summary = " ".join(str(step.get("summary") or "").split())
+            if not summary:
+                continue
+            if len(summary) > MAX_PERMISSION_STEP_SUMMARY_CHARS:
+                summary = summary[:MAX_PERMISSION_STEP_SUMMARY_CHARS].rstrip() + "..."
+            lines.append(f"Step {number}: {summary}" if number is not None else summary)
+        return lines
+
     def compose(self) -> ComposeResult:
         """Compose one radio group per requested path, plus Submit / Cancel."""
         yield SelectableStatic("Permission required", id="perm-title")
         question = self.ask.get("question")
         if question:
             yield SelectableStatic(str(question), id="perm-question")
+        # Display-only plan-step context: the work each requested path serves.
+        # ``markup=False`` so the model-authored summary is never parsed as Rich
+        # markup; absent context renders nothing.
+        for step_line in self._step_lines(self.ask):
+            yield SelectableStatic(step_line, markup=False, classes="hitl-hint")
         for index, request in enumerate(self._requests()):
             if index:
                 yield Rule()

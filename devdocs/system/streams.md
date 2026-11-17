@@ -43,7 +43,7 @@ exception.
 | `notice` | node (custom) | `{type, node, data{heading, summary, details{content, kind}}}` | collapsible chat progress note (full summary) | muted transcript line (collapsible) |
 | `token` | LLM (messages), opt-in only | `{type, content, node}` | ignored (no live typing) | ignored (no live typing) |
 | `context` | runner (values) | `{type, data}` | status pane (mode/access) | stored on the chat; status-panel mode/access slots refresh |
-| `interrupt` | node (HITL `interrupt()`) | `{type, node, data{kind, headline, question/questions, sections, interrupt_id, hitl_response_schema}}` | ask form replacing the composer | inline ask panel replacing the composer |
+| `interrupt` | node (HITL `interrupt()`) | `{type, node, data{kind, headline, question/questions, sections, steps, interrupt_id, hitl_response_schema}}` (`steps` permission-only) | ask form replacing the composer | inline ask panel replacing the composer |
 | `complete` | runner (terminal) | `{type, message_for_user}` | chat bubble + persisted | transcript message |
 | `error` | `chat_core` (exception) | `{type, message, error_type, node}` | notification | turn-status error (+ Retry) |
 
@@ -76,10 +76,17 @@ differs, and the tool-call context (`tool: argument = argument_preview
 (confidence)`) plus the detected token/source when useful.  Each request
 carries the full `path`/`directory` and decision `key` plus bounded
 `path_display`, `directory_display`, `raw_preview`, and `argument_preview`
-fields.  Its per-path decisions are `once`/`session`/`deny`, plus
-`not_a_path` (a per-dispatch dismissal for a guessed value; ADR-0007 update
-2026-10-14); guessed values keep the `session` option.  See ADR-0051 for
-review steps.
+fields.  Display-only plan-step context may also ride the ask: each request
+carries a `steps` list of `{step_number, summary}` entries (the plan steps the
+dispatching call was bound for), and the payload hoists a de-duplicated,
+step-number-ordered `steps` list of the same shape, empty when no request
+carries one.  It never contributes to a decision key (decisions still key on
+`path`/`directory`); each summary is collapsed to one line and cut to 160
+characters with an ASCII `...`, and at most 8 entries are carried, so a
+pathological plan cannot flood the ask.  Its per-path decisions are
+`once`/`session`/`deny`, plus `not_a_path` (a per-dispatch dismissal for a
+guessed value; ADR-0007 update 2026-10-14); guessed values keep the `session`
+option.  See ADR-0051 for review steps.
 
 An `input` ask normally carries only `questions`; when the Planner has
 exhausted its automated replan budget it may also carry `sections` with the
@@ -181,7 +188,10 @@ dispatch round, alongside (not inside) the running-tools entry, marking the
 steps in the batch.  Its data is a `NodeStreamData` with `key="plan"`.  It
 renders the plan with `current_numbers` set to the distinct `.step` numbers
 stamped on `state.tool_calls`, so every pending step of a parallel batch is
-marked current instead of only the next runnable one.  When the run carries a
+marked current instead of only the next runnable one.  Those same `.step`
+numbers label a path-permission ask's `steps` context (see above), whose
+summaries come from the plan keyed by the step the dispatching call was bound
+for, so the plan pane and the ask agree on which step wants the path.  When the run carries a
 goal (`state.goal.goal`), the section begins with a single `Goal: ...` line
 and a blank line before the steps.  The line comes from `GoalSchema.goal_label`
 (`agent_pkg/klea_agent/schemas.py`), which renders the label and owns the

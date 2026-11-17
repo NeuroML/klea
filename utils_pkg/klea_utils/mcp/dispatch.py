@@ -22,7 +22,10 @@ from klea_utils.client_context import ClientContext
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, AccessLevel, check_tool_access
 from klea_utils.mcp.path_detect import (
     PathRequest,
+    StepRef,
+    bounded_step_summary,
     detect_path_requests,
+    normalise_step_refs,
     resolve_path_arguments,
 )
 from klea_utils.mcp.permission_hitl import PermissionResolution
@@ -206,7 +209,10 @@ def _dedupe_requests(requests: Sequence[PathRequest]) -> list[PathRequest]:
     """Deduplicate requests by approval key, keeping the first (strongest).
 
     Coverage is merged across calls: two tool calls that touch different files
-    in the same approved directory become one ask that lists both paths.
+    in the same approved directory become one ask that lists both paths.  Plan
+    step references are merged the same way: the surviving request carries the
+    union of its calls' step references, de-duplicated by step number, ordered
+    by step number and capped by ``MAX_STEP_REFS``.
     """
     by_key: dict[str, PathRequest] = {}
     for request in requests:
@@ -219,6 +225,10 @@ def _dedupe_requests(requests: Sequence[PathRequest]) -> list[PathRequest]:
         for path in request.covered_paths or [request.path]:
             if path not in existing.covered_paths:
                 existing.covered_paths.append(path)
+        if request.steps:
+            existing.steps = list(
+                normalise_step_refs([*existing.steps, *request.steps])
+            )
     return sorted(by_key.values(), key=lambda request: request.approval_key)
 
 
@@ -261,6 +271,35 @@ def _permission_denied_result(
     )
 
 
+def _step_ref_for_call(
+    call: ToolCallSchema, step_summaries: Mapping[int, str] | None
+) -> StepRef | None:
+    """Return the plan-step reference for *call*, or ``None``.
+
+    The call carries the plan-step number it was bound for
+    (``ToolCallSchema.step``); the user-facing summary comes from
+    *step_summaries*.  A call with no step number, or a step the map does not
+    describe, contributes no reference, so the ask simply shows no step
+    context.  Display-only: never a decision key.
+
+    :param call: The bound tool call.
+    :param step_summaries: Mapping of step number to its summary.
+    :returns: The bounded step reference, or ``None``.
+    """
+    step_number = getattr(call, "step", None)
+    if step_number is None or not step_summaries:
+        return None
+    try:
+        number = int(step_number)
+    except (TypeError, ValueError):
+        return None
+    summary = step_summaries.get(number)
+    if summary is None:
+        return None
+    logger.debug(f"Stepping request\n{number = }")
+    return StepRef(step_number=number, summary=bounded_step_summary(str(summary)))
+
+
 async def dispatch_tool_calls(
     mcp_client: Any,
     tool_calls: Sequence[ToolCallSchema | tuple[str, Mapping[str, Any]]],
@@ -276,6 +315,7 @@ async def dispatch_tool_calls(
     mcp_session_pool: Any | None = None,
     client_context: ClientContext | None = None,
     meta: Mapping[str, Any] | None = None,
+    step_summaries: Mapping[int, str] | None = None,
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
@@ -344,6 +384,10 @@ async def dispatch_tool_calls(
     :param meta: Optional metadata forwarded to ``client.call_tool`` as its
         ``meta`` argument.  Only whether a value was supplied is logged, never
         the value itself.
+    :param step_summaries: Mapping of plan-step number to its user-facing
+        summary.  Used only to label a detected path request with the plan
+        step the call serves (display only; never a decision key).  ``None``
+        (the default) adds no step context, so the ask renders unchanged.
     :returns: One :class:`CallToolResult` per input call, in input order.
     """
     calls = [_as_tool_call(call) for call in tool_calls]
@@ -415,7 +459,7 @@ async def dispatch_tool_calls(
     if tool_infos is not None:
         for i in gated:
             call = calls[i]
-            call_requests[i] = detect_path_requests(
+            requests_for_call = detect_path_requests(
                 call.tool,
                 call.args,
                 tool_infos.get(call.tool),
@@ -425,6 +469,15 @@ async def dispatch_tool_calls(
                 picker_paths=call.paths,
                 include_sensitive=permission_resolver is not None,
             )
+            # Label each request with the plan step the dispatching call serves,
+            # so one ask can say why each path is wanted (display only).
+            step_ref = _step_ref_for_call(call, step_summaries)
+            if step_ref is not None:
+                for request in requests_for_call:
+                    request.steps = list(
+                        normalise_step_refs([*request.steps, step_ref])
+                    )
+            call_requests[i] = requests_for_call
     all_requests = _dedupe_requests(
         [request for requests in call_requests.values() for request in requests]
     )

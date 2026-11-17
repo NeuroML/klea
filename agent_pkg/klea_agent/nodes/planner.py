@@ -916,13 +916,14 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             f"from_updates = "
             f"{bool(ctx.state_updates and ctx.state_updates.get('plan'))}"
         )
+        goal = state.goal.goal_label()
         return NodeStreamData(
             heading=plan.status_heading(),
             summary=f"{len(plan.step_list)} step(s); status={plan.status}",
             display=plan.render(markdown=True),
             key="plan",
             preformatted=True,
-            content=plan_content_blocks(plan),
+            content=plan_content_blocks(plan, goal=goal),
         )
 
     @override

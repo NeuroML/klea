@@ -55,6 +55,67 @@ MAX_ARGUMENT_PREVIEW_CHARS = 160
 #: file body or a note, not a command line, so it is not scanned at all.
 MAX_VALUE_SCAN_CHARS = 1000
 
+#: Longest plan-step summary carried on a path request (display only).
+MAX_STEP_SUMMARY_CHARS = 160
+
+#: Most plan-step references carried by one request or one ask payload.
+MAX_STEP_REFS = 8
+
+
+def bounded_step_summary(text: str, max_chars: int = MAX_STEP_SUMMARY_CHARS) -> str:
+    """Return a single bounded line for a plan-step summary.
+
+    A path-permission ask can carry display-only plan-step context.  A step
+    summary is model-authored prose, so it is whitespace-collapsed onto one
+    line and cut at the end with an ASCII ``...`` when it exceeds *max_chars*.
+    Unlike :func:`truncate_middle` the wording (the start of the text) matters
+    here, so the cut is a tail cut.
+
+    :param text: The raw step summary.
+    :param max_chars: Maximum number of visible characters to keep.
+    :returns: The bounded single-line summary.
+    """
+    collapsed = " ".join(str(text).split())
+    if max_chars <= 0:
+        return ""
+    if len(collapsed) <= max_chars:
+        return collapsed
+    return collapsed[:max_chars].rstrip() + "..."
+
+
+class StepRef(BaseModel):
+    """One plan step a path request's calls serve (display only).
+
+    Carried so the ask can say what work a requested path is wanted for.
+    Neither field is ever a decision key: decisions still match on
+    :attr:`PathRequest.approval_key`.
+
+    :attr:`step_number` is the plan step the dispatching call was bound for;
+    :attr:`summary` is its bounded, user-facing label.
+    """
+
+    step_number: int
+    summary: str = ""
+
+
+def normalise_step_refs(refs: Sequence[StepRef]) -> list[StepRef]:
+    """Merge step references by step number, ordered and capped.
+
+    Used when several calls serving different plan steps merge into one ask.
+    The first summary seen for a step number wins (they describe the same plan
+    step), the result is ordered by step number, and at most
+    :data:`MAX_STEP_REFS` references are kept so a pathological plan cannot
+    flood the ask.
+
+    :param refs: The step references to merge.
+    :returns: The de-duplicated, step-ordered, capped references.
+    """
+    by_number: dict[int, StepRef] = {}
+    for ref in refs:
+        by_number.setdefault(ref.step_number, ref)
+    ordered = [by_number[number] for number in sorted(by_number)]
+    return ordered[:MAX_STEP_REFS]
+
 
 def truncate_middle(text: str, max_chars: int = MAX_PATH_DISPLAY_CHARS) -> str:
     """Truncate *text* in the middle, keeping its start and end.
@@ -178,6 +239,10 @@ class PathRequest(BaseModel):
     single sensitive file).  It lets the ask show what one session approval
     covers.
 
+    :attr:`steps` lists the plan steps the requesting calls serve (empty
+    when the run has no plan); it is display-only context for the ask and never
+    affects a decision.
+
     :attr:`argument_length` is the length of the full argument value and
     :attr:`preview_token_start`/:attr:`preview_token_end` locate the matched
     token inside :attr:`argument_preview` (``-1`` when it cannot be located);
@@ -203,6 +268,7 @@ class PathRequest(BaseModel):
     preview_omitted_after: int = 0
     token_line: int = 1
     covered_paths: list[str] = Field(default_factory=list)
+    steps: list[StepRef] = Field(default_factory=list)
 
     @property
     def approval_key(self) -> str:

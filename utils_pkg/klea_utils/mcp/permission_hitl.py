@@ -23,7 +23,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError
 
-from klea_utils.mcp.path_detect import PathRequest, truncate_middle
+from klea_utils.mcp.path_detect import (
+    PathRequest,
+    normalise_step_refs,
+    truncate_middle,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +118,24 @@ def _confidence_reason(request: PathRequest) -> str:
     return reason
 
 
+def _payload_steps(requests: Sequence[PathRequest]) -> list[dict[str, Any]]:
+    """Return the de-duplicated plan-step context for a permission payload.
+
+    One entry per distinct plan step the requesting calls serve, so the ask can
+    show the work each path is wanted for.  Refs arrive already bounded (see
+    :func:`klea_utils.mcp.path_detect.bounded_step_summary`); the union is
+    de-duplicated by step number, ordered by step number and capped by
+    ``MAX_STEP_REFS``.  Display-only: never a decision key.
+
+    :param requests: The path requests being asked about.
+    :returns: ``{step_number, summary}`` mappings, or ``[]`` when no request
+        carries step context.
+    """
+    refs = normalise_step_refs([ref for request in requests for ref in request.steps])
+    logger.debug(f"Payload step context\n{len(refs) = }")
+    return [{"step_number": ref.step_number, "summary": ref.summary} for ref in refs]
+
+
 def build_permission_payload(
     requests: Sequence[PathRequest], *, question: str = ""
 ) -> dict[str, Any]:
@@ -125,7 +147,11 @@ def build_permission_payload(
     objects for the client to render.  Each request carries the full ``path``
     and ``directory`` for decisions plus bounded ``path_display``,
     ``directory_display``, ``raw_preview`` and ``argument_preview`` fields for
-    the UI; the payload's ``raw`` value is capped to ``raw_preview``.
+    the UI; the payload's ``raw`` value is capped to ``raw_preview``.  When a
+    request carries plan-step context, each item keeps its own ``steps`` list
+    and the payload hoists a de-duplicated, step-ordered ``steps`` list (empty
+    when no request carries one) so the ask can show what work each path
+    serves.
 
     :param requests: The outside-path requests to ask about.
     :param question: Custom prompt text; defaults to :data:`DEFAULT_QUESTION`.
@@ -153,6 +179,7 @@ def build_permission_payload(
     return {
         "kind": "permission",
         "question": question or DEFAULT_QUESTION,
+        "steps": _payload_steps(requests),
         "requests": payload_requests,
     }
 

@@ -561,6 +561,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             plan.status,
             len(plan.step_list),
         )
+        goal = state.goal.goal_label()
 
         return NodeStreamData(
             heading=plan.status_heading(),
@@ -568,7 +569,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             display=plan.render(markdown=True),
             key="plan",
             preformatted=True,
-            content=plan_content_blocks(plan),
+            content=plan_content_blocks(plan, goal=goal),
         )
 
     @override

@@ -248,6 +248,20 @@ async def test_generic_tool_event_renders_header_and_payload(fake_backend, agent
     await agent_user.should_see("hello from notes", retries=50)
 
 
+async def test_permission_step_context_renders(fake_backend, agent_user):
+    """A permission ask shows the plan-step context it carries."""
+    event = _permission_event(
+        {"kind": "outside", "path": "/etc/hosts", "directory": "/etc"}
+    )
+    event["data"]["steps"] = [{"step_number": 1, "summary": "Read the hosts file"}]
+    fake_backend.stream_events = [event]
+    await agent_user.open("/")
+    await agent_user.should_not_see("Backend is starting")
+    _send(agent_user, "Hello")
+    await agent_user.should_see("Permission required", retries=50)
+    await agent_user.should_see("Step 1: Read the hosts file")
+
+
 def _permission_event(request: dict) -> dict:
     return {
         "type": "interrupt",
