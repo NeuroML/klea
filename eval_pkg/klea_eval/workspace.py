@@ -119,6 +119,31 @@ def is_archived(run_dir: Path) -> bool:
     return archived
 
 
+def list_run_dirs(root: Path | None = None) -> tuple[str, ...]:
+    """Return the sorted run ids of the published runs under ``runs/``.
+
+    Staging and overwrite sentinels are not published runs and are skipped, as
+    are hidden names; a missing ``runs/`` yields an empty tuple.
+    """
+    runs = runs_dir(root)
+    if not runs.is_dir():
+        logger.debug(f"{runs = }")
+        return ()
+
+    sentinel_suffixes = (TMP_SUFFIX, ".superseded", ".overwrite")
+    run_ids = tuple(
+        sorted(
+            path.name
+            for path in runs.iterdir()
+            if path.is_dir()
+            and not path.name.startswith(".")
+            and not path.name.endswith(sentinel_suffixes)
+        )
+    )
+    logger.debug(f"{run_ids = }")
+    return run_ids
+
+
 def detect_state(run_id: str, root: Path | None = None) -> RunState:
     """Classify a run as ``NEW``, ``INCOMPLETE``, ``COMPLETE`` or ``ARCHIVED``.
 

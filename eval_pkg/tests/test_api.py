@@ -102,6 +102,46 @@ def _make_run(
     return published
 
 
+def _make_unindexed_run(
+    root: Path,
+    run_id: str,
+    case_id: str,
+    *,
+    passed: bool | None = True,
+    expects_grade: bool = True,
+    status: str = COMPLETED,
+    complete: bool = False,
+    archived: bool = False,
+) -> Path:
+    """Write ``run.json`` and ``metrics.jsonl`` but no index line.
+
+    The run directory is created directly rather than published, so it carries
+    neither an index entry nor (unless requested) the ``COMPLETE`` or
+    ``ARCHIVED`` markers that the report uses to classify it.
+    """
+    run_path = workspace.run_dir(run_id, root)
+    run_path.mkdir(parents=True, exist_ok=True)
+    run_manager.append_metric(
+        workspace.metrics_path(run_path),
+        _turn_record(run_id, case_id, passed=passed, expects_grade=expects_grade),
+    )
+
+    metadata = results.RunMetadata(
+        run_id=run_id,
+        case_id=case_id,
+        status=status,
+        harness_seed="0",
+        case_version="1.0",
+        expects_grade=expects_grade,
+    )
+    results.write_metadata(run_path, metadata)
+    if complete:
+        (run_path / workspace.COMPLETE_MARKER_NAME).write_text("", encoding="utf-8")
+    if archived:
+        (run_path / workspace.ARCHIVED_MARKER_NAME).write_text("", encoding="utf-8")
+    return run_path
+
+
 def _append_entry(
     root: Path,
     run_id: str,
@@ -580,6 +620,7 @@ def test_cli_report_renders_an_empty_index(tmp_path: Path) -> None:
     text = target.read_text(encoding="utf-8")
     assert f"Evaluation report for {root}" in text
     assert "completed=0 failed=0 skipped=0 ungraded=0 grade-missing=0 total=0" in text
+    assert "total=0 unindexed=0" in text
 
 
 def test_cli_report_counts_ungraded_and_grade_missing(tmp_path: Path) -> None:
@@ -596,3 +637,71 @@ def test_cli_report_counts_ungraded_and_grade_missing(tmp_path: Path) -> None:
     text = target.read_text(encoding="utf-8")
     assert f"Evaluation report for {root}" in text
     assert "completed=1 failed=0 skipped=0 ungraded=1 grade-missing=1 total=3" in text
+
+
+def test_cli_report_lists_unindexed_run_directories(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    _make_run(root, "run-indexed", "case-a", passed=True)
+    _make_unindexed_run(root, "run-unindexed", "case-b", passed=False, status=FAILED)
+    runner = CliRunner()
+    target = tmp_path / "report.txt"
+
+    result = runner.invoke(app, ["report", str(root), "-o", str(target)])
+
+    assert result.exit_code == 0
+    text = target.read_text(encoding="utf-8")
+    assert "run-indexed case=case-a status=completed" in text
+    assert "run-unindexed case=case-b status=failed label=failed index=missing" in text
+    assert "total=1 unindexed=1" in text
+
+
+def test_cli_report_ignores_staging_and_sentinel_directories(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    _make_run(root, "run-a", "case-a", passed=True)
+    runs = workspace.runs_dir(root)
+    (runs / f"run-a{workspace.TMP_SUFFIX}").mkdir()
+    (runs / "run-a.superseded").mkdir()
+    (runs / "run-a.overwrite").mkdir()
+    runner = CliRunner()
+    target = tmp_path / "report.txt"
+
+    result = runner.invoke(app, ["report", str(root), "-o", str(target)])
+
+    assert result.exit_code == 0
+    text = target.read_text(encoding="utf-8")
+    assert "run-a case=case-a status=completed" in text
+    assert "index=missing" not in text
+    assert "total=1 unindexed=0" in text
+
+
+def test_cli_report_flags_a_complete_run_missing_from_the_index(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    _make_run(root, "run-indexed", "case-a", passed=True)
+    _make_unindexed_run(root, "run-complete", "case-c", passed=True, complete=True)
+    runner = CliRunner()
+    target = tmp_path / "report.txt"
+
+    result = runner.invoke(app, ["report", str(root), "-o", str(target)])
+
+    assert result.exit_code == 0
+    text = target.read_text(encoding="utf-8")
+    assert "run-complete case=case-c status=completed" in text
+    assert "index=missing" in text
+    assert "failed=0" in text
+    assert "unindexed=1" in text
+
+
+def test_cli_report_keeps_an_indexed_archived_run(tmp_path: Path) -> None:
+    root = tmp_path / "workspace"
+    run_path = _make_run(root, "run-archived", "case-a", status=COMPLETED)
+    (run_path / workspace.ARCHIVED_MARKER_NAME).write_text("", encoding="utf-8")
+    runner = CliRunner()
+    target = tmp_path / "report.txt"
+
+    result = runner.invoke(app, ["report", str(root), "-o", str(target)])
+
+    assert result.exit_code == 0
+    text = target.read_text(encoding="utf-8")
+    assert "run-archived case=case-a status=completed" in text
+    assert "index=missing" not in text
+    assert "total=1 unindexed=0" in text

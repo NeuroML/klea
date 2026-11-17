@@ -11,6 +11,10 @@ the counters describe what the writer actually stored.
 Nothing here creates directories, scores cases or prunes runs; retention belongs
 to ADR-0059 and suite-level aggregation to :mod:`klea_eval.scoring`.  An empty or
 missing index is not an error: it renders the header plus an all-zero summary.
+Published run directories under ``runs/`` that the index omits are rendered as
+extra lines marked ``index=missing`` -- ``drift`` when the run is complete,
+``archived`` when it is retained, and an unmarked residue otherwise -- so the
+``unindexed`` counter in the summary reflects them.
 """
 
 from __future__ import annotations
@@ -118,6 +122,49 @@ def _entry_signals(
     return task_success, expects_grade, True
 
 
+def _unindexed_line(root: str | Path, run_id: str) -> str:
+    """Render one line for a run directory that ``runs/index.jsonl`` omits.
+
+    A directory carrying both ``COMPLETE`` and ``ARCHIVED`` is a retained run
+    and is labelled ``archived``; a complete directory without an index line is
+    drift, not a failure, and is labelled ``drift``; anything else is an
+    unmarked residue whose label comes from its readable ``run.json`` (and, as
+    before, its stored ``task_success``), or falls back to ``case=?``,
+    ``status=incomplete`` and ``label=unknown`` without inventing a status.
+    """
+    from klea_eval import labels
+
+    run_path = workspace.run_dir(run_id, Path(root))
+    metadata = _read_json(results.run_metadata_path(run_path))
+    stored = metadata if isinstance(metadata, dict) else {}
+
+    case_id = stored.get("case_id") or "?"
+    status = stored.get("status")
+    expects_grade = bool(stored.get("expects_grade", False))
+
+    if workspace.is_archived(run_path):
+        label = "archived"
+    elif workspace.is_complete(run_path):
+        label = "drift"
+    else:
+        task_success = _stored_task_success(run_path)
+        if task_success is _UNREADABLE:
+            task_success = None
+        if not stored:
+            status = "incomplete"
+            label = "unknown"
+        else:
+            status = status or "incomplete"
+            label = labels.classify_case(
+                status=status,
+                task_success=task_success,
+                expects_grade=expects_grade,
+            )
+
+    logger.debug(f"{run_id = }, {label = }")
+    return f"{run_id} case={case_id} status={status or '?'} label={label} index=missing"
+
+
 def format_report(root: str | Path) -> str:
     """Render the report for the workspace ``root`` as one text blob.
 
@@ -130,6 +177,7 @@ def format_report(root: str | Path) -> str:
 
     from klea_eval import labels
 
+    indexed = {entry.run_id for entry in entries}
     lines = [f"Evaluation report for {root}"]
     counters = {
         "completed": 0,
@@ -137,6 +185,7 @@ def format_report(root: str | Path) -> str:
         "skipped": 0,
         "ungraded": 0,
         "grade-missing": 0,
+        "unindexed": 0,
     }
 
     for entry in entries:
@@ -164,10 +213,17 @@ def format_report(root: str | Path) -> str:
         else:
             counters["completed"] += 1
 
+    for run_id in workspace.list_run_dirs(Path(root)):
+        if run_id in indexed:
+            continue
+        counters["unindexed"] += 1
+        lines.append(_unindexed_line(root, run_id))
+
     lines.append(
         f"completed={counters['completed']} failed={counters['failed']} "
         f"skipped={counters['skipped']} ungraded={counters['ungraded']} "
-        f"grade-missing={counters['grade-missing']} total={len(entries)}"
+        f"grade-missing={counters['grade-missing']} total={len(entries)} "
+        f"unindexed={counters['unindexed']}"
     )
 
     text = "\n".join(lines) + "\n"
