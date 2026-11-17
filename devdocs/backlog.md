@@ -131,17 +131,18 @@ commit log and resume instructions) is
 remaining ordered phases and deferred items.
 
 Ordered phases.  The package scaffold and distribution (`klea-eval`) are done,
-and the ADR-0056 JSONL case loader shipped in commit `4c1df875`.  The next
-task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
+and the ADR-0056 JSONL case loader shipped in commit `4c1df875`; the CLI
+case-validation command shipped as `klea-eval validate`.  The remaining ordered
+phases are listed below.
 
 - JSONL case loader (ADR-0056), **done** (`4c1df875`): `klea_eval.cases`
   (`load_suite`, `iter_cases`) reads case definitions from the ADR-0056 JSONL
   format and raises `CaseValidationError` (carrying source path, line number
   and case id) on invalid input.
-- CLI case-validation command, **next task**: expose the loader in
-  `eval_pkg/klea_eval/ui/cli.py` (today only `version`, `run`, `report` exist,
-  lines 32-81), render the `CaseValidationError` message and map it to exit
-  code 2 as `klea_eval.errors` and ADR-0060 promise.
+- CLI case-validation command, **done**: the loader is exposed in
+  `eval_pkg/klea_eval/ui/cli.py` as `klea-eval validate`, which renders the
+  `CaseValidationError` message and maps it to exit code 2 as
+  `klea_eval.errors` and ADR-0060 promise.
 - Run manager and run isolation (ADR-0057): give each case an isolated run
   directory and environment, with cleanup.
 - Metrics collector (ADR-0058): collect per-case metrics through the runner
@@ -152,11 +153,14 @@ task is the CLI case-validation command in `eval_pkg/klea_eval/ui/cli.py`.
   runners and storage together behind the `klea-eval` command.
 - Scoring and aggregation, API/SSE integration (ADR-0060): aggregate case
   scores and expose runs through the API and SSE stream.
-- Model overrides: the backend accepts an unknown role in a model override
-  (it stores it) instead of rejecting it, so the harness rejects an unknown
-  role itself, before pushing anything, against the chat's active model map.
-  Making the backend reject an unknown role is a `utils_pkg` follow-up; an
-  upstream issue has been filed for it.
+- Model overrides, **done**: one read-only pre-flight reads the chat's active
+  model map once for the first case and rejects an unknown role across caller
+  `-m` defaults plus every case's `run_config.model_overrides` before the first
+  case runs, raising `PipelineConfigError` so `klea-eval run` exits 2 with the
+  exposed roles listed.  The per-case `ModelOverrideError` path is kept as a
+  backend-side fallback.  The backend still accepts an unknown role in a model
+  override (it stores it) instead of rejecting it; making the backend reject it
+  is a `utils_pkg` follow-up, with an upstream issue filed for it.
 - Grading semantics (settled): no rubric means no grade.  `metrics.py` leaves
   `task_success` at None for a run without a grade, and a grade is never
   inferred because there is nothing to infer it from: `ungraded` is a

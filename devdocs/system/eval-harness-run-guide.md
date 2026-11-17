@@ -160,10 +160,11 @@ once per run, after its directory is prepared and before its first turn.
 
 The roles the flag accepts are the ones the target app exposes in its
 `models/active` map (`chat`, `judge`, `plan`, ... depending on the
-deployment).  The harness reads that map first and rejects a role it does not
-find, so a typo fails that case with `unknown role '<role>' (the backend
-exposes: ...)` before any turn runs, instead of silently leaving the suite on
-the wrong models.
+deployment).  The harness reads that map once, before the first case runs, and rejects a
+role it does not find, so a typo aborts the whole run with exit code 2 and
+names the unknown role and the roles the backend exposes (`unknown role
+'<role>' (the backend exposes: ...)`); no run directory or index line is
+produced, instead of silently leaving the suite on the wrong models.
 
 ### Credentials come from the environment
 
@@ -293,8 +294,11 @@ Work down this list when a run does not behave as expected.
   See section 4.
 * **`unknown role '<role>' (the backend exposes: ...)`.**  A `--model` role
   (or a case `run_config.model_overrides` key) is not one the target app
-  exposes, so the case failed before its first turn and published nothing.
-  Pass a role the app lists in its `models/active` map (section 5).
+  exposes, so the harness aborted the whole run before the first case, with
+  exit code 2 and no run directory or index line produced.  The per-case
+  failure that publishes nothing is now only a fallback for when this
+  pre-flight check is skipped.  Pass a role the app lists in its
+  `models/active` map (section 5).
 * **A 403 carrying `The '<role>' model is locked`.**  The deployment locks that
   role, so the override was refused and the case failed before its first turn.
   Clear the lock in the app's environment or config, restart the server and
