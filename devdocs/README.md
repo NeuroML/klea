@@ -21,7 +21,7 @@ Structure:
 - `system/` -- architecture and component contracts.  Mermaid diagrams
   and data-flow notes that explain how a subsystem works.  See
   `system/store-create.md` for ingestion.
-- `system/diagrams/` -- generated SVG renderings of the Mermaid diagrams in
+- `system/diagrams/` -- generated image renderings of the Mermaid diagrams in
   `system/`.  These are committed build artifacts; regenerate them with
   `python scripts/render_mermaid.py` (see below).
 - `adr/` -- Architecture Decision Records in MADR format, numbered as
@@ -34,16 +34,17 @@ Structure:
 
 ## Regenerating diagrams
 
-The SVGs under `system/diagrams/` are generated from the Mermaid sources in
+The images under `system/diagrams/` are generated from the Mermaid sources in
 this tree: the ```mermaid fenced blocks in `system/*.md` and any standalone
 `.mmd` files.  Regenerate them with:
 
     python scripts/render_mermaid.py
 
 The script discovers every diagram automatically, writes the extracted
-`.mmd` sources to `build/mermaid/src/` (git-ignored) and the rendered SVGs
-to `devdocs/system/diagrams/`.  Commit the updated SVGs alongside the
-source change.
+`.mmd` sources to `build/mermaid/src/` (git-ignored) and the rendered images
+to `devdocs/system/diagrams/`.  The output format is selected with
+`--format`/`-f` (`png`, `svg`, `pdf`, `jpg`) and defaults to `png`.  Commit
+the updated images alongside the source change.
 
 ## Index
 

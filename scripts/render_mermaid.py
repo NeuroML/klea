@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render every Mermaid diagram in the repository to an SVG file.
+"""Render every Mermaid diagram in the repository to an image file.
 
 Diagrams are discovered dynamically -- there is no hard-coded list of
 files to process:
@@ -10,8 +10,9 @@ files to process:
   source.
 
 Each Mermaid source is written to its own ``.mmd`` file inside the work
-directory and rendered to an SVG with ``mmdc`` (the Mermaid CLI) at the
-requested scale.
+directory and rendered with ``mmdc`` (the Mermaid CLI) at the requested
+scale.  The output format is selected with ``--format``/``-f`` and
+defaults to ``png``.
 
 Example
 -------
@@ -23,14 +24,14 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+from collections.abc import Sequence
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
 
 import typer
 
 app = typer.Typer(
     add_completion=False,
-    help="Render Mermaid diagrams discovered in the repository to SVG.",
+    help="Render Mermaid diagrams discovered in the repository to image files.",
 )
 
 #: Directory names that are never scanned for sources.
@@ -80,7 +81,7 @@ def _is_within(path: Path, directory: Path) -> bool:
     return True
 
 
-def find_markdown_files(devdocs_dir: Path) -> List[Path]:
+def find_markdown_files(devdocs_dir: Path) -> list[Path]:
     """Recursively find Markdown files below *devdocs_dir*."""
     if not devdocs_dir.is_dir():
         return []
@@ -91,9 +92,9 @@ def find_markdown_files(devdocs_dir: Path) -> List[Path]:
     )
 
 
-def find_mmd_files(repo_root: Path, extra_excludes: Sequence[Path] = ()) -> List[Path]:
+def find_mmd_files(repo_root: Path, extra_excludes: Sequence[Path] = ()) -> list[Path]:
     """Recursively find ``.mmd`` files below *repo_root*."""
-    results: List[Path] = []
+    results: list[Path] = []
     for path in repo_root.rglob("*.mmd"):
         if not path.is_file():
             continue
@@ -105,9 +106,9 @@ def find_mmd_files(repo_root: Path, extra_excludes: Sequence[Path] = ()) -> List
     return sorted(results)
 
 
-def extract_mermaid_blocks(markdown_text: str) -> List[str]:
+def extract_mermaid_blocks(markdown_text: str) -> list[str]:
     """Return the body of every ```mermaid fence in *markdown_text*."""
-    blocks: List[str] = []
+    blocks: list[str] = []
     for match in MERMAID_FENCE_RE.finditer(markdown_text):
         body = match.group("body").strip("\n").rstrip()
         if body.strip():
@@ -141,7 +142,8 @@ def _render(
     output: Path,
     scale: float,
     background: str,
-    puppeteer_config: Optional[Path],
+    image_format: str,
+    puppeteer_config: Path | None,
 ) -> None:
     output.parent.mkdir(parents=True, exist_ok=True)
     command = [
@@ -150,6 +152,8 @@ def _render(
         str(source),
         "--output",
         str(output),
+        "--outputFormat",
+        image_format,
         "--scale",
         str(scale),
         "--backgroundColor",
@@ -173,7 +177,7 @@ def main(
         Path("devdocs/system/diagrams"),
         "--output-dir",
         "-o",
-        help="Directory that receives the rendered SVG files.",
+        help="Directory that receives the rendered image files (--format, default png).",
     ),
     work_dir: Path = typer.Option(
         Path("build/mermaid/src"),
@@ -201,7 +205,13 @@ def main(
         "-b",
         help="Background colour passed to mmdc.",
     ),
-    puppeteer_config: Optional[Path] = typer.Option(
+    image_format: str = typer.Option(
+        "png",
+        "--format",
+        "-f",
+        help="Output format passed to mmdc (png, svg, pdf, jpg).",
+    ),
+    puppeteer_config: Path | None = typer.Option(
         None,
         "--puppeteer-config",
         "-p",
@@ -222,7 +232,7 @@ def main(
         )
         raise typer.Exit(code=1)
 
-    jobs: List[Tuple[str, str]] = []
+    jobs: list[tuple[str, str]] = []
 
     for markdown in find_markdown_files(devdocs_dir):
         blocks = extract_mermaid_blocks(markdown.read_text(encoding="utf-8"))
@@ -240,10 +250,18 @@ def main(
     rendered = 0
     for name, source in jobs:
         source_path = _write_source(work_dir, name, source)
-        svg_path = output_dir / f"{name}.svg"
-        _render(mmdc, source_path, svg_path, scale, background, puppeteer_config)
+        output_path = output_dir / f"{name}.{image_format}"
+        _render(
+            mmdc,
+            source_path,
+            output_path,
+            scale,
+            background,
+            image_format,
+            puppeteer_config,
+        )
         rendered += 1
-        typer.echo(f"rendered {svg_path}")
+        typer.echo(f"rendered {output_path}")
 
     typer.secho(f"Rendered {rendered} diagram(s).", fg=typer.colors.GREEN)
 
