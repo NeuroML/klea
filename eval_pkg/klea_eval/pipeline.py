@@ -24,9 +24,9 @@ index line, and the suite continues with the next case.  Only a pre-run fault
 (an invalid suite, an unusable workspace root, a missing executor) aborts the
 suite before any run starts.
 
-Suite-level aggregation (``pass_at_k``), retention, ``transcript.jsonl``
-writing, HITL resume, cost derivation and the bounded worker pool are out of
-scope here and belong to the later phases of the implementation plan.
+Suite-level aggregation (``pass_at_k``), retention, HITL resume, cost
+derivation and the bounded worker pool are out of scope here and belong to the
+later phases of the implementation plan.
 """
 
 from __future__ import annotations

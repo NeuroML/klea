@@ -73,6 +73,14 @@ def test_metrics_path_is_at_the_run_root(tmp_path):
     assert "workspace" not in workspace.metrics_path(run).parts
 
 
+def test_transcript_path_is_at_the_run_root(tmp_path):
+    run = workspace.run_dir("abc", tmp_path)
+
+    assert workspace.transcript_path(run) == run / "transcript.jsonl"
+    assert workspace.transcript_path(run).parent == run
+    assert "workspace" not in workspace.transcript_path(run).parts
+
+
 # -- fresh creation -------------------------------------------------------
 
 

@@ -66,6 +66,7 @@ __all__ = [
     "TurnExecutor",
     "TurnScorer",
     "append_metric",
+    "append_transcript",
     "run_case",
     "start_run",
 ]
@@ -157,6 +158,11 @@ class RunContext:
     def metrics_file(self) -> Path:
         """Path of the run's ``metrics.jsonl`` file."""
         return Path(workspace.metrics_path(self.run_dir))
+
+    @property
+    def transcript_file(self) -> Path:
+        """Path of the run's ``transcript.jsonl`` file."""
+        return Path(workspace.transcript_path(self.run_dir))
 
 
 @dataclass(frozen=True, slots=True)
@@ -328,6 +334,17 @@ def run_case(
                 context, turn, execute_turn, score_turn, sleep, max_attempts
             )
             append_metric(metrics_file, record)
+            append_transcript(
+                context.transcript_file,
+                {
+                    "turn_number": record["turn_number"],
+                    "role": record["role"],
+                    "input": turn.content,
+                    "output": record.get("output"),
+                    "status": record.get("status", STATUS_COMPLETED),
+                    "error": record.get("error"),
+                },
+            )
             records.append(record)
     except Exception as exc:
         attempts: int | None = None
@@ -410,6 +427,43 @@ def append_metric(path: str | Path, record: Mapping[str, Any]) -> None:
     except OSError as exc:
         raise RunManagerError(
             f"could not append a metric to '{target}': {exc}"
+        ) from exc
+
+    logger.debug("run_manager: %s", f"{target = }")
+
+
+def append_transcript(path: str | Path, record: Mapping[str, Any]) -> None:
+    """Append ``record`` as one JSON object on its own line of ``path``.
+
+    The file is opened with ``O_APPEND`` and flushed with :func:`os.fsync`, so
+    concurrent writers never truncate earlier lines and a crash cannot leave a
+    half-written record inside another one.
+    """
+    if not isinstance(record, Mapping):
+        raise RunManagerError(
+            f"transcript record must be a mapping, got {type(record).__name__}"
+        )
+
+    target = Path(path)
+    try:
+        payload = json.dumps(dict(record), sort_keys=True, ensure_ascii=True)
+    except (TypeError, ValueError) as exc:
+        raise RunManagerError(
+            f"transcript record is not JSON serialisable for '{target}': {exc}"
+        ) from exc
+
+    line = f"{payload}\n".encode()
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        try:
+            os.write(descriptor, line)
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError as exc:
+        raise RunManagerError(
+            f"could not append a transcript record to '{target}': {exc}"
         ) from exc
 
     logger.debug("run_manager: %s", f"{target = }")

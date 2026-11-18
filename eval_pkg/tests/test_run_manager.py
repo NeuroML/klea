@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
-from klea_eval import run_manager, workspace
+from klea_eval import metrics, run_manager, workspace
 from klea_eval.cases import TestCase, Turn
 from klea_eval.run_manager import (
     STATUS_COMPLETED,
@@ -486,3 +486,111 @@ def test_invalid_attempt_is_rejected(tmp_path, bad):
 
     with pytest.raises(RunPreparationError):
         run_manager.start_run(case, base, root, attempt=bad)
+
+
+TRANSCRIPT_FILE_NAME = "transcript.jsonl"
+
+
+def _read_transcript(path: Path) -> list[dict]:
+    """Parse a ``transcript.jsonl`` file into a list of records."""
+    text = Path(path).read_text(encoding="utf-8")
+    return [json.loads(line) for line in text.splitlines() if line.strip()]
+
+
+def test_transcript_is_written_inside_the_staging_run_directory(tmp_path):
+    """Each executed turn appends a line to the staging run's transcript."""
+    case, _root, context = _prepare(tmp_path)
+    observed: list[tuple[str, bool]] = []
+
+    def executor(ctx, turn):
+        transcript = Path(ctx.run_dir) / TRANSCRIPT_FILE_NAME
+        observed.append((Path(ctx.run_dir).name, transcript.exists()))
+        return {"content": turn.content}
+
+    result = run_manager.run_case(context, case, executor)
+
+    assert result.status == STATUS_COMPLETED
+    assert all(name.endswith(".tmp") for name, _exists in observed)
+    assert [exists for _name, exists in observed] == [False, True]
+
+    run_dir, _metrics_file = _output_metrics(result, context)
+    transcript = run_dir / TRANSCRIPT_FILE_NAME
+    assert transcript.exists()
+    assert len(_read_transcript(transcript)) == 2
+
+
+def test_transcript_has_one_ordered_line_per_turn_with_exact_keys(tmp_path):
+    """The transcript holds one ordered JSON line per executed turn."""
+    case, _root, context = _prepare(tmp_path)
+
+    def executor(ctx, turn):
+        return {"content": turn.content}
+
+    result = run_manager.run_case(context, case, executor)
+
+    assert result.status == STATUS_COMPLETED
+
+    run_dir, _metrics_file = _output_metrics(result, context)
+    records = _read_transcript(run_dir / TRANSCRIPT_FILE_NAME)
+
+    assert [record["turn_number"] for record in records] == [1, 2]
+    assert [record["role"] for record in records] == ["user", "user"]
+    assert [record["input"] for record in records] == [
+        turn.content for turn in case.turns
+    ]
+    for record in records:
+        assert set(record) == {
+            "turn_number",
+            "role",
+            "input",
+            "output",
+            "status",
+            "error",
+        }
+        assert record["status"] == STATUS_COMPLETED
+        assert record["error"] is None
+
+
+def test_transcript_append_never_rewrites_prior_lines(tmp_path):
+    """Appending a turn's line leaves the lines already written untouched."""
+    case, _root, context = _prepare(tmp_path)
+    snapshots: list[str] = []
+
+    def executor(ctx, turn):
+        path = Path(ctx.run_dir) / TRANSCRIPT_FILE_NAME
+        snapshots.append(path.read_text(encoding="utf-8") if path.exists() else "")
+        return {"content": turn.content}
+
+    result = run_manager.run_case(context, case, executor)
+
+    assert result.status == STATUS_COMPLETED
+    assert snapshots[0] == ""
+    assert snapshots[1] != ""
+
+    run_dir, _metrics_file = _output_metrics(result, context)
+    final = (run_dir / TRANSCRIPT_FILE_NAME).read_text(encoding="utf-8")
+
+    assert final.startswith(snapshots[1])
+    assert len(final.splitlines()) == 2
+
+
+def test_metrics_load_run_still_works_without_transcript(tmp_path):
+    """A published run's metrics do not depend on the transcript file."""
+    case, _root, context = _prepare(tmp_path)
+
+    def executor(ctx, turn):
+        return {"content": turn.content}
+
+    result = run_manager.run_case(context, case, executor)
+
+    assert result.status == STATUS_COMPLETED
+
+    run_dir, _metrics_file = _output_metrics(result, context)
+    transcript = run_dir / TRANSCRIPT_FILE_NAME
+    assert transcript.exists()
+
+    with_transcript = metrics.load_run(run_dir)
+    transcript.unlink()
+    without_transcript = metrics.load_run(run_dir)
+
+    assert without_transcript == with_transcript

@@ -35,6 +35,7 @@ WORKSPACE_DIR_NAME = "workspace"
 FIXTURES_DIR_NAME = "fixtures"
 OUTPUTS_DIR_NAME = "outputs"
 METRICS_FILE_NAME = "metrics.jsonl"
+TRANSCRIPT_FILE_NAME = "transcript.jsonl"
 COMPLETE_MARKER_NAME = "COMPLETE"
 ARCHIVED_MARKER_NAME = "ARCHIVED"
 TMP_SUFFIX = ".tmp"
@@ -101,6 +102,13 @@ def run_dir_tmp(run_id: str, root: Path | None = None) -> Path:
 def metrics_path(run_dir: Path) -> Path:
     """Return ``metrics.jsonl`` at the run root, never under ``workspace/``."""
     path = Path(run_dir) / METRICS_FILE_NAME
+    logger.debug(f"{path = }")
+    return path
+
+
+def transcript_path(run_dir: Path) -> Path:
+    """Return ``transcript.jsonl`` at the run root, never under ``workspace/``."""
+    path = Path(run_dir) / TRANSCRIPT_FILE_NAME
     logger.debug(f"{path = }")
     return path
 

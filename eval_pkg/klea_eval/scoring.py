@@ -33,8 +33,8 @@ Deliberately deferred, all belonging to later phases of the implementation plan:
   as a grader (ADR-0061), so scoring depth must come from deterministic checks.
 - cost derivation: no price table exists, so ``cost_estimate`` is only relayed
   from the per-run metrics and summed here;
-- ``transcript.jsonl`` writing, HITL ``interrupt`` resume, retention (P8), the
-  in-process scheduler (P9), a persisted suite report artifact and the Markdown
+- HITL ``interrupt`` resume, retention (P8), the in-process scheduler (P9), a
+  persisted suite report artifact and the Markdown
   reporter, and the CLI/API exposure of :func:`aggregate_suite` (P8).
 """
 

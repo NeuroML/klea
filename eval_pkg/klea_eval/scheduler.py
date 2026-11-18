@@ -23,10 +23,9 @@ start and ``3`` when incomplete ``.tmp`` runs were found.
 Deliberately deferred, all belonging to later work: the bounded worker pool and
 any parallel worker count (execution stays sequential, ``DEFAULT_MAX_WORKERS``
 is 1), an external or broker-backed scheduler backend, a ``klea-eval schedule``
-CLI command, automatic repair or redo of leftover ``.tmp`` runs,
-``transcript.jsonl`` writing, HITL ``interrupt`` resume, cost derivation (no
-price table exists), MLflow export, a persisted per-suite report artefact and
-the Markdown reporter.
+CLI command, automatic repair or redo of leftover ``.tmp`` runs, HITL
+``interrupt`` resume, cost derivation (no price table exists), MLflow export, a
+persisted per-suite report artefact and the Markdown reporter.
 """
 
 from __future__ import annotations
