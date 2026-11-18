@@ -261,6 +261,18 @@ async def test_permission_step_context_renders(fake_backend, agent_user):
     await agent_user.should_see("Permission required", retries=50)
     await agent_user.should_see("Step 1: Read the hosts file")
 
+    # The heading is a bold header set apart by a blank line (``mt-2``), not
+    # muted hint text like the tool-call context beneath the path.
+    headings = [
+        element
+        for element in agent_user.client.elements.values()
+        if str(getattr(element, "text", "")) == "Step 1: Read the hosts file"
+    ]
+    assert headings, "the step heading label is rendered"
+    for heading in headings:
+        assert "font-bold" in heading._classes
+        assert "mt-2" in heading._classes
+
 
 async def test_permission_requests_grouped_by_step(fake_backend, agent_user):
     """Per-request step context groups each path under its step heading."""
@@ -306,6 +318,21 @@ async def test_permission_requests_grouped_by_step(fake_backend, agent_user):
     # One heading per plan step, with that step's path rows beneath it.
     await agent_user.should_see("Step 1: Read the passwd file", retries=50)
     await agent_user.should_see("Step 2: Edit the hosts file", retries=50)
+
+    # Every group heading is a bold header with a blank line above it.
+    headings = [
+        element
+        for element in agent_user.client.elements.values()
+        if str(getattr(element, "text", ""))
+        in {"Step 1: Read the passwd file", "Step 2: Edit the hosts file"}
+    ]
+    assert {str(heading.text) for heading in headings} == {
+        "Step 1: Read the passwd file",
+        "Step 2: Edit the hosts file",
+    }
+    for heading in headings:
+        assert "font-bold" in heading._classes
+        assert "mt-2" in heading._classes
     await agent_user.should_see("Outside project path: /etc/passwd", retries=50)
     await agent_user.should_see("Outside project path: /etc/hosts", retries=50)
     # A request serving several steps sits under its lowest and says so.

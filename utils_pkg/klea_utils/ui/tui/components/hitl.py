@@ -544,6 +544,26 @@ class PermissionPanel(HitlDecisionPanel):
         return f"Step {number}: {text}" if text else f"Step {number}"
 
     @classmethod
+    def _step_static(cls, line: str) -> SelectableStatic:
+        """Return one plan-step heading line, set apart and bold.
+
+        The heading sets its plan step off from the request blocks around it
+        (ADR-0007): a blank line above it and the ``Step N: summary`` text in
+        bold.  The emphasis comes from a bold Rich ``Text`` rather than Rich
+        markup, so the model-authored summary is still never parsed as markup;
+        the blank line rides on the same renderable, so no extra widget is
+        inserted and the rest of the panel is unchanged.
+
+        :param line: The bounded ``Step N: summary`` (or heading) line.
+        :returns: The heading widget.
+        """
+        text = Text("\n")
+        heading = Text(line)
+        heading.stylize("bold")
+        text.append_text(heading)
+        return SelectableStatic(text, markup=False)
+
+    @classmethod
     def _groups(
         cls, requests: list[Any]
     ) -> list[tuple[str, list[tuple[int, Mapping[str, Any], str]]]]:
@@ -625,11 +645,11 @@ class PermissionPanel(HitlDecisionPanel):
             if isinstance(request, Mapping)
         ):
             for step_line in self._step_lines(self.ask):
-                yield SelectableStatic(step_line, markup=False, classes="hitl-hint")
+                yield self._step_static(step_line)
         shown = False
         for heading, group in self._groups(requests):
             if heading:
-                yield SelectableStatic(heading, markup=False, classes="hitl-hint")
+                yield self._step_static(heading)
             for index, request, also in group:
                 if shown:
                     yield Rule()

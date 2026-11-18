@@ -352,6 +352,26 @@ class TestPermissionPanelHelpers:
         assert PermissionPanel._step_lines({}) == []
         assert PermissionPanel._step_lines({"steps": []}) == []
 
+    def test_step_static_is_a_bold_heading_set_apart(self):
+        """The step heading is bold and carries a blank line above it."""
+        heading = PermissionPanel._step_static("Step 1: Read the config")
+        renderable = heading.content
+        assert isinstance(renderable, Text)
+
+        # The blank line rides on the heading's own renderable, so it cannot
+        # collapse into, or double up with, the panel's separators.
+        assert renderable.plain == "\nStep 1: Read the config"
+
+        # The heading text itself is bold; the span starts after that newline.
+        bold = [
+            span
+            for span in renderable.spans
+            if isinstance(span.style, str) and span.style == "bold"
+        ]
+        assert len(bold) == 1
+        assert bold[0].start == 1
+        assert bold[0].end == len("\nStep 1: Read the config")
+
     def test_groups_place_requests_under_their_step(self):
         """Requests group under their step heading, in ascending step order."""
         groups = PermissionPanel._groups(

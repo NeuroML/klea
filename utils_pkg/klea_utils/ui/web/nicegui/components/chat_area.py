@@ -435,6 +435,10 @@ def _permission_step_lines(ask: dict[str, Any]) -> list[str]:
 #: Heading for requests that carry no plan-step context (grouped layout only).
 PERMISSION_OTHER_HEADING = "Other paths"
 
+#: Classes for one plan-step heading: bold, with a blank line above it via
+#: ``mt-2``, the same spacing token as the surrounding column's ``gap-2``.
+PERMISSION_STEP_HEADING_CLASSES = "text-xs font-bold mt-2"
+
 
 def _permission_request_steps(request: dict[str, Any]) -> list[int]:
     """Return the plan-step numbers a request serves, sorted and de-duplicated.
@@ -580,7 +584,7 @@ def _render_permission_form(
             if isinstance(request, dict)
         ):
             for step_line in _permission_step_lines(ask):
-                ui.label(step_line).classes("text-xs text-grey-6")
+                ui.label(step_line).classes(PERMISSION_STEP_HEADING_CLASSES)
 
         # Re-render on select so the chosen option shows its active state
         # (``choice_buttons`` computes it at build time).
@@ -590,7 +594,7 @@ def _render_permission_form(
                 if heading:
                     # Plain label (never ``ui.html``): the model-authored step
                     # summary cannot inject markup.
-                    ui.label(heading).classes("text-xs font-bold")
+                    ui.label(heading).classes(PERMISSION_STEP_HEADING_CLASSES)
                 for index, request, also in group:
                     path = _permission_path_display(request)
                     if request.get("kind") == "sensitive":
