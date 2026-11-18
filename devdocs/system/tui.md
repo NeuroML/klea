@@ -310,14 +310,20 @@ the form introduced no new class or token, drawing the group divider with
   A section owns its rows, so the panel can be rebuilt section by section
   without reflowing the rest, and a `Rule` separates the fixed chrome (heading,
   actions) from the scrolled body.
+* **Section titles come from the payload.** Each section's `title` is shown
+  verbatim, falling back to `Details` when it is empty, and rendered once: a
+  multi-section ask uses it as that section's collapsible header, while a
+  single section shows it as a plain heading above its body.  No synthetic
+  `Option N` label is added, so the heading is the backend's title and nothing
+  else.
 * **Plan history is presentation, not selection.** When the automated replan
   budget is exhausted, the input ask renders the earlier plans above its
-  questions as collapsibles labelled `Option 1`, `Option 2`, and so on in
-  order.  The first is expanded and the rest collapsed, so the reader sees the
-  current plan in place and can open an earlier one for comparison.  These
-  collapsibles are history only: expanding one never chooses it, resubmits it
-  or changes what the ask will submit -- the answer still comes from the
-  question fields below, so a stray expand/collapse cannot alter the run.
+  questions as collapsibles in payload order.  The first is expanded and the
+  rest collapsed, so the reader sees the current plan in place and can open an
+  earlier one for comparison.  These collapsibles are history only: expanding
+  one never chooses it, resubmits it or changes what the ask will submit -- the
+  answer still comes from the question fields below, so a stray expand/collapse
+  cannot alter the run.
 * **Empty-feedback guard.** An action that requires feedback (request changes,
   or a question marked as needing text) never submits an empty value: it moves
   focus to the field and shows the short hint there instead of closing the
