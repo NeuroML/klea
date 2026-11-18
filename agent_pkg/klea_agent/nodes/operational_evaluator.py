@@ -561,7 +561,7 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
             plan.status,
             len(plan.step_list),
         )
-        goal = state.goal.goal_label()
+        goal = state.goal.goal
 
         return NodeStreamData(
             heading=plan.status_heading(),

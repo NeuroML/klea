@@ -182,6 +182,19 @@ themes:
   details block scrolls inside the entry.  The inspector pane keeps its own
   scroll; `overscroll-behavior: contain` stops the entry's scroll from
   chaining into the pane.  This is a plain (unlayered) layout rule.
+- `.status-entry-body` -- the body of one status-pane section
+  (`status_pane.py`): each body carries a per-section inline `max-height` in
+  `rem`, computed from that section's own content by the shared,
+  frontend-neutral `section_budget_lines`
+  (`klea_utils/ui/status_layout.py`, the same helper the TUI applies through
+  `KleaScroll`).  This inline `max-height` is the one sanctioned inline style:
+  the budget is per section, so the class sheet cannot express it, and it is a
+  layout value (not a colour), so it needs no `@layer overrides` wrapper.  The
+  class itself supplies the floor (`min-height: 4rem`), `overflow-y: auto` and
+  `overscroll-behavior: contain`, so a long section scrolls inside itself
+  instead of growing the drawer; the drawer's own `overflow-y-auto` stays
+  authoritative for the pane.  Like `.inspector-entry-body`, these are plain
+  layout declarations, so they stay unlayered.
 - `.inspector-hint` -- faint inspector label/annotation text; uses the
   derived `hint` role token (`--klea-hint`), so it stays faint in both
   themes.

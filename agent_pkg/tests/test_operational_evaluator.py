@@ -532,8 +532,9 @@ class TestOperationalEvaluator(unittest.TestCase):
         state = self._state()
         _content = status.content
         assert _content is not None
-        self.assertEqual(len(_content), 1)
-        block = cast(ItemsBlock, _content[0])
+        # goal, space, then items
+        self.assertEqual(len(_content), 3)
+        block = cast(ItemsBlock, _content[2])
         self.assertEqual(block.kind, "items")
         steps = state.plan.step_list
         self.assertEqual(len(block.items), len(steps))

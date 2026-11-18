@@ -25,6 +25,8 @@
 - `klea-eval run` now exits 4 when a completed case declared rubrics but recorded no grade, distinct from exit 1 for a failed case.
 - Eval scoring is deterministic only (ADR-0061): a run's pass/fail, exit codes and metrics now derive solely from deterministic checks, with no judged verdict, and exit 4 means a rubric-declaring suite whose deterministic checks produced no grade.
 - Permission dialogs now group the requested paths under the plan step they belong to.
+- Permission dialogs now group the requested paths under the plan step they belong to, with the plan-step heading set apart and emphasised so the prompt is easier to read, a long step summary capped at two lines with `...`, one muted coverage line per step group (`N paths: X outside the project, Y sensitive`), a request's further steps shown once as `Also serves step N` beneath its heading, and a divider between adjacent step groups in the web form.
+- Status panes in both the terminal and web clients now cap each long state section, such as the plan, at a content-derived height and scroll it inside the pane, so the rest of the overview stays visible.
 
 ### Fixed
 

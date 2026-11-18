@@ -255,6 +255,69 @@ async def test_status_pane_styles_the_current_role_and_degrades_unknown_roles(
     assert "font-bold" not in unknown_classes
 
 
+async def test_status_pane_caps_each_section_body_with_an_inline_budget(
+    fake_backend, utils_user
+):
+    """Every status-section body carries a per-section inline max-height.
+
+    The body height comes from the shared ``section_budget_lines`` helper, so
+    each rendered section is bounded by an inline ``max-height`` in ``rem``
+    and scrolls inside itself rather than growing the drawer.  No ``Memory``
+    section is rendered by the pane at all.
+    """
+    from typing import cast
+
+    from klea_utils.ui.state import StateSection, ensure_chat
+
+    # Seed a long, preformatted section: its rendered line count exceeds the
+    # ceiling, so the shared helper must clamp it to the maximum budget.
+    chat = ensure_chat("u", "")
+    section = {
+        "heading": "Budget",
+        "display": "\n".join(f"line {index}" for index in range(40)),
+        "summary": "",
+        "details": {},
+        "preformatted": True,
+    }
+    chat["state_sections"]["budget"] = cast(StateSection, section)
+
+    await utils_user.open("/")
+    await utils_user.should_see("Budget")
+
+    def _inline_style(element) -> str:
+        # Return an element's inline style text (version tolerant).
+        raw = getattr(element, "_style", None)
+        if isinstance(raw, dict):
+            return "; ".join(f"{key}: {value}" for key, value in raw.items())
+        if isinstance(raw, str):
+            return raw
+        attr = getattr(element, "style", "")
+        return attr if isinstance(attr, str) else ""
+
+    def _css_classes(element) -> str:
+        # Return an element's CSS classes (version tolerant): the user
+        # simulation treats a leading-dot ``find`` target as a marker, not a
+        # CSS selector, so the body is located by type and filtered here.
+        classes = getattr(element, "_classes", None)
+        if classes is None:
+            attr = getattr(element, "classes", "")
+            classes = attr() if callable(attr) else attr
+        if isinstance(classes, (list, tuple, set)):
+            return " ".join(str(name) for name in classes)
+        return str(classes)
+
+    bodies = [
+        element
+        for element in utils_user.find(ui.column).elements
+        if "status-entry-body" in _css_classes(element)
+    ]
+    assert bodies, "a rendered status-section body must exist"
+    styles = [_inline_style(element) for element in bodies]
+    assert any("max-height" in style for style in styles), styles
+    assert any("rem" in style for style in styles), styles
+    await utils_user.should_not_see("Memory")
+
+
 async def test_status_pane_renders_the_role_markers(fake_backend, utils_user):
     """Each role renders its Unicode marker; unknown roles use the plain one."""
     from typing import cast
