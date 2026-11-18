@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 MIN_LINES = 5
 
 #: Largest budget: a very long section still scrolls inside the pane.
-MAX_LINES = 30
+MAX_LINES = 25
 
 #: Budgets are quantised to this many lines, so streaming item growth does
 #: not resize the pane on every tick.
