@@ -12,7 +12,7 @@ The harness produces, for every test case run, a set of results that must surviv
 
 - **Run metadata**: the run identity (`run_id`), the originating `case_id`, timestamps, the resolved model configuration and seed parameters needed for reproducibility.
 - **Metrics**: the `RunMetrics` record emitted by the centralized `RunMetricsCollector` (tool calls, latency, token usage, rubric scores and pass/fail outcomes), stamped with the schema version it was written against.
-- **Artifacts**: the evidence behind the metrics  ---  the conversation transcript, tool-call payloads, and the final state of the isolated workspace (or a diff of it).
+- **Artifacts**: the evidence behind the metrics  ---  a reduced per-turn transcript record and the final state of the isolated workspace (or a diff of it); per-turn usage, latency and tool-call counts already travel on the ``metrics.jsonl`` line.
 
 Adjacent ADRs already constrain this problem without solving it. ADR-0057 (Run Manager & Isolation) fixes the on-disk identity of a run as its UUID v5 `run_id` inside an isolated per-run workspace and states that persistence is the last lifecycle step of a run; its decision drivers reject external infrastructure and demand that isolation scale to very large suites within disk-space limits. ADR-0058 (Metrics Collection & Aggregation) names `metrics.jsonl` as the persistence target and defines the versioned `RunMetrics` schema as the single source of truth. ADR-0056 (Test Case Format) makes `case_id` the join key back to the input case and establishes JSONL as the project's serialization convention.
 
@@ -53,10 +53,12 @@ runs/<run_id>/
 ├-- metrics.jsonl      # one JSON object per line, each carrying schema_version and
 |                      # record_type; the final line is the {run_id, case_id,
 |                      # schema_version, record_type, metrics{...}} envelope (ADR-0058)
-├-- transcript.jsonl   # conversation turns and tool-call records
+├-- transcript.jsonl   # reduced per-turn record (turn_number, role, input, output, status, error)
 ├-- workspace/         # live isolated working directory: fixtures/ plus outputs/
 └-- COMPLETE           # zero-byte marker written last; presence means the run is final
 ```
+
+`transcript.jsonl` holds one JSON line per executed case turn with only `turn_number`, `role`, `input`, `output`, `status` and `error`, appended and `fsync`ed as each turn completes; it exists to reconstruct what a run was asked and how it answered when a stored result needs explaining; run identity lives in `run.json` and per-turn usage, latency, tool-call counts, scores and resolved models travel on the `metrics.jsonl` line (ADR-0058), so it repeats none of them; it is never a grading input, because deterministic scoring reads the case's `expected_outputs` and `tool_expectations` and so keeps a graded field reproducible from `run.json` and `metrics.jsonl` alone (ADR-0061).
 
 A single suite-level index, `runs/index.jsonl`, holds exactly one line per completed run: `run_id`, `case_id`, `status`, `timestamp`, `schema_version`, and the directory-relative path to `metrics.jsonl`. The index is a lookup and listing entry point only: it locates a run, lists runs and answers cheap suite queries without opening run directories. It is not an aggregation store: per-run aggregation is owned by ADR-0058, and suite-level aggregation (per-case pass/fail, pass@k, token totals, cost) is the Aggregate stage of ADR-0060, which reads the index first and only opens individual run directories when per-record detail is requested.
 
@@ -70,7 +72,7 @@ The `schema_version` field is required by ADR-0058 and appears both in `run.json
 
 ### Retention
 
-Retention is defined here as the canonical default that ADR-0057 defers to: the full run directory (including the `workspace/` contents) is kept for the most recent N runs per case, while older runs keep only `run.json` plus `metrics.jsonl`. N is read from run configuration. A purge operation deletes whole run directories and rewrites the index atomically; it never edits a run directory in place.
+Retention is defined here as the canonical default that ADR-0057 defers to: the full run directory (including the `workspace/` contents) is kept for the most recent N runs per case, while older runs keep ``run.json``, ``metrics.jsonl`` and the reduced ``transcript.jsonl``. N is read from run configuration. A purge operation deletes whole run directories and rewrites the index atomically; it never edits a run directory in place.
 
 ### Consequences
 
@@ -146,7 +148,7 @@ Harness orchestration, the CLI surface and run scheduling are out of scope here 
 The retention paragraph above already requires this shape: a run beyond the window keeps `run.json` plus `metrics.jsonl` rather than the whole directory. The implementation now conforms to that requirement explicitly, as an archive step rather than a partial in-place edit, so this amendment records the conforming behaviour and changes no earlier clause.
 
 * **Marker**: archive writes a zero-byte `ARCHIVED` marker beside the existing `COMPLETE` marker. `COMPLETE` alone still means a complete, live run; `COMPLETE` plus `ARCHIVED` means an archived run. `COMPLETE` is never removed, so an archived run stays a provably complete result.
-* **Retained set**: an archived run keeps `run.json`, `metrics.jsonl`, `COMPLETE` and `ARCHIVED`. Only its `workspace/` tree (fixtures and outputs) is removed, which is the evidence directory the archive reclaims.
+* **Retained set**: an archived run keeps ``run.json``, ``metrics.jsonl``, ``transcript.jsonl``, ``COMPLETE`` and ``ARCHIVED``. Only its `workspace/` tree (fixtures and outputs) is removed, which is the evidence directory the archive reclaims.
 * **Index line**: the `runs/index.jsonl` line of an archived run is neither removed nor rewritten. The index stays the completed-only projection of the `COMPLETE`-marked run directories, and an archived run is still listed, read through the API and counted in suite aggregation.
 * **Trigger**: archiving is the default retention action and runs only from the explicit `klea-eval prune` command, never implicitly after a publish. `--purge` deletes the whole run directory and drops its index line instead (the previous behaviour), and `--dry-run` reports what would be archived or purged without touching the disk. A second archive pass over an already archived run is a no-op.
 * **Not automatic**: retention is never applied implicitly from a run, because a publish has no knowledge of the operator's disk budget and an implicit pass would discard evidence after a run the operator has not yet inspected. Archiving remains an operator-invoked decision made through the CLI.

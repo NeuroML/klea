@@ -144,7 +144,7 @@ Points discovered while delivering P1-P7; later phases must respect them.
   manager is not wired to it yet, so `run_case` still publishes a run without
   `run.json` or an index line: P6 does that wiring. Retention (the last 20
   complete runs, D11) is deferred to P8, which owns the exit criterion.
-   `transcript.jsonl` writing and `cost_estimate` derivation are still absent,
+   `cost_estimate` derivation are still absent,
    belonging to P7; model resolution is implemented instead. A case's
    `run_config.model_overrides` is validated for its shape only at load time (an
    object mapping non-empty role names to non-empty model strings; a role name
@@ -192,8 +192,8 @@ Points discovered while delivering P1-P7; later phases must respect them.
   synchronous `TurnExecutor` through `asyncio.run` and raises when a loop is
   already running; the record it returns carries the usage counters both flat
   and under `usage`, plus `latency_ms`, `tool_calls` and `tool_error_count`.
-  `transcript.jsonl` writing, HITL `interrupt` resume, cost derivation and the
-   pipeline wiring are still absent, belonging to P6 and P7.
+  HITL `interrupt` resume, cost derivation and the
+   pipeline wiring are still absent (P6 and P7); ``transcript.jsonl`` writing landed in ``caa71c05`` as a reduced per-turn record.
 - Phase 6 scope caveats: `klea_eval/pipeline.py` is orchestration only. It
   validates the whole suite through `klea_eval.cases.load_suite` before any run
   starts, resolves the workspace root and runs directory through
@@ -223,7 +223,7 @@ Points discovered while delivering P1-P7; later phases must respect them.
   the workspace, endpoint, timeout, harness seed, attempt budget and overwrite
   options, requires a base URL (`--base-url` or `KLEA_EVAL_BASE_URL`) before it
   calls the pipeline, and prints one `<case_id>: pass|fail` line per run.
-  Suite-level `pass_at_k`, `transcript.jsonl` writing, HITL `interrupt` resume,
+  Suite-level `pass_at_k`, HITL `interrupt` resume,
    cost derivation, retention and the scheduler are still absent, belonging to
    P7, P8 and P9.
 - Phase 7 scope caveats: `klea_eval/scoring.py` is the ADR-0060 Aggregate stage
@@ -251,7 +251,7 @@ Points discovered while delivering P1-P7; later phases must respect them.
   graded is settled (no rubrics means no grade and a grade is never inferred),
   and judged scoring is rejected, so only the machine-checkable rubric checks
   and the price table are missing; until the table lands `cost_estimate` is
-  only relayed and summed, `transcript.jsonl` writing, HITL
+  only relayed and summed, HITL
   `interrupt` resume, retention (P8), the in-process scheduler (P9), a persisted
   suite report artefact, the Markdown reporter and any CLI or API exposure of
   `aggregate_suite` (P8). `pipeline.run_suite` is unchanged and keeps its
@@ -295,7 +295,7 @@ Points discovered while delivering P1-P7; later phases must respect them.
   archived runs, and an automatic startup index/directory consistency check or
   rebuild-index command (the explicit `klea-eval check` pass is implemented
   instead),
-  `transcript.jsonl` writing, HITL `interrupt` resume, cost derivation (no
+  HITL `interrupt` resume, cost derivation (no
   price table exists), the bounded worker pool (P9), MLflow export and the
   Markdown reporter.
 - Phase 9 scope caveats: `klea_eval/scheduler.py` is only the ADR-0060 Schedule
@@ -330,7 +330,7 @@ Points discovered while delivering P1-P7; later phases must respect them.
   Still deferred: the bounded worker pool and any parallel worker count, an
   external or broker-backed scheduler backend, a `klea-eval schedule` CLI
   command, automatic repair or redo of leftover `.tmp` runs,
-  `transcript.jsonl` writing, HITL `interrupt` resume, cost derivation (no price
+  HITL `interrupt` resume, cost derivation (no price
   table exists), MLflow export, a persisted per-suite report artefact and the
    Markdown reporter.
 

@@ -81,7 +81,7 @@ optional condition (model escalation), never a requirement.
 
 - Each run lives in its own directory `<eval_workspace_root>/runs/<run_id>/`,
   outside the source tree, containing `run.json`, `metrics.jsonl` at the run
-  root (never under `workspace/`) and `transcript.jsonl`, with fixtures
+  root (never under `workspace/`) and the reduced per-turn `transcript.jsonl`, with fixtures
   copied into `runs/<run_id>/workspace/fixtures/` and generated files under
   `runs/<run_id>/workspace/outputs/` (ADR-0057).  Case fixture paths resolve
   against the case-file directory, never the run workspace (ADR-0056).
@@ -222,7 +222,7 @@ rejecting an external tracking backend is retained here.
 
 Results live under the evaluation workspace root: each run is stored as
 `runs/<run_id>/` holding `run.json`, `metrics.jsonl` at the run root (never
-under `workspace/`), `transcript.jsonl`, the `workspace/` directory and the
+under `workspace/`), the reduced ``transcript.jsonl`` record, the `workspace/` directory and the
 zero-byte `COMPLETE` marker, while a single suite-level `runs/index.jsonl` is a
 lookup and listing entry point only and never an aggregation store.  No
 database, server or tracking service is required or planned: standard
@@ -320,7 +320,7 @@ sequenceDiagram
         loop For each turn, sequential 1..N with no gaps
             D->>A: POST turn_input
             A-->>D: SSE stream, buffered response with token and latency metadata
-            D->>W: append turn content to transcript.jsonl
+            D->>W: append the reduced per-turn record to transcript.jsonl
             D->>S: score turn output against expected_output
             S-->>W: record_evaluation_result, pass/fail plus score
             W->>W: append one metrics.jsonl line, record_type "turn" with schema_version, at the run root inside .tmp
@@ -339,7 +339,7 @@ sequenceDiagram
         Note over W,I: a reader sees no run or a complete run, a leftover .tmp is an incomplete run
         I->>R: retention is explicit only: the operator runs klea-eval prune
         alt case has more than N runs
-            R->>R: archive older run dirs: drop only workspace/, keep run.json, metrics.jsonl and the index line, write ARCHIVED, and --purge deletes the whole dir instead
+            R->>R: archive older run dirs: drop only workspace/, keep run.json, metrics.jsonl, transcript.jsonl and the index line, write ARCHIVED, and --purge deletes the whole dir instead
         end
     end
     D->>I: aggregate reads runs/index.jsonl only, never the run directories
@@ -381,7 +381,7 @@ sequenceDiagram
 - **Responsibility**: Aggregate the run's own records only; `pass_at_k` is a suite-level aggregate computed later by the Aggregate stage from `runs/index.jsonl`, so it is never a per-run field.
 
 ### Persistence (Writer)
-- **Input**: A finished run: its `run.json` envelope, `metrics.jsonl` records, `transcript.jsonl` and `workspace/`.
+- **Input**: A finished run: its `run.json` envelope, `metrics.jsonl` records, the reduced ``transcript.jsonl`` record and `workspace/`.
 - **Output**: The completed run directory `runs/<run_id>/` plus one appended line in `runs/index.jsonl`.
 - **Responsibility**: Own the single write protocol: write into `runs/<run_id>.tmp/` as the run proceeds, flush and `fsync` every file, write the zero-byte `COMPLETE` marker last, rename the directory to `runs/<run_id>/` atomically, then append one `O_APPEND` line to `runs/index.jsonl`; retention is never applied by the writer: the operator invokes `klea-eval prune` explicitly, which by default archives a run beyond the most recent N per case (N from run config) by dropping only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the `COMPLETE` marker and its index line, with an `ARCHIVED` marker written beside them, or with `--purge` deletes the whole run directory and drops its index line; a leftover `.tmp` directory is unambiguously an incomplete run.
 
@@ -394,7 +394,7 @@ sequenceDiagram
 
 1. **Load**: suite JSONL -> Case objects (case_id, turns, expected_outputs, fixtures, run_config).
 2. **Schedule**: Case + model selection -> Run context: the identity tuple `(run_id, user_id, chat_id)` with `run_id` = UUID v5 over `case_id` + seed and `chat_id` = UUID v5 over `run_id` + `user_id`, the resolved models, and `runs/<run_id>.tmp/` with its `workspace/`.
-3. **Execute**: Turn input -> HTTP POST -> SSE stream -> buffered response; turn content is appended to `transcript.jsonl` and per-turn records to `metrics.jsonl`.
+3. **Execute**: Turn input -> HTTP POST -> SSE stream -> buffered response; a reduced per-turn record (turn number, role, input, output, status, error) is appended to ``transcript.jsonl`` and per-turn records to `metrics.jsonl`.
 4. **Score**: Turn output + expected output -> Scorer -> pass/fail + score, recorded through the metrics collector.
 5. **Usage tracking**: Response metadata -> Usage tracker -> per-turn `metrics.jsonl` record (tokens, latency, tool errors).
 6. **Persist**: Buffered records -> `runs/<run_id>.tmp/`; flush and `fsync`, `COMPLETE` written last, atomic rename to `runs/<run_id>/`, then one `O_APPEND` line to `runs/index.jsonl`.
@@ -426,8 +426,8 @@ sequenceDiagram
 - **Model versioning**: Model name, version and parameters logged in `run.json`.
 - **Prompt versioning**: Prompt text and version logged in `run.json`.
 - **Fixture snapshots**: Fixtures copied under `runs/<run_id>/workspace/`; the original fixture is preserved and the copy is immutable.
-- **Artifact storage**: `run.json` plus the versioned `metrics.jsonl` (`schema_version`, `record_type`, final "run" envelope), `transcript.jsonl` and the workspace are stored for offline reproducibility.
-- **Retention**: Retention is never automatic; the operator runs `klea-eval prune`, which archives a run beyond the most recent N per case (N from run config) by removing only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the `COMPLETE` marker and the index line, with an `ARCHIVED` marker written beside them; `--purge` deletes the whole run directory and drops the index line instead, and `--dry-run` reports the plan without touching the disk (ADR-0059).
+- **Artifact storage**: `run.json` plus the versioned `metrics.jsonl` (`schema_version`, `record_type`, final "run" envelope), the reduced ``transcript.jsonl`` record and the workspace are stored for offline reproducibility; the transcript is a failure-diagnostics record and never a grading input, so a graded field stays reproducible from ``run.json`` and ``metrics.jsonl`` alone (ADR-0061).
+- **Retention**: Retention is never automatic; the operator runs `klea-eval prune`, which archives a run beyond the most recent N per case (N from run config) by removing only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the reduced ``transcript.jsonl`` record, the `COMPLETE` marker and the index line, with an `ARCHIVED` marker written beside them; `--purge` deletes the whole run directory and drops the index line instead, and `--dry-run` reports the plan without touching the disk (ADR-0059).
 - **Scope of determinism**: Only identifiers, ordering and derived metrics are reproducible; turn content and latency are stochastic.  Grading itself is deterministic per ADR-0061.
 
 ---

@@ -14,6 +14,7 @@
 - `klea-eval report` now also lists the run directories that carry no results-index line, marking each `index=missing` and counting it in a new `unindexed` counter, so a failed run from an earlier invocation stays visible in the report.
 - `klea-eval check` verifies the eval run index against the run directories and, with `--repair`, re-indexes a completed run the index omits and drops duplicate or orphaned index lines, naming every dropped run id.
 - Eval runs record in `run.json` whether a case declares rubrics, and the report and CLI distinguish ungraded cases (no rubrics, no grade) from grade-missing cases (rubrics declared but no grade recorded).
+- Eval runs now persist a reduced per-turn ``transcript.jsonl`` record (turn number, role, input, output, status, error) so a stored run can be reconstructed or a failed one explained; it is a diagnostics record, not a grading input.
 - The plan status now opens with a truncated `Goal: ...` line followed by a blank line, so concurrent sessions can be told apart at a glance.
 
 ### Changed

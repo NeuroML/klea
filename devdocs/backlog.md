@@ -198,6 +198,8 @@ phases are listed below.
   document exit code 4 in ADR-0060`, whose table now records codes
   `0`/`1`/`2`/`3`/`4`, with a real case failure (`1`) taking precedence over a
   grade-missing case (`4`) (`devdocs/adr/0060-harness-execution.md:76-82`).
+- Run diagnostics record (settled), **done**: ``runs/<run_id>/transcript.jsonl`` is a reduced per-turn record written for reconstruction and failure diagnosis, not a verbatim conversation log and not a grading input. One line per executed turn carries only ``turn_number``, ``role``, ``input``, ``output``, ``status`` and ``error``; run identity, per-turn usage, latency, tool-call counts, scores and resolved models already live in ``run.json`` and ``metrics.jsonl``. Full turn fidelity (system prompts, replayed history, tool payloads) and transcript-fed re-grading are rejected: debugging belongs to the regular development workflow and the ``~/.local/share/klea-*`` logs, and deterministic scoring must stay reproducible from ``run.json`` and ``metrics.jsonl`` alone (ADR-0061), so ``scoring.py`` keeps reading ``expected_outputs`` and ``tool_expectations`` only. Landed in ``caa71c05``. Known limit: a handled failure still discards the ``.tmp`` tree (``run_manager.py:355``), so the record survives a completed run or a hard crash only.
+
 - Failed-run grading (settled): run success is a prerequisite for grading, so a
   failed run is labelled `failed` and is never graded and never
   `grade-missing`.
