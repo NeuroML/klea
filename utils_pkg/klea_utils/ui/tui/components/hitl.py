@@ -4,8 +4,9 @@ HITL review/input/permission panels for the Klea TUI (ADR-0046).
 
 When a run pauses at an interrupt, the app mounts an inline panel in the chat
 panel rather than a modal, so the transcript stays scrollable while the user
-reads the ask and decides.  A ``review`` ask offers Approve / Request changes /
-Cancel; an ``input`` ask offers one field per question plus Answer / Cancel; a
+reads the ask and decides.  A ``review`` ask offers Continue / Revise with
+feedback / Cancel; an ``input`` ask offers one field per question plus Answer /
+Cancel; a
 ``permission`` ask offers once/session/not-a-path/deny per requested path
 (ADR-0007).
 
@@ -34,6 +35,7 @@ from textual.message import Message
 from textual.widgets import Button, Collapsible, Input, RadioButton, RadioSet, Rule
 
 from klea_utils.ui.tui.components.buttons import action_button
+from klea_utils.ui.tui.components.input import QueryTextArea
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
@@ -96,23 +98,41 @@ class HitlDecisionPanel(VerticalScroll):
         text-style: bold;
         height: auto;
     }
+    HitlDecisionPanel #hitl-question {
+        color: $text-muted;
+        text-style: bold;
+        height: auto;
+    }
     HitlDecisionPanel .hitl-section {
         height: auto;
-        margin-top: 1;
+        margin-top: 2;
     }
     HitlDecisionPanel .hitl-section-title {
         text-style: bold;
         color: $text-muted;
         height: auto;
         margin-top: 0;
+        padding-top: 1;
     }
     HitlDecisionPanel .hitl-section-body {
         height: auto;
+        padding-top: 1;
         padding-left: 2;
+        margin-bottom: 1;
+        border-left: outer $primary 30%;
     }
     HitlDecisionPanel Input {
         width: 1fr;
         margin-top: 1;
+    }
+    HitlDecisionPanel QueryTextArea {
+        width: 1fr;
+        height: auto;
+        max-height: 8;
+        border: none;
+        margin-top: 1;
+        /* Keep the buttons below the field from sitting flush against it. */
+        margin-bottom: 1;
     }
     HitlDecisionPanel RadioSet {
         margin-top: 1;
@@ -145,9 +165,9 @@ class HitlDecisionPanel(VerticalScroll):
 class HitlPanel(HitlDecisionPanel):
     """An inline review / input ask.
 
-    A ``review`` ask renders the headline and sections (the plan/digest) with an
-    approve / request-changes / cancel row; an ``input`` ask renders one field
-    per question with an answer / cancel row.
+    A ``review`` ask renders the headline and sections (the plan/digest) with a
+    continue / revise-with-feedback / cancel row; an ``input`` ask renders one
+    field per question with an answer / cancel row.
     """
 
     def __init__(self, ask: dict[str, Any]) -> None:
@@ -230,15 +250,17 @@ class HitlPanel(HitlDecisionPanel):
         if question:
             yield SelectableStatic(str(question), id="hitl-question", markup=False)
         yield from self._compose_sections()
-        yield Input(
-            placeholder="Feedback (required to request changes)", id="hitl-feedback"
+        yield QueryTextArea(
+            id="hitl-feedback",
+            submit_on_enter=False,
+            placeholder="Feedback (required to revise)",
         )
         yield SelectableStatic("", id="hitl-feedback-hint", classes="hitl-hint")
         with Horizontal(classes="actions"):
             yield action_button(
-                "Approve", id="hitl-approve", variant="primary", compact=True
+                "Continue", id="hitl-approve", variant="primary", compact=True
             )
-            yield action_button("Request changes", id="hitl-revise", compact=True)
+            yield action_button("Revise with feedback", id="hitl-revise", compact=True)
             yield action_button(
                 "Cancel", id="hitl-cancel", variant="default", compact=True
             )
@@ -263,8 +285,8 @@ class HitlPanel(HitlDecisionPanel):
             )
 
     def on_mount(self) -> None:
-        """Focus the first input field."""
-        fields = list(self.query(Input))
+        """Focus the first field: the feedback textarea, else the first input."""
+        fields = list(self.query(Input)) or list(self.query(QueryTextArea))
         if fields:
             fields[0].focus()
 
@@ -277,11 +299,11 @@ class HitlPanel(HitlDecisionPanel):
         if button_id == "hitl-approve":
             self.post_message(self.Decided(HitlDecision({"decision": "approve"})))
         elif button_id == "hitl-revise":
-            field = self.query_one("#hitl-feedback", Input)
-            feedback = field.value or ""
+            field = self.query_one("#hitl-feedback", QueryTextArea)
+            feedback = field.text or ""
             hint = self.query_one("#hitl-feedback-hint", SelectableStatic)
             if not feedback.strip():
-                hint.update("Feedback is required to revise")
+                hint.update("Feedback (required to revise)")
                 field.focus()
                 return
             hint.update("")

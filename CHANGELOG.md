@@ -16,6 +16,7 @@
 - Permission dialogs now group the requested paths under the plan step they belong to, with the plan-step heading set apart and emphasised so the prompt is easier to read, a long step summary capped at two lines with `...`, one muted coverage line per step group (`N paths: X outside the project, Y sensitive`), a request's further steps shown once as `Also serves step N` beneath its heading, and a divider between adjacent step groups in the web form.
 - Status panes in both the terminal and web clients now cap each long state section, such as the plan, at a content-derived height and scroll it inside the pane, so the rest of the overview stays visible.
 - HITL ask sections now render their payload title verbatim, once per section, falling back to `Details` when the title is empty, so the synthetic `Option N` label no longer appears in either frontend.
+- The approval review controls are now `Continue` / `Revise with feedback` / `Cancel`; in the terminal the feedback field wraps and grows and submits only through its button (Enter no longer submits, Ctrl+J inserts a newline), and the ask bodies are spaced for readability.
 
 ### Fixed
 

@@ -265,9 +265,17 @@ HITL asks render inline as panels in the chat panel (`HitlPanel` for review /
 input, `PermissionPanel` for path permissions, ADR-0007), not as modal screens:
 the ask is mounted below the transcript and replaces the composer (the input
 row is hidden while it is active), so the transcript stays scrollable.  A
-review ask offers approve / request changes / cancel, an input ask one field
-per question, and a permission ask allow-once / allow-session / deny per
-requested path; the key-hints line shows the ask's actions.  A permission ask
+review ask offers **Continue** / **Revise with feedback** / **Cancel** (wire
+values stay `approve` / `revise`), an input ask one field per question, and a
+permission ask allow-once / allow-session / deny per requested path; the
+key-hints line shows the ask's actions.  The review ask's feedback field is a
+`QueryTextArea` with `submit_on_enter=False`: it starts one line high, wraps
+and grows to a capped height, and submits only through
+**Revise with feedback** (Enter no longer submits; Ctrl+J inserts a newline).
+Typing in the field never opens the command suggestions, which only the
+composer drives.  The ask bodies are spaced for readability: each section
+title is set apart, the body carries a quiet left gutter plus top/bottom
+margins, and the question line is muted.  A permission ask
 shows the full target path (middle-truncated only for pathological values),
 the session approval directory when it differs, and the tool-call context.
 Input asks may also carry plan-history sections (when the automated replan
@@ -535,9 +543,9 @@ text, the id the owning panel routes back to itself, and three optional knobs:
 action reachable without making it the loudest thing on screen.  `flat=False`
 is the exception for a lone call-to-action that should dominate its row.
 * `compact` -- shrinks the padding and the label so that three buttons fit on
-  one row (the review ask's approve / request changes / cancel).  Without it
-the third button wraps, which changes the panel height and shifts the
-transcript under the reader.
+  one row (the review ask's continue / revise-with-feedback / cancel).  Without
+  it the third button wraps, which changes the panel height and shifts the
+  transcript under the reader.
 
 Variant is a statement about consequence, not about emphasis:
 
