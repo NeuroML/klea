@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2025-06-15.
+Last updated: 2026-11-18.
 
 ## Cancellation / concurrency
 

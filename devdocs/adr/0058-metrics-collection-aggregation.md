@@ -30,7 +30,7 @@ Without a clear metrics collection and aggregation strategy, the harness will la
 * **Debuggability**: per-turn metrics must let developers identify which turn or tool call caused a failure.
 * **Extensibility**: custom metrics and future distributed collection must be addable without refactoring; judged scoring is rejected (ADR-0061), so no LLM-as-judge integration is a driver.
 
-> **Amended 2025-06-15 (ADR-0061).** LLM-as-judge integration is not a live
+> **Amended 2026-11-18 (ADR-0061).** LLM-as-judge integration is not a live
 > option: judged scoring is rejected for gating on determinism grounds, because
 > a model-scored verdict would enter `record_evaluation_result` and therefore
 > `task_success`, the labels and the exit codes, which must stay reproducible
@@ -233,7 +233,7 @@ The metrics collection enforces the following invariants:
 
 * Good, because identities, model resolution, ordering and derived metrics are reproducible, enabling reproducible analysis and debugging across runs; turn content and latency are not reproducible, because LLM sampling differs between runs even at a fixed seed.
 * Good, because per-turn metrics in JSONL enable inspection, comparison, and root-cause analysis, so developers can trace which turn or tool call caused a failure.
-* Good, because in-process instrumentation hooks support custom metrics and future distributed collection without major refactoring; new metrics are added as new hook points or fields in the RunMetrics schema.  LLM-as-judge integration is not a live option (amended 2025-06-15, ADR-0061): a judged verdict would enter `record_evaluation_result` and therefore `task_success`, the labels and the exit codes, which must stay reproducible from the stored run.
+* Good, because in-process instrumentation hooks support custom metrics and future distributed collection without major refactoring; new metrics are added as new hook points or fields in the RunMetrics schema.  LLM-as-judge integration is not a live option (amended 2026-11-18, ADR-0061): a judged verdict would enter `record_evaluation_result` and therefore `task_success`, the labels and the exit codes, which must stay reproducible from the stored run.
 * Bad, because instrumentation hooks add CPU/memory cost per tool call and turn (mitigated by optional sampling, e.g. record every Nth call for high-volume scenarios, and by lazy aggregation in Phase 2).
 * Bad, because if a collection point fails (e.g. an exception in a hook) metrics may be incomplete (mitigated by defensive recording, try-catch around hooks, and validation at aggregation time).
 * Bad, because per-run JSONL files require external tools (jq, pandas) or custom scripts for cross-run analysis (mitigated by an optional MLflow backend for experiment tracking and built-in aggregation utilities).

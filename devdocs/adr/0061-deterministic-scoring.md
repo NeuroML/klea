@@ -1,6 +1,6 @@
 ---
 status: accepted
-date: 2025-06-15
+date: 2026-11-18
 decision-makers: [Architecture Team]
 ---
 

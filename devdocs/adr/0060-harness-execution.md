@@ -51,7 +51,7 @@ Each stage has one input contract and one output contract; stages are separable 
 1. **Load.** Read the suite JSONL line by line (ADR-0056), validate each case (schema version, required fields, turn ordering, `case_id` uniqueness across the suite) and reject the suite before any run starts if validation fails.
 2. **Schedule.** For each case, derive the `run_id` (UUID v5 over `case_id` + seed) and the `chat_id` (UUID v5 over `run_id` + `user_id`), resolve model-backed roles eagerly (ADR-0057) and create the `RunContext` and its run directory under the evaluation workspace root. The scheduler emits runs into a bounded local worker pool.
 3. **Execute.** Drive the run's turns against the agent endpoint: send the turn, consume the SSE stream, and feed `record_tool_call` / `record_turn_metrics` as events arrive. Turn content is persisted to `transcript.jsonl` as it is produced.
-4. **Score.** Run the case's rubrics against the executed turns (deterministic checks only, over `expected_outputs` and `tool_expectations`, per ADR-0056 rubric types; amended 2025-06-15: ADR-0061 rejects LLM-as-judge gating, because a judged verdict would enter `record_evaluation_result` and therefore `task_success`, the labels and the exit codes, which must stay reproducible from the stored run) and feed `record_evaluation_result`.
+4. **Score.** Run the case's rubrics against the executed turns (deterministic checks only, over `expected_outputs` and `tool_expectations`, per ADR-0056 rubric types; amended 2026-11-18: ADR-0061 rejects LLM-as-judge gating, because a judged verdict would enter `record_evaluation_result` and therefore `task_success`, the labels and the exit codes, which must stay reproducible from the stored run) and feed `record_evaluation_result`.
 5. **Persist.** Call `RunMetricsCollector.finalize()`, then hand the run to the ADR-0059 writer: write into `runs/<run_id>.tmp/`, flush and `fsync`, write `COMPLETE` last, rename to `runs/<run_id>/`, and append one line to `runs/index.jsonl`.
 6. **Aggregate & report.** This stage owns suite-level aggregation: it reads `runs/index.jsonl` (never the run directories) and uses the ADR-0058 per-run envelope schema to compute pass@k over k repetitions, token totals and cost, plus per-case pass/fail, and to print the run listing.
 
@@ -73,12 +73,21 @@ A distributed worker/queue is **not** an alternative to this ADR: load, execute,
 
 ### Failure semantics
 
-Exit codes separate the three failure classes so CI can react correctly:
+Exit codes separate the failure classes so CI can react correctly:
 
 - **0** -- the suite completed and every case met its rubrics.
-- **1** -- the suite completed but one or more cases failed their rubrics (the results are valid and stored).
+- **1** -- the suite completed but one or more cases failed their rubrics (the results are valid and stored). Takes precedence over code 4.
 - **2** -- the suite could not start: invalid case, duplicate `case_id`, unknown schema version, unresolvable role, or unwritable run root. Nothing is stored.
 - **3** -- execution was interrupted, or incomplete `.tmp` runs were found and not repaired.
+- **4** -- `EXIT_GRADE_MISSING`: a suite that declares rubrics but whose deterministic checks produced no grade. An ungraded or skipped-only suite still exits 0, and the `report` command is unaffected.
+
+> **Amended 2026-11-18 (ADR-0061).** Code 4 (`EXIT_GRADE_MISSING`) is added
+> for a rubric-declaring suite whose deterministic checks produce no grade; an
+> ungraded or skipped-only suite stays code 0 and `report` is unaffected, and
+> code 1 takes precedence over code 4. The LLM judge is removed from scoring
+> (ADR-0061) because a judged verdict would enter `record_evaluation_result`
+> and therefore `task_success`, the labels and the exit codes, which must stay
+> reproducible from the stored run.
 
 A single run failing mid-execution is not a suite-level error: its failure is recorded in `run.json`/metrics, the index line is written, and the suite continues.
 

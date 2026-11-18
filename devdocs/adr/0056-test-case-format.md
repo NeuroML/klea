@@ -125,7 +125,7 @@ Each rubric:
 }
 ```
 
-> **Amended 2025-06-15 (ADR-0061).** The delivered schema carries `criteria` as
+> **Amended 2026-11-18 (ADR-0061).** The delivered schema carries `criteria` as
 > free prose (`criteria: tuple[str, ...]`), not as the structured list of
 > machine-checkable criteria the example above suggests; expressing a rubric's
 > intent in a machine-checkable predicate form is an open follow-up, not a
