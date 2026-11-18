@@ -25,6 +25,7 @@ from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.glyphs import UNICODE_GLYPHS, role_marker
 from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.state import ChatData, chats, format_token_usage, missing_credentials
+from klea_utils.ui.status_layout import section_budget_lines
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
 logger = logging.getLogger(__name__)
@@ -290,48 +291,65 @@ def attach_status_pane(ctx: PageContext) -> None:
                             ui.row().classes("w-full flex-nowrap items-center"),
                         ):
                             ui.label(section.get("heading", node_label))
-                        content = section.get("content")
-                        rendered = False
-                        if content:
-                            blocks = (
-                                content
-                                if isinstance(content, (list, tuple))
-                                else [content]
-                            )
-                            for block in blocks:
-                                if _block_widgets(block):
-                                    rendered = True
-                        display = section.get("display", "")
-                        if not rendered and display:
-                            if section.get("preformatted"):
-                                # Aligned/literal content (e.g. the plan): a
-                                # plain code block, so columns line up and
-                                # ``_``/``*`` in tool names are not parsed as
-                                # markdown.  No language is passed (no syntax
-                                # highlighting), and
-                                # ``nicegui-code-noformat`` strips the code-box
-                                # styling.
-                                ui.code(display, language=None).classes(
-                                    "text-xs w-full nicegui-code-noformat"
+                        # The body is capped from its own content by the shared
+                        # helper, so one long section (the plan, a busy tool
+                        # round) scrolls inside itself instead of growing the
+                        # pane; the drawer's own ``overflow-y-auto`` stays
+                        # authoritative for the pane.  ``.style()`` is used for
+                        # this one inline value because the budget is per
+                        # section and the class sheet cannot express it.
+                        budget = section_budget_lines(section)
+                        with (
+                            ui.column()
+                            .classes("status-entry-body w-full gap-0")
+                            .style(f"max-height: {budget}rem")
+                        ):
+                            content = section.get("content")
+                            rendered = False
+                            if content:
+                                blocks = (
+                                    content
+                                    if isinstance(content, (list, tuple))
+                                    else [content]
                                 )
-                            else:
-                                ui.markdown(linkify_md(display)).classes(
-                                    "text-xs w-full"
+                                for block in blocks:
+                                    if _block_widgets(block):
+                                        rendered = True
+                            display = section.get("display", "")
+                            if not rendered and display:
+                                if section.get("preformatted"):
+                                    # Aligned/literal content (e.g. the plan): a
+                                    # plain code block, so columns line up and
+                                    # ``_``/``*`` in tool names are not parsed as
+                                    # markdown.  No language is passed (no syntax
+                                    # highlighting), and
+                                    # ``nicegui-code-noformat`` strips the code-box
+                                    # styling.
+                                    ui.code(display, language=None).classes(
+                                        "text-xs w-full nicegui-code-noformat"
+                                    )
+                                else:
+                                    ui.markdown(linkify_md(display)).classes(
+                                        "text-xs w-full"
+                                    )
+                            summary = section.get("summary", "")
+                            if summary and not rendered and not display:
+                                ui.label(summary).classes(
+                                    "text-xs text-grey-6 mb-1 w-full"
                                 )
-                        summary = section.get("summary", "")
-                        if summary and not rendered and not display:
-                            ui.label(summary).classes("text-xs text-grey-6 mb-1 w-full")
-                        details = section.get("details", {})
-                        if details:
-                            with ui.element("details").classes(
-                                "status-details text-xs text-grey-5 "
-                                "cursor-pointer w-full"
-                            ):
-                                with ui.element("summary").classes("text-xs w-full"):
-                                    ui.label("View details")
-                                ui.code(
-                                    json.dumps(details, indent=2), language="json"
-                                ).classes("text-xs")
+                            details = section.get("details", {})
+                            if details:
+                                with ui.element("details").classes(
+                                    "status-details text-xs text-grey-5 "
+                                    "cursor-pointer w-full"
+                                ):
+                                    with ui.element("summary").classes(
+                                        "text-xs w-full"
+                                    ):
+                                        ui.label("View details")
+                                    ui.code(
+                                        json.dumps(details, indent=2), language="json"
+                                    ).classes("text-xs")
 
         _status_pane()
         ctx.refresh_status_pane = _status_pane.refresh

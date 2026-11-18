@@ -13,8 +13,15 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 
 from __future__ import annotations
 
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
 
+from klea_utils.ui.status_layout import (
+    MAX_LINES,
+    MIN_LINES,
+    estimate_section_lines,
+    section_budget_lines,
+)
 from klea_utils.ui.tui.components.commands import (
     CommandSuggestions,
     build_catalogue,
@@ -26,8 +33,13 @@ from klea_utils.ui.tui.components.inspector import (
     _section_title,
     group_sections,
 )
+from klea_utils.ui.tui.components.scroll import KleaScroll
 from klea_utils.ui.tui.components.sessions import _session_label
-from klea_utils.ui.tui.components.status_panel import _section_widget, _usage_line
+from klea_utils.ui.tui.components.status_panel import (
+    _section_scroll,
+    _section_widget,
+    _usage_line,
+)
 from klea_utils.ui.tui.components.transcript import (
     MessageBlock,
     _render_body,
@@ -156,6 +168,70 @@ class TestGroupSections:
 class TestStatusPanelHelpers:
     """Status-panel section builders."""
 
+    def test_small_plan_body_takes_the_floor_budget(self):
+        """A one-item plan body is capped at the floor, not left unbounded."""
+        section = {
+            "display": "Goal: short plan",
+            "content": [{"type": "items", "items": [{"text": "Step 1/1: read"}]}],
+        }
+        assert estimate_section_lines(section) == 1
+        assert section_budget_lines(section) == MIN_LINES
+        scroll = _section_scroll(section, collapsed=False)
+        assert isinstance(scroll, KleaScroll)
+        assert scroll.styles.max_height is not None
+
+    def test_long_body_is_capped_at_the_maximum_budget(self):
+        """A long fan-out body never exceeds the ceiling budget."""
+        section = {
+            "content": [
+                {
+                    "type": "items",
+                    "items": [{"text": f"Step {index}/60: run"} for index in range(60)],
+                }
+            ]
+        }
+        assert estimate_section_lines(section) > MAX_LINES
+        assert section_budget_lines(section) == MAX_LINES
+        scroll = _section_scroll(section, collapsed=False)
+        assert scroll.styles.max_height is not None
+
+    def test_section_body_is_wrapped_in_a_klea_scroll(self):
+        """A section body is wrapped in a budgeted KleaScroll."""
+        section = {"display": "Goal: wrapped"}
+        scroll = _section_scroll(section, collapsed=False)
+        assert isinstance(scroll, KleaScroll)
+        assert "status-section-body" in scroll.classes
+        assert scroll.styles.max_height is not None
+
+    async def test_mounted_section_body_children_live_in_its_klea_scroll(self):
+        """Once mounted, the body widgets sit inside the KleaScroll."""
+        from textual.app import App
+
+        section = {"display": "Goal: wrapped"}
+
+        class _Harness(App):
+            def compose(self):
+                yield _section_widget("plan", section)
+
+        app = _Harness()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            scroll = app.query_one(KleaScroll)
+            assert list(scroll.children)
+
+    def test_collapsed_section_body_cannot_take_focus(self):
+        """A collapsed body never takes focus away from the pane's scroll."""
+        section = {
+            "content": [
+                {
+                    "type": "items",
+                    "items": [{"text": f"Step {index}/20: run"} for index in range(20)],
+                }
+            ]
+        }
+        assert _section_scroll(section, collapsed=True).can_focus is False
+        assert _section_scroll(section, collapsed=False).can_focus is True
+
     def test_usage_line(self):
         assert _usage_line({"input_tokens": 10, "output_tokens": 5}) == (
             "10 in / 5 out"
@@ -276,6 +352,120 @@ class TestPermissionPanelHelpers:
         """An ask without step context renders no step lines."""
         assert PermissionPanel._step_lines({}) == []
         assert PermissionPanel._step_lines({"steps": []}) == []
+
+    def test_step_static_is_a_bold_heading_set_apart(self):
+        """The step heading is bold and carries a blank line above it."""
+        heading = PermissionPanel._step_static("Step 1: Read the config")
+        renderable = heading.content
+        assert isinstance(renderable, Text)
+
+        # The blank line rides on the heading's own renderable, so it cannot
+        # collapse into, or double up with, the panel's separators.
+        assert renderable.plain == "\nStep 1: Read the config"
+
+        # The heading text itself is bold; the span starts after that newline.
+        bold = [
+            span
+            for span in renderable.spans
+            if isinstance(span.style, str) and span.style == "bold"
+        ]
+        assert len(bold) == 1
+        assert bold[0].start == 1
+        assert bold[0].end == len("\nStep 1: Read the config")
+
+        # The optional coverage line rides below the heading on the same
+        # renderable, dim so it reads as a note, and is never bold.
+        covered = PermissionPanel._step_static(
+            "Step 1: Read the config", "2 paths: 2 outside the project"
+        )
+        covered_text = covered.content
+        assert isinstance(covered_text, Text)
+        assert covered_text.plain == (
+            "\nStep 1: Read the config\n2 paths: 2 outside the project"
+        )
+        dim = [
+            span
+            for span in covered_text.spans
+            if isinstance(span.style, str) and span.style == "dim"
+        ]
+        assert len(dim) == 1
+        assert (
+            covered_text.plain[dim[0].start : dim[0].end]
+            == "2 paths: 2 outside the project"
+        )
+
+    def test_step_static_caps_a_long_summary_with_an_ellipsis(self):
+        """An over-long step summary wraps to two lines and ends in ``...``."""
+        line = "Step 1: " + " ".join(["word"] * 60)
+        heading = PermissionPanel._step_static(line)
+        renderable = heading.content
+        assert isinstance(renderable, Text)
+
+        body = renderable.plain.split("\n", 1)[1]
+        lines = body.splitlines()
+        assert lines[0].startswith("Step 1: word")
+        assert len(lines) == PermissionPanel.STEP_HEADING_MAX_LINES
+        assert lines[-1].endswith("...")
+        for rendered in lines:
+            assert len(rendered) <= PermissionPanel.STEP_HEADING_WRAP_CHARS
+
+    def test_group_coverage_counts_the_requests_by_kind(self):
+        """The coverage line counts each request tier under the heading."""
+        group = cast(
+            list[tuple[int, Mapping[str, Any], str]],
+            [
+                (1, {"kind": "outside", "path": "/a"}, ""),
+                (2, {"kind": "outside", "path": "/b"}, ""),
+                (3, {"kind": "sensitive", "path": "/c"}, ""),
+            ],
+        )
+        assert PermissionPanel._group_coverage(group) == (
+            "3 paths: 2 outside the project, 1 sensitive"
+        )
+        assert (
+            PermissionPanel._group_coverage(
+                [(1, {"kind": "sensitive", "path": "/c"}, "")]
+            )
+            == "1 path: 1 sensitive"
+        )
+        assert (
+            PermissionPanel._group_coverage([(1, {"path": "/a"}, "")])
+            == "1 path: 1 unknown"
+        )
+        assert PermissionPanel._group_coverage([]) == ""
+
+    def test_group_also_unions_the_further_steps_once(self):
+        """The multi-step hint is unioned once per group, never per row."""
+        import inspect
+
+        group = cast(
+            list[tuple[int, Mapping[str, Any], str]],
+            [
+                (
+                    1,
+                    {"path": "/a", "steps": [{"step_number": 1, "summary": "A"}]},
+                    "",
+                ),
+                (
+                    2,
+                    {
+                        "path": "/b",
+                        "steps": [
+                            {"step_number": 1},
+                            {"step_number": 3, "summary": "C"},
+                        ],
+                    },
+                    "",
+                ),
+            ],
+        )
+        assert PermissionPanel._group_also(group) == "Also serves step 3"
+        assert PermissionPanel._group_also([(1, {"path": "/a"}, "")]) == ""
+
+        # The hint is emitted only beneath the heading: ``compose`` no longer
+        # carries the per-row hint, so a path row can never repeat it.
+        source = inspect.getsource(PermissionPanel.compose)
+        assert "if also:" not in source
 
     def test_groups_place_requests_under_their_step(self):
         """Requests group under their step heading, in ascending step order."""

@@ -435,6 +435,23 @@ def _permission_step_lines(ask: dict[str, Any]) -> list[str]:
 #: Heading for requests that carry no plan-step context (grouped layout only).
 PERMISSION_OTHER_HEADING = "Other paths"
 
+#: Cap for the number of display lines one plan-step heading may take.
+MAX_PERMISSION_STEP_HEADING_LINES = 2
+
+#: Width a plan-step heading wraps at: the approval form's inner width, chosen
+#: to match the TUI's approval panel for parity.
+MAX_PERMISSION_STEP_HEADING_LINE_CHARS = 76
+
+#: Classes for one plan-step heading: bold, with a blank line above it via
+#: ``mt-2``, the same spacing token as the surrounding column's ``gap-2``, and
+#: ``whitespace-pre-line`` so a wrapped summary keeps its line break.
+PERMISSION_STEP_HEADING_CLASSES = "text-xs font-bold mt-2 whitespace-pre-line"
+
+#: Classes for the muted coverage line under a heading: the quietest label,
+#: reusing the existing theme-token mapping (``text-grey-6`` becomes
+#: ``--klea-muted`` in dark mode) rather than introducing a new colour.
+PERMISSION_STEP_COVERAGE_CLASSES = "text-xs text-grey-6"
+
 
 def _permission_request_steps(request: dict[str, Any]) -> list[int]:
     """Return the plan-step numbers a request serves, sorted and de-duplicated.
@@ -466,12 +483,49 @@ def _permission_step_heading(number: int, summary: str) -> str:
 
     :param number: The plan step number.
     :param summary: The step summary, possibly empty.
-    :returns: The heading line.
+    :returns: The heading line, wrapped to at most
+        :data:`MAX_PERMISSION_STEP_HEADING_LINES` lines.
     """
     text = " ".join(summary.split())
     if len(text) > MAX_PERMISSION_STEP_SUMMARY_CHARS:
         text = text[:MAX_PERMISSION_STEP_SUMMARY_CHARS].rstrip() + "..."
-    return f"Step {number}: {text}" if text else f"Step {number}"
+    heading = f"Step {number}: {text}" if text else f"Step {number}"
+    return _wrap_permission_heading(heading)
+
+
+def _wrap_permission_heading(heading: str) -> str:
+    """Return *heading* wrapped to the heading width and capped.
+
+    It breaks on spaces, keeps at most
+    :data:`MAX_PERMISSION_STEP_HEADING_LINES` lines, and marks a cut tail with
+    an ASCII ``...`` trimmed to stay inside
+    :data:`MAX_PERMISSION_STEP_HEADING_LINE_CHARS`, mirroring the TUI panel's
+    heading so the bold ``Step N`` prefix stays on the first line.
+
+    :param heading: The single-line ``Step N: summary`` heading.
+    :returns: The heading, with newline separators between its lines.
+    """
+    width = MAX_PERMISSION_STEP_HEADING_LINE_CHARS
+    lines: list[str] = []
+    current = ""
+    for word in heading.split():
+        if not current:
+            current = word
+        elif len(current) + 1 + len(word) <= width:
+            current = f"{current} {word}"
+        else:
+            lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    if len(lines) <= MAX_PERMISSION_STEP_HEADING_LINES:
+        return "\n".join(lines)
+    kept = lines[:MAX_PERMISSION_STEP_HEADING_LINES]
+    ellipsis = "..."
+    if len(kept[-1]) + len(ellipsis) > width:
+        kept[-1] = kept[-1][: width - len(ellipsis)].rstrip()
+    kept[-1] = f"{kept[-1]}{ellipsis}"
+    return "\n".join(kept)
 
 
 def _permission_groups(
@@ -540,6 +594,66 @@ def _permission_groups(
     return groups
 
 
+def _permission_group_coverage(
+    group: list[tuple[int, dict[str, Any], str]],
+) -> str:
+    """Return one muted coverage line for a group of permission requests.
+
+    The line counts the requests under a heading by the ``kind`` the payload
+    carries (``outside`` / ``sensitive``), so the user sees how many paths a
+    step needs: ``3 paths: 2 outside the project, 1 sensitive``.  The noun is
+    singular for a single path, a zero-count category is omitted, and a
+    request with a missing or unknown ``kind`` is counted in a trailing
+    ``unknown`` bucket only when non-zero.
+
+    :param group: The ``(index, request, hint)`` rows under one heading.
+    :returns: The coverage line, or ``""`` for an empty group.
+    """
+    outside = sensitive = unknown = 0
+    for _, request, _ in group:
+        kind = request.get("kind")
+        if kind == "outside":
+            outside += 1
+        elif kind == "sensitive":
+            sensitive += 1
+        else:
+            unknown += 1
+    total = outside + sensitive + unknown
+    if not total:
+        return ""
+    parts = [
+        f"{count} {label}"
+        for count, label in (
+            (outside, "outside the project"),
+            (sensitive, "sensitive"),
+            (unknown, "unknown"),
+        )
+        if count
+    ]
+    noun = "path" if total == 1 else "paths"
+    return f"{total} {noun}: " + ", ".join(parts)
+
+
+def _permission_group_also(group: list[tuple[int, dict[str, Any], str]]) -> str:
+    """Return one muted ``Also serves step N`` line for a group of requests.
+
+    A request that serves several plan steps is shown under its lowest number
+    (see :func:`_permission_groups`).  The further steps are unioned across the
+    whole group, sorted and de-duplicated, so several multi-step requests
+    produce one line beneath the heading instead of one hint per row.
+
+    :param group: The ``(index, request, hint)`` rows under one heading.
+    :returns: The ``Also serves step ...`` line, or ``""`` when no request
+        serves more than one step.
+    """
+    numbers: set[int] = set()
+    for _, request, _ in group:
+        numbers.update(_permission_request_steps(request)[1:])
+    if not numbers:
+        return ""
+    return "Also serves step " + ", ".join(str(n) for n in sorted(numbers))
+
+
 def _render_permission_form(
     ctx: PageContext, ask: dict[str, Any], interrupt_id: Any
 ) -> None:
@@ -580,18 +694,36 @@ def _render_permission_form(
             if isinstance(request, dict)
         ):
             for step_line in _permission_step_lines(ask):
-                ui.label(step_line).classes("text-xs text-grey-6")
+                ui.label(step_line).classes(PERMISSION_STEP_HEADING_CLASSES)
 
         # Re-render on select so the chosen option shows its active state
         # (``choice_buttons`` computes it at build time).
         @ui.refreshable
         def _rows() -> None:
+            shown_group = False
             for heading, group in groups:
                 if heading:
+                    if shown_group:
+                        # One divider between adjacent step groups, never
+                        # before the first or after the last, so it mirrors
+                        # the TUI's rule between request blocks.  The column's
+                        # existing ``gap-2`` supplies the surrounding spacing.
+                        ui.separator()
+                    shown_group = True
                     # Plain label (never ``ui.html``): the model-authored step
                     # summary cannot inject markup.
-                    ui.label(heading).classes("text-xs font-bold")
-                for index, request, also in group:
+                    ui.label(heading).classes(PERMISSION_STEP_HEADING_CLASSES)
+                    group_coverage = _permission_group_coverage(group)
+                    if group_coverage:
+                        # Also a plain label, and muted via the existing token.
+                        ui.label(group_coverage).classes(
+                            PERMISSION_STEP_COVERAGE_CLASSES
+                        )
+                    group_also = _permission_group_also(group)
+                    if group_also:
+                        # The same muted label, so both notes read alike.
+                        ui.label(group_also).classes(PERMISSION_STEP_COVERAGE_CLASSES)
+                for index, request, _ in group:
                     path = _permission_path_display(request)
                     if request.get("kind") == "sensitive":
                         title = f"Sensitive file: {path}"
@@ -616,8 +748,6 @@ def _render_permission_form(
                     )
                     if scope:
                         ui.label(scope).classes("text-xs text-grey-6")
-                    if also:
-                        ui.label(also).classes("text-xs text-grey-6")
                     _render_permission_hint(request)
                     coverage = _permission_coverage(request)
                     if coverage:

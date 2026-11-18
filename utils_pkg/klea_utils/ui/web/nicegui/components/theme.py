@@ -231,6 +231,16 @@ def _add_css_overrides() -> None:
     ui.add_css(
         ".inspector-entry-body { max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }"
     )
+    # Status-pane section bodies carry a per-section inline ``max-height``
+    # computed from their own content by the shared budget helper
+    # (``ui/status_layout.py``); this rule supplies the floor for a short
+    # section and the overflow/overscroll fallback, so an expanded section
+    # scrolls inside itself instead of growing the drawer.  Like the inspector
+    # idiom above, these are plain layout declarations (not colour overrides),
+    # so they stay unlayered.  Mirrors the TUI's ``KleaScroll`` recipe.
+    ui.add_css(
+        ".status-entry-body { min-height: 4rem; overflow-y: auto; overscroll-behavior: contain; }"
+    )
     # Inspector query sections: same disclosure triangle as entries, plus a
     # separating rule between sections so consecutive queries are distinct.
     ui.add_css(
