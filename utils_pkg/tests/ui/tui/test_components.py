@@ -15,6 +15,12 @@ from __future__ import annotations
 
 from typing import cast
 
+from klea_utils.ui.status_layout import (
+    MAX_LINES,
+    MIN_LINES,
+    estimate_section_lines,
+    section_budget_lines,
+)
 from klea_utils.ui.tui.components.commands import (
     CommandSuggestions,
     build_catalogue,
@@ -26,8 +32,13 @@ from klea_utils.ui.tui.components.inspector import (
     _section_title,
     group_sections,
 )
+from klea_utils.ui.tui.components.scroll import KleaScroll
 from klea_utils.ui.tui.components.sessions import _session_label
-from klea_utils.ui.tui.components.status_panel import _section_widget, _usage_line
+from klea_utils.ui.tui.components.status_panel import (
+    _section_scroll,
+    _section_widget,
+    _usage_line,
+)
 from klea_utils.ui.tui.components.transcript import (
     MessageBlock,
     _render_body,
@@ -155,6 +166,70 @@ class TestGroupSections:
 
 class TestStatusPanelHelpers:
     """Status-panel section builders."""
+
+    def test_small_plan_body_takes_the_floor_budget(self):
+        """A one-item plan body is capped at the floor, not left unbounded."""
+        section = {
+            "display": "Goal: short plan",
+            "content": [{"type": "items", "items": [{"text": "Step 1/1: read"}]}],
+        }
+        assert estimate_section_lines(section) == 1
+        assert section_budget_lines(section) == MIN_LINES
+        scroll = _section_scroll(section, collapsed=False)
+        assert isinstance(scroll, KleaScroll)
+        assert scroll.styles.max_height is not None
+
+    def test_long_body_is_capped_at_the_maximum_budget(self):
+        """A long fan-out body never exceeds the ceiling budget."""
+        section = {
+            "content": [
+                {
+                    "type": "items",
+                    "items": [{"text": f"Step {index}/60: run"} for index in range(60)],
+                }
+            ]
+        }
+        assert estimate_section_lines(section) > MAX_LINES
+        assert section_budget_lines(section) == MAX_LINES
+        scroll = _section_scroll(section, collapsed=False)
+        assert scroll.styles.max_height is not None
+
+    def test_section_body_is_wrapped_in_a_klea_scroll(self):
+        """A section body is wrapped in a budgeted KleaScroll."""
+        section = {"display": "Goal: wrapped"}
+        scroll = _section_scroll(section, collapsed=False)
+        assert isinstance(scroll, KleaScroll)
+        assert "status-section-body" in scroll.classes
+        assert scroll.styles.max_height is not None
+
+    async def test_mounted_section_body_children_live_in_its_klea_scroll(self):
+        """Once mounted, the body widgets sit inside the KleaScroll."""
+        from textual.app import App
+
+        section = {"display": "Goal: wrapped"}
+
+        class _Harness(App):
+            def compose(self):
+                yield _section_widget("plan", section)
+
+        app = _Harness()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            scroll = app.query_one(KleaScroll)
+            assert list(scroll.children)
+
+    def test_collapsed_section_body_cannot_take_focus(self):
+        """A collapsed body never takes focus away from the pane's scroll."""
+        section = {
+            "content": [
+                {
+                    "type": "items",
+                    "items": [{"text": f"Step {index}/20: run"} for index in range(20)],
+                }
+            ]
+        }
+        assert _section_scroll(section, collapsed=True).can_focus is False
+        assert _section_scroll(section, collapsed=False).can_focus is True
 
     def test_usage_line(self):
         assert _usage_line({"input_tokens": 10, "output_tokens": 5}) == (

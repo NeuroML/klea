@@ -65,7 +65,9 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   is always visible; only the state sections below (the plan etc.) scroll.
   State sections persist across turns rather than being cleared: starting a
   turn drops only the transient tool-round section, so the plan and other
-  state stay visible until the streamed `state` events replace them.
+  state stay visible until the streamed `state` events replace them.  Each
+  section's body is height-budgeted from its own content and scrolls inside
+  itself once it overflows, so one long section never swallows the pane.
 
 The panes update in place rather than re-rendering wholesale.  The status
 panel reconciles its sections by key, so only a section whose content changed
@@ -79,6 +81,20 @@ dropped above the viewport or a newly appended entry never yanks a
 scrolled-up view.  Each inspection entry's body is height-bounded and scrolls
 internally, so an expanded entry never swallows the pane; the pane keeps its
 own scroll and the tail-follow rule above applies to the pane only.
+
+Status-section bodies follow the same rule through `KleaScroll`
+(`ui/tui/components/scroll.py`): a `VerticalScroll` subclass whose
+`set_content()` captures the offset, swaps the body widgets, then either
+follows the tail or restores the offset, so a reconciled section keeps the
+reader's place exactly like the pane.  A section body's height is a
+per-section budget computed from that section's own content by the
+frontend-neutral `klea_utils/ui/status_layout.py`: its rendered line count
+plus one is clamped to `clamp(5, lines + 1, 30)` and quantised up to a band of
+5 lines, so a section that grows by a line or two while streaming does not
+resize on every tick.  The budget bounds one expanded section only: only an
+expanded body that actually overflows takes focus and scrolls inside itself,
+so the arrow keys keep reaching the outer `#status-scroll`, which stays
+authoritative for the pane's own scroll and the tail-follow rule above.
 
 Because the status panel spans the full height, there is no separate
 full-width header or footer bar; the title sits at the top of the status panel

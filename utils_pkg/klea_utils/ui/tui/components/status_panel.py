@@ -32,6 +32,8 @@ from klea_utils.ui.glyphs import get_glyphs, role_marker
 from klea_utils.ui.inspect_format import format_details
 from klea_utils.ui.model_config import role_label
 from klea_utils.ui.state import format_token_usage, missing_credentials
+from klea_utils.ui.status_layout import estimate_section_lines, section_budget_lines
+from klea_utils.ui.tui.components.scroll import KleaScroll
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 if TYPE_CHECKING:
@@ -267,8 +269,44 @@ def _section_body(section: Mapping[str, Any]) -> list[SelectableStatic]:
     return body
 
 
+def _body_budget(section: Mapping[str, Any]) -> tuple[int, bool]:
+    """Return a section body's height budget and whether it overflows it.
+
+    :param section: The stored section (content/display/summary/details/...).
+    :returns: The budget in lines and whether the body renders more lines than
+        that, in which case it scrolls inside itself and may take focus.
+    """
+    budget = section_budget_lines(section)
+    return budget, estimate_section_lines(section) > budget
+
+
+def _section_scroll(section: Mapping[str, Any], *, collapsed: bool) -> KleaScroll:
+    """Wrap a section's body in a height-budgeted scroll container.
+
+    The budget comes from the shared, frontend-neutral helper
+    (:mod:`klea_utils.ui.status_layout`), so the body never grows to swallow the
+    pane; the outer ``#status-scroll`` stays the authoritative scroll.
+
+    :param section: The stored section (content/display/summary/details/...).
+    :param collapsed: Whether the owning collapsible starts collapsed (a
+        collapsed body never takes focus).
+    :returns: The body container, sized from the shared budget.
+    """
+    budget, overflows = _body_budget(section)
+    scroll = KleaScroll(
+        *_section_body(section),
+        classes="status-section-body",
+        can_focus=overflows and not collapsed,
+    )
+    scroll.styles.max_height = budget
+    return scroll
+
+
 def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
     """Build the collapsible widget for one ``state`` section.
+
+    The body is height-budgeted (see :func:`_section_scroll`) and is recomputed
+    here on every rebuild.
 
     :param key: The section key (``data.key`` or node label).
     :param section: The stored section (heading/display/summary/details/...).
@@ -276,7 +314,7 @@ def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
     """
     heading = section.get("heading", "") or key
     return Collapsible(
-        *_section_body(section),
+        _section_scroll(section, collapsed=False),
         title=heading,
         collapsed=False,
         id=_section_id(key),
@@ -304,9 +342,15 @@ async def _update_section(
     for header in widget.query("CollapsibleTitle"):
         if hasattr(header, "label"):
             header.label = title
-    contents = widget.query_one("Contents")
-    await contents.remove_children()
-    await contents.mount_all(_section_body(section))
+    # The body is re-mounted inside its scroll container, so the
+    # content-derived budget is recomputed here: a section that grew or shrank
+    # is re-sized in place instead of keeping a stale height.
+    budget, overflows = _body_budget(section)
+    scroll = widget.query_one("Contents").query_one(KleaScroll)
+    scroll.styles.max_height = budget
+    await scroll.set_content(
+        _section_body(section), focusable=overflows and not widget.collapsed
+    )
 
 
 async def _reconcile_sections(
@@ -391,6 +435,13 @@ class StatusPanel(Vertical):
     }
     StatusPanel Collapsible > Contents {
         padding-left: 0;
+    }
+    /* A section body is capped from its content (``section_budget_lines``) and
+     * scrolls inside itself once it overflows, so an expanded section never
+     * swallows the pane; the outer #status-scroll stays authoritative. */
+    StatusPanel .status-section-body {
+        height: auto;
+        overflow-y: auto;
     }
     StatusPanel #status-usage {
         margin-bottom: 1;
