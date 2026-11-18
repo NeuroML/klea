@@ -27,9 +27,10 @@ is listed in ``missing_runs`` without aborting the aggregate.
 
 Deliberately deferred, all belonging to later phases of the implementation plan:
 
-- LLM-judge rubric scoring (D9) and evaluation of the rubric ``criteria`` text:
+- Deterministic rubric scoring for the rubric ``criteria`` text:
   :class:`klea_eval.cases.Rubric` carries only a type and free-text criteria, so
-  no deterministic check can score them yet;
+  deterministic rubric checks remain a later phase; the LLM judge is rejected
+  as a grader (ADR-0061), so scoring depth must come from deterministic checks.
 - cost derivation: no price table exists, so ``cost_estimate`` is only relayed
   from the per-run metrics and summed here;
 - ``transcript.jsonl`` writing, HITL ``interrupt`` resume, retention (P8), the

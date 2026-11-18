@@ -5,7 +5,7 @@ The stored :class:`klea_eval.results.RunMetadata` envelope records what the
 harness *observed* -- a ``status`` of ``completed``, ``failed`` or ``skipped``
 -- but it does not record an outcome, because a ``completed`` run may still be
 ungraded (no rubric was declared) or grade-missing (a rubric was declared but
-no judge produced a verdict yet).  Every reader that renders a run (the CLI,
+no deterministic check produced a grade yet).  Every reader that renders a run (the CLI,
 reports, ad-hoc scripts) therefore has to map the envelope plus the stored
 ``task_success`` metric onto one display label.
 
