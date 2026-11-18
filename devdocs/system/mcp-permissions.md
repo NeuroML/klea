@@ -69,11 +69,27 @@ The single enforcement point is the pre-dispatch gate in
   shown under a `Step N: summary` heading for the step they serve, in ascending
   step order, so the work each path is wanted for is visible next to that path.
   That step line is set off by a blank line and rendered in bold, so it reads as
-  a header rather than as part of the path list.
-  A request that serves several steps is placed under its lowest step number
-  and gains a bounded `Also serves step N` hint listing the rest; the per-path
-  rows keep their payload order, their 1-based display number and their
-  `path`/`directory` decision key.  Requests that carry no step context follow
+  a header rather than as part of the path list.  A summary that would overflow
+  wraps onto at most two lines of 76 characters and is cut with an ASCII `...`
+  (the web form keeps those breaks with `whitespace-pre-line`), so a
+  pathological step summary cannot push the paths off the panel.
+  Beneath its heading each group carries one muted coverage line -- `3 paths: 2
+  outside the project, 1 sensitive` -- counting the group's requests by `kind`:
+  the noun is singular for one path, a zero-count category is dropped, and a
+  request with no `kind` falls into a trailing `unknown` bucket only when that
+  count is non-zero.
+  A request that serves several steps is placed under its lowest step number,
+  and its group gains a single bounded `Also serves step N` line listing the
+  further steps, unioned across the group, sorted and de-duplicated, so several
+  multi-step requests read as one line beneath the heading rather than one hint
+  per row; the per-path rows keep their payload order, their 1-based display
+  number and their `path`/`directory` decision key.  The web form draws a
+  divider (`ui.separator()`) between adjacent step groups, and neither before
+  the first group nor after the last, so the groups read as separate blocks;
+  the terminal panel already rules between request blocks.  A sticky heading
+  was deliberately not implemented: it would need per-scroll reflow inside a
+  panel that must keep a fixed height, so the heading stays inline with its
+  group.  Requests that carry no step context follow
   in a trailing `Other paths` bucket, shown only when at least one request
   carries step context.  The grouping adds no new bound: each heading summary
   is the same collapsed, 160-character-capped text, and the hoisted list

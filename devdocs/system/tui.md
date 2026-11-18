@@ -284,6 +284,26 @@ The review, input and permission asks share one visual grammar, so a long ask
 stays readable while the transcript keeps scrolling beneath it and the panel
 does not change height under the reader (ADR-0046, ADR-0007).
 
+The permission ask groups its paths by plan step.  `_step_static(line,
+coverage)` renders one bold `Step N: summary` heading on the same markup-free
+Rich `Text` as the muted notes below it, and `_wrap_heading` collapses the
+summary onto at most `STEP_HEADING_MAX_LINES` (2) lines of
+`STEP_HEADING_WRAP_CHARS` (76), cutting a long tail with an ASCII `...`, so a
+pathological plan summary cannot flood the panel.  `_group_coverage` counts the
+group's requests by `kind` into one `N paths: X outside the project, Y
+sensitive` line (the noun is singular for a single path, a zero-count category
+is dropped, and an unknown `kind` is counted in a trailing `unknown` bucket),
+while `_group_also` unions the further steps of every multi-step request into
+one sorted, de-duplicated `Also serves step N` line beneath the heading instead
+of one hint per row.  Both notes ride the heading's renderable and are styled
+`dim`, so they read as notes and are never bold.  A sticky heading was
+deliberately not implemented: it would need per-scroll reflow inside a panel
+that must keep a fixed height, so the heading stays inline with its group.
+`devdocs/system/web-theming.md` needs no change for the parallel web layout:
+the form introduced no new class or token, drawing the group divider with
+`ui.separator()` and reusing the existing `text-grey-6` (dark-mode
+`--klea-muted`) mapping for its muted labels.
+
 * **Section containers.** Every logical part of an ask -- the summary, the plan
   history, the questions, the requested paths -- is one section container with
   its own heading and a blank line before the next, not a run of loose labels.
