@@ -194,9 +194,10 @@ phases are listed below.
   that could not start.  Code `4` is therefore narrower than a general
   judge-unavailable fallback: it means grading was expected but the
   machine-checkable checks yielded no grade.  Amending ADR-0060's exit-code
-  table to record codes `0`/`1`/`2`/`4` and this narrowed meaning of `4`
-  (`devdocs/adr/0060-harness-execution.md:76-79`) remains the open follow-up,
-  not part of this change.
+  table is no longer an open follow-up: it landed in `b97af6b3 docs(eval):
+  document exit code 4 in ADR-0060`, whose table now records codes
+  `0`/`1`/`2`/`3`/`4`, with a real case failure (`1`) taking precedence over a
+  grade-missing case (`4`) (`devdocs/adr/0060-harness-execution.md:76-82`).
 - Failed-run grading (settled): run success is a prerequisite for grading, so a
   failed run is labelled `failed` and is never graded and never
   `grade-missing`.
