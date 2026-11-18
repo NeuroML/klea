@@ -68,6 +68,8 @@ The single enforcement point is the pre-dispatch gate in
   Both frontends present the ask grouped by plan step: the requested paths are
   shown under a `Step N: summary` heading for the step they serve, in ascending
   step order, so the work each path is wanted for is visible next to that path.
+  That step line is set off by a blank line and rendered in bold, so it reads as
+  a header rather than as part of the path list.
   A request that serves several steps is placed under its lowest step number
   and gains a bounded `Also serves step N` hint listing the rest; the per-path
   rows keep their payload order, their 1-based display number and their

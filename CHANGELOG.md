@@ -13,7 +13,7 @@
 ### Changed
 
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
-- Permission dialogs now group the requested paths under the plan step they belong to.
+- Permission dialogs now group the requested paths under the plan step they belong to, with the plan-step heading set apart and emphasised so the prompt is easier to read.
 - Status panes in both the terminal and web clients now cap each long state section, such as the plan, at a content-derived height and scroll it inside the pane, so the rest of the overview stays visible.
 
 ### Fixed
