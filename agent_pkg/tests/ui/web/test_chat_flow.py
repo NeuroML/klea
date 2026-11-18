@@ -224,6 +224,36 @@ async def test_review_interrupt_renders_headline_and_sections(fake_backend, agen
     ]
     assert not any("Option " in text for text in labels)
 
+    # The ask offers the current review controls, not the retired wording.
+    await agent_user.should_see("Continue", retries=50)
+    await agent_user.should_see("Revise with feedback", retries=50)
+    await agent_user.should_not_see("Request changes")
+    assert "Request changes" not in labels
+    # The feedback entry prompts for the revise path.
+    placeholders = [
+        getattr(element, "_props", {}).get("placeholder")
+        for element in agent_user.client.elements.values()
+        if isinstance(element, ui.textarea)
+    ]
+    assert "Feedback (required to revise)" in placeholders
+
+    # The ask body is scoped (ADR-0051): the ask column carries ``hitl-ask``,
+    # its feedback textarea the ``chat-input`` class, and every rendered
+    # section body the ask-body classes, so the transcript's global code-block
+    # and chat-input styling stay untouched.
+    elements = list(agent_user.client.elements.values())
+    assert any("hitl-ask" in getattr(element, "_classes", ()) for element in elements)
+    assert any(
+        isinstance(element, ui.textarea)
+        and "chat-input" in getattr(element, "_classes", ())
+        for element in elements
+    )
+    bodies = [element for element in elements if isinstance(element, ui.code)]
+    assert bodies, "the review sections render as code bodies"
+    for body in bodies:
+        assert "hitl-ask-body" in body._classes
+        assert "nicegui-code-noformat" in body._classes
+
 
 async def test_generic_tool_event_renders_header_and_payload(fake_backend, agent_user):
     """A non-run_command tool entry renders its header and payload in chat."""

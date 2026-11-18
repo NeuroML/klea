@@ -241,6 +241,19 @@ def _add_css_overrides() -> None:
     ui.add_css(
         ".status-entry-body { min-height: 4rem; overflow-y: auto; overscroll-behavior: contain; }"
     )
+    # HITL ask bodies (review sections, plan-history sections): a small margin
+    # and a comfortable line height, bounded so a long section scrolls inside
+    # the ask instead of growing the status region.  Scoped to ``.hitl-ask`` so
+    # the global ``.nicegui-code-noformat`` and ``.chat-input`` rules stay
+    # unchanged.  Plain layout declarations, so this stays unlayered like the
+    # inspector/status body bounds above; the global code reset's
+    # ``margin: 0 !important`` targets the inner ``pre`` of a code box
+    # (``theme.py:348-359``), not this wrapper, so no ``!important`` is needed.
+    ui.add_css(
+        ".hitl-ask .hitl-ask-body { "
+        "margin: 0.35rem 0; line-height: 1.5; "
+        "max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }"
+    )
     # Inspector query sections: same disclosure triangle as entries, plus a
     # separating rule between sections so consecutive queries are distinct.
     ui.add_css(
