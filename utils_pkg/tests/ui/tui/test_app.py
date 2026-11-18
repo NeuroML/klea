@@ -882,6 +882,48 @@ async def test_resume_specific_chat(fake_backend, make_app):
         assert len(list(transcript.children)) == 2
 
 
+async def test_multi_section_ask_renders_titles_verbatim(fake_backend, make_app):
+    """A multi-section ask shows each payload title once, as its header."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "review",
+                    "headline": "Review these plans",
+                    "sections": [
+                        {"title": "Plan A", "body": "alpha"},
+                        {"title": "Plan B", "body": "beta"},
+                        {"title": "   ", "body": "gamma"},
+                    ],
+                    "interrupt_id": "i1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        panel = app.screen.query_one(HitlPanel)
+        titles = [str(collapsible.title) for collapsible in panel.query(Collapsible)]
+        # Titles are rendered verbatim, never with a synthetic "Option N" prefix.
+        assert titles == ["Plan A", "Plan B", "Details"]
+        assert not any("Option" in title for title in titles)
+        # The title is rendered once, as the Collapsible header.  The old
+        # duplicate (a header plus a re-added inner ``#hitl-section-N-title``
+        # static) would surface as a ``.hitl-section-title`` widget, or as a
+        # second static rendering the same text, so assert neither exists.
+        assert list(panel.query(".hitl-section-title")) == []
+        rendered = [str(widget.render()) for widget in panel.query(Static)]
+        assert not any(text in titles for text in rendered)
+        app.screen.query_one("#hitl-approve", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["interrupt_response"] == {"decision": "approve"}
+
+
 async def test_continue_picks_most_recent(fake_backend, make_app):
     """--continue activates the most recently updated chat."""
     fake_backend.chats = [{"chat_id": "c2"}, {"chat_id": "c1"}]

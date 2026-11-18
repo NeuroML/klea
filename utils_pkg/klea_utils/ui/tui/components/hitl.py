@@ -176,34 +176,39 @@ class HitlPanel(HitlDecisionPanel):
 
         Each section is rendered inside a :class:`~textual.widgets.Collapsible`
         so a multi-section ask (for example several candidate plans) can be
-        reviewed one entry at a time.  When an ask carries more than one
-        section the titles are numbered (``Option 1``, ``Option 2``, ...) and
-        only the first section starts expanded, so comparing against the
-        history opens on the first entry while the rest stay collapsed until
-        the user expands them.
+        reviewed one entry at a time.  The payload title is shown verbatim
+        (falling back to ``Details`` when it is empty) and only the first
+        section starts expanded, so comparing against the history opens on the
+        first entry while the rest stay collapsed until the user expands them.
         """
         sections = [
             section
             for section in (self.ask.get("sections") or [])
             if isinstance(section, Mapping)
         ]
+        single = len(sections) == 1
         for index, section in enumerate(sections):
-            title = str(section.get("title", ""))
-            if len(sections) > 1:
-                label = f"Option {index + 1}"
-                title = f"{label}: {title}" if title else label
-            with Collapsible(
-                title=title,
-                collapsed=index > 0,
-                id=f"hitl-section-{index}",
-                classes="hitl-section",
-            ):
+            title = str(section.get("title") or "").strip() or "Details"
+            if single:
                 yield SelectableStatic(
                     title,
                     id=f"hitl-section-{index}-title",
                     classes="hitl-section-title",
                     markup=False,
                 )
+                yield SelectableStatic(
+                    str(section.get("body", "")),
+                    id=f"hitl-section-{index}-body",
+                    classes="hitl-section-body",
+                    markup=False,
+                )
+                continue
+            with Collapsible(
+                title=title,
+                collapsed=index > 0,
+                id=f"hitl-section-{index}",
+                classes="hitl-section",
+            ):
                 yield SelectableStatic(
                     str(section.get("body", "")),
                     id=f"hitl-section-{index}-body",

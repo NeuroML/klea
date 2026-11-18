@@ -113,13 +113,9 @@ def _render_ask_sections(ask: dict[str, Any]) -> None:
     sections = [
         section for section in (ask.get("sections") or []) if isinstance(section, dict)
     ]
-    for index, section in enumerate(sections):
-        title = str(section.get("title", ""))
-        if len(sections) > 1:
-            label = f"Option {index + 1}"
-            title = f"{label}: {title}" if title else label
-        if title:
-            ui.label(title).classes("text-xs font-bold")
+    for section in sections:
+        title = str(section.get("title") or "").strip() or "Details"
+        ui.label(title).classes("text-xs font-bold")
         if body := section.get("body"):
             ui.code(body, language=None).classes("text-xs w-full nicegui-code-noformat")
 
