@@ -51,7 +51,7 @@ recorded here so later steps do not re-litigate them.
 | D6 | Run identity | Deterministic `run_id` derived from `case_id` plus `harness_seed`; the same inputs give the same id, so reruns are comparable and resumable. |
 | D7 | Sample suites | Ship two or three minimal sample suites; enough to exercise the loader and the pipeline, not a benchmark corpus. |
 | D8 | Test marking and CI | `eval` marker introduced in P1; CI wiring for the marked tests lands in P9. |
-| D9 | LLM judge scoring | Opt-in and out of the first cut. Deterministic metrics only until the pipeline is trusted. |
+| D9 | LLM judge scoring | Rejected (ADR-0061): a judged verdict would feed `task_success` and therefore the exit codes and derived metrics, so deterministic checks are the only grading path. |
 | D10 | Suite-level pass metric | `pass_at_k` read from the run index, `k=1` by default. |
 | D11 | Retention policy | Keep the last 20 complete runs per case; older complete runs are archived (their `workspace/` tree removed while `run.json`, `metrics.jsonl`, the `COMPLETE` marker and the index line are kept, plus an `ARCHIVED` marker), unless `--purge` deletes them outright. |
 | D12 | Commit granularity for docs | A docs-only first commit, then per-atomic-change commits thereafter. |
@@ -216,9 +216,9 @@ Points discovered while delivering P1-P7; later phases must respect them.
   `klea_eval.results.write_metadata` and `append_index_entry` after `run_case`
   has published the run directory, because the run manager still does not write
   them. `SuiteResult.exit_code` is `0` when every case passed, `1` when one
-  failed its rubrics and `4` when a completed case declared rubrics but
-  recorded no grade (`EXIT_GRADE_MISSING`, surfaced by the
-  `SuiteResult.grade_missing` property); the CLI maps `CaseValidationError`
+  failed its rubrics and `4` when a rubric-declaring suite's deterministic
+  checks produced no grade (`EXIT_GRADE_MISSING`, surfaced by the
+  `SuiteResult.grade_missing` property; ADR-0061); the CLI maps `CaseValidationError`
   and `PipelineConfigError` to exit code `2`. The `klea-eval run` command forwards
   the workspace, endpoint, timeout, harness seed, attempt budget and overwrite
   options, requires a base URL (`--base-url` or `KLEA_EVAL_BASE_URL`) before it
@@ -246,11 +246,12 @@ Points discovered while delivering P1-P7; later phases must respect them.
   `ResultsError` precedent. An unsupported index `schema_version` propagates
   `ResultsSchemaError` unchanged. Scoring writes no file, no run directory and
   no index line; `SuiteAggregate.to_dict()` is only the in-memory JSON-ready
-  form. Still deferred: LLM-judge rubric scoring and evaluation of the rubric
-  `criteria` text (D9): whether a run is graded is settled (no rubrics means no
-  grade and a grade is never inferred), so only the automated judge that would
-  produce the grade is missing; cost derivation (no price table exists, so
-  `cost_estimate` is only relayed and summed), `transcript.jsonl` writing, HITL
+  form. Still deferred: deterministic rubric checks over the free-text `criteria` and
+  the `klea_eval/cost.py` per-model price table (ADR-0061): whether a run is
+  graded is settled (no rubrics means no grade and a grade is never inferred),
+  and judged scoring is rejected, so only the machine-checkable rubric checks
+  and the price table are missing; until the table lands `cost_estimate` is
+  only relayed and summed, `transcript.jsonl` writing, HITL
   `interrupt` resume, retention (P8), the in-process scheduler (P9), a persisted
   suite report artefact, the Markdown reporter and any CLI or API exposure of
   `aggregate_suite` (P8). `pipeline.run_suite` is unchanged and keeps its
@@ -311,11 +312,14 @@ Points discovered while delivering P1-P7; later phases must respect them.
   `ScoringError` and `ApiError` precedent. `find_incomplete_runs` reports a
   leftover `runs/<run_id>.tmp/` (or unpublished final) directory as an
   interrupted run and never treats it as a result. `ScheduleReport.exit_code`
-  maps the ADR-0060 codes: `0` every case passed, `1` a case failed its rubrics,
-  `2` a suite could not start (it outranks everything else because nothing was
-  stored for that suite), `3` incomplete `.tmp` runs were found, and a
-  suite-level grade-missing code `4` propagates through unchanged, matching
-  `scheduler.EXIT_GRADE_MISSING = pipeline.EXIT_GRADE_MISSING`. The D7 samples
+  maps the ADR-0060 codes `0`, `1`, `2` and `4`: `0` every case passed, `1` a
+  case failed its rubrics, `2` a suite could not start (it outranks everything
+  else because nothing was stored for that suite), and `4` when a
+  rubric-declaring suite's deterministic checks produced no grade (ADR-0061),
+  which propagates through unchanged and matches
+  `scheduler.EXIT_GRADE_MISSING = pipeline.EXIT_GRADE_MISSING`; its own `3`
+  still marks incomplete `.tmp` runs, and a real case failure keeps `1` and
+  takes precedence over a grade-missing `4`. The D7 samples
   are three minimal ASCII suites under `eval_pkg/samples/` (`smoke.jsonl`,
   `multi_turn.jsonl`, `multi_case.jsonl`) with no fixtures: enough to exercise
   the loader, the pipeline and per-case aggregation, not a benchmark corpus. The

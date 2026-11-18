@@ -159,7 +159,7 @@ klea-eval run suites/smoke.jsonl \
     --base-url http://127.0.0.1:8006 \
     --workspace runs/smoke \
     -m chat=openai:gpt-4o \
-    -m judge=openai:gpt-4o-mini
+    -m eval=openai:gpt-4o-mini
 ```
 
 The flag is repeatable; a malformed pair (no `=MODEL`, an empty role or an
@@ -168,13 +168,16 @@ once per run, after its directory is prepared and before its first turn.
 
 ### Roles are discovered, never hardcoded
 
-The roles the flag accepts are the ones the target app exposes in its
-`models/active` map (`chat`, `judge`, `plan`, ... depending on the
-deployment).  The harness reads that map once, before the first case runs, and rejects a
+The roles the flag accepts are whatever the target app exposes in its
+`models/active` map (`chat`, `plan`, `execute`, `eval`, ... depending on the
+deployment), named generically rather than fixed by the harness.  The harness reads that map once, before the first case runs, and rejects a
 role it does not find, so a typo aborts the whole run with exit code 2 and
 names the unknown role and the roles the backend exposes (`unknown role
 '<role>' (the backend exposes: ...)`); no run directory or index line is
 produced, instead of silently leaving the suite on the wrong models.
+
+Evaluation scoring itself is deterministic and has no judge role (ADR-0061):
+grades come from machine checks alone, so no `judge` override is needed.
 
 ### Credentials come from the environment
 

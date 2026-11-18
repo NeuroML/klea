@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-11-03.
+Last updated: 2025-06-15.
 
 ## Cancellation / concurrency
 
@@ -151,8 +151,24 @@ phases are listed below.
   format.
 - Harness pipeline, CLI and in-process scheduler (ADR-0060): wire loader,
   runners and storage together behind the `klea-eval` command.
-- Scoring and aggregation, API/SSE integration (ADR-0060): aggregate case
-  scores and expose runs through the API and SSE stream.
+- Scoring and aggregation, **settled** (ADR-0060, ADR-0061): the aggregate and
+  report half is delivered -- the ADR-0060 Aggregate stage as
+  `klea_eval.scoring.aggregate_suite`, the read/inspect API's `suite_summary`
+  delegation and the `report` command -- and app-side API/SSE exposure stays
+  out of scope in `../klea`.  The LLM judge is dropped on determinism grounds
+  per ADR-0061: a judged verdict would enter `record_evaluation_result` and
+  therefore `task_success`, the labels and the exit codes, which must stay
+  reproducible from the stored run, so scoring is deterministic checks only.
+- Scoring-depth follow-ups, **open** (ADR-0061): `scoring.py` today consumes
+  none of the concrete case-schema fields a deterministic check would use --
+  `expected_outputs.file_path` / `output_format` / `validation_rule` (default
+  `exact_match`) and `tool_expectations.tool_name` / `call_count` (default
+  `(1, 1)`) / `argument_constraints` -- so wiring them into checks is the next
+  step.  Also open: a `cost.py` per-model price table (until it lands
+  `cost_estimate` is only relayed and summed), and the design questions of the
+  machine-checkable `criteria` predicate form and the scale-rubric pass
+  threshold.  Any future judge must be opt-in, pin and record its model id,
+  cache verdicts and be strictly non-gating, under its own ADR.
 - Model overrides, **done**: one read-only pre-flight reads the chat's active
   model map once for the first case and rejects an unknown role across caller
   `-m` defaults plus every case's `run_config.model_overrides` before the first
@@ -172,9 +188,15 @@ phases are listed below.
   failure still exits `1` and takes precedence over a grade-missing case, and
   a suite of only ungraded or skipped cases stays `0`.  `report` is unaffected,
   because it reads the run history from disk rather than from an exit code.
-  Amending ADR-0060's exit-code table (`0`/`1`/`2` -> `0`/`1`/`2`/`4`,
-  `devdocs/adr/0060-harness-execution.md:76-79`) is an open follow-up, not part
-  of this change.
+  The delivered contract names all four codes: `0` and `1` as ADR-0060
+  describes, plus `4` (`EXIT_GRADE_MISSING`) for a rubric-declaring suite whose
+  deterministic checks produced no grade (ADR-0061), alongside `2` for a suite
+  that could not start.  Code `4` is therefore narrower than a general
+  judge-unavailable fallback: it means grading was expected but the
+  machine-checkable checks yielded no grade.  Amending ADR-0060's exit-code
+  table to record codes `0`/`1`/`2`/`4` and this narrowed meaning of `4`
+  (`devdocs/adr/0060-harness-execution.md:76-79`) remains the open follow-up,
+  not part of this change.
 - Failed-run grading (settled): run success is a prerequisite for grading, so a
   failed run is labelled `failed` and is never graded and never
   `grade-missing`.

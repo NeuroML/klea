@@ -38,7 +38,7 @@ Non-goals (first iteration):
 
 Per task run:
 
-- task success (deterministic check where possible, LLM judge otherwise)
+- task success (deterministic checks only; see ADR-0061)
 - pass@1 and pass^k over N repetitions (reliability)
 - number of LLM calls, broken down by role
 - input/output tokens and cache-read tokens (the node stream already surfaces
@@ -115,8 +115,8 @@ from silently absorbing scientific complexity.
 
 ## Threats to validity
 
-- LLM-judge bias: use rubrics, prefer deterministic checks, spot-check with
-  humans.
+- Rubric subjectivity: deterministic scoring only (ADR-0061), with human
+  spot-checks.
 - Non-determinism and small samples.
 - Prompt sensitivity across topologies (keep prompts identical).
 - Model version drift over time.
@@ -163,7 +163,7 @@ eval_pkg/
 |   |   |-- schemas.py             # TaskSpec, FixtureWorkspace, TaskResult, RunConfig
 |   |   |-- fixtures.py            # run-directory and fixture creation under runs/<run_id>/workspace/fixtures/
 |   |   |-- metrics.py             # per-turn metrics.jsonl records under the ADR-0058 schema
-|   |   |-- scoring.py             # deterministic checks + LLM-judge rubric hook
+|   |   |-- scoring.py             # deterministic checks only (ADR-0061)
 |   |   |-- cost.py                # per-model notional price table
 |   |   |-- runner.py              # N-repetition loop writing per-run records; pass_at_k is suite-level
 |   |   `-- report.py              # summary table from the Aggregate stage
@@ -211,7 +211,7 @@ grounding (see the guardrail section above).
   suite is stable.
 - Model-escalation condition (optional multi-model), clearly separated from
   the required single-model condition.
-- Human spot-checks and rubric calibration for the LLM judge.
+- Human spot-checks and rubric calibration for deterministic checks.
 
 ---
 
@@ -248,7 +248,7 @@ debuggability with ordinary tools, and operation without infrastructure
 
 ## System overview
 
-The evaluation harness follows the six ADR-0060 stages -- Load, Schedule, Execute, Score, Persist, then Aggregate and report -- organized as a pipeline that persists every run before any suite-level aggregation.  External systems are limited to the Klea agent/RAG HTTP endpoint and the optional LLM judge.
+The evaluation harness follows the six ADR-0060 stages -- Load, Schedule, Execute, Score, Persist, then Aggregate and report -- organized as a pipeline that persists every run before any suite-level aggregation.  External systems are limited to the Klea agent/RAG HTTP endpoint ; the optional LLM judge is rejected (ADR-0061), so scoring is deterministic only.
 
 ```mermaid
 graph TD
@@ -259,7 +259,7 @@ graph TD
     C -->|POST turn_input| D["Klea Agent/RAG<br/>HTTP Endpoint"]
     D -->|SSE stream<br/>response| C
 
-    C -->|turn_output,<br/>metadata| E["Scorer<br/>(deterministic checks<br/>+ LLM judge)"]
+    C -->|turn_output,<br/>metadata| E["Scorer<br/>(deterministic checks)"]
 
     E -->|pass/fail,<br/>score| F["Usage Tracker<br/>(token counts,<br/>latency,<br/>tool errors)"]
 
@@ -271,9 +271,6 @@ graph TD
 
     J -->|Markdown| M["Summary Report<br/>(task x model grid)"]
 
-    E -.->|if LLM judge| K["LLM Judge<br/>(local or remote)"]
-    K -.->|rubric score| E
-
     style A fill:#e1f5ff
     style B fill:#e1f5ff
     style C fill:#fff3e0
@@ -283,7 +280,6 @@ graph TD
     style G fill:#e0f2f1
     style H fill:#f1f8e9
     style J fill:#fff9c4
-    style K fill:#f3e5f5
     style M fill:#fff9c4
 ```
 
@@ -297,7 +293,7 @@ sequenceDiagram
     participant D as Driver / suite runner
     participant RM as Run Manager (workspace)
     participant A as Agent under test (Klea Agent/RAG HTTP endpoint)
-    participant S as Scorer / LLM judge
+    participant S as Scorer
     participant W as Writer
     participant I as Index / Aggregator
     participant R as Retention
@@ -326,9 +322,6 @@ sequenceDiagram
             A-->>D: SSE stream, buffered response with token and latency metadata
             D->>W: append turn content to transcript.jsonl
             D->>S: score turn output against expected_output
-            opt rubric is non-deterministic
-                S->>S: invoke LLM judge (optional, local or remote), return rubric score
-            end
             S-->>W: record_evaluation_result, pass/fail plus score
             W->>W: append one metrics.jsonl line, record_type "turn" with schema_version, at the run root inside .tmp
             opt transient HTTP 5xx or timeout
@@ -346,7 +339,7 @@ sequenceDiagram
         Note over W,I: a reader sees no run or a complete run, a leftover .tmp is an incomplete run
         I->>R: retention is explicit only: the operator runs klea-eval prune
         alt case has more than N runs
-            R->>R: archive older run dirs: drop only workspace/, keep run.json, metrics.jsonl and the index line, write ARCHIVED; --purge deletes the whole dir instead
+            R->>R: archive older run dirs: drop only workspace/, keep run.json, metrics.jsonl and the index line, write ARCHIVED, and --purge deletes the whole dir instead
         end
     end
     D->>I: aggregate reads runs/index.jsonl only, never the run directories
@@ -373,9 +366,9 @@ sequenceDiagram
 - **Responsibility**: POST turn input to Klea agent/RAG HTTP endpoint, stream SSE response, buffer complete response, handle errors and retries.
 
 ### Scorer
-- **Input**: Turn output, expected output, scoring rules (deterministic checks or LLM rubric).
+- **Input**: Turn output, expected output, scoring rules (deterministic checks only; see ADR-0061).
 - **Output**: Pass/fail decision, score, reasoning.
-- **Responsibility**: Apply deterministic checks (file existence, format validation), invoke LLM judge if needed, record per-turn pass/fail.
+- **Responsibility**: Apply deterministic checks (file existence, format validation), record per-turn pass/fail.
 
 ### Usage Tracker
 - **Input**: Turn response metadata (token counts, model identity, latency, tool calls).
@@ -416,17 +409,14 @@ sequenceDiagram
 - **Output**: SSE stream with response chunks, metadata (token usage, model, latency).
 - **Error handling**: Retry logic on transient errors; case skip on persistent failures.
 
-### LLM Judge (optional)
-- **Protocol**: HTTP API (OpenAI-compatible, Ollama, or local).
-- **Input**: Turn output, expected output, rubric.
-- **Output**: Score, reasoning.
-- **Integration**: Invoked by Scorer for non-deterministic tasks; configurable per task.
+### Rejected: LLM judge (ADR-0061)
+- **Reason**: a judged verdict would enter via `record_evaluation_result(..., score, pass_fail)` into `task_success = all(pass_fail)`, which `classify_case`, `exit_code`, `suite_score` and `pass_at_k` consume, so a model-scored pass/fail could not be told apart from a machine-checked one.  Scoring is deterministic checks only; there is no judge protocol, input, output or integration.
 
 ## Error handling and retry logic
 
 - **Transient errors** (HTTP 5xx, timeout): Retry with exponential backoff (up to 3 attempts).
 - **Persistent errors** (HTTP 4xx, invalid response): Log error, skip case, record failure reason.
-- **Scoring errors** (LLM judge unavailable): Fall back to deterministic check or mark as inconclusive.
+- **Scoring errors** (no machine-checkable check): a rubric with no machine-checkable check leaves the case grade-missing and the CLI exits 4 (ADR-0061).
 - **Workspace errors** (fixture copy into `runs/<run_id>.tmp/workspace/fixtures/` failed): Skip run, remove the `.tmp` directory, log error.
 - **Incomplete runs**: A leftover `runs/<run_id>.tmp/` directory is reported as an incomplete run and is never treated as a result; a re-run discards and redoes it.
 
@@ -438,7 +428,7 @@ sequenceDiagram
 - **Fixture snapshots**: Fixtures copied under `runs/<run_id>/workspace/`; the original fixture is preserved and the copy is immutable.
 - **Artifact storage**: `run.json` plus the versioned `metrics.jsonl` (`schema_version`, `record_type`, final "run" envelope), `transcript.jsonl` and the workspace are stored for offline reproducibility.
 - **Retention**: Retention is never automatic; the operator runs `klea-eval prune`, which archives a run beyond the most recent N per case (N from run config) by removing only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the `COMPLETE` marker and the index line, with an `ARCHIVED` marker written beside them; `--purge` deletes the whole run directory and drops the index line instead, and `--dry-run` reports the plan without touching the disk (ADR-0059).
-- **Scope of determinism**: Only identifiers, ordering and derived metrics are reproducible; turn content and latency are stochastic.
+- **Scope of determinism**: Only identifiers, ordering and derived metrics are reproducible; turn content and latency are stochastic.  Grading itself is deterministic per ADR-0061.
 
 ---
 
@@ -530,6 +520,8 @@ Status: questions 1, 3, 4 and 5 are settled by ADR-0056, ADR-0057, ADR-0058, ADR
 
 ## 6. Scoring latency: synchronous or async judges?
 
+**Rejected by ADR-0061**: judged scoring is rejected, so there is no judge invocation whose latency could be scheduled; scoring is deterministic checks only and runs synchronously.
+
 **Context**: Scoring may involve LLM judges (for non-deterministic tasks) or external services (e.g., RAGAS metrics). The question is whether to invoke judges synchronously (block until score is ready) or asynchronously (collect scores later).
 
 **Options**:
@@ -540,7 +532,7 @@ Status: questions 1, 3, 4 and 5 are settled by ADR-0056, ADR-0057, ADR-0058, ADR
 - **Synchronous**: Simpler implementation, immediate feedback. Adds latency per turn (LLM call latency).
 - **Asynchronous**: Faster per-turn execution, can parallelize judges. More complex; requires batch collection and state management.
 
-**Recommendation for ADR**: Default to synchronous judges (simpler for MVP). Optionally support batch/async judges for large evaluation suites (Phase 3 or later). Document the extension point in the scorer architecture.
+**Recommendation for ADR**: No judged scoring at all (ADR-0061); deterministic checks run synchronously, so no async-judge extension point is opened.
 
 ## Summary of recommendations for MVP
 
@@ -549,6 +541,6 @@ Status: questions 1, 3, 4 and 5 are settled by ADR-0056, ADR-0057, ADR-0058, ADR
 3. **Model selection**: Per-run, over the model-backed roles `plan`, `execute`, `eval` and `chat`; `user` is never model-resolved (ADR-0057).
 4. **Usage tracking**: Per-turn records streamed into `run_dir/metrics.jsonl` as the adopted protocol (ADR-0058, ADR-0059).
 5. **Result persistence**: Filesystem-only per ADR-0059 -- versioned `run.json` plus `metrics.jsonl` under `runs/<run_id>/`, with `runs/index.jsonl` as a lookup-only index.
-6. **Scoring latency**: Synchronous judges (simpler).
+6. **Scoring latency**: No judged scoring (ADR-0061); deterministic checks run synchronously.
 
-These decisions are recorded in ADR-0056, ADR-0057, ADR-0058, ADR-0059 and ADR-0060.  The genuinely open items above, and the deferred extensions such as parallel turns, per-turn model selection, async judges and an external tracking backend, can be revisited as the harness matures.
+These decisions are recorded in ADR-0056, ADR-0057, ADR-0058, ADR-0059, ADR-0060 and ADR-0061.  The genuinely open items above, and the deferred extensions such as parallel turns, per-turn model selection and an external tracking backend, can be revisited as the harness matures.

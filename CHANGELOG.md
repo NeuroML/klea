@@ -22,6 +22,7 @@
 - `klea-eval prune` now archives runs that fall outside the retention window instead of deleting them: an older run keeps its `run.json`, `metrics.jsonl` and index line, and only its workspace tree is removed; pass `--purge` to delete the whole run directory and drop its index line as before.
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
 - `klea-eval run` now exits 4 when a completed case declared rubrics but recorded no grade, distinct from exit 1 for a failed case.
+- Eval scoring is deterministic only (ADR-0061): a run's pass/fail, exit codes and metrics now derive solely from deterministic checks, with no judged verdict, and exit 4 means a rubric-declaring suite whose deterministic checks produced no grade.
 - Permission dialogs now group the requested paths under the plan step they belong to.
 
 ### Fixed

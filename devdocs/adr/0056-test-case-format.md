@@ -125,6 +125,15 @@ Each rubric:
 }
 ```
 
+> **Amended 2025-06-15 (ADR-0061).** The delivered schema carries `criteria` as
+> free prose (`criteria: tuple[str, ...]`), not as the structured list of
+> machine-checkable criteria the example above suggests; expressing a rubric's
+> intent in a machine-checkable predicate form is an open follow-up, not a
+> settled schema.  Scoring is deterministic-only per ADR-0061: there is no
+> judged scoring path, and a rubric-declaring case whose `criteria` cannot be
+> machine-checked ends `grade-missing` (exit code 4) rather than being graded by
+> a model.
+
 ### Invariants
 
 The schema enforces the following invariants:

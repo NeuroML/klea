@@ -28,7 +28,16 @@ Without a clear metrics collection and aggregation strategy, the harness will la
 * **Reproducibility**: records must be written in a deterministic order and the same transcript must always yield the same derived metrics, so that analysis and debugging are repeatable. LLM sampling makes turn content and latency differ between runs even at a fixed seed, so reproducibility covers ordering, identities and derived metrics, never turn content.
 * **Isolation**: metrics must be collected per run with no cross-run interference and no data loss.
 * **Debuggability**: per-turn metrics must let developers identify which turn or tool call caused a failure.
-* **Extensibility**: custom metrics, LLM-as-judge integration and future distributed collection must be addable without refactoring.
+* **Extensibility**: custom metrics and future distributed collection must be addable without refactoring; judged scoring is rejected (ADR-0061), so no LLM-as-judge integration is a driver.
+
+> **Amended 2025-06-15 (ADR-0061).** LLM-as-judge integration is not a live
+> option: judged scoring is rejected for gating on determinism grounds, because
+> a model-scored verdict would enter `record_evaluation_result` and therefore
+> `task_success`, the labels and the exit codes, which must stay reproducible
+> from the stored run.  The extensibility driver survives for the custom-metric
+> hook, which stays open for deterministic metrics, and for future distributed
+> collection; neither adds a judged integration.
+
 * **Integration**: metrics must be persisted as JSONL so that result storage (ADR-0059) and the optional MLflow backend can consume them.
 * **Operational simplicity**: no external infrastructure (databases, message queues) may be required for a dev-only harness.
 * **Agent-agnostic collection**: metrics must be extractable from endpoints so that third-party agents can be evaluated.
@@ -224,7 +233,7 @@ The metrics collection enforces the following invariants:
 
 * Good, because identities, model resolution, ordering and derived metrics are reproducible, enabling reproducible analysis and debugging across runs; turn content and latency are not reproducible, because LLM sampling differs between runs even at a fixed seed.
 * Good, because per-turn metrics in JSONL enable inspection, comparison, and root-cause analysis, so developers can trace which turn or tool call caused a failure.
-* Good, because in-process instrumentation hooks support custom metrics, LLM-as-judge integration, and future distributed collection without major refactoring; new metrics are added as new hook points or fields in the RunMetrics schema.
+* Good, because in-process instrumentation hooks support custom metrics and future distributed collection without major refactoring; new metrics are added as new hook points or fields in the RunMetrics schema.  LLM-as-judge integration is not a live option (amended 2025-06-15, ADR-0061): a judged verdict would enter `record_evaluation_result` and therefore `task_success`, the labels and the exit codes, which must stay reproducible from the stored run.
 * Bad, because instrumentation hooks add CPU/memory cost per tool call and turn (mitigated by optional sampling, e.g. record every Nth call for high-volume scenarios, and by lazy aggregation in Phase 2).
 * Bad, because if a collection point fails (e.g. an exception in a hook) metrics may be incomplete (mitigated by defensive recording, try-catch around hooks, and validation at aggregation time).
 * Bad, because per-run JSONL files require external tools (jq, pandas) or custom scripts for cross-run analysis (mitigated by an optional MLflow backend for experiment tracking and built-in aggregation utilities).
@@ -321,7 +330,7 @@ The chosen architecture aligns with the evaluation harness's core requirements:
 1. **Reproducibility**: Centralized, deterministic collection records metrics in a deterministic order, and the same transcript always yields the same derived metrics, enabling reproducible analysis and debugging; LLM sampling still makes turn content and latency non-identical across re-runs at a fixed seed.
 2. **Isolation**: Per-run RunMetricsCollector (from ADR-0057) ensures metrics are isolated per run; no cross-run interference or data loss.
 3. **Debuggability**: Per-turn metrics in JSONL enable inspection, comparison, and root-cause analysis. Developers can easily identify which turn or tool call caused a failure.
-4. **Extensibility**: In-process instrumentation hooks support custom metrics, LLM-as-judge integration, and future distributed collection without refactoring. New metrics are added as new hook points or fields in RunMetrics.
+4. **Extensibility**: In-process instrumentation hooks support custom metrics and future distributed collection without refactoring. New metrics are added as new hook points or fields in RunMetrics.  LLM-as-judge integration is rejected for gating (ADR-0061), so no judged metric is added through a hook.
 5. **Integration**: JSONL persistence (from ADR-0056) integrates seamlessly with result storage (ADR-0059) and optional MLflow backend for experiment tracking and dashboarding.
 6. **Operational Simplicity**: No external infrastructure (databases, message queues) required. The harness uses standard Python objects and JSON libraries.
 
