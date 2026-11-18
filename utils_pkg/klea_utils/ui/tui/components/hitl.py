@@ -507,6 +507,12 @@ class PermissionPanel(HitlDecisionPanel):
     #: Heading for requests that carry no plan-step context (grouped layout).
     OTHER_HEADING = "Other paths"
 
+    #: Cap for the number of display lines one plan-step heading may take.
+    STEP_HEADING_MAX_LINES = 2
+
+    #: Width a plan-step heading wraps at: the panel's inner width at 80 cols.
+    STEP_HEADING_WRAP_CHARS = 76
+
     @staticmethod
     def _request_steps(request: Mapping[str, Any]) -> list[int]:
         """Return the plan-step numbers a request serves, sorted.
@@ -544,7 +550,7 @@ class PermissionPanel(HitlDecisionPanel):
         return f"Step {number}: {text}" if text else f"Step {number}"
 
     @classmethod
-    def _step_static(cls, line: str) -> SelectableStatic:
+    def _step_static(cls, line: str, coverage: str = "") -> SelectableStatic:
         """Return one plan-step heading line, set apart and bold.
 
         The heading sets its plan step off from the request blocks around it
@@ -552,16 +558,117 @@ class PermissionPanel(HitlDecisionPanel):
         bold.  The emphasis comes from a bold Rich ``Text`` rather than Rich
         markup, so the model-authored summary is still never parsed as markup;
         the blank line rides on the same renderable, so no extra widget is
-        inserted and the rest of the panel is unchanged.
+        inserted and the rest of the panel is unchanged.  A long summary wraps
+        onto at most :attr:`STEP_HEADING_MAX_LINES` lines and ends in an ASCII
+        ``...`` when it is cut.  Optional *coverage* text (the group's path
+        counts) is appended below the heading as one muted line, still on the
+        same markup-free renderable.
 
         :param line: The bounded ``Step N: summary`` (or heading) line.
+        :param coverage: The muted coverage line, or ``""`` for none.
         :returns: The heading widget.
         """
         text = Text("\n")
-        heading = Text(line)
+        heading = Text(cls._wrap_heading(line))
         heading.stylize("bold")
         text.append_text(heading)
+        if coverage:
+            text.append("\n")
+            note = Text(coverage)
+            note.stylize("dim")
+            text.append_text(note)
         return SelectableStatic(text, markup=False)
+
+    @classmethod
+    def _wrap_heading(cls, line: str) -> str:
+        """Return *line* wrapped to :attr:`STEP_HEADING_WRAP_CHARS` and capped.
+
+        The wrap breaks on spaces, keeps at most
+        :attr:`STEP_HEADING_MAX_LINES` lines, and marks a cut tail with an
+        ASCII ``...`` trimmed so the last line still fits the wrap width.
+
+        :param line: The heading line to wrap.
+        :returns: The heading, with newline separators between its lines.
+        """
+        width = cls.STEP_HEADING_WRAP_CHARS
+        lines: list[str] = []
+        current = ""
+        for word in line.split():
+            if not current:
+                current = word
+            elif len(current) + 1 + len(word) <= width:
+                current = f"{current} {word}"
+            else:
+                lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        if len(lines) <= cls.STEP_HEADING_MAX_LINES:
+            return "\n".join(lines)
+        kept = lines[: cls.STEP_HEADING_MAX_LINES]
+        ellipsis = "..."
+        if len(kept[-1]) + len(ellipsis) > width:
+            kept[-1] = kept[-1][: width - len(ellipsis)].rstrip()
+        kept[-1] = f"{kept[-1]}{ellipsis}"
+        return "\n".join(kept)
+
+    @staticmethod
+    def _group_coverage(group: list[tuple[int, Mapping[str, Any], str]]) -> str:
+        """Return one muted coverage line for a group of permission requests.
+
+        The line counts the requests under a heading by the ``kind`` the
+        payload carries (``outside`` / ``sensitive``), so the user sees how
+        many paths a step needs: ``3 paths: 2 outside the project, 1
+        sensitive``.  The noun is singular for a single path, a zero-count
+        category is omitted, and a request with a missing or unknown ``kind``
+        is counted in a trailing ``unknown`` bucket only when non-zero.
+
+        :param group: The ``(index, request, hint)`` rows under one heading.
+        :returns: The coverage line, or ``""`` for an empty group.
+        """
+        outside = sensitive = unknown = 0
+        for _, request, _ in group:
+            kind = request.get("kind")
+            if kind == "outside":
+                outside += 1
+            elif kind == "sensitive":
+                sensitive += 1
+            else:
+                unknown += 1
+        total = outside + sensitive + unknown
+        if not total:
+            return ""
+        parts = [
+            f"{count} {label}"
+            for count, label in (
+                (outside, "outside the project"),
+                (sensitive, "sensitive"),
+                (unknown, "unknown"),
+            )
+            if count
+        ]
+        noun = "path" if total == 1 else "paths"
+        return f"{total} {noun}: " + ", ".join(parts)
+
+    @classmethod
+    def _group_also(cls, group: list[tuple[int, Mapping[str, Any], str]]) -> str:
+        """Return one muted ``Also serves step N`` line for a group of requests.
+
+        A request that serves several plan steps is shown under its lowest
+        number (see :meth:`_groups`).  The further steps are unioned across the
+        whole group, sorted and de-duplicated, so several multi-step requests
+        produce one line beneath the heading instead of one hint per row.
+
+        :param group: The ``(index, request, hint)`` rows under one heading.
+        :returns: The ``Also serves step ...`` line, or ``""`` when no request
+            serves more than one step.
+        """
+        numbers: set[int] = set()
+        for _, request, _ in group:
+            numbers.update(cls._request_steps(request)[1:])
+        if not numbers:
+            return ""
+        return "Also serves step " + ", ".join(str(n) for n in sorted(numbers))
 
     @classmethod
     def _groups(
@@ -649,8 +756,13 @@ class PermissionPanel(HitlDecisionPanel):
         shown = False
         for heading, group in self._groups(requests):
             if heading:
-                yield self._step_static(heading)
-            for index, request, also in group:
+                yield self._step_static(heading, self._group_coverage(group))
+                also_serves = self._group_also(group)
+                if also_serves:
+                    yield SelectableStatic(
+                        also_serves, classes="hitl-hint", markup=False
+                    )
+            for index, request, _ in group:
                 if shown:
                     yield Rule()
                 shown = True
@@ -664,8 +776,6 @@ class PermissionPanel(HitlDecisionPanel):
                     hint = self._hint_renderable(request)
                     if hint:
                         yield SelectableStatic(hint, classes="hitl-hint", markup=False)
-                    if also:
-                        yield SelectableStatic(also, classes="hitl-hint", markup=False)
                     coverage = self._coverage(request)
                     if coverage:
                         yield SelectableStatic(

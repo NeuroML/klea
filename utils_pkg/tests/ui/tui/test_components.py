@@ -13,7 +13,8 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 
 from __future__ import annotations
 
-from typing import cast
+from collections.abc import Mapping
+from typing import Any, cast
 
 from klea_utils.ui.status_layout import (
     MAX_LINES,
@@ -371,6 +372,100 @@ class TestPermissionPanelHelpers:
         assert len(bold) == 1
         assert bold[0].start == 1
         assert bold[0].end == len("\nStep 1: Read the config")
+
+        # The optional coverage line rides below the heading on the same
+        # renderable, dim so it reads as a note, and is never bold.
+        covered = PermissionPanel._step_static(
+            "Step 1: Read the config", "2 paths: 2 outside the project"
+        )
+        covered_text = covered.content
+        assert isinstance(covered_text, Text)
+        assert covered_text.plain == (
+            "\nStep 1: Read the config\n2 paths: 2 outside the project"
+        )
+        dim = [
+            span
+            for span in covered_text.spans
+            if isinstance(span.style, str) and span.style == "dim"
+        ]
+        assert len(dim) == 1
+        assert (
+            covered_text.plain[dim[0].start : dim[0].end]
+            == "2 paths: 2 outside the project"
+        )
+
+    def test_step_static_caps_a_long_summary_with_an_ellipsis(self):
+        """An over-long step summary wraps to two lines and ends in ``...``."""
+        line = "Step 1: " + " ".join(["word"] * 60)
+        heading = PermissionPanel._step_static(line)
+        renderable = heading.content
+        assert isinstance(renderable, Text)
+
+        body = renderable.plain.split("\n", 1)[1]
+        lines = body.splitlines()
+        assert lines[0].startswith("Step 1: word")
+        assert len(lines) == PermissionPanel.STEP_HEADING_MAX_LINES
+        assert lines[-1].endswith("...")
+        for rendered in lines:
+            assert len(rendered) <= PermissionPanel.STEP_HEADING_WRAP_CHARS
+
+    def test_group_coverage_counts_the_requests_by_kind(self):
+        """The coverage line counts each request tier under the heading."""
+        group = cast(
+            list[tuple[int, Mapping[str, Any], str]],
+            [
+                (1, {"kind": "outside", "path": "/a"}, ""),
+                (2, {"kind": "outside", "path": "/b"}, ""),
+                (3, {"kind": "sensitive", "path": "/c"}, ""),
+            ],
+        )
+        assert PermissionPanel._group_coverage(group) == (
+            "3 paths: 2 outside the project, 1 sensitive"
+        )
+        assert (
+            PermissionPanel._group_coverage(
+                [(1, {"kind": "sensitive", "path": "/c"}, "")]
+            )
+            == "1 path: 1 sensitive"
+        )
+        assert (
+            PermissionPanel._group_coverage([(1, {"path": "/a"}, "")])
+            == "1 path: 1 unknown"
+        )
+        assert PermissionPanel._group_coverage([]) == ""
+
+    def test_group_also_unions_the_further_steps_once(self):
+        """The multi-step hint is unioned once per group, never per row."""
+        import inspect
+
+        group = cast(
+            list[tuple[int, Mapping[str, Any], str]],
+            [
+                (
+                    1,
+                    {"path": "/a", "steps": [{"step_number": 1, "summary": "A"}]},
+                    "",
+                ),
+                (
+                    2,
+                    {
+                        "path": "/b",
+                        "steps": [
+                            {"step_number": 1},
+                            {"step_number": 3, "summary": "C"},
+                        ],
+                    },
+                    "",
+                ),
+            ],
+        )
+        assert PermissionPanel._group_also(group) == "Also serves step 3"
+        assert PermissionPanel._group_also([(1, {"path": "/a"}, "")]) == ""
+
+        # The hint is emitted only beneath the heading: ``compose`` no longer
+        # carries the per-row hint, so a path row can never repeat it.
+        source = inspect.getsource(PermissionPanel.compose)
+        assert "if also:" not in source
 
     def test_groups_place_requests_under_their_step(self):
         """Requests group under their step heading, in ascending step order."""

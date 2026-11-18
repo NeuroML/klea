@@ -248,6 +248,41 @@ async def test_generic_tool_event_renders_header_and_payload(fake_backend, agent
     await agent_user.should_see("hello from notes", retries=50)
 
 
+def _permission_form_separators(user):
+    """Return the dividers the permission form itself draws."""
+    separators = []
+    for element in user.client.elements.values():
+        if not isinstance(element, ui.separator):
+            continue
+        slot = getattr(element, "parent_slot", None)
+        while slot is not None:
+            parent = getattr(slot, "parent", None)
+            if parent is None:
+                break
+            if "border-primary" in getattr(parent, "_classes", ()):
+                separators.append(element)
+                break
+            slot = getattr(parent, "parent_slot", None)
+    return separators
+
+
+def test_permission_step_heading_caps_a_long_summary():
+    """An over-long step summary wraps to two lines and ends in ``...``."""
+    from klea_utils.ui.web.nicegui.components.chat_area import (
+        MAX_PERMISSION_STEP_HEADING_LINE_CHARS,
+        MAX_PERMISSION_STEP_HEADING_LINES,
+        _permission_step_heading,
+    )
+
+    heading = _permission_step_heading(1, " ".join(["word"] * 80))
+    lines = heading.splitlines()
+    assert lines[0].startswith("Step 1: word")
+    assert len(lines) == MAX_PERMISSION_STEP_HEADING_LINES
+    assert lines[-1].endswith("...")
+    for line in lines:
+        assert len(line) <= MAX_PERMISSION_STEP_HEADING_LINE_CHARS
+
+
 async def test_permission_step_context_renders(fake_backend, agent_user):
     """A permission ask shows the plan-step context it carries."""
     event = _permission_event(
@@ -272,6 +307,10 @@ async def test_permission_step_context_renders(fake_backend, agent_user):
     for heading in headings:
         assert "font-bold" in heading._classes
         assert "mt-2" in heading._classes
+    # The wrap class keeps a capped, multi-line summary readable.
+    assert all("whitespace-pre-line" in heading._classes for heading in headings)
+    # A single group draws no divider at all.
+    assert _permission_form_separators(agent_user) == []
 
 
 async def test_permission_requests_grouped_by_step(fake_backend, agent_user):
@@ -338,6 +377,17 @@ async def test_permission_requests_grouped_by_step(fake_backend, agent_user):
     # A request serving several steps sits under its lowest and says so.
     await agent_user.should_see("Outside project path: /etc/group", retries=50)
     await agent_user.should_see("Also serves step 2", retries=50)
+    # The hint is drawn once beneath its step group, never inside a path row.
+    also_labels = [
+        element
+        for element in agent_user.client.elements.values()
+        if str(getattr(element, "text", "")) == "Also serves step 2"
+    ]
+    assert len(also_labels) == 1
+    # Each group carries one muted coverage line summarising its paths.
+    await agent_user.should_see("1 path: 1 outside the project", retries=50)
+    # Adjacent groups are separated by a single divider (three groups here).
+    assert len(_permission_form_separators(agent_user)) >= 2
     # A request without step context falls into the trailing bucket.
     await agent_user.should_see("Other paths", retries=50)
     await agent_user.should_see("Outside project path: /tmp/x", retries=50)
