@@ -20,6 +20,7 @@
 
 ### Fixed
 
+- Web UI: re-rendering the chat transcript no longer jumps the viewport to the newest message, so expanding an older message keeps its position.
 - Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname.
 - The planner is now told why it was sent back to replan when no reason was supplied, so it revises against a concrete problem instead of guessing.
 - A failed step no longer ends the run while other steps are still pending: the agent replans around it instead of reporting an error.
