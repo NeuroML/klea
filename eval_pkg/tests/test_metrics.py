@@ -519,6 +519,7 @@ def test_compare_runs_builds_one_row_per_run() -> None:
         "total_input_tokens",
         "total_output_tokens",
         "total_cached_tokens",
+        "total_normalised_units",
         "cost_estimate",
         "resolved_models",
     }
@@ -628,3 +629,118 @@ def test_compare_runs_carries_resolved_models() -> None:
 
     assert rows[0]["resolved_models"] == models
     assert rows[1]["resolved_models"] == {}
+
+
+def test_normalised_units_sum_input_and_output_without_a_cache() -> None:
+    """A cacheless turn is its input plus its output tokens."""
+    summary = aggregate(
+        [_turn(1, token_usage={"input_tokens": 100, "output_tokens": 40})]
+    )
+
+    assert summary.turns[0].normalised_units == 140.0
+    assert summary.total_normalised_units == 140.0
+
+
+def test_normalised_units_substitute_cached_tokens_at_a_tenth() -> None:
+    """A cached token replaces its input token and is weighted at 0.1."""
+    summary = aggregate(
+        [
+            _turn(
+                1,
+                token_usage={
+                    "input_tokens": 1000,
+                    "cached_tokens": 600,
+                    "output_tokens": 200,
+                },
+            )
+        ]
+    )
+
+    # 400 fresh input + 60 cached (600 * 0.1) + 200 output = 660, never 1240.
+    assert summary.turns[0].normalised_units == 660.0
+    assert summary.total_normalised_units == 660.0
+
+
+def test_normalised_units_treat_an_absent_or_none_cache_as_zero() -> None:
+    """A missing or ``None`` ``cached_tokens`` weights nothing as cached."""
+    absent = aggregate(
+        [_turn(1, token_usage={"input_tokens": 100, "output_tokens": 20})]
+    )
+    explicit_none = aggregate(
+        [
+            _turn(
+                1,
+                token_usage={
+                    "input_tokens": 100,
+                    "cached_tokens": None,
+                    "output_tokens": 20,
+                },
+            )
+        ]
+    )
+
+    assert absent.turns[0].normalised_units == 120.0
+    assert explicit_none.turns[0].normalised_units == 120.0
+
+
+def test_normalised_units_clamp_a_cache_larger_than_the_input(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A cached count above the input clamps fresh input at zero."""
+    with caplog.at_level(logging.WARNING, logger=METRICS_LOGGER):
+        summary = aggregate(
+            [
+                _turn(
+                    1,
+                    token_usage={
+                        "input_tokens": 100,
+                        "cached_tokens": 400,
+                        "output_tokens": 50,
+                    },
+                )
+            ]
+        )
+
+    # Fresh input clamps at 0, so the units are 0 + 40 + 50 = 90, never negative.
+    assert summary.turns[0].normalised_units == 90.0
+    assert _warnings(caplog)
+
+
+def test_normalised_units_sum_across_turns() -> None:
+    """The run-level total is the sum of its turns' units."""
+    summary = aggregate(
+        [
+            _turn(1, token_usage={"input_tokens": 100, "output_tokens": 40}),
+            _turn(
+                2,
+                token_usage={
+                    "input_tokens": 1000,
+                    "cached_tokens": 600,
+                    "output_tokens": 200,
+                },
+            ),
+        ]
+    )
+
+    assert summary.total_normalised_units == 800.0
+    assert compare_runs(summary)[0]["total_normalised_units"] == 800.0
+
+
+def test_normalised_units_are_unaffected_by_a_cost_estimate() -> None:
+    """A relayed ``cost_estimate`` never changes the units."""
+    summary = aggregate(
+        [
+            _turn(
+                1,
+                token_usage={
+                    "input_tokens": 1000,
+                    "cached_tokens": 600,
+                    "output_tokens": 200,
+                },
+            ),
+            _envelope(cost_estimate=42.0),
+        ]
+    )
+
+    assert summary.cost_estimate == 42.0
+    assert summary.total_normalised_units == 660.0

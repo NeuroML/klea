@@ -33,6 +33,7 @@ def _write_metrics(
     task_success: bool | None = None,
     turn_scores: tuple[Mapping[str, object], ...] = (),
     expectation_checks: tuple[Mapping[str, object], ...] = (),
+    turn_tokens: tuple[Mapping[str, object], ...] = (),
     cost: float | None = None,
     resolved_models: Mapping[str, str] | None = None,
     status: str = metrics.STATUS_COMPLETED,
@@ -53,6 +54,18 @@ def _write_metrics(
         if score is not None:
             line["score"] = dict(score)
         lines.append(line)
+
+    for offset, tokens in enumerate(turn_tokens, start=1):
+        lines.append(
+            {
+                "run_id": run_id,
+                "case_id": case_id,
+                "turn_number": len(turn_scores) + offset,
+                "role": "chat",
+                "status": metrics.STATUS_COMPLETED,
+                "token_usage": dict(tokens),
+            }
+        )
 
     envelope: dict[str, object] = {}
     if task_success is not None:
@@ -541,3 +554,50 @@ def test_aggregate_suite_carries_resolved_models_per_case(tmp_path: Path) -> Non
 
     assert aggregate.cases[0].resolved_models == models
     assert aggregate.cases[0].to_dict()["resolved_models"] == models
+
+
+def test_aggregate_suite_sums_normalised_units(tmp_path: Path) -> None:
+    _write_metrics(
+        tmp_path,
+        "run-u",
+        "case-u",
+        task_success=True,
+        turn_tokens=(
+            {"input_tokens": 1000, "cached_tokens": 600, "output_tokens": 200},
+        ),
+    )
+    _append_index(tmp_path, "run-u", "case-u")
+    _write_metrics(
+        tmp_path,
+        "run-v",
+        "case-v",
+        task_success=True,
+        turn_tokens=(({"input_tokens": 100, "output_tokens": 40}),),
+    )
+    _append_index(tmp_path, "run-v", "case-v")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    by_case = {case.case_id: case for case in aggregate.cases}
+    assert by_case["case-u"].total_normalised_units == 660.0
+    assert by_case["case-v"].total_normalised_units == 140.0
+    assert by_case["case-u"].to_dict()["total_normalised_units"] == 660.0
+    assert aggregate.total_normalised_units == 800.0
+    assert aggregate.to_dict()["total_normalised_units"] == 800.0
+
+
+def test_suite_normalised_units_ignore_a_cost_estimate(tmp_path: Path) -> None:
+    _write_metrics(
+        tmp_path,
+        "run-c",
+        "case-c",
+        task_success=True,
+        cost=12.5,
+        turn_tokens=(({"input_tokens": 100, "output_tokens": 100}),),
+    )
+    _append_index(tmp_path, "run-c", "case-c")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.cost_estimate == 12.5
+    assert aggregate.total_normalised_units == 200.0
