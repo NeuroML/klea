@@ -322,6 +322,37 @@ def _section_widget(key: str, section: Mapping[str, Any]) -> Collapsible:
     )
 
 
+#: Attribute stamped on a mounted section widget with the signature of the
+#: content it was last built from.  Keeping it on the widget means the stamp is
+#: dropped with the widget, so a rebuilt pane starts clean.
+_SIGNATURE_ATTR = "_klea_section_signature"
+
+
+def _section_signature(section: Mapping[str, Any]) -> str:
+    """Return a cheap, stable signature of a section's rendered content.
+
+    The signature covers exactly the values :func:`_section_body` and
+    :func:`_section_widget` read, so two sections sharing a signature render
+    identically.  The pane uses it to skip re-mounting a section that did not
+    change: a streamed ``state`` event for one section then repaints that
+    section only, instead of tearing down every mounted body on every event
+    (``devdocs/system/tui.md``).
+
+    :param section: The stored section (heading/display/summary/details/...).
+    :returns: A ``repr`` of the rendered-content fields.
+    """
+    return repr(
+        (
+            section.get("heading"),
+            section.get("display"),
+            section.get("summary"),
+            section.get("details"),
+            section.get("content"),
+            bool(section.get("preformatted")),
+        )
+    )
+
+
 async def _update_section(
     widget: Collapsible, key: str, section: Mapping[str, Any]
 ) -> None:
@@ -375,10 +406,20 @@ async def _reconcile_sections(
     new_widgets: list[Collapsible] = []
     for key, section in sections.items():
         widget = rendered.pop(_section_id(key), None)
+        signature = _section_signature(section)
         if widget is None:
-            new_widgets.append(_section_widget(key, section))
-        else:
-            await _update_section(widget, key, section)
+            widget = _section_widget(key, section)
+            setattr(widget, _SIGNATURE_ATTR, signature)
+            new_widgets.append(widget)
+            continue
+        if getattr(widget, _SIGNATURE_ATTR, None) == signature:
+            # Unchanged: keep the mounted widget, its mounted body and the
+            # reader's place instead of re-rendering it.  This is the common
+            # case while streaming, so it keeps the per-event cost bounded.
+            logger.debug(f"Status section unchanged, keeping widget: {key}")
+            continue
+        setattr(widget, _SIGNATURE_ATTR, signature)
+        await _update_section(widget, key, section)
     for widget in rendered.values():
         await widget.remove()
     placeholder = scroll.query("#status-empty")
