@@ -31,6 +31,7 @@
 - The structured plan status no longer omits the step position: its step items now show the same `Step N/total` progress text as the plaintext plan.
 - The structured plan status now marks every step whose tools are being bound or run as current, matching the plaintext plan, instead of only the next runnable step.
 - The web approval ask now scrolls long section bodies instead of compressing them and caps the feedback field height, so a long plan stays readable without shrinking the form.
+- TUI: the transcript now re-loads newer messages when you scroll back down after scrolling up, so messages that arrived while the view was scrolled up are no longer missed.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
