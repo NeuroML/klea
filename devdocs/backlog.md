@@ -183,8 +183,8 @@ phases are listed below.
   without a pinned price table.  Provider pricing is out of scope because it
   varies per inference provider and over time, and a monetary cost remains
   derivable from the recorded token counts if it is ever required.  Landed on
-  `feat-eval-harness` after `7ce0e420`, with the implementing commit logged in
-  the commit log of `devdocs/system/eval-harness-implementation.md`.  Also open:
+  `feat-eval-harness` after `7ce0e420` as `8e4f5a71`, with its tests and decision
+  in the following two commits.  Also open:
   the design questions of the machine-checkable `criteria` predicate form and
   the scale-rubric pass threshold.  Any future judge must be opt-in, pin and record its model id,
   cache verdicts and be strictly non-gating, under its own ADR.

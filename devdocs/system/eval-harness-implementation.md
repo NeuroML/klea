@@ -98,6 +98,9 @@ P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7 `done`, P8 
 | P8 | `e137b24a` | `feat(eval): expose stored eval runs through the API with retention` |
 | P9 | `97aef208` | `feat(eval): schedule unattended eval suite runs` |
 | P9 | `c2b9cf03` | `feat(eval): add sample suites and run eval tests in CI` |
+| P3 | `8e4f5a71` | `feat(eval): report provider-independent normalised token units` |
+| P3 | `4adee8bf` | `test(eval): cover normalised token units and cached weighting` |
+| docs | `93dc9c9a` | `docs(eval): record the normalised token unit decision` |
 
 Rows are appended as commits land. The phase column is the phase the commit
 belongs to, or `docs` for planning-only commits.
