@@ -70,8 +70,11 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   itself once it overflows, so one long section never swallows the pane.
 
 The panes update in place rather than re-rendering wholesale.  The status
-panel reconciles its sections by key, so only a section whose content changed
-is re-mounted and an unchanged one keeps its mounted widgets; the inspector
+panel reconciles its sections by key and stamps a content signature on each
+mounted section, so a section is re-mounted only when its content changed and
+an unchanged one keeps its mounted widgets, its body and the reader's scroll
+place (a streamed `state` event therefore repaints the one section it
+updates, not the whole pane); the inspector
 appends each new entry to the tail (a chat switch or an untrustworthy mounted
 state falls back to a full rebuild), so already-mounted entries keep their
 collapsed/expanded state.  Neither pane scrolls on its own: an update follows
@@ -265,11 +268,28 @@ HITL asks render inline as panels in the chat panel (`HitlPanel` for review /
 input, `PermissionPanel` for path permissions, ADR-0007), not as modal screens:
 the ask is mounted below the transcript and replaces the composer (the input
 row is hidden while it is active), so the transcript stays scrollable.  A
-review ask offers approve / request changes / cancel, an input ask one field
-per question, and a permission ask allow-once / allow-session / deny per
-requested path; the key-hints line shows the ask's actions.  A permission ask
+review ask offers **Continue** / **Revise with feedback** / **Cancel** (wire
+values stay `approve` / `revise`), an input ask one field per question, and a
+permission ask allow-once / allow-session / deny per requested path; the
+key-hints line shows the ask's actions.  The review ask's feedback field is a
+`QueryTextArea` with `submit_on_enter=False`: it starts one line high, wraps
+and grows to a capped height, and submits only through
+**Revise with feedback** (Enter no longer submits; Ctrl+J inserts a newline).
+Typing in the field never opens the command suggestions, which only the
+composer drives.  The ask bodies are spaced for readability: each section
+title is set apart, the body carries a quiet left gutter plus top/bottom
+margins, and the question line is muted.  A permission ask
 shows the full target path (middle-truncated only for pathological values),
 the session approval directory when it differs, and the tool-call context.
+The context is a bounded window centred on the detected token, which is
+reverse-highlighted, followed by an omitted-character/line note.  Because
+discovery normalises a token before it is recorded, the window may instead
+centre on a recovered fragment of it -- the stripped token, then its basename
+when the longer forms do not occur in the value (see
+``path_detect._recover_anchor``) -- so a normalised token is not hidden inside
+a plain middle truncation, which remains the last resort only.  The snippet
+and its offsets come from the server payload, so the terminal and web asks
+render the same window.
 Input asks may also carry plan-history sections (when the automated replan
 budget is exhausted), rendered above the questions.  Decisions are shown in
 the transcript via
@@ -310,14 +330,20 @@ the form introduced no new class or token, drawing the group divider with
   A section owns its rows, so the panel can be rebuilt section by section
   without reflowing the rest, and a `Rule` separates the fixed chrome (heading,
   actions) from the scrolled body.
+* **Section titles come from the payload.** Each section's `title` is shown
+  verbatim, falling back to `Details` when it is empty, and rendered once: a
+  multi-section ask uses it as that section's collapsible header, while a
+  single section shows it as a plain heading above its body.  No synthetic
+  `Option N` label is added, so the heading is the backend's title and nothing
+  else.
 * **Plan history is presentation, not selection.** When the automated replan
   budget is exhausted, the input ask renders the earlier plans above its
-  questions as collapsibles labelled `Option 1`, `Option 2`, and so on in
-  order.  The first is expanded and the rest collapsed, so the reader sees the
-  current plan in place and can open an earlier one for comparison.  These
-  collapsibles are history only: expanding one never chooses it, resubmits it
-  or changes what the ask will submit -- the answer still comes from the
-  question fields below, so a stray expand/collapse cannot alter the run.
+  questions as collapsibles in payload order.  The first is expanded and the
+  rest collapsed, so the reader sees the current plan in place and can open an
+  earlier one for comparison.  These collapsibles are history only: expanding
+  one never chooses it, resubmits it or changes what the ask will submit -- the
+  answer still comes from the question fields below, so a stray expand/collapse
+  cannot alter the run.
 * **Empty-feedback guard.** An action that requires feedback (request changes,
   or a question marked as needing text) never submits an empty value: it moves
   focus to the field and shows the short hint there instead of closing the
@@ -420,6 +446,56 @@ session's bundled MCP client.  See `session-mcp-context.md` and ADR-0055.
 * **Non-goals / known divergence**: no inline media (text fallback, ADR-0040);
   HTML tables/alerts degrade to plain renderables; no live token typing
   (`token` stays unconsumed, streams.md); no always-visible session sidebar.
+
+## Transcript windowing
+
+The transcript keeps every message dict in `Transcript._messages`, so a
+rebuild, an export or a session reload still sees the whole conversation, but
+it mounts only a bounded window of message blocks, so a long session does not
+grow the widget tree without limit:
+
+* `WINDOW_SIZE` (40) is the hydration window mounted by `set_messages`: a
+  freshly loaded transcript builds at most this many message blocks around the
+  tail of the conversation.
+* A live session mounts each message as it arrives and evicts the oldest block
+  only once the mounted count reaches `MAX_MOUNTED` (80), so the widget tree
+  stays bounded while the newest messages remain visible.
+* Scrolling to the top mounts `SCROLL_BATCH` (20) older blocks per step, so a
+  long transcript is paged in on demand.  The reader's viewport position is
+  preserved across each step, and trimming to `MAX_MOUNTED` drops the newest
+  end first, so paging older blocks in never unmounts the ones the reader has
+  scrolled back to.
+* Scrolling back down to the bottom re-mounts the newer blocks that trim
+  evicted, up to `SCROLL_BATCH` (20) per step, so a reader who paged home and
+  then returns to the tail gets the newest messages back.  The oldest end is
+  then trimmed to hold `MAX_MOUNTED`, so the same cap bounds the window in
+  both directions.  The mounted range is tracked as one oldest mounted index
+  plus the mounted count, so the window stays contiguous and a block's
+  position is derived from that start rather than probed per block.
+
+An unmounted block loses only its transient view state: an expanded long
+message falls back to its collapsed form, and any text selection or focus
+inside it is dropped.  The content itself is never lost, because the message
+stays in `_messages` and is rendered again when the block is re-mounted.
+
+## Status-panel repaint
+
+`_reconcile_sections` stamps each mounted state-section widget with a signature
+of the content it was built from and leaves a section whose signature is
+unchanged mounted in place, so a streamed `state` event repaints only the
+sections that actually changed.  The skip keeps the per-event cost bounded and
+preserves the reader's scroll position; a rebuilt or removed section keeps no
+stamp, so it is rendered from scratch.
+
+## Spinner lifecycle
+
+`_run_query` stops the turn spinner unconditionally in its `finally` clause
+through `TurnStatus.stop_spinner()`, so the spinner never keeps running once a
+run has ended.  This includes a stream that closes with no terminal event at
+all (no `complete`, `error` or `interrupt`), where nothing else would clear
+it.  `stop_spinner()` only tears down the timer: it leaves the `show_*` status
+label in place, so the last heading (a stopped or error line, for example)
+stays visible instead of being cleared.
 
 ## Glyphs
 
@@ -529,9 +605,9 @@ text, the id the owning panel routes back to itself, and three optional knobs:
 action reachable without making it the loudest thing on screen.  `flat=False`
 is the exception for a lone call-to-action that should dominate its row.
 * `compact` -- shrinks the padding and the label so that three buttons fit on
-  one row (the review ask's approve / request changes / cancel).  Without it
-the third button wraps, which changes the panel height and shifts the
-transcript under the reader.
+  one row (the review ask's continue / revise-with-feedback / cancel).  Without
+  it the third button wraps, which changes the panel height and shifts the
+  transcript under the reader.
 
 Variant is a statement about consequence, not about emphasis:
 

@@ -15,9 +15,12 @@
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
 - Permission dialogs now group the requested paths under the plan step they belong to, with the plan-step heading set apart and emphasised so the prompt is easier to read, a long step summary capped at two lines with `...`, one muted coverage line per step group (`N paths: X outside the project, Y sensitive`), a request's further steps shown once as `Also serves step N` beneath its heading, and a divider between adjacent step groups in the web form.
 - Status panes in both the terminal and web clients now cap each long state section, such as the plan, at a content-derived height and scroll it inside the pane, so the rest of the overview stays visible.
+- HITL ask sections now render their payload title verbatim, once per section, falling back to `Details` when the title is empty, so the synthetic `Option N` label no longer appears in either frontend.
+- The approval review controls are now `Continue` / `Revise with feedback` / `Cancel`; in the terminal the feedback field wraps and grows and submits only through its button (Enter no longer submits, Ctrl+J inserts a newline), and the ask bodies are spaced for readability.
 
 ### Fixed
 
+- Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname.
 - The planner is now told why it was sent back to replan when no reason was supplied, so it revises against a concrete problem instead of guessing.
 - A failed step no longer ends the run while other steps are still pending: the agent replans around it instead of reporting an error.
 - Chat titles are no longer derived from the generated chat id at creation: a chat stores its own title (empty until set) and only falls back to a derived display name while that stored title is empty.
@@ -27,6 +30,11 @@
 - A tool result too large for the transport now returns guidance on how to narrow the call instead of a terse stream-limit error.
 - The structured plan status no longer omits the step position: its step items now show the same `Step N/total` progress text as the plaintext plan.
 - The structured plan status now marks every step whose tools are being bound or run as current, matching the plaintext plan, instead of only the next runnable step.
+- The web approval ask now scrolls long section bodies instead of compressing them and caps the feedback field height, so a long plan stays readable without shrinking the form.
+- TUI: the transcript now re-loads newer messages when you scroll back down after scrolling up, so messages that arrived while the view was scrolled up are no longer missed.
+- TUI: the turn spinner now stops whenever a run ends, including a stream that closes with no terminal event, so an idle spinner no longer keeps ticking after the reply is done.
+- TUI: the status panel now skips re-rendering unchanged sections, so a streamed state event for one section no longer repaints the whole pane on every tick.
+- Path-approval prompts now keep the detected path visible in the command snippet by centring the preview window on a recovered fragment of the token, so a normalised token is no longer hidden by truncation.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 

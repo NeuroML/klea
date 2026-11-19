@@ -89,9 +89,9 @@ async def browser_user_id() -> str:
 def client_is_loopback() -> bool:
     """Return whether the current request's client is on a loopback host.
 
-    Guards the shared local identity file: a remote browser must never be
-    handed the machine-local ``user_id`` (it would expose the local user's
-    chats).  A ``None`` client (no request context) is treated as not loopback.
+    Prefer :func:`client_is_local_machine` when deciding whether to hand out
+    the shared local identity: LAN and docker self-access are same-machine
+    but not loopback.
 
     :returns: True when the request client host is loopback.
     """
@@ -104,6 +104,29 @@ def client_is_loopback() -> bool:
     return is_loopback_host(request.client.host or "")
 
 
+def client_is_local_machine() -> bool:
+    """Return whether the current request comes from this machine.
+
+    Guards the shared local identity file: a remote browser must never be
+    handed the machine-local ``user_id`` (it would expose the local user's
+    chats).  Same-machine access via a LAN or docker URL counts as local
+    (ADR-0052 / issue #237); another device on the Wi-Fi does not.  A
+    ``None`` client (no request context) is treated as remote.
+
+    :returns: True when the request peer is this machine.
+    """
+    # Lazy: the host helper is only needed when a request context exists.
+    from klea_utils.net import is_same_machine_peer
+
+    request = request_contextvar.get()
+    if request is None or request.client is None:
+        return False
+    return is_same_machine_peer(
+        request.client.host or "",
+        request.headers.get("host"),
+    )
+
+
 async def resolve_page_user_id(
     *,
     explicit: str = "",
@@ -113,9 +136,10 @@ async def resolve_page_user_id(
     """Resolve the page's ``user_id`` through the shared identity seam.
 
     Order: an explicit ``--user-id`` / ``KLEA_USER_ID`` > the canonical
-    host-local identity file (only when both the backend URL and the requesting
-    browser are loopback, so the TUI and web share one identity for a local
-    single-user setup) > the per-browser cookie (remote / multi-user).
+    host-local identity file (only when the backend URL is loopback and the
+    requesting browser is this machine, so the TUI and web share one
+    identity for a local single-user setup, including LAN/docker self-access)
+    > the per-browser cookie (remote / multi-user).
 
     :param explicit: The ``--user-id`` value, or ``""``.
     :param server_url: Base URL of the backend API server.
@@ -134,7 +158,7 @@ async def resolve_page_user_id(
     if explicit:
         logger.debug("explicit user_id=%s", explicit)
         return explicit
-    if is_loopback_url(server_url) and client_is_loopback():
+    if is_loopback_url(server_url) and client_is_local_machine():
         value = persisted_user_id(identity_app_name)
         logger.debug("canonical local user_id=%s (app=%s)", value, identity_app_name)
         return value

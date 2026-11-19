@@ -82,6 +82,19 @@ class TurnStatus(Widget):
             self._timer = None
         self.query_one("#turn-spinner", SelectableStatic).update("")
 
+    def stop_spinner(self) -> bool:
+        """Stop the spinner if it is running.
+
+        Safe to call on an already-stopped spinner, and unlike the ``show_*``
+        methods it never touches the status label, so it can be used on a run's
+        exit path without clobbering an error or awaiting-input note.
+
+        :returns: Whether a running spinner was actually stopped.
+        """
+        running = self._timer is not None
+        self._stop_spinner()
+        return running
+
     def _label(self, text: str) -> None:
         """Set the status label text.
 

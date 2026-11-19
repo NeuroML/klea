@@ -137,8 +137,9 @@ Human-in-the-loop
 In the agent, a run can pause for your input.  The ask replaces the composer:
 while it is active the input box is hidden and the ask is shown in its place,
 so you can still scroll the transcript: a plan awaiting review shows the plan
-with **Approve** / **Request changes** / **Cancel** controls, a plan blocked
-on a missing fact shows one field per question, and a tool call that would
+with **Continue** / **Revise with feedback** / **Cancel** controls, a plan
+blocked on a missing fact shows one field per question, and a tool call that
+would
 touch a path outside the project directory (or a sensitive file inside it,
 such as ``.env``) shows one **Once** / **Session** / **Deny** choice per path.
 Answering (or requesting a revision) resumes the same run with its state

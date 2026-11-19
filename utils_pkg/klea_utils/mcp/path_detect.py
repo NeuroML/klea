@@ -157,6 +157,51 @@ class _ArgumentPreview(NamedTuple):
     token_line: int
 
 
+#: Shortest recovered fragment accepted as a preview anchor.  A single
+#: character would match almost anywhere, so it is not worth anchoring on.
+_MIN_ANCHOR_CHARS = 2
+
+
+def _recover_anchor(text: str, token: str) -> tuple[str, int]:
+    """Recover a locatable fragment of a token that is not a literal substring.
+
+    Path discovery normalises a token before it becomes a request (shell
+    syntax and quoting are stripped), so the recorded token is not always a
+    literal substring of the argument value: a token derived from
+    ``os.path.join`` can arrive as ``/.join``.  Recovering an anchor keeps the
+    preview centred on the detected token instead of falling back to a plain
+    middle truncation that hides it.
+
+    Candidates are tried longest first: the token with shell syntax stripped,
+    then its basename (the part after the last path separator).  The first
+    candidate that occurs in *text* wins and its first occurrence is used, so
+    two paths from one command produce comparable snippets.
+
+    :param text: The stripped argument value.
+    :param token: The detected (possibly normalised) token.
+    :returns: The recovered fragment and its index in *text*, or ``("", -1)``
+        when no candidate occurs in it.
+    """
+    stripped = token.strip().strip("(){}[]").strip("\"'")
+    while stripped and stripped[-1] in ";|&":
+        stripped = stripped[:-1]
+    candidates: list[str] = [stripped] if stripped else []
+    for separator in ("/", "\\"):
+        if separator in stripped:
+            basename = stripped.rsplit(separator, 1)[-1]
+            if len(basename) >= _MIN_ANCHOR_CHARS:
+                candidates.append(basename)
+    for candidate in candidates:
+        index = text.find(candidate)
+        if index >= 0:
+            logger.debug(
+                f"Recovered preview anchor {candidate!r} for token {token!r} at {index}"
+            )
+            return candidate, index
+    logger.debug(f"Could not recover a preview anchor for token {token!r}")
+    return "", -1
+
+
 def _preview_details(
     value: str, token: str, max_chars: int = MAX_ARGUMENT_PREVIEW_CHARS
 ) -> _ArgumentPreview:
@@ -175,15 +220,21 @@ def _preview_details(
     if max_chars <= 0:
         return _ArgumentPreview("", -1, -1, 0, 0, 1)
     text = value.strip()
+    anchor = token
     index = text.find(token) if token else -1
+    if token and index < 0:
+        # The recorded token is normalised, so it is not always a literal
+        # substring of the value (see _recover_anchor).  Anchor on a recovered
+        # fragment rather than hiding the token in a middle truncation.
+        anchor, index = _recover_anchor(text, token)
     line = text.count("\n", 0, index) + 1 if index >= 0 else 1
     if len(text) <= max_chars:
         if index < 0:
             return _ArgumentPreview(text, -1, -1, 0, 0, 1)
-        return _ArgumentPreview(text, index, index + len(token), 0, 0, line)
+        return _ArgumentPreview(text, index, index + len(anchor), 0, 0, line)
     if index < 0:
         return _ArgumentPreview(truncate_middle(text, max_chars), -1, -1, 0, 0, 1)
-    window = min(len(token), max_chars)
+    window = min(len(anchor), max_chars)
     before = (max_chars - window) // 2
     start = max(0, index - before)
     end = min(len(text), start + max_chars)
@@ -193,7 +244,7 @@ def _preview_details(
     return _ArgumentPreview(
         f"{prefix}{text[start:end]}{suffix}",
         token_start,
-        token_start + min(len(token), end - index),
+        token_start + min(len(anchor), end - index),
         start,
         len(text) - end,
         line,
