@@ -29,6 +29,14 @@ from klea_utils.ui.web.nicegui.components.state_edit import render_state_edit
 
 logger = logging.getLogger(__name__)
 
+#: Maximum number of message bubbles mounted in the chat scroll area at once.
+#: Mirrors the TUI transcript's ``Transcript.MAX_MOUNTED``: the newest window of
+#: messages is mounted and the oldest bubbles beyond it are left unrendered, so
+#: a long session keeps its widget tree (and layout cost) bounded.  Only the
+#: rendered window is trimmed -- the chat store keeps the full message list,
+#: which ``/export`` and hydration read.
+MOUNTED_MESSAGE_LIMIT = 80
+
 
 def render_turn_status(ctx: PageContext, retry_cb=None) -> None:
     """Render the turn status region for the active chat from its state.
@@ -847,7 +855,16 @@ def _render_messages(ctx: PageContext) -> None:
             current_chat = chats.get(f"{ctx.user_id}:{current}")
             msgs = current_chat["messages"] if current_chat else []
             expanded = current_chat["expanded"] if current_chat else set()
-            for idx, msg in enumerate(msgs):
+            # Bound the mounted widget set: mount only the newest
+            # ``MOUNTED_MESSAGE_LIMIT`` messages (the oldest are evicted), as
+            # the TUI transcript does.  ``idx`` stays the absolute index into
+            # the full store list so ``expanded`` / ``on_expand`` keep
+            # addressing the right message; the scroll rule below compares the
+            # full store count, so a trim neither suppresses a real append's
+            # scroll nor scrolls on a same-set re-render.
+            mount_start = max(0, len(msgs) - MOUNTED_MESSAGE_LIMIT)
+            for idx in range(mount_start, len(msgs)):
+                msg = msgs[idx]
                 collapsed = idx not in expanded
                 text = msg.get("text", "")
                 role = msg.get("role", "agent")

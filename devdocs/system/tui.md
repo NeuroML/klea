@@ -492,6 +492,15 @@ transcript to the newest message only when that chat's message count grew,
 tracked per chat on `PageContext`, so expanding an older message or any other
 re-render of an unchanged message set leaves the viewport where it is.
 
+The web transcript also bounds its widget tree: `MOUNTED_MESSAGE_LIMIT` (80)
+in `utils_pkg/klea_utils/ui/web/nicegui/components/chat_area.py`, applied in
+`_render_messages`, mounts only the newest window of message bubbles and leaves
+older ones unrendered.  Nothing is lost: the chat store keeps the full message
+list, which `/export` and hydration read.  The bound covers live appends during
+a turn as well as a session resume, and the scroll rule above compares the full
+store count, so a trim neither suppresses a real append's scroll nor scrolls on
+a same-set re-render.
+
 ## Spinner lifecycle
 
 `_run_query` stops the turn spinner unconditionally in its `finally` clause
