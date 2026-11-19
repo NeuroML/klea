@@ -609,6 +609,210 @@ def test_invalid_expected_output_format_is_rejected(tmp_path: Path) -> None:
     assert VALID_OUTPUT_FORMATS == ("json", "yaml", "text", "binary")
 
 
+def test_unknown_validation_rule_is_rejected(tmp_path: Path) -> None:
+    """An unknown validation rule is rejected, naming the allowed values."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [
+            _case(
+                turns=[
+                    _turn(
+                        1,
+                        expected_outputs=[
+                            {
+                                "file_path": "out.txt",
+                                "output_format": "text",
+                                "validation_rule": "schema_valid",
+                            }
+                        ],
+                    )
+                ]
+            )
+        ],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == (
+        "expected output 'out.txt' has invalid validation_rule 'schema_valid' "
+        "(allowed: exact_match, contains)"
+    )
+
+
+def test_binary_output_format_is_rejected_as_reserved(tmp_path: Path) -> None:
+    """The reserved `binary` output format is rejected at load time."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [
+            _case(
+                turns=[
+                    _turn(
+                        1,
+                        expected_outputs=[
+                            {"file_path": "out.bin", "output_format": "binary"}
+                        ],
+                    )
+                ]
+            )
+        ],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == (
+        "expected output 'out.bin' has output_format 'binary', which is a "
+        "reserved placeholder with no defined semantics; it is rejected until a "
+        "grading rule for binary output exists"
+    )
+
+
+@pytest.mark.parametrize("rule", ["exact_match", "contains"])
+def test_supported_validation_rules_load(tmp_path: Path, rule: str) -> None:
+    """`exact_match` and `contains` are accepted and preserved."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [
+            _case(
+                turns=[
+                    _turn(
+                        1,
+                        expected_outputs=[
+                            {
+                                "file_path": "out.txt",
+                                "output_format": "text",
+                                "validation_rule": rule,
+                            }
+                        ],
+                    )
+                ]
+            )
+        ],
+    )
+
+    suite = load_suite(path)
+
+    output = suite.cases[0].turns[0].expected_outputs[0]
+    assert output.validation_rule == rule
+
+
+def test_non_string_expected_content_is_rejected(tmp_path: Path) -> None:
+    """A non-string `expected_content` is rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [
+            _case(
+                turns=[
+                    _turn(
+                        1,
+                        expected_outputs=[
+                            {
+                                "file_path": "out.txt",
+                                "output_format": "text",
+                                "expected_content": 123,
+                            }
+                        ],
+                    )
+                ]
+            )
+        ],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == (
+        "expected output 'out.txt' has invalid expected_content 123 (must be a string)"
+    )
+
+
+def test_empty_expected_content_is_rejected(tmp_path: Path) -> None:
+    """An empty `expected_content` is rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [
+            _case(
+                turns=[
+                    _turn(
+                        1,
+                        expected_outputs=[
+                            {
+                                "file_path": "out.txt",
+                                "output_format": "text",
+                                "expected_content": "   ",
+                            }
+                        ],
+                    )
+                ]
+            )
+        ],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == (
+        "expected output 'out.txt' must have a non-empty 'expected_content'"
+    )
+
+
+def test_expected_content_without_file_path_is_rejected(tmp_path: Path) -> None:
+    """`expected_content` declared without `file_path` is rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [
+            _case(
+                turns=[
+                    _turn(
+                        1,
+                        expected_outputs=[
+                            {
+                                "output_format": "text",
+                                "expected_content": "hello",
+                            }
+                        ],
+                    )
+                ]
+            )
+        ],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == "expected output is missing 'file_path'"
+
+
+def test_expected_content_loads_with_file_path(tmp_path: Path) -> None:
+    """A valid `expected_content` is preserved next to its `file_path`."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [
+            _case(
+                turns=[
+                    _turn(
+                        1,
+                        expected_outputs=[
+                            {
+                                "file_path": "out.txt",
+                                "output_format": "text",
+                                "expected_content": "hello",
+                            }
+                        ],
+                    )
+                ]
+            )
+        ],
+    )
+
+    suite = load_suite(path)
+
+    output = suite.cases[0].turns[0].expected_outputs[0]
+    assert output.file_path == "out.txt"
+    assert output.expected_content == "hello"
+
+
 def test_invalid_call_count_range_is_rejected(tmp_path: Path) -> None:
     """A tool call-count range with high < low is rejected."""
     path = _write_suite(

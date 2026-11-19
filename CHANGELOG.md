@@ -19,6 +19,7 @@
 
 ### Changed
 
+- Eval case files now reject an undefined `validation_rule` and the reserved `binary` output format, and may declare `expected_content` as the text a produced file is compared against.
 - An unknown model-override role now aborts `klea-eval run` before any case runs with exit code 2, instead of failing each case.
 - `klea-eval prune` now archives runs that fall outside the retention window instead of deleting them: an older run keeps its `run.json`, `metrics.jsonl` and index line, and only its workspace tree is removed; pass `--purge` to delete the whole run directory and drop its index line as before.
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.

@@ -53,7 +53,14 @@ REQUIRED_FIELDS = ("case_id", "schema_version", "turns")
 VALID_ROLES = ("user", "plan", "execute", "eval", "chat")
 
 #: Allowed expected-output formats, in error-message order.
+#: NOTE: ``"binary"`` is a reserved placeholder only.  It has no defined
+#: grading semantics yet (no comparison rule exists for opaque bytes), so it is
+#: rejected at load time until such a rule is implemented.  The other three
+#: formats (json, yaml, text) are fully supported.
 VALID_OUTPUT_FORMATS = ("json", "yaml", "text", "binary")
+
+#: Allowed expected-output validation rules, in error-message order.
+VALID_VALIDATION_RULES = ("exact_match", "contains")
 
 #: Allowed rubric types, in error-message order.
 VALID_RUBRIC_TYPES = ("binary", "scale", "categorical")
@@ -76,11 +83,17 @@ ALLOWED_TURN_KEYS = (
 
 @dataclass(frozen=True, slots=True)
 class ExpectedOutput:
-    """One expected output file declared by a turn."""
+    """One expected output file declared by a turn.
+
+    ``expected_content`` is the literal text a produced file is compared
+    against for the ``exact_match`` and ``contains`` validation rules.  It is
+    optional: when omitted the case only checks that the file is produced.
+    """
 
     file_path: str
     output_format: str
     validation_rule: str
+    expected_content: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -431,7 +444,31 @@ def _parse_expected_outputs(
                 case_id,
             )
 
+        if output_format == "binary":
+            logger.warning(
+                f"expected output {file_path = } rejected: output_format 'binary' "
+                "is a reserved placeholder"
+            )
+            raise _fail(
+                f"expected output '{file_path}' has output_format 'binary', which is a "
+                "reserved placeholder with no defined semantics; it is rejected until a "
+                "grading rule for binary output exists",
+                source,
+                line_number,
+                case_id,
+            )
+
         validation_rule = entry.get("validation_rule", DEFAULT_VALIDATION_RULE)
+        if validation_rule not in VALID_VALIDATION_RULES:
+            logger.warning(f"expected output {file_path = }, {validation_rule = }")
+            raise _fail(
+                f"expected output '{file_path}' has invalid validation_rule "
+                f"{validation_rule!r} "
+                f"(allowed: {', '.join(VALID_VALIDATION_RULES)})",
+                source,
+                line_number,
+                case_id,
+            )
         if not isinstance(validation_rule, str) or not validation_rule.strip():
             raise _fail(
                 f"expected output '{file_path}' must have a non-empty "
@@ -441,11 +478,43 @@ def _parse_expected_outputs(
                 case_id,
             )
 
+        expected_content = entry.get("expected_content")
+        if expected_content is not None:
+            if not isinstance(expected_content, str):
+                logger.warning(f"expected output {file_path = }, {expected_content = }")
+                raise _fail(
+                    f"expected output '{file_path}' has invalid expected_content "
+                    f"{expected_content!r} (must be a string)",
+                    source,
+                    line_number,
+                    case_id,
+                )
+            if not expected_content.strip():
+                logger.warning(f"expected output {file_path = } empty expected_content")
+                raise _fail(
+                    f"expected output '{file_path}' must have a non-empty "
+                    "'expected_content'",
+                    source,
+                    line_number,
+                    case_id,
+                )
+            if not isinstance(file_path, str) or not file_path.strip():
+                logger.warning(
+                    f"expected_content without file_path: {expected_content = }"
+                )
+                raise _fail(
+                    "expected output with 'expected_content' is missing 'file_path'",
+                    source,
+                    line_number,
+                    case_id,
+                )
+
         parsed.append(
             ExpectedOutput(
                 file_path=file_path,
                 output_format=output_format,
                 validation_rule=validation_rule,
+                expected_content=expected_content,
             )
         )
 

@@ -95,11 +95,34 @@ Each expected output:
 
 ```json
 {
-  "file_path": "string (relative to the case file directory, i.e. the directory holding the case JSONL)",
+  "file_path": "string (relative to the run's workspace/ directory)",
   "output_format": "string ('json', 'yaml', 'text', 'binary')",
-  "validation_rule": "string (e.g., 'exact_match', 'schema_valid', 'contains')"
+  "validation_rule": "string ('exact_match', 'contains')",
+  "expected_content": "string (optional, the literal text a produced file is compared against)"
 }
 ```
+
+> **Amended.** `expected_content` is optional.  When present, it is the literal
+> text the produced file at `file_path` is compared against by the
+> `exact_match` (whole-file equality) and `contains` (substring) rules.  When it
+> is omitted, the rule cannot verify the file's contents, so the expected output
+> only checks that the file is produced; the two rules are unverifiable without
+> it.  Declaring `expected_content` requires a `file_path` to compare against.
+>
+> `file_path` is resolved under the run's `workspace/` directory, not the case
+> file directory: the examples below (`output.txt`, `summary.txt`) name files the
+> agent writes inside its workspace.  Grading happens during the run, while the
+> workspace is live, so a workspace archived away afterwards does not make a run
+> ungradable.
+
+> **Amended.** `output_format` and `validation_rule` are closed vocabularies
+> enforced at load time, matching `VALID_OUTPUT_FORMATS` and
+> `VALID_VALIDATION_RULES` in `klea_eval/cases.py`.  A `validation_rule` other
+> than `exact_match` or `contains` (for example, `schema_valid` as drafted
+> above) is a load error.  `binary` is a reserved, currently undefined
+> `output_format`: it has no grading semantics yet and is rejected at load until
+> a rule for comparing opaque bytes exists.  The other three formats (`json`,
+> `yaml`, `text`) are fully supported.
 
 #### Tool Expectations Sub-Schema
 
