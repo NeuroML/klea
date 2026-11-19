@@ -46,7 +46,12 @@ def attach_status_pane(ctx: PageContext) -> None:
         .props("width=420 bordered")
         .classes("overflow-y-auto overflow-x-hidden status-pane")
     ):
-
+        # TODO(perf): each refresh rebuilds the sticky header and every
+        # section body from scratch, even when only one section changed.  A
+        # per-section content signature (the approach of the TUI's
+        # ``status_panel.py::_reconcile_sections``) would keep unchanged
+        # sections mounted instead of recreating them.  Deferred until the web
+        # UI has been profiled; no behavioural change intended here.
         @ui.refreshable
         def _status_pane() -> None:
             """Render the sticky header, then the state sections below it.

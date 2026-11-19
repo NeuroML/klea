@@ -358,7 +358,7 @@ async def test_dispatches_and_returns_tool_results():
     assert info["details"]["failed_calls"] == 0
     assert info["details"]["tool_calls"][0]["tool"] == "a"
     status = events[3]["data"]
-    assert status["display"] == "- **a**: ok\n- **b**: ok"
+    assert status["display"] == "- **a**: ok x1\n- **b**: ok x1"
 
 
 async def test_streaming_uses_shared_hooks():
@@ -778,7 +778,7 @@ async def test_post_dispatch_can_update_plan_step():
 
 
 def test_get_status_lists_tool_outcomes_with_titles():
-    """Status pane shows executed tools with a title and ok/error label."""
+    """Status pane shows executed tools with a title and ok/failed counts."""
     node = _make_node(tool_infos={"a": ToolInfo(title="Alpha tool")})
     state = MiniState(tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")])
     results = [
@@ -791,7 +791,7 @@ def test_get_status_lists_tool_outcomes_with_titles():
     assert status is not None
     assert status.heading == "Tool Execution"
     assert status.summary == "Called 2 tool(s)"
-    assert status.display == "- **Alpha tool**: ok\n- **b**: error"
+    assert status.display == "- **Alpha tool**: ok x1\n- **b**: failed x1"
 
 
 def test_get_status_none_without_tool_calls():
@@ -813,7 +813,7 @@ def test_get_status_skips_empty_name_calls():
     status = node._get_status(state, _ctx(results))
 
     assert status is not None
-    assert status.display == "- **Read file**: ok"
+    assert status.display == "- **Read file**: ok x1"
 
 
 def test_get_status_none_when_all_names_empty():
