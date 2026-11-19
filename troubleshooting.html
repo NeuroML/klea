@@ -1,0 +1,575 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Contributing" href="contributing.html"><link rel="prev" title="Glossary" href="glossary.html">
+        <link rel="prefetch" href="_static/klea-logo.png" as="image">
+
+    <link rel="shortcut icon" href="_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
+        <title>Troubleshooting - Klea</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/sphinxcontrib_typer.css" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=06e26041" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">Klea</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="_static/klea-logo.png" alt="Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="concepts/index.html">Concepts</a><input aria-label="Toggle navigation of Concepts" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="concepts/rag.html">RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="concepts/mcp.html">MCP</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="components/rag.html">Klea RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="components/tools.html">Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="components/commands.html">Session commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="components/tui.html">Terminal interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="components/agent.html">Klea Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="components/utils.html">Klea Utils</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="guides/index.html">Guides</a><input aria-label="Toggle navigation of Guides" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="guides/create-and-use-rag.html">Create and use a RAG system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="guides/huggingface.html">Deploying Klea RAG on HuggingFace Spaces</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="cli/index.html">CLI Reference</a><input aria-label="Toggle navigation of CLI Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="cli/klea-stores-create.html">klea-stores-create</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli/klea-rag-serve.html">klea-rag-serve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli/klea-rag.html">klea-rag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli/nml-mcp.html">nml-mcp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli/klea.html">klea</a></li>
+<li class="toctree-l2"><a class="reference internal" href="cli/klea-serve.html">klea-serve</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="glossary.html">Glossary</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Develop</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="developer-info.html">Developer info</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="developer-guides/index.html">Developer guides</a><input aria-label="Toggle navigation of Developer guides" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="developer-guides/writing-mcp-tools.html">Writing MCP tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="api/klea_utils.html">klea_utils</a><input aria-label="Toggle navigation of klea_utils" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/graph.html">Orchestrator framework</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/stores.html">Vector stores</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/biblio.html">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/llm.html">LLM utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/mcp.html">MCP utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/models_catalog.html">Model catalog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/api.html">API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/commands.html">Commands</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/utils/ui-tui.html">UI - terminal client</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/utils/ui-cli.html">UI — client CLI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/imports.html">Optional-dependency imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/net.html">Host helpers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/client_context.html">Runtime client context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/paths.html">Path utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/plogging.html">Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/errors.html">Error types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api/utils/tools.html">Tool formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="getting-help.html">Getting help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="code-of-conduct.html">Code of Conduct</a></li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="https://github.com/NeuroML/klea/blob/development/docs/troubleshooting.rst?plain=true" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div><div class="edit-this-page">
+  <a class="muted-link" href="https://github.com/NeuroML/klea/edit/development/docs/troubleshooting.rst" rel="edit" title="Edit this page">
+    <svg><use href="#svg-pencil"></use></svg>
+    <span class="visually-hidden">Edit this page</span>
+  </a>
+</div><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="troubleshooting">
+<h1>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">¶</a></h1>
+<p>This page collects common pitfalls for Klea RAG.  It is linked from the
+RAG guide, install guide, and deployment guide so you can find it
+from any entry point.  For log file locations see <a class="reference internal" href="install.html#logging"><span class="std std-ref">Logging</span></a> in
+<a class="reference internal" href="install.html"><span class="doc">Installation</span></a>; for store-creation diagnostics see
+<a class="reference internal" href="cli/klea-stores-create.html"><span class="doc">klea-stores-create</span></a>.</p>
+<section id="vector-stores">
+<h2>Vector stores<a class="headerlink" href="#vector-stores" title="Link to this heading">¶</a></h2>
+<p><strong>Name or path mismatch – silent empty results</strong></p>
+<p>Retrieval looks stores up by the <code class="docutils literal notranslate"><span class="pre">name</span></code> field, so the <code class="docutils literal notranslate"><span class="pre">--collection</span></code>
+name passed to <code class="docutils literal notranslate"><span class="pre">klea-stores-create</span> <span class="pre">build</span></code> must exactly match the
+<code class="docutils literal notranslate"><span class="pre">name</span></code> in the JSON config’s <code class="docutils literal notranslate"><span class="pre">vector_stores</span></code> / <code class="docutils literal notranslate"><span class="pre">bm25_stores</span></code> entry,
+and the <code class="docutils literal notranslate"><span class="pre">path</span></code> must match what was passed to <code class="docutils literal notranslate"><span class="pre">--store</span></code> / the
+<code class="docutils literal notranslate"><span class="pre">--bm25-store</span></code> pickle location.  A mismatch or typo means that store
+is never queried and no error is raised – the LLM simply cites fewer
+sources.  Compare with <code class="docutils literal notranslate"><span class="pre">klea-stores-create</span> <span class="pre">--help</span></code> and the config file.</p>
+<p><strong>Chroma store folder vs file</strong></p>
+<p>For Chroma, <code class="docutils literal notranslate"><span class="pre">path</span></code> must point at the <em>folder</em> (e.g.
+<code class="docutils literal notranslate"><span class="pre">chroma:/path/to/my-store</span></code>), not at the database file itself.  The
+file inside that folder is always named <code class="docutils literal notranslate"><span class="pre">chroma.sqlite3</span></code> and is not
+configurable.  If you point at the file or rename it, the server starts
+but retrieval fails with <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">such</span> <span class="pre">table</span></code> or empty results.</p>
+<p><strong>Embedding dimension mismatch</strong></p>
+<p>Changing <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_EMBEDDING_MODEL</span></code> (or <code class="docutils literal notranslate"><span class="pre">--model</span></code> at store-creation
+time) to a model with a different embedding dimension invalidates
+existing vector stores built with the previous model.  Rebuild the
+stores with the new embedding model (<code class="docutils literal notranslate"><span class="pre">klea-stores-create</span> <span class="pre">build</span>
+<span class="pre">--force</span></code>) or revert the model.  A BM25-only domain needs no embedding
+model at all.</p>
+<p><strong>Single Chroma file holds many collections</strong></p>
+<p>One <code class="docutils literal notranslate"><span class="pre">chroma.sqlite3</span></code> file can hold several collections.  <code class="docutils literal notranslate"><span class="pre">--collection</span></code>
+selects the collection within the file.  Qdrant and pgvector do not
+share this model – each collection is a separate endpoint.  Use
+<code class="docutils literal notranslate"><span class="pre">qdrant:http://...</span></code> or <code class="docutils literal notranslate"><span class="pre">pgvector:postgresql://...</span></code> URIs for those
+backends.</p>
+<p><strong>Raising ``default_k`` / ``k_max`` brings no more useful chunks</strong></p>
+<p><code class="docutils literal notranslate"><span class="pre">k</span></code> and <code class="docutils literal notranslate"><span class="pre">k_max</span></code> control how many candidates each store fetches, but
+the fused results are then truncated to the global <code class="docutils literal notranslate"><span class="pre">max_refs_size</span></code>
+character budget (<a class="reference internal" href="guides/create-and-use-rag.html"><span class="doc">Create and use a RAG system</span></a>).  If chunks are
+small and many are needed, raising <code class="docutils literal notranslate"><span class="pre">k</span></code> helps only while budget
+remains.  Increase <code class="docutils literal notranslate"><span class="pre">max_refs_size</span></code> or reduce per-chunk tokens.</p>
+</section>
+<section id="queries">
+<h2>Queries<a class="headerlink" href="#queries" title="Link to this heading">¶</a></h2>
+<p><strong>Empty or irrelevant results / low grounding</strong></p>
+<p>Check in order: (1) <code class="docutils literal notranslate"><span class="pre">default_k</span></code> / <code class="docutils literal notranslate"><span class="pre">k_max</span></code> too low, (2)
+<code class="docutils literal notranslate"><span class="pre">max_refs_size</span></code> truncating, (3) store <code class="docutils literal notranslate"><span class="pre">name</span></code>/<code class="docutils literal notranslate"><span class="pre">path</span></code> mismatch above,
+(4) source files not in a Docling-supported format, (5) hybrid retrieval
+not enabled where exact symbols matter (add a <code class="docutils literal notranslate"><span class="pre">bm25_stores</span></code> entry and
+merge results with RRF – see <a class="reference internal" href="components/rag.html"><span class="doc">Klea RAG</span></a>).  Use
+<code class="docutils literal notranslate"><span class="pre">_source_scores</span></code> (vector cosine in <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code> vs BM25 raw score) and
+<code class="docutils literal notranslate"><span class="pre">rerank_by_recency</span></code> recency bias only as a tie-breaker.</p>
+<p><strong>Filters appear not to apply</strong></p>
+<p>Domain <code class="docutils literal notranslate"><span class="pre">filter_fields</span></code> are LLM-generated from natural language – there
+is no CLI flag.  A query like <code class="docutils literal notranslate"><span class="pre">papers</span> <span class="pre">by</span> <span class="pre">Sinha</span> <span class="pre">2020-2025</span> <span class="pre">on</span> <span class="pre">NeuroML</span></code>
+may produce <code class="docutils literal notranslate"><span class="pre">{authors:</span> <span class="pre">&quot;Sinha&quot;,</span> <span class="pre">year:</span> <span class="pre">{&quot;$gte&quot;:</span> <span class="pre">2020,</span> <span class="pre">&quot;$lte&quot;:</span> <span class="pre">2025}}</span></code>
+only when that domain declares those fields (<code class="docutils literal notranslate"><span class="pre">value_type</span></code> <code class="docutils literal notranslate"><span class="pre">string</span></code>
+vs <code class="docutils literal notranslate"><span class="pre">list</span></code> matters).  A declared field only works when the underlying
+stores actually carry that metadata key; see the metadata enrichment notes
+in <a class="reference internal" href="guides/create-and-use-rag.html"><span class="doc">Create and use a RAG system</span></a> and the extraction cascade in
+<a class="reference internal" href="components/rag.html"><span class="doc">Klea RAG</span></a>.  Person-name fields match partial names via
+per-word variants (<code class="docutils literal notranslate"><span class="pre">Ankur</span> <span class="pre">Sinha</span></code> matches <code class="docutils literal notranslate"><span class="pre">Sinha</span></code>).</p>
+</section>
+<section id="models-and-servers">
+<h2>Models and servers<a class="headerlink" href="#models-and-servers" title="Link to this heading">¶</a></h2>
+<p><strong>Ollama is not running / model not found</strong></p>
+<p>Start with <code class="docutils literal notranslate"><span class="pre">ollama</span> <span class="pre">serve</span></code> or as a system service.  Pull all three
+roles (chat, guard, embedding) e.g. <code class="docutils literal notranslate"><span class="pre">ollama</span> <span class="pre">pull</span> <span class="pre">qwen3:0.6b</span></code>,
+<code class="docutils literal notranslate"><span class="pre">ollama</span> <span class="pre">pull</span> <span class="pre">llama-guard3:1b</span></code>, <code class="docutils literal notranslate"><span class="pre">ollama</span> <span class="pre">pull</span> <span class="pre">bge-m3:latest</span></code>, then
+<code class="docutils literal notranslate"><span class="pre">ollama</span> <span class="pre">list</span></code> to verify tags (<code class="docutils literal notranslate"><span class="pre">:0.6b</span></code> vs <code class="docutils literal notranslate"><span class="pre">:latest</span></code>).</p>
+<p><strong>Server starts but queries return ``No model configured``</strong></p>
+<p>A missing required model is not fatal – the server still starts and
+logs a warning listing every <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_*_MODEL</span></code> / <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_*_MODEL</span></code>
+and its state.  Set the missing <code class="docutils literal notranslate"><span class="pre">KLEA_*_MODEL</span></code> before the next query
+or from the web UI gear icon.  For vector retrieval at startup, the
+embedding model must be set <strong>before</strong> <code class="docutils literal notranslate"><span class="pre">klea-rag-serve</span></code> starts; a
+per-chat embedding choice in the UI cannot enable it.</p>
+<p><strong>Guard model / safety</strong></p>
+<p>Set <code class="docutils literal notranslate"><span class="pre">KLEA_RAG_GUARD_MODEL</span></code> / <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_GUARD_MODEL</span></code> to an empty
+value to skip safety screening entirely.  The guard runs before
+classification, so unsafe queries are declined immediately.</p>
+<p><strong>Hugging Face requests at startup even though the model is cached</strong></p>
+<p>The cross-encoder is loaded with the Hugging Face client, which checks the
+Hub for updates on each start.  Set <code class="docutils literal notranslate"><span class="pre">HF_HUB_OFFLINE=1</span></code> to skip these checks
+once the model is downloaded; unset it again if a model needs downloading.
+It also blocks the Hugging Face Inference API, so do not set it when using
+<code class="docutils literal notranslate"><span class="pre">huggingface:</span></code> models.  See <a class="reference internal" href="components/rag.html"><span class="doc">Klea RAG</span></a> and the <a class="reference external" href="https://huggingface.co/docs/huggingface_hub/package_reference/environment_variables">Hugging Face
+environment variables</a>.</p>
+<p><strong>JSON / env / profile errors</strong></p>
+<p><code class="docutils literal notranslate"><span class="pre">KLEA_RAG_ENV_FILE</span></code> must point at a valid <code class="docutils literal notranslate"><span class="pre">k=v</span></code> env file; <code class="docutils literal notranslate"><span class="pre">--profile</span>
+<span class="pre">&lt;name&gt;</span></code> must resolve to <code class="docutils literal notranslate"><span class="pre">&lt;name&gt;.json</span></code> in the current directory or
+<code class="docutils literal notranslate"><span class="pre">~/.config/klea-rag/</span></code> (honoring <code class="docutils literal notranslate"><span class="pre">XDG_CONFIG_HOME</span></code>).  Check for
+trailing commas or missing quotes – <code class="docutils literal notranslate"><span class="pre">klea-rag-serve</span></code> logs the exact
+parse error.  <code class="docutils literal notranslate"><span class="pre">--profile</span> <span class="pre">template</span></code> scaffolds a fresh config; it
+refuses to overwrite an existing file.</p>
+</section>
+<section id="docling-ocr">
+<h2>Docling / OCR<a class="headerlink" href="#docling-ocr" title="Link to this heading">¶</a></h2>
+<p><strong>Scanned PDFs too slow or empty</strong></p>
+<p>Use <code class="docutils literal notranslate"><span class="pre">klea-stores-create</span> <span class="pre">pre-check</span> <span class="pre">&lt;folder&gt;</span></code> to triage: it reports
+<code class="docutils literal notranslate"><span class="pre">OCR</span> <span class="pre">need</span></code> vs <code class="docutils literal notranslate"><span class="pre">no-OCR</span></code> based on embedded text layers and with
+<code class="docutils literal notranslate"><span class="pre">--organise</span></code> copies files into <code class="docutils literal notranslate"><span class="pre">ocr/</span></code> and <code class="docutils literal notranslate"><span class="pre">no-ocr/</span></code> (merging into
+the same collection later).  Pass <code class="docutils literal notranslate"><span class="pre">--no-ocr</span></code> for text-layer PDFs.</p>
+<p>GPUs with CUDA compute capability &lt; 7.0 (e.g. Quadro P1000) lack Triton
+kernels for the Docling layout model.  Force CPU:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">DOCLING_DEVICE</span><span class="o">=</span>cpu<span class="w"> </span><span class="nv">DOCLING_NUM_THREADS</span><span class="o">=</span><span class="m">16</span><span class="w"> </span>klea-stores-create<span class="w"> </span>build<span class="w"> </span>...
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">DOCLING_DEVICE=cpu</span></code> selects the CPU path, <code class="docutils literal notranslate"><span class="pre">DOCLING_NUM_THREADS</span></code>
+(default 4, <code class="docutils literal notranslate"><span class="pre">OMP_NUM_THREADS</span></code> also honoured) tunes it.  Follow the
+pinned <code class="docutils literal notranslate"><span class="pre">torch</span></code>/<code class="docutils literal notranslate"><span class="pre">torchvision</span></code> + <code class="docutils literal notranslate"><span class="pre">requirements-torch.txt</span></code> guide in
+<a class="reference internal" href="install.html"><span class="doc">Installation</span></a> when you want GPU acceleration.</p>
+<p><strong>Pytorch GPU not used / ``torch.cuda`` reports available but docling stays on CPU</strong></p>
+<p>Verify with <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">scripts/test_torch.py</span></code> (real CUDA op); <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">-m</span>
+<span class="pre">torch.utils.collect_env</span></code> prints a snapshot even when kernels are
+missing.  Install the pinned <code class="docutils literal notranslate"><span class="pre">torch</span></code>/<code class="docutils literal notranslate"><span class="pre">torchvision</span></code> pair from the
+same CUDA index (<code class="docutils literal notranslate"><span class="pre">cu126</span></code>/<code class="docutils literal notranslate"><span class="pre">cu128</span></code> for Pascal/Volta/Turing, any recent
+for Ampere+) before the Klea extras.</p>
+</section>
+<section id="metadata-maps">
+<h2>Metadata maps<a class="headerlink" href="#metadata-maps" title="Link to this heading">¶</a></h2>
+<p><strong>``map-lint`` warnings / ``store`` fails with missing entry</strong></p>
+<p>Copy <code class="docutils literal notranslate"><span class="pre">metadata-map.template.json</span></code> from <code class="docutils literal notranslate"><span class="pre">&lt;source_dir&gt;/.klea-cache/</span></code>
+(never edit it in place), review <code class="docutils literal notranslate"><span class="pre">DEFAULT</span></code> plus heading-specific
+entries, and pass the copy via <code class="docutils literal notranslate"><span class="pre">--metadata-map</span></code>.  <code class="docutils literal notranslate"><span class="pre">klea-stores-create</span>
+<span class="pre">map-lint</span> <span class="pre">&lt;dir&gt;</span></code> flags missing fields, suspicious titles/DOIs,
+year/filename mismatches, and whether top-level keys are actual source
+filenames.  A source file with no map entry is fatal (the full report
+is printed then the command exits non-zero); a map keyed by heading
+titles is flagged as stale.  Metadata map keys support heading-chain
+inheritance (full chain, suffix, ancestor) – see <a class="reference internal" href="components/rag.html"><span class="doc">Klea RAG</span></a>.</p>
+<p>After storing, run <code class="docutils literal notranslate"><span class="pre">store-lint</span> <span class="pre">&lt;corpus.pkl&gt;</span></code> (printed for BM25
+automatically) to check for near-empty chunks, missing bibliographic
+metadata, and sample windows of contiguous chunks.</p>
+</section>
+<section id="logging-and-diagnostics">
+<h2>Logging and diagnostics<a class="headerlink" href="#logging-and-diagnostics" title="Link to this heading">¶</a></h2>
+<p>Klea logs to a rotating per-app file (1 MB x 5 backups) at
+<code class="docutils literal notranslate"><span class="pre">~/.local/share/&lt;app&gt;/&lt;app&gt;.log</span></code> (Linux), <code class="docutils literal notranslate"><span class="pre">~/Library/Application</span>
+<span class="pre">Support/&lt;app&gt;/&lt;app&gt;.log</span></code> (macOS), or <code class="docutils literal notranslate"><span class="pre">%LOCALAPPDATA%\&lt;app&gt;\&lt;app&gt;.log</span></code>
+(Windows) – see <a class="reference internal" href="install.html#logging"><span class="std std-ref">Logging</span></a> in <a class="reference internal" href="install.html"><span class="doc">Installation</span></a> for the full per-CLI
+table.  The console shows <code class="docutils literal notranslate"><span class="pre">INFO</span></code>; the file captures <code class="docutils literal notranslate"><span class="pre">DEBUG</span></code>.  For the
+agent backend, setting <code class="docutils literal notranslate"><span class="pre">KLEA_AGENT_HOME</span></code> relocates its log (and the
+checkpoint/session databases and lockfile) to that directory; the TUI and web
+client logs stay in their own per-app directories.</p>
+<p>NiceGUI web clients keep <code class="docutils literal notranslate"><span class="pre">storage-user-*.json</span></code> small session
+pointers in the per-app user-data <code class="docutils literal notranslate"><span class="pre">nicegui/</span></code> directory
+(<code class="docutils literal notranslate"><span class="pre">~/.local/share/&lt;app&gt;/nicegui/</span></code> on Linux, honouring
+<code class="docutils literal notranslate"><span class="pre">NICEGUI_STORAGE_PATH</span></code> when set); they are never auto-deleted.  Do not
+remove the <code class="docutils literal notranslate"><span class="pre">nicegui/</span></code> directory unless the session has been deleted
+from the frontend first (see <code class="docutils literal notranslate"><span class="pre">Web</span> <span class="pre">client</span> <span class="pre">user</span> <span class="pre">storage</span></code> in
+<a class="reference internal" href="install.html"><span class="doc">Installation</span></a>) – otherwise chats are orphaned under the old
+<code class="docutils literal notranslate"><span class="pre">user_id</span></code>.</p>
+</section>
+<section id="huggingface-spaces">
+<h2>HuggingFace Spaces<a class="headerlink" href="#huggingface-spaces" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><strong>Vector store files missing after clone</strong> – run <code class="docutils literal notranslate"><span class="pre">git</span> <span class="pre">xet</span> <span class="pre">checkout</span></code>
+(binary <cite>git-xet</cite> blobs not downloaded by default).</p></li>
+<li><p><strong>Gated model 401</strong> – add <code class="docutils literal notranslate"><span class="pre">HF_TOKEN</span></code> secret in Space settings.</p></li>
+<li><p><strong>OOM on ``cpu-basic``</strong> – reduce <code class="docutils literal notranslate"><span class="pre">k_max</span></code> / <code class="docutils literal notranslate"><span class="pre">max_refs_size</span></code>, use
+a smaller embedding model, or switch to external Qdrant/pgvector.</p></li>
+</ul>
+</section>
+<section id="see-also">
+<h2>See also<a class="headerlink" href="#see-also" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="guides/create-and-use-rag.html"><span class="doc">Create and use a RAG system</span></a> – build, configure, query walkthrough</p></li>
+<li><p><a class="reference internal" href="install.html"><span class="doc">Installation</span></a> – dependency extras, model naming, <a class="reference internal" href="install.html#logging"><span class="std std-ref">Logging</span></a> table</p></li>
+<li><p><a class="reference internal" href="components/rag.html"><span class="doc">Klea RAG</span></a> – pipeline, hybrid retrieval, metadata cascade</p></li>
+<li><p><a class="reference internal" href="cli/klea-stores-create.html"><span class="doc">klea-stores-create</span></a> – full ingestion CLI reference</p></li>
+<li><p><a class="reference internal" href="guides/huggingface.html"><span class="doc">Deploying Klea RAG on HuggingFace Spaces</span></a> – Docker deploy specifics</p></li>
+</ul>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="contributing.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Contributing</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="glossary.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Glossary</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, NeuroML contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Troubleshooting</a><ul>
+<li><a class="reference internal" href="#vector-stores">Vector stores</a></li>
+<li><a class="reference internal" href="#queries">Queries</a></li>
+<li><a class="reference internal" href="#models-and-servers">Models and servers</a></li>
+<li><a class="reference internal" href="#docling-ocr">Docling / OCR</a></li>
+<li><a class="reference internal" href="#metadata-maps">Metadata maps</a></li>
+<li><a class="reference internal" href="#logging-and-diagnostics">Logging and diagnostics</a></li>
+<li><a class="reference internal" href="#huggingface-spaces">HuggingFace Spaces</a></li>
+<li><a class="reference internal" href="#see-also">See also</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>

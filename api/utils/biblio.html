@@ -1,0 +1,858 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="../../genindex.html"><link rel="search" title="Search" href="../../search.html"><link rel="next" title="LLM utilities" href="llm.html"><link rel="prev" title="Vector stores" href="stores.html">
+        <link rel="prefetch" href="../../_static/klea-logo.png" as="image">
+
+    <link rel="shortcut icon" href="../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
+        <title>Bibliographic metadata extraction (klea\_utils.biblio) - Klea</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinxcontrib_typer.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=06e26041" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../index.html"><div class="brand">Klea</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../../_static/klea-logo.png" alt="Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../concepts/index.html">Concepts</a><input aria-label="Toggle navigation of Concepts" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../concepts/rag.html">RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../concepts/mcp.html">MCP</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../components/rag.html">Klea RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../components/tools.html">Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../components/commands.html">Session commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../components/tui.html">Terminal interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../components/agent.html">Klea Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../components/utils.html">Klea Utils</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../guides/index.html">Guides</a><input aria-label="Toggle navigation of Guides" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/create-and-use-rag.html">Create and use a RAG system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../guides/huggingface.html">Deploying Klea RAG on HuggingFace Spaces</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../cli/index.html">CLI Reference</a><input aria-label="Toggle navigation of CLI Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../cli/klea-stores-create.html">klea-stores-create</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../cli/klea-rag-serve.html">klea-rag-serve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../cli/klea-rag.html">klea-rag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../cli/nml-mcp.html">nml-mcp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../cli/klea.html">klea</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../cli/klea-serve.html">klea-serve</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Develop</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../developer-info.html">Developer info</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../developer-guides/index.html">Developer guides</a><input aria-label="Toggle navigation of Developer guides" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../developer-guides/writing-mcp-tools.html">Writing MCP tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="../index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" checked="" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2 current has-children"><a class="reference internal" href="../klea_utils.html">klea_utils</a><input aria-label="Toggle navigation of klea_utils" checked="" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l3"><a class="reference internal" href="graph.html">Orchestrator framework</a></li>
+<li class="toctree-l3"><a class="reference internal" href="stores.html">Vector stores</a></li>
+<li class="toctree-l3 current current-page"><a class="current reference internal" href="#">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="llm.html">LLM utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="mcp.html">MCP utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="models_catalog.html">Model catalog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="api.html">API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="commands.html">Commands</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="ui-nicegui.html">UI — NiceGUI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="ui-tui.html">UI - terminal client</a></li>
+<li class="toctree-l4"><a class="reference internal" href="ui-cli.html">UI — client CLI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="ui-stores-create.html">UI — store creation CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="imports.html">Optional-dependency imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="net.html">Host helpers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="client_context.html">Runtime client context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="paths.html">Path utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="plogging.html">Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="errors.html">Error types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="tools.html">Tool formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-help.html">Getting help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../code-of-conduct.html">Code of Conduct</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="https://github.com/NeuroML/klea/blob/development/docs/api/utils/biblio.rst?plain=true" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div><div class="edit-this-page">
+  <a class="muted-link" href="https://github.com/NeuroML/klea/edit/development/docs/api/utils/biblio.rst" rel="edit" title="Edit this page">
+    <svg><use href="#svg-pencil"></use></svg>
+    <span class="visually-hidden">Edit this page</span>
+  </a>
+</div><div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="bibliographic-metadata-extraction-klea-utils-biblio">
+<h1>Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)<a class="headerlink" href="#bibliographic-metadata-extraction-klea-utils-biblio" title="Link to this heading">¶</a></h1>
+<p>Automatic extraction of bibliographic metadata (title, authors,
+keywords, DOI, URL) from ingested documents, used to pre-fill the
+per-file <code class="docutils literal notranslate"><span class="pre">DEFAULT</span></code> entries of <code class="docutils literal notranslate"><span class="pre">metadata-map.template.json</span></code>.  See
+<a class="reference internal" href="../../components/rag.html"><span class="doc">Klea RAG</span></a> for a description of the extraction cascade.</p>
+<p>The modules in this package are reusable utilities: the PDF, regex and
+DOI-resolution parts do not depend on Docling and can be used on their
+own (e.g. from a bundled tool).</p>
+<section id="module-klea_utils.biblio.pdf">
+<span id="pdf-info-dict"></span><h2>PDF Info dict<a class="headerlink" href="#module-klea_utils.biblio.pdf" title="Link to this heading">¶</a></h2>
+<p>PDF bibliographic metadata extraction</p>
+<p>File: klea_utils/biblio/pdf.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.pdf.extract_pdf_info">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.pdf.</span></span><span class="sig-name descname"><span class="pre">extract_pdf_info</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/pdf.html#extract_pdf_info"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.pdf.extract_pdf_info" title="Link to this definition">¶</a></dt>
+<dd><p>Extract bibliographic metadata from a PDF’s Info dict.</p>
+<p>Reads the document’s metadata fields (Title, Author, Keywords,
+Subject) with pypdfium2, which is already installed as a Docling
+dependency.  A DOI or URL is also picked up from the values of the
+standard fields (journals commonly embed the DOI in <code class="docutils literal notranslate"><span class="pre">Subject</span></code>).
+Only non-empty fields are returned, keyed lower-case (<code class="docutils literal notranslate"><span class="pre">title</span></code>,
+<code class="docutils literal notranslate"><span class="pre">author</span></code>, <code class="docutils literal notranslate"><span class="pre">keywords</span></code>, <code class="docutils literal notranslate"><span class="pre">subject</span></code>, <code class="docutils literal notranslate"><span class="pre">doi</span></code>, <code class="docutils literal notranslate"><span class="pre">url</span></code>).</p>
+<p>Returns an empty dict for non-PDF files, files without metadata,
+and when the backend is unavailable, so callers can simply fall
+through to the next extraction tier.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>path</strong> – Path to the PDF file</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Lower-case mapping of bibliographic PDF metadata fields to
+their string values (only non-empty fields)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.biblio.regex">
+<span id="regex-extraction"></span><h2>Regex extraction<a class="headerlink" href="#module-klea_utils.biblio.regex" title="Link to this heading">¶</a></h2>
+<p>Regex-based bibliographic metadata extraction</p>
+<p>File: klea_utils/biblio/regex.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.biblio.regex.DEFAULT_SCAN_LIMIT">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.regex.</span></span><span class="sig-name descname"><span class="pre">DEFAULT_SCAN_LIMIT</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">3000</span></span><a class="headerlink" href="#klea_utils.biblio.regex.DEFAULT_SCAN_LIMIT" title="Link to this definition">¶</a></dt>
+<dd><p>Default number of leading characters scanned.  Bibliographic headers
+(authors, keywords, DOI, URL) live on the first page, so scanning the
+whole document is unnecessary and would raise false-positive noise.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.biblio.regex.DOI_RE">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.regex.</span></span><span class="sig-name descname"><span class="pre">DOI_RE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">re.compile('\\b10\\.\\d{4,9}/[^\\s,;]+')</span></span><a class="headerlink" href="#klea_utils.biblio.regex.DOI_RE" title="Link to this definition">¶</a></dt>
+<dd><p>a DOI begins with “10.” followed by a 4-9 digit
+registrant prefix and a slash.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Loose DOI pattern</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.biblio.regex.KEYWORD_SCAN_LIMIT">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.regex.</span></span><span class="sig-name descname"><span class="pre">KEYWORD_SCAN_LIMIT</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">8000</span></span><a class="headerlink" href="#klea_utils.biblio.regex.KEYWORD_SCAN_LIMIT" title="Link to this definition">¶</a></dt>
+<dd><p>Keyword headers can sit well below the author/DOI region (e.g. after an
+abstract), so keywords are scanned over a wider window than the other
+fields, which stay at <a class="reference internal" href="#klea_utils.biblio.regex.DEFAULT_SCAN_LIMIT" title="klea_utils.biblio.regex.DEFAULT_SCAN_LIMIT"><code class="xref py py-data docutils literal notranslate"><span class="pre">DEFAULT_SCAN_LIMIT</span></code></a> to avoid false
+positives on prose deeper in the document.</p>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="klea_utils.biblio.regex.URL_RE">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.regex.</span></span><span class="sig-name descname"><span class="pre">URL_RE</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">re.compile('https?://[^\\s,;]+')</span></span><a class="headerlink" href="#klea_utils.biblio.regex.URL_RE" title="Link to this definition">¶</a></dt>
+<dd><p>Loose URL pattern.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.regex.extract_regex_metadata">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.regex.</span></span><span class="sig-name descname"><span class="pre">extract_regex_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">limit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">3000</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Any" title="(in Python v3.15)"><span class="pre">Any</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/regex.html#extract_regex_metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.regex.extract_regex_metadata" title="Link to this definition">¶</a></dt>
+<dd><p>Extract bibliographic fields from <em>text</em> with regex heuristics.</p>
+<p>Scans the first <em>limit</em> characters of <em>text</em> for labeled keyword and
+author lists, and for a DOI (labeled or loose pattern) and a labeled
+URL.  This is a pre-population aid, not robust extraction: regex
+matches are acknowledged to be noisy, and the caller (the metadata
+extraction cascade) falls back to it only when more authoritative
+sources have failed.  Only non-empty keys are returned.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>text</strong> – Text to scan (e.g. the joined body text of a document)</p></li>
+<li><p><strong>limit</strong> – Number of leading characters to scan</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Mapping with any of <code class="docutils literal notranslate"><span class="pre">keywords</span></code> (list), <code class="docutils literal notranslate"><span class="pre">authors</span></code>
+(list), <code class="docutils literal notranslate"><span class="pre">doi</span></code> (str), <code class="docutils literal notranslate"><span class="pre">url</span></code> (str)</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.biblio.models">
+<span id="bibliographic-records"></span><h2>Bibliographic records<a class="headerlink" href="#module-klea_utils.biblio.models" title="Link to this heading">¶</a></h2>
+<p>Normalised bibliographic record shared across the DOI services and the
+academic paper search.</p>
+<p>File: klea_utils/biblio/models.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.biblio.models.BiblioRecord">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.models.</span></span><span class="sig-name descname"><span class="pre">BiblioRecord</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">title</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">authors</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#list" title="(in Python v3.15)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">[]</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">year</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">journal</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">abstract</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">doi</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/biblio/models.html#BiblioRecord"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.models.BiblioRecord" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">BaseModel</span></code></p>
+<p>Normalised bibliographic record shared across the DOI services.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.biblio.models.BiblioRecord.model_config">
+<span class="sig-name descname"><span class="pre">model_config</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">{}</span></span><a class="headerlink" href="#klea_utils.biblio.models.BiblioRecord.model_config" title="Link to this definition">¶</a></dt>
+<dd><p>Configuration for the model, should be a dictionary conforming to [<cite>ConfigDict</cite>][pydantic.config.ConfigDict].</p>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.biblio.normalize">
+<span id="record-normalisers"></span><h2>Record normalisers<a class="headerlink" href="#module-klea_utils.biblio.normalize" title="Link to this heading">¶</a></h2>
+<p>Normalisers for bibliographic API responses and DOI strings.</p>
+<p>The Crossref, OpenAlex and Semantic Scholar normalisers map a service
+response to a <a class="reference internal" href="#klea_utils.biblio.models.BiblioRecord" title="klea_utils.biblio.models.BiblioRecord"><code class="xref py py-class docutils literal notranslate"><span class="pre">BiblioRecord</span></code></a>.  They are
+shared by the DOI resolver (<a class="reference internal" href="#module-klea_utils.biblio.doi" title="klea_utils.biblio.doi"><code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.biblio.doi</span></code></a>) and the academic
+paper search tool (<code class="xref py py-mod docutils literal notranslate"><span class="pre">klea_utils.mcp.tool_impls.papers</span></code>), so they live
+here rather than in either consumer.</p>
+<p>File: klea_utils/biblio/normalize.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.normalize.normalize_crossref">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.normalize.</span></span><span class="sig-name descname"><span class="pre">normalize_crossref</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.biblio.models.BiblioRecord" title="klea_utils.biblio.models.BiblioRecord"><span class="pre">BiblioRecord</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/normalize.html#normalize_crossref"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.normalize.normalize_crossref" title="Link to this definition">¶</a></dt>
+<dd><p>Normalise a Crossref <code class="docutils literal notranslate"><span class="pre">/works/{doi}</span></code> response.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.normalize.normalize_doi">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.normalize.</span></span><span class="sig-name descname"><span class="pre">normalize_doi</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">doi</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/normalize.html#normalize_doi"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.normalize.normalize_doi" title="Link to this definition">¶</a></dt>
+<dd><p>Normalise a DOI by stripping common URL/prefix wrappers.</p>
+<p><code class="docutils literal notranslate"><span class="pre">https://doi.org/10.x/y</span></code>, <code class="docutils literal notranslate"><span class="pre">http://dx.doi.org/10.x/y</span></code> and
+<code class="docutils literal notranslate"><span class="pre">doi:</span> <span class="pre">10.x/y</span></code> all become <code class="docutils literal notranslate"><span class="pre">10.x/y</span></code>.  Trailing punctuation is
+removed, and a trailing URL path after the DOI suffix is stripped
+(a valid DOI suffix contains no <code class="docutils literal notranslate"><span class="pre">/</span></code>, e.g. the path in
+<code class="docutils literal notranslate"><span class="pre">10.1073/pnas.2201699120/-/DCSupplemental</span></code>).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>doi</strong> – DOI string, possibly wrapped in a URL or prefix</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Normalised DOI, or <code class="docutils literal notranslate"><span class="pre">&quot;&quot;</span></code> when <em>doi</em> is empty</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.normalize.normalize_openalex">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.normalize.</span></span><span class="sig-name descname"><span class="pre">normalize_openalex</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.biblio.models.BiblioRecord" title="klea_utils.biblio.models.BiblioRecord"><span class="pre">BiblioRecord</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/normalize.html#normalize_openalex"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.normalize.normalize_openalex" title="Link to this definition">¶</a></dt>
+<dd><p>Normalise an OpenAlex <code class="docutils literal notranslate"><span class="pre">/works/doi:{doi}</span></code> response.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.normalize.normalize_semantic_scholar">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.normalize.</span></span><span class="sig-name descname"><span class="pre">normalize_semantic_scholar</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.biblio.models.BiblioRecord" title="klea_utils.biblio.models.BiblioRecord"><span class="pre">BiblioRecord</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/normalize.html#normalize_semantic_scholar"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.normalize.normalize_semantic_scholar" title="Link to this definition">¶</a></dt>
+<dd><p>Normalise a Semantic Scholar <code class="docutils literal notranslate"><span class="pre">/paper/DOI:{doi}</span></code> response.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.normalize.strip_tags">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.normalize.</span></span><span class="sig-name descname"><span class="pre">strip_tags</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/normalize.html#strip_tags"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.normalize.strip_tags" title="Link to this definition">¶</a></dt>
+<dd><p>Strip XML/JATS tags from a string and collapse whitespace.</p>
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.biblio.doi">
+<span id="doi-resolution"></span><h2>DOI resolution<a class="headerlink" href="#module-klea_utils.biblio.doi" title="Link to this heading">¶</a></h2>
+<p>DOI resolution via Crossref, OpenAlex and Semantic Scholar</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">devdocs/adr/0027-doi-bibliographic-resolver.md</span></code> and
+<code class="docutils literal notranslate"><span class="pre">devdocs/system/store-create.md</span></code>.</p>
+<p>File: klea_utils/biblio/doi.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.biblio.doi.DoiResolver">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.doi.</span></span><span class="sig-name descname"><span class="pre">DoiResolver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">cache_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/pathlib.html#pathlib.Path" title="(in Python v3.15)"><span class="pre">Path</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">mailto</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">timeout</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">transport</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">BaseTransport</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">logger_obj</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/logging.html#logging.Logger" title="(in Python v3.15)"><span class="pre">Logger</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/biblio/doi.html#DoiResolver"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.doi.DoiResolver" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/builtins/functions.html#object" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></a></p>
+<p>Resolve DOIs to bibliographic records via three web services.</p>
+<p>Services are queried in round-robin order across calls, so a bulk
+ingestion does not hammer a single API; when the primary is
+rate-limited (HTTP 429) or fails, the other services are tried as a
+fallback.  Successful records are cached to a JSON file on disk, so
+re-ingests never re-query the APIs.</p>
+<p>Polite-pool attribution is sent when <code class="docutils literal notranslate"><span class="pre">KLEA_INGEST_MAILTO</span></code> (or the
+<code class="docutils literal notranslate"><span class="pre">mailto</span></code> argument) is set – Crossref and OpenAlex both honour a
+<code class="docutils literal notranslate"><span class="pre">mailto</span></code> parameter to raise their rate limits.  Requests also carry an
+honest <code class="docutils literal notranslate"><span class="pre">User-Agent:</span> <span class="pre">klea-ingest/&lt;version&gt;</span></code>.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="klea_utils.biblio.doi.DoiResolver.SERVICE_ORDER">
+<span class="sig-name descname"><span class="pre">SERVICE_ORDER</span></span><span class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">('crossref',</span> <span class="pre">'openalex',</span> <span class="pre">'semantic_scholar')</span></span><a class="headerlink" href="#klea_utils.biblio.doi.DoiResolver.SERVICE_ORDER" title="Link to this definition">¶</a></dt>
+<dd><p>Services, in round-robin order.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="klea_utils.biblio.doi.DoiResolver.close">
+<span class="sig-name descname"><span class="pre">close</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/doi.html#DoiResolver.close"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.doi.DoiResolver.close" title="Link to this definition">¶</a></dt>
+<dd><p>Flush any pending DOI resolutions, then close the HTTP client.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="klea_utils.biblio.doi.DoiResolver.resolve">
+<span class="sig-name descname"><span class="pre">resolve</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">doi</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.biblio.models.BiblioRecord" title="klea_utils.biblio.models.BiblioRecord"><span class="pre">BiblioRecord</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/doi.html#DoiResolver.resolve"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.doi.DoiResolver.resolve" title="Link to this definition">¶</a></dt>
+<dd><p>Resolve <em>doi</em> to a normalised bibliographic record.</p>
+<p>Returns the cached record immediately when present.  Otherwise
+queries the services in round-robin order, falling back to the
+remaining services when one is rate-limited or fails.  A success
+is cached to disk.  Returns <code class="docutils literal notranslate"><span class="pre">None</span></code> when the DOI is invalid or
+no service could resolve it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>doi</strong> – DOI string (URL/prefix wrappers are stripped)</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Normalised record, or <code class="docutils literal notranslate"><span class="pre">None</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.biblio.docling">
+<span id="docling-structured-signals"></span><h2>Docling structured signals<a class="headerlink" href="#module-klea_utils.biblio.docling" title="Link to this heading">¶</a></h2>
+<p>Docling-based bibliographic metadata extraction</p>
+<p>File: klea_utils/biblio/docling.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.docling.extract_docling_structured">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.docling.</span></span><span class="sig-name descname"><span class="pre">extract_docling_structured</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dl_doc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/docling.html#extract_docling_structured"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.docling.extract_docling_structured" title="Link to this definition">¶</a></dt>
+<dd><p>Extract the free, reliably-structured bibliographic signals from a
+Docling document.</p>
+<p>These come straight from Docling’s layout model and document origin,
+so they do not depend on regex heuristics:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">title</span></code> – the first <code class="docutils literal notranslate"><span class="pre">TitleItem</span></code>’s text, falling back to the
+source file’s stem</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">source_type</span></code> – the document’s <code class="docutils literal notranslate"><span class="pre">origin.mimetype</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">source_url</span></code> – the <code class="docutils literal notranslate"><span class="pre">origin.uri</span></code> when it is an <code class="docutils literal notranslate"><span class="pre">http(s)</span></code> URL
+(web-sourced inputs only)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">urls</span></code> – deduplicated <code class="docutils literal notranslate"><span class="pre">http(s)</span></code> hyperlink URLs found on any
+text item (from markdown/HTML links)</p></li>
+</ul>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dl_doc</strong> – A Docling <code class="docutils literal notranslate"><span class="pre">DoclingDocument</span></code></p></li>
+<li><p><strong>file_path</strong> – Path of the source file (for the title fallback)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Dict with any of <code class="docutils literal notranslate"><span class="pre">title</span></code>, <code class="docutils literal notranslate"><span class="pre">source_type</span></code>,
+<code class="docutils literal notranslate"><span class="pre">source_url</span></code>, <code class="docutils literal notranslate"><span class="pre">urls</span></code></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.docling.extract_layout_region">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.docling.</span></span><span class="sig-name descname"><span class="pre">extract_layout_region</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dl_doc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">page</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#int" title="(in Python v3.15)"><span class="pre">int</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">frac</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/functions.html#float" title="(in Python v3.15)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">0.35</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/docling.html#extract_layout_region"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.docling.extract_layout_region" title="Link to this definition">¶</a></dt>
+<dd><p>Return the text of the top <em>frac</em> of <em>page</em> as a single string.</p>
+<p>Filters the document’s text items to those whose bounding box starts
+within the top <em>frac</em> of <em>page</em> (TOPLEFT origin) and joins their
+text.  The first-page header is where authors, keywords and the DOI
+live, so this gives the regex tier a focused region to scan rather
+than the whole document.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dl_doc</strong> – A Docling <code class="docutils literal notranslate"><span class="pre">DoclingDocument</span></code></p></li>
+<li><p><strong>page</strong> – Page number to inspect</p></li>
+<li><p><strong>frac</strong> – Fraction of the page height that counts as the header</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Joined region text, or <code class="docutils literal notranslate"><span class="pre">None</span></code> when there is nothing in
+the region</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+<section id="module-klea_utils.biblio.extract">
+<span id="extraction-cascade"></span><h2>Extraction cascade<a class="headerlink" href="#module-klea_utils.biblio.extract" title="Link to this heading">¶</a></h2>
+<p>Bibliographic metadata extraction cascade</p>
+<p>File: klea_utils/biblio/extract.py</p>
+<p>Copyright 2026 Ankur Sinha
+Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="klea_utils.biblio.extract.Resolver">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.extract.</span></span><span class="sig-name descname"><span class="pre">Resolver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span><span class="n"><span class="pre">args</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">**</span></span><span class="n"><span class="pre">kwargs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../_modules/klea_utils/biblio/extract.html#Resolver"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.extract.Resolver" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/typing.html#typing.Protocol" title="(in Python v3.15)"><code class="xref py py-class docutils literal notranslate"><span class="pre">Protocol</span></code></a></p>
+<p>Protocol for objects that can resolve a DOI to a record.</p>
+<p><a class="reference internal" href="#klea_utils.biblio.doi.DoiResolver" title="klea_utils.biblio.doi.DoiResolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">DoiResolver</span></code></a> implements this; tests
+and other callers may substitute any object with a compatible
+<code class="docutils literal notranslate"><span class="pre">resolve</span></code> method.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="klea_utils.biblio.extract.Resolver.resolve">
+<span class="sig-name descname"><span class="pre">resolve</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">doi</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#klea_utils.biblio.models.BiblioRecord" title="klea_utils.biblio.models.BiblioRecord"><span class="pre">BiblioRecord</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/extract.html#Resolver.resolve"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.extract.Resolver.resolve" title="Link to this definition">¶</a></dt>
+<dd><p>Resolve <em>doi</em> to a record, or <code class="docutils literal notranslate"><span class="pre">None</span></code> on failure.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.extract.extract_metadata">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.extract.</span></span><span class="sig-name descname"><span class="pre">extract_metadata</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dl_doc</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">pdf_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.biblio.extract.Resolver" title="klea_utils.biblio.extract.Resolver"><span class="pre">Resolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/extract.html#extract_metadata"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.extract.extract_metadata" title="Link to this definition">¶</a></dt>
+<dd><p>Extract bibliographic metadata for a converted document.</p>
+<p>The full-cascade entry point, used when a Docling document is
+available (fresh conversion).  Tiers are applied in <strong>precedence
+order, most authoritative first</strong>; each tier only fills fields the
+tiers above it have not already set (gap-fill), so a resolved record
+always wins:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">doi-service</span></code> – a DOI discovered by any tier below is resolved
+via Crossref/OpenAlex/Semantic Scholar (round-robin across calls,
+fallback on rate limits, disk-cached).  Its title, authors, year,
+journal and DOI override everything else.  Skipped when <em>resolver</em>
+is <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pdf-info</span></code> – the PDF Info dict (title, authors, keywords, doi,
+url), read with pypdfium2.  Local and fast, but often empty: many
+publishers ship no bibliographic fields in it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">docling</span></code> – the free structured signals from Docling’s layout
+model: the title item, the origin mimetype/URI, and the
+hyperlinks on text items.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">layout-regex</span></code> – regex over the focused first-page header
+region (the top fraction of page one, selected via the layout
+bounding boxes), where authors, keywords and the DOI live.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">regex</span></code> – regex over the first <code class="docutils literal notranslate"><span class="pre">DEFAULT_SCAN_LIMIT</span></code>
+characters of the whole document text.  A broader net than the
+layout region, so it still catches a DOI/URL sitting in a
+first-page footer.</p></li>
+</ol>
+<p><strong>Output</strong> – a flat dict of non-empty fields (<code class="docutils literal notranslate"><span class="pre">title</span></code>,
+<code class="docutils literal notranslate"><span class="pre">authors</span></code>, <code class="docutils literal notranslate"><span class="pre">keywords</span></code>, <code class="docutils literal notranslate"><span class="pre">year</span></code>, <code class="docutils literal notranslate"><span class="pre">journal</span></code>, <code class="docutils literal notranslate"><span class="pre">doi</span></code>, <code class="docutils literal notranslate"><span class="pre">url</span></code>,
+<code class="docutils literal notranslate"><span class="pre">source_type</span></code>, <code class="docutils literal notranslate"><span class="pre">source_url</span></code>, <code class="docutils literal notranslate"><span class="pre">urls</span></code>) plus two internal keys:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">_metadata_complete</span></code> – <code class="docutils literal notranslate"><span class="pre">True</span></code> only when a full DOI record
+(title + authors + year) or a full PDF Info dict (title + author +
+keywords) was obtained; otherwise <code class="docutils literal notranslate"><span class="pre">False</span></code>, signalling the
+researcher to review the pre-populated map.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">_sources</span></code> – the tiers that contributed at least one field, in
+precedence order (e.g. <code class="docutils literal notranslate"><span class="pre">[&quot;doi-service&quot;,</span> <span class="pre">&quot;regex&quot;]</span></code>).</p></li>
+</ul>
+<p>The abstract of a resolved record is used only as completeness
+evidence and is deliberately NOT included in the output: the abstract
+is already part of the chunked document, so persisting it per-chunk
+would duplicate it.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>dl_doc</strong> – A Docling <code class="docutils literal notranslate"><span class="pre">DoclingDocument</span></code></p></li>
+<li><p><strong>file_path</strong> – Path of the source file</p></li>
+<li><p><strong>pdf_path</strong> – Path to a PDF file, when the source is a PDF</p></li>
+<li><p><strong>resolver</strong> – Optional <a class="reference internal" href="#klea_utils.biblio.extract.Resolver" title="klea_utils.biblio.extract.Resolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">Resolver</span></code></a>; when <code class="docutils literal notranslate"><span class="pre">None</span></code> the
+DOI-service tier is skipped (no network)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Flat metadata dict including the <code class="docutils literal notranslate"><span class="pre">_metadata_complete</span></code>
+and <code class="docutils literal notranslate"><span class="pre">_sources</span></code> internal keys</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="klea_utils.biblio.extract.extract_metadata_from_text">
+<span class="sig-prename descclassname"><span class="pre">klea_utils.biblio.extract.</span></span><span class="sig-name descname"><span class="pre">extract_metadata_from_text</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">text</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">file_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">pdf_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#str" title="(in Python v3.15)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">resolver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#klea_utils.biblio.extract.Resolver" title="klea_utils.biblio.extract.Resolver"><span class="pre">Resolver</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/builtins/constants.html#None" title="(in Python v3.15)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/builtins/stdtypes.html#dict" title="(in Python v3.15)"><span class="pre">dict</span></a></span></span><a class="reference internal" href="../../_modules/klea_utils/biblio/extract.html#extract_metadata_from_text"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#klea_utils.biblio.extract.extract_metadata_from_text" title="Link to this definition">¶</a></dt>
+<dd><p>Extract bibliographic metadata from document text.</p>
+<p>The text-only entry point of the cascade, used when no Docling
+document is available (e.g. cached chunks).  Tiers are applied in
+<strong>precedence order, most authoritative first</strong>; each tier only fills
+fields not already set:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">doi-service</span></code> – a DOI found by a tier below is resolved, and
+its record overrides everything else.  Skipped when <em>resolver</em>
+is <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pdf-info</span></code> – the PDF Info dict, when <em>pdf_path</em> is a PDF.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">regex</span></code> – the first <code class="docutils literal notranslate"><span class="pre">DEFAULT_SCAN_LIMIT</span></code> characters of
+<em>text</em> (the first chunks: the title and front matter).</p></li>
+</ol>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>text</strong> – Document text (e.g. the joined cached chunk text)</p></li>
+<li><p><strong>file_path</strong> – Path of the source file</p></li>
+<li><p><strong>pdf_path</strong> – Path to a PDF file, when the source is a PDF</p></li>
+<li><p><strong>resolver</strong> – Optional <a class="reference internal" href="#klea_utils.biblio.extract.Resolver" title="klea_utils.biblio.extract.Resolver"><code class="xref py py-class docutils literal notranslate"><span class="pre">Resolver</span></code></a>; when <code class="docutils literal notranslate"><span class="pre">None</span></code> the
+DOI-service tier is skipped (no network)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>Flat metadata dict including the <code class="docutils literal notranslate"><span class="pre">_metadata_complete</span></code>
+and <code class="docutils literal notranslate"><span class="pre">_sources</span></code> internal keys</p>
+</dd>
+</dl>
+</dd></dl>
+
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="llm.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">LLM utilities</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="stores.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Vector stores</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, NeuroML contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a><ul>
+<li><a class="reference internal" href="#module-klea_utils.biblio.pdf">PDF Info dict</a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.pdf.extract_pdf_info"><code class="docutils literal notranslate"><span class="pre">extract_pdf_info()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.biblio.regex">Regex extraction</a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.regex.DEFAULT_SCAN_LIMIT"><code class="docutils literal notranslate"><span class="pre">DEFAULT_SCAN_LIMIT</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.regex.DOI_RE"><code class="docutils literal notranslate"><span class="pre">DOI_RE</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.regex.KEYWORD_SCAN_LIMIT"><code class="docutils literal notranslate"><span class="pre">KEYWORD_SCAN_LIMIT</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.regex.URL_RE"><code class="docutils literal notranslate"><span class="pre">URL_RE</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.regex.extract_regex_metadata"><code class="docutils literal notranslate"><span class="pre">extract_regex_metadata()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.biblio.models">Bibliographic records</a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.models.BiblioRecord"><code class="docutils literal notranslate"><span class="pre">BiblioRecord</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.models.BiblioRecord.model_config"><code class="docutils literal notranslate"><span class="pre">BiblioRecord.model_config</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.biblio.normalize">Record normalisers</a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.normalize.normalize_crossref"><code class="docutils literal notranslate"><span class="pre">normalize_crossref()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.normalize.normalize_doi"><code class="docutils literal notranslate"><span class="pre">normalize_doi()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.normalize.normalize_openalex"><code class="docutils literal notranslate"><span class="pre">normalize_openalex()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.normalize.normalize_semantic_scholar"><code class="docutils literal notranslate"><span class="pre">normalize_semantic_scholar()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.normalize.strip_tags"><code class="docutils literal notranslate"><span class="pre">strip_tags()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.biblio.doi">DOI resolution</a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.doi.DoiResolver"><code class="docutils literal notranslate"><span class="pre">DoiResolver</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.doi.DoiResolver.SERVICE_ORDER"><code class="docutils literal notranslate"><span class="pre">DoiResolver.SERVICE_ORDER</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.doi.DoiResolver.close"><code class="docutils literal notranslate"><span class="pre">DoiResolver.close()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.doi.DoiResolver.resolve"><code class="docutils literal notranslate"><span class="pre">DoiResolver.resolve()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.biblio.docling">Docling structured signals</a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.docling.extract_docling_structured"><code class="docutils literal notranslate"><span class="pre">extract_docling_structured()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.docling.extract_layout_region"><code class="docutils literal notranslate"><span class="pre">extract_layout_region()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#module-klea_utils.biblio.extract">Extraction cascade</a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.extract.Resolver"><code class="docutils literal notranslate"><span class="pre">Resolver</span></code></a><ul>
+<li><a class="reference internal" href="#klea_utils.biblio.extract.Resolver.resolve"><code class="docutils literal notranslate"><span class="pre">Resolver.resolve()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#klea_utils.biblio.extract.extract_metadata"><code class="docutils literal notranslate"><span class="pre">extract_metadata()</span></code></a></li>
+<li><a class="reference internal" href="#klea_utils.biblio.extract.extract_metadata_from_text"><code class="docutils literal notranslate"><span class="pre">extract_metadata_from_text()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>

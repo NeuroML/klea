@@ -1,0 +1,1071 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html"><link rel="search" title="Search" href="../../../search.html">
+        <link rel="prefetch" href="../../../_static/klea-logo.png" as="image">
+
+    <link rel="shortcut icon" href="../../../_static/klea-logo-notext.png"><!-- Generated with Sphinx 9.2.0 and Furo 2025.12.19 -->
+        <title>klea_utils.stores.filters - Klea</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/sphinxcontrib_typer.css" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/custom.css?v=06e26041" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../index.html"><div class="brand">Klea</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo" src="../../../_static/klea-logo.png" alt="Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Usage</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../install.html">Installation</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../concepts/index.html">Concepts</a><input aria-label="Toggle navigation of Concepts" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/rag.html">RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../concepts/mcp.html">MCP</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../components/index.html">Components</a><input aria-label="Toggle navigation of Components" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/rag.html">Klea RAG</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/mcp-servers.html">MCP servers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tools.html">Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/commands.html">Session commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/web-ui.html">Web interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/tui.html">Terminal interface</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/agent.html">Klea Agent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../components/utils.html">Klea Utils</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../guides/index.html">Guides</a><input aria-label="Toggle navigation of Guides" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/create-and-use-rag.html">Create and use a RAG system</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../guides/huggingface.html">Deploying Klea RAG on HuggingFace Spaces</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../cli/index.html">CLI Reference</a><input aria-label="Toggle navigation of CLI Reference" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-stores-create.html">klea-stores-create</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag-serve.html">klea-rag-serve</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-rag.html">klea-rag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/nml-mcp.html">nml-mcp</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea.html">klea</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../cli/klea-serve.html">klea-serve</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="../../../glossary.html">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../troubleshooting.html">Troubleshooting</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Develop</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../contributing.html">Contributing</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../developer-info.html">Developer info</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../developer-guides/index.html">Developer guides</a><input aria-label="Toggle navigation of Developer guides" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="../../../developer-guides/writing-mcp-tools.html">Writing MCP tools</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API Reference</a><input aria-label="Toggle navigation of API Reference" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../api/klea_utils.html">klea_utils</a><input aria-label="Toggle navigation of klea_utils" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/graph.html">Orchestrator framework</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/stores.html">Vector stores</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/biblio.html">Bibliographic metadata extraction (<code class="docutils literal notranslate"><span class="pre">klea\_utils.biblio</span></code>)</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/llm.html">LLM utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/mcp.html">MCP utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/models_catalog.html">Model catalog</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/api.html">API</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/commands.html">Commands</a></li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../api/utils/ui.html">UI</a><input aria-label="Toggle navigation of UI" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-nicegui.html">UI — NiceGUI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-tui.html">UI - terminal client</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-cli.html">UI — client CLI</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../api/utils/ui-stores-create.html">UI — store creation CLI</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/nodes.html">Nodes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/imports.html">Optional-dependency imports</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/net.html">Host helpers</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/client_context.html">Runtime client context</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/paths.html">Path utilities</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/plogging.html">Logging</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/errors.html">Error types</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../api/utils/tools.html">Tool formatting</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Project</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting-help.html">Getting help</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../code-of-conduct.html">Code of Conduct</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../license.html">License</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for klea_utils.stores.filters</h1><div class="highlight"><pre>
+<span></span><span class="ch">#!/usr/bin/env python3</span>
+<span class="sd">"""</span>
+<span class="sd">Metadata filter translation for store backends</span>
+
+<span class="sd">File: klea_utils/stores/filters.py</span>
+
+<span class="sd">Copyright 2026 Ankur Sinha</span>
+<span class="sd">Author: Ankur Sinha &lt;sanjay DOT ankur AT gmail DOT com&gt;</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Protocol</span><span class="p">,</span> <span class="n">cast</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">langchain_core.documents</span><span class="w"> </span><span class="kn">import</span> <span class="n">Document</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">FilterFieldInfo</span>
+
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+<span class="c1">#: Operators valid inside a single field clause of the normalized filter DSL.</span>
+<span class="c1">#: ``$contains`` is the element-membership operator for list-valued fields</span>
+<span class="c1">#: (e.g. ``authors``, ``keywords``).</span>
+<span class="n">FIELD_OPERATORS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">(</span>
+    <span class="p">{</span><span class="s2">"$eq"</span><span class="p">,</span> <span class="s2">"$ne"</span><span class="p">,</span> <span class="s2">"$gt"</span><span class="p">,</span> <span class="s2">"$gte"</span><span class="p">,</span> <span class="s2">"$lt"</span><span class="p">,</span> <span class="s2">"$lte"</span><span class="p">,</span> <span class="s2">"$in"</span><span class="p">,</span> <span class="s2">"$nin"</span><span class="p">,</span> <span class="s2">"$contains"</span><span class="p">}</span>
+<span class="p">)</span>
+
+<span class="c1">#: Logical combinators valid at any level of the normalized filter DSL.</span>
+<span class="n">LOGICAL_OPERATORS</span> <span class="o">=</span> <span class="nb">frozenset</span><span class="p">({</span><span class="s2">"$and"</span><span class="p">,</span> <span class="s2">"$or"</span><span class="p">})</span>
+
+<span class="c1">#: Scalar value types accepted as operator operands.</span>
+<span class="n">_SCALAR_TYPES</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">_QdrantModels</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Structural type for the ``qdrant_client.models`` module namespace.</span>
+
+<span class="sd">    The Qdrant translator works against the ``models`` module passed in</span>
+<span class="sd">    (lazily imported), so this Protocol declares the constructors it</span>
+<span class="sd">    uses without importing ``qdrant_client`` at module load.</span>
+<span class="sd">    """</span>
+
+    <span class="n">Filter</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="n">FieldCondition</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="n">MatchValue</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="n">MatchAny</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="n">MatchExcept</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="n">Range</span><span class="p">:</span> <span class="n">Any</span>
+
+
+<div class="viewcode-block" id="validate_metadata_filter">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.filters.validate_metadata_filter">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">validate_metadata_filter</span><span class="p">(</span><span class="n">f</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Validate a filter and normalize it to the canonical form.</span>
+
+<span class="sd">    Filters use a small backend-agnostic DSL: a dict mapping a metadata</span>
+<span class="sd">    field name to either a bare value (implicit ``$eq``) or an operator</span>
+<span class="sd">    expression ``{op: value}``, combined with the ``$and``/``$or``</span>
+<span class="sd">    combinators.  Supported operators are ``$eq``, ``$ne``, ``$gt``,</span>
+<span class="sd">    ``$gte``, ``$lt``, ``$lte``, ``$in``, ``$nin`` and ``$contains``</span>
+<span class="sd">    (the last matches a list-valued field, e.g. ``authors``, that</span>
+<span class="sd">    contains the value).</span>
+
+<span class="sd">    The canonical form is the one every backend translator accepts:</span>
+
+<span class="sd">    - every field value is an operator expression with exactly one</span>
+<span class="sd">      operator (bare values are wrapped as ``{"$eq": value}``)</span>
+<span class="sd">    - several constraints (multiple top-level fields, or several</span>
+<span class="sd">      operators on one field) are combined with ``$and``</span>
+<span class="sd">    - the top level has exactly one key (a field, ``$and`` or ``$or``)</span>
+
+<span class="sd">    Chroma and ``langchain_postgres`` reject multi-operator field</span>
+<span class="sd">    expressions and multi-key top levels, so this normalization is what</span>
+<span class="sd">    makes a single filter usable across all backends.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        validate_metadata_filter({"year": {"$gte": 2020, "$lte": 2025}})</span>
+<span class="sd">        -&gt; {"$and": [{"year": {"$gte": 2020}}, {"year": {"$lte": 2025}}]}</span>
+
+<span class="sd">    :param f: Metadata filter in the DSL described above</span>
+<span class="sd">    :returns: Canonical normalized filter</span>
+<span class="sd">    :raises ValueError: When the filter is not well-formed (empty,</span>
+<span class="sd">        unknown operator, malformed operand)</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">f</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Metadata filter must be a non-empty dict, got </span><span class="si">{</span><span class="n">f</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">f</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="n">_normalize_clause</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="c1"># Several top-level constraints combine into an $and.</span>
+        <span class="n">clauses</span> <span class="o">=</span> <span class="p">[</span><span class="n">_normalize_clause</span><span class="p">({</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="p">})</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">f</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">clauses</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">normalized</span> <span class="o">=</span> <span class="n">clauses</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">normalized</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"$and"</span><span class="p">:</span> <span class="n">clauses</span><span class="p">}</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">f</span><span class="w"> </span><span class="si">= }</span><span class="se">\n</span><span class="si">{</span><span class="n">normalized</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">normalized</span></div>
+
+
+
+<div class="viewcode-block" id="to_chroma_filter">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.filters.to_chroma_filter">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_chroma_filter</span><span class="p">(</span><span class="n">f</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Translate a filter to a Chroma ``where`` dict.</span>
+
+<span class="sd">    The canonical normalized form is Chroma's native ``where`` syntax</span>
+<span class="sd">    (single-operator field clauses, ``$and``/``$or`` combinators, and the</span>
+<span class="sd">    ``$contains`` array-membership operator), so this validates the</span>
+<span class="sd">    filter and returns the normalized form unchanged.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        to_chroma_filter({"authors": {"$contains": "Magee"}})</span>
+<span class="sd">        -&gt; {"authors": {"$contains": "Magee"}}</span>
+
+<span class="sd">    :param f: Metadata filter in the DSL (see</span>
+<span class="sd">        :func:`validate_metadata_filter`)</span>
+<span class="sd">    :returns: Chroma ``where`` dict, passable as ``filter=`` to a</span>
+<span class="sd">        ``langchain_chroma`` store's similarity search</span>
+<span class="sd">    :raises ValueError: When the filter is not well-formed</span>
+<span class="sd">    """</span>
+    <span class="n">normalized</span> <span class="o">=</span> <span class="n">validate_metadata_filter</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">normalized</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">normalized</span></div>
+
+
+
+<div class="viewcode-block" id="to_qdrant_filter">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.filters.to_qdrant_filter">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_qdrant_filter</span><span class="p">(</span><span class="n">f</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Translate a filter to a Qdrant ``models.Filter`` object.</span>
+
+<span class="sd">    Scalar equality and ``$contains`` become ``MatchValue`` (an array</span>
+<span class="sd">    element match), ``$in``/``$nin`` become ``MatchAny``/``MatchExcept``,</span>
+<span class="sd">    and range operators become a ``Range`` condition.  Compound clauses</span>
+<span class="sd">    are grouped as nested ``Filter`` objects.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        to_qdrant_filter({"year": {"$gte": 2020, "$lte": 2025}})</span>
+<span class="sd">        -&gt; Filter(must=[Filter(must=[FieldCondition(key='year',</span>
+<span class="sd">                                                    range=Range(gte=2020.0))]),</span>
+<span class="sd">                        Filter(must=[FieldCondition(key='year',</span>
+<span class="sd">                                                    range=Range(lte=2025.0))])])</span>
+
+<span class="sd">    :param f: Metadata filter in the DSL (see</span>
+<span class="sd">        :func:`validate_metadata_filter`)</span>
+<span class="sd">    :returns: Qdrant ``models.Filter`` object, passable as ``filter=``</span>
+<span class="sd">        to a ``langchain_qdrant`` store's similarity search</span>
+<span class="sd">    :raises ValueError: When the filter is not well-formed</span>
+<span class="sd">    """</span>
+    <span class="n">normalized</span> <span class="o">=</span> <span class="n">validate_metadata_filter</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="c1"># Lazy: importing qdrant_client pulls in the client package; only</span>
+    <span class="c1"># needed when a Qdrant store is actually configured.</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">qdrant_client</span><span class="w"> </span><span class="kn">import</span> <span class="n">models</span>
+
+    <span class="n">result</span> <span class="o">=</span> <span class="n">_qdrant_clause</span><span class="p">(</span><span class="n">normalized</span><span class="p">,</span> <span class="n">models</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">result</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+
+<div class="viewcode-block" id="to_pgvector_filter">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.filters.to_pgvector_filter">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">to_pgvector_filter</span><span class="p">(</span><span class="n">f</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Translate a filter to a ``langchain_postgres`` filter dict.</span>
+
+<span class="sd">    ``langchain_postgres`` accepts the canonical normalized form</span>
+<span class="sd">    directly.  The one gap is ``$contains``: the backend has no array</span>
+<span class="sd">    containment operator for metadata fields, so it is approximated with</span>
+<span class="sd">    ``$like`` over the serialized JSON array text (e.g. a substring match</span>
+<span class="sd">    against ``["Magee","Smith"]``).  This is a documented approximation</span>
+<span class="sd">    for the Postgres backend only.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        to_pgvector_filter({"authors": {"$contains": "Magee"}})</span>
+<span class="sd">        -&gt; {"authors": {"$like": "%Magee%"}}</span>
+
+<span class="sd">    :param f: Metadata filter in the DSL (see</span>
+<span class="sd">        :func:`validate_metadata_filter`)</span>
+<span class="sd">    :returns: ``langchain_postgres`` filter dict, passable as</span>
+<span class="sd">        ``filter=`` to a ``langchain_postgres`` store's similarity search</span>
+<span class="sd">    :raises ValueError: When the filter is not well-formed</span>
+<span class="sd">    """</span>
+    <span class="n">normalized</span> <span class="o">=</span> <span class="n">validate_metadata_filter</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">result</span> <span class="o">=</span> <span class="n">_pgvector_clause</span><span class="p">(</span><span class="n">normalized</span><span class="p">)</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"</span><span class="si">{</span><span class="n">result</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">result</span></div>
+
+
+
+<div class="viewcode-block" id="translate_metadata_filter">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.filters.translate_metadata_filter">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">translate_metadata_filter</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">f</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Translate a filter for the backend named by a store path.</span>
+
+<span class="sd">    Dispatch helper used by the retrievers: reads the URI scheme from a</span>
+<span class="sd">    store path (e.g. ``chroma:/data/store``) and returns the matching</span>
+<span class="sd">    backend-native filter.  ``filter_docs_by_metadata`` is *not* returned</span>
+<span class="sd">    here -- callers that need the in-memory matcher (the BM25 store)</span>
+<span class="sd">    call it directly.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        translate_metadata_filter("chroma:/data/store",</span>
+<span class="sd">                                  {"authors": {"$contains": "Magee"}})</span>
+<span class="sd">        -&gt; {"authors": {"$contains": "Magee"}}</span>
+
+<span class="sd">    :param path: Store URI (``scheme:location``)</span>
+<span class="sd">    :param f: Metadata filter in the DSL (see</span>
+<span class="sd">        :func:`validate_metadata_filter`)</span>
+<span class="sd">    :returns: Backend-native filter for the store's scheme</span>
+<span class="sd">    :raises ValueError: When the scheme is missing or unknown</span>
+<span class="sd">    """</span>
+    <span class="n">scheme</span><span class="p">,</span> <span class="n">sep</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">path</span><span class="o">.</span><span class="n">partition</span><span class="p">(</span><span class="s2">":"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">sep</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Invalid store path '</span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">': expected format "</span>
+            <span class="sa">f</span><span class="s2">"'scheme:location' (e.g. 'chroma:/path/to/store')"</span>
+        <span class="p">)</span>
+    <span class="k">match</span> <span class="n">scheme</span><span class="o">.</span><span class="n">lower</span><span class="p">():</span>
+        <span class="k">case</span> <span class="s2">"chroma"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">to_chroma_filter</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">case</span> <span class="s2">"qdrant"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">to_qdrant_filter</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">case</span> <span class="s2">"pgvector"</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">to_pgvector_filter</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+        <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Unsupported vector store scheme '</span><span class="si">{</span><span class="n">scheme</span><span class="si">}</span><span class="s2">' for filter "</span>
+                <span class="sa">f</span><span class="s2">"translation. Supported: chroma, qdrant, pgvector"</span>
+            <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="normalize_config_filters">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.filters.normalize_config_filters">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">normalize_config_filters</span><span class="p">(</span>
+    <span class="n">filters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span>
+    <span class="n">allowed_fields</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FilterFieldInfo</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">"""Validate configured-domain filters into canonical DSL clauses.</span>
+
+<span class="sd">    ``filters`` maps a metadata field name (from a deployment's</span>
+<span class="sd">    ``filter_fields`` configuration) to an operand produced by the</span>
+<span class="sd">    retrieval query generator: a bare scalar, a list of scalars, or an</span>
+<span class="sd">    operator expression dict (``{op: value}``).  Each configured field's</span>
+<span class="sd">    ``value_type`` decides how a bare operand is interpreted:</span>
+
+<span class="sd">    - scalar fields (``string``/``int``/``float``): a bare value is</span>
+<span class="sd">      ``$eq``; a list of values is ``$in``.</span>
+<span class="sd">    - ``list`` fields (e.g. ``tags``): a bare value requires element</span>
+<span class="sd">      membership (``$contains``); several values combine with ``$and``</span>
+<span class="sd">      (every value must be present), mirroring the bibliographic</span>
+<span class="sd">      ``authors``/``keywords`` handling in</span>
+<span class="sd">      :meth:`RetrievalQueryOutput.to_metadata_filter`.</span>
+
+<span class="sd">    An operator expression dict is validated and normalized through</span>
+<span class="sd">    :func:`validate_metadata_filter`; an unsupported operator or</span>
+<span class="sd">    malformed operand raises ``ValueError``.</span>
+
+<span class="sd">    Field names not declared in *allowed_fields* are ignored with a</span>
+<span class="sd">    warning and never reach a backend (the generator must not be able to</span>
+<span class="sd">    emit a key the deployment did not configure).  An empty operand list</span>
+<span class="sd">    is likewise ignored.</span>
+
+<span class="sd">    The result is a list of single-clause DSL dicts, each directly</span>
+<span class="sd">    consumable by :func:`validate_metadata_filter` (and hence by every</span>
+<span class="sd">    backend translator and the in-memory matcher).  An empty input</span>
+<span class="sd">    returns ``[]``.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        fields = [</span>
+<span class="sd">            FilterFieldInfo(name="repository_type", description="...",</span>
+<span class="sd">                            value_type="string"),</span>
+<span class="sd">            FilterFieldInfo(name="tags", description="...", value_type="list"),</span>
+<span class="sd">        ]</span>
+<span class="sd">        normalize_config_filters(</span>
+<span class="sd">            {"repository_type": ["github", "dandi"], "tags": "moose"},</span>
+<span class="sd">            fields,</span>
+<span class="sd">        )</span>
+<span class="sd">        -&gt; [</span>
+<span class="sd">            {"repository_type": {"$in": ["github", "dandi"]}},</span>
+<span class="sd">            {"tags": {"$contains": "moose"}},</span>
+<span class="sd">        ]</span>
+
+<span class="sd">    :param filters: Field-name -&gt; operand mapping from the query generator</span>
+<span class="sd">    :param allowed_fields: Configured filter fields for the domain</span>
+<span class="sd">    :returns: Canonical DSL single-clause dicts</span>
+<span class="sd">    :raises ValueError: When an operator expression uses an unsupported</span>
+<span class="sd">        operator or malformed operand</span>
+<span class="sd">    """</span>
+    <span class="n">allowed</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">FilterFieldInfo</span><span class="p">]</span> <span class="o">=</span> <span class="p">{</span><span class="n">f</span><span class="o">.</span><span class="n">name</span><span class="p">:</span> <span class="n">f</span> <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">allowed_fields</span><span class="p">}</span>
+    <span class="n">clauses</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">field</span><span class="p">,</span> <span class="n">operand</span> <span class="ow">in</span> <span class="n">filters</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">info</span> <span class="o">=</span> <span class="n">allowed</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">field</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">info</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Ignoring filter field </span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2">: not declared in the "</span>
+                <span class="sa">f</span><span class="s2">"domain's filter_fields configuration"</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operand</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="c1"># Operator expression: validate and normalize to the canonical</span>
+            <span class="c1"># form (e.g. a ``{$gte, $lte}`` pair becomes an ``$and``).</span>
+            <span class="n">clause</span> <span class="o">=</span> <span class="p">{</span><span class="n">field</span><span class="p">:</span> <span class="n">operand</span><span class="p">}</span>
+            <span class="n">clauses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">validate_metadata_filter</span><span class="p">(</span><span class="n">clause</span><span class="p">))</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operand</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">operand</span><span class="p">:</span>
+            <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Ignoring empty filter list for field </span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="k">if</span> <span class="n">info</span><span class="o">.</span><span class="n">value_type</span> <span class="o">==</span> <span class="s2">"list"</span><span class="p">:</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operand</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+                <span class="n">clauses</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="n">field</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$contains"</span><span class="p">:</span> <span class="n">operand</span><span class="p">}})</span>
+            <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">operand</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">clauses</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="n">field</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$contains"</span><span class="p">:</span> <span class="n">operand</span><span class="p">[</span><span class="mi">0</span><span class="p">]}})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">clauses</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="p">{</span><span class="s2">"$and"</span><span class="p">:</span> <span class="p">[{</span><span class="n">field</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$contains"</span><span class="p">:</span> <span class="n">value</span><span class="p">}}</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">operand</span><span class="p">]}</span>
+                <span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operand</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">clauses</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="n">field</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$in"</span><span class="p">:</span> <span class="n">operand</span><span class="p">}})</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">clauses</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="n">field</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$eq"</span><span class="p">:</span> <span class="n">operand</span><span class="p">}})</span>
+
+    <span class="k">return</span> <span class="n">clauses</span></div>
+
+
+
+<div class="viewcode-block" id="restrict_metadata_filter">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.filters.restrict_metadata_filter">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">restrict_metadata_filter</span><span class="p">(</span>
+    <span class="n">metadata_filter</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">allowed_field_names</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Restrict a metadata filter to clauses on the allowed fields.</span>
+
+<span class="sd">    ``metadata_filter`` is a combined DSL filter (as produced by</span>
+<span class="sd">    :meth:`RetrievalQueryOutput.to_metadata_filter`): a single field</span>
+<span class="sd">    clause, a top-level ``$and``/``$or`` of clauses, or ``None``.  This</span>
+<span class="sd">    keeps only the clauses whose referenced metadata field(s) are in</span>
+<span class="sd">    *allowed_field_names* and recombines the survivors (a single clause</span>
+<span class="sd">    returned as-is, several wrapped in ``$and``), so a domain that</span>
+<span class="sd">    declares only e.g. ``journal`` never has a ``username`` clause</span>
+<span class="sd">    applied to its retrievers.  A filter with nothing left returns</span>
+<span class="sd">    ``None``.</span>
+
+<span class="sd">    A top-level ``$or`` is kept whole only when every field it references</span>
+<span class="sd">    is allowed (partially splitting an ``$or`` would change its</span>
+<span class="sd">    semantics); a top-level ``$and`` is decomposed and its sub-clauses</span>
+<span class="sd">    filtered independently, so the multi-value ``$and`` clauses emitted by</span>
+<span class="sd">    :func:`normalize_config_filters` are kept or dropped as a unit.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        restrict_metadata_filter(</span>
+<span class="sd">            {"$and": [{"journal": {"$eq": "nature"}},</span>
+<span class="sd">                      {"username": {"$eq": "padraig"}}]},</span>
+<span class="sd">            {"journal"},</span>
+<span class="sd">        )</span>
+<span class="sd">        -&gt; {"journal": {"$eq": "nature"}}</span>
+
+<span class="sd">    :param metadata_filter: Combined metadata filter, or ``None``</span>
+<span class="sd">    :param allowed_field_names: Metadata field names the caller accepts</span>
+<span class="sd">    :returns: The restricted filter, or ``None``</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">metadata_filter</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="nb">set</span><span class="p">(</span><span class="n">metadata_filter</span><span class="p">)</span> <span class="o">==</span> <span class="p">{</span><span class="s2">"$and"</span><span class="p">}:</span>
+        <span class="n">items</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]]</span> <span class="o">=</span> <span class="n">metadata_filter</span><span class="p">[</span><span class="s2">"$and"</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">items</span> <span class="o">=</span> <span class="p">[{</span><span class="n">k</span><span class="p">:</span> <span class="n">v</span><span class="p">}</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">metadata_filter</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+
+    <span class="n">kept</span> <span class="o">=</span> <span class="p">[</span><span class="n">clause</span> <span class="k">for</span> <span class="n">clause</span> <span class="ow">in</span> <span class="n">items</span> <span class="k">if</span> <span class="n">_clause_fields</span><span class="p">(</span><span class="n">clause</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="n">allowed_field_names</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">kept</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kept</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">kept</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="p">{</span><span class="s2">"$and"</span><span class="p">:</span> <span class="n">kept</span><span class="p">}</span></div>
+
+
+
+<div class="viewcode-block" id="filter_docs_by_metadata">
+<a class="viewcode-back" href="../../../api/utils/stores.html#klea_utils.stores.filters.filter_docs_by_metadata">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">filter_docs_by_metadata</span><span class="p">(</span><span class="n">docs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Document</span><span class="p">],</span> <span class="n">f</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">Document</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the subset of *docs* whose metadata matches the filter.</span>
+
+<span class="sd">    Python-side matcher for backends without native filter support: the</span>
+<span class="sd">    BM25 store post-filters its results through this (the ``rank_bm25``</span>
+<span class="sd">    index has no filter).  Documents without the filter's metadata field</span>
+<span class="sd">    never match.</span>
+
+<span class="sd">    Example::</span>
+
+<span class="sd">        docs = [Document(page_content="a", metadata={"authors": ["Magee"]}),</span>
+<span class="sd">                Document(page_content="b", metadata={"authors": ["Jones"]})]</span>
+<span class="sd">        filter_docs_by_metadata(docs, {"authors": {"$contains": "Magee"}})</span>
+<span class="sd">        -&gt; [Document(page_content="a", ...)]</span>
+
+<span class="sd">    :param docs: Documents to filter, each carrying ``metadata``</span>
+<span class="sd">    :param f: Metadata filter in the DSL (see</span>
+<span class="sd">        :func:`validate_metadata_filter`)</span>
+<span class="sd">    :returns: Documents whose metadata satisfies the filter</span>
+<span class="sd">    :raises ValueError: When the filter is not well-formed</span>
+<span class="sd">    """</span>
+    <span class="n">normalized</span> <span class="o">=</span> <span class="n">validate_metadata_filter</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+    <span class="n">matched</span> <span class="o">=</span> <span class="p">[</span><span class="n">doc</span> <span class="k">for</span> <span class="n">doc</span> <span class="ow">in</span> <span class="n">docs</span> <span class="k">if</span> <span class="n">_clause_matches</span><span class="p">(</span><span class="n">normalized</span><span class="p">,</span> <span class="n">doc</span><span class="p">)]</span>
+    <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Matched </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">matched</span><span class="p">)</span><span class="si">}</span><span class="s2"> of </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">docs</span><span class="p">)</span><span class="si">}</span><span class="s2"> with </span><span class="si">{</span><span class="n">normalized</span><span class="w"> </span><span class="si">= }</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">matched</span></div>
+
+
+
+<span class="c1"># ----------------------------------------------------------------------</span>
+<span class="c1"># Internal helpers</span>
+<span class="c1"># ----------------------------------------------------------------------</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_clause</span><span class="p">(</span><span class="n">clause</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Normalize one level of a filter to the canonical form.</span>
+
+<span class="sd">    A filter is a tree: at every level a dict with a single key, which</span>
+<span class="sd">    is either a logical combinator (``$and``/``$or``, recursing into</span>
+<span class="sd">    each sub-clause) or a metadata field name (a leaf clause).  Leaf</span>
+<span class="sd">    clauses are normalized so their value is an operator expression with</span>
+<span class="sd">    exactly one operator: a bare scalar becomes ``{"$eq": value}`` and a</span>
+<span class="sd">    dict with several operators is split into an ``$and`` of</span>
+<span class="sd">    single-operator clauses (Chroma and ``langchain_postgres`` reject</span>
+<span class="sd">    multi-operator expressions).  A one-element ``$and``/``$or``</span>
+<span class="sd">    collapses to its single sub-clause.</span>
+
+<span class="sd">    :param clause: A single-key dict at any level of a filter</span>
+<span class="sd">    :returns: The canonical normalized form of *clause*</span>
+<span class="sd">    :raises ValueError: When *clause* is malformed (not a single-key</span>
+<span class="sd">        dict, empty, or an unknown ``$``-prefixed key)</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">clause</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">clause</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Each filter level must be a dict with exactly one key, got </span><span class="si">{</span><span class="n">clause</span><span class="si">!r}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">clause</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">LOGICAL_OPERATORS</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">value</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Operator </span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2"> expects a non-empty list of clauses, got </span><span class="si">{</span><span class="n">value</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="p">[</span><span class="n">_normalize_clause</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span> <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">value</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">normalized</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">normalized</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">normalized</span><span class="p">}</span>
+
+    <span class="k">if</span> <span class="n">key</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">"$"</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unsupported filter operator or key: </span><span class="si">{</span><span class="n">key</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="c1"># Field clause: a scalar value is a bare equality; a dict is an</span>
+    <span class="c1"># operator expression.</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="p">{</span><span class="s2">"$eq"</span><span class="p">:</span> <span class="n">_check_operand</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="s2">"$eq"</span><span class="p">,</span> <span class="n">value</span><span class="p">)}}</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Empty operator expression for field </span><span class="si">{</span><span class="n">key</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+
+    <span class="n">value</span> <span class="o">=</span> <span class="n">cast</span><span class="p">(</span><span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">value</span><span class="p">)</span>
+
+    <span class="c1"># Several operators on one field: split into an $and of single-op</span>
+    <span class="c1"># clauses (Chroma and langchain_postgres reject multi-op expressions).</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">sub</span> <span class="o">=</span> <span class="p">[{</span><span class="n">key</span><span class="p">:</span> <span class="p">{</span><span class="n">op</span><span class="p">:</span> <span class="n">operand</span><span class="p">}}</span> <span class="k">for</span> <span class="n">op</span><span class="p">,</span> <span class="n">operand</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()]</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="p">[</span><span class="n">_normalize_clause</span><span class="p">(</span><span class="n">s</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sub</span><span class="p">]</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">normalized</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">normalized</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">"$and"</span><span class="p">:</span> <span class="n">normalized</span><span class="p">}</span>
+
+    <span class="n">op</span><span class="p">,</span> <span class="n">operand</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="p">{</span><span class="n">op</span><span class="p">:</span> <span class="n">_check_operand</span><span class="p">(</span><span class="n">key</span><span class="p">,</span> <span class="n">op</span><span class="p">,</span> <span class="n">operand</span><span class="p">)}}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_check_operand</span><span class="p">(</span><span class="n">field</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">op</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">operand</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Validate an operator operand, returning it unchanged.</span>
+
+<span class="sd">    Runs during normalization (:func:`_normalize_clause`) so a malformed</span>
+<span class="sd">    operand is rejected once, up front, instead of surfacing later as a</span>
+<span class="sd">    confusing backend-specific error.  Type rules: range operators and</span>
+<span class="sd">    ``$eq``/``$ne``/``$contains`` take a scalar operand; ``$in``/``$nin``</span>
+<span class="sd">    take a non-empty list of scalars of a single type.</span>
+
+<span class="sd">    :param field: Metadata field the operator applies to (used in error</span>
+<span class="sd">        messages)</span>
+<span class="sd">    :param op: Operator (``$eq``, ``$in``, ...); must be in</span>
+<span class="sd">        :data:`FIELD_OPERATORS`</span>
+<span class="sd">    :param operand: Value to check</span>
+<span class="sd">    :returns: *operand* unchanged</span>
+<span class="sd">    :raises ValueError: When *op* is unsupported or a list operand is</span>
+<span class="sd">        empty</span>
+<span class="sd">    :raises TypeError: When *operand* has the wrong type for *op*</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">FIELD_OPERATORS</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unsupported operator </span><span class="si">{</span><span class="n">op</span><span class="si">!r}</span><span class="s2"> on field </span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"$in"</span><span class="p">,</span> <span class="s2">"$nin"</span><span class="p">):</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operand</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Operator </span><span class="si">{</span><span class="n">op</span><span class="si">}</span><span class="s2"> on field </span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2"> expects a list, got </span><span class="si">{</span><span class="n">operand</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">operand</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Operator </span><span class="si">{</span><span class="n">op</span><span class="si">}</span><span class="s2"> on field </span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2"> expects a non-empty list, "</span>
+                <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="n">operand</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">v</span><span class="p">,</span> <span class="n">_SCALAR_TYPES</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">operand</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">"Operator </span><span class="si">{</span><span class="n">op</span><span class="si">}</span><span class="s2"> on field </span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2"> expects scalar list values, "</span>
+                <span class="sa">f</span><span class="s2">"got </span><span class="si">{</span><span class="n">operand</span><span class="si">!r}</span><span class="s2">"</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">operand</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">operand</span><span class="p">,</span> <span class="n">_SCALAR_TYPES</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">"Operator </span><span class="si">{</span><span class="n">op</span><span class="si">}</span><span class="s2"> on field </span><span class="si">{</span><span class="n">field</span><span class="si">!r}</span><span class="s2"> expects a scalar value, got </span><span class="si">{</span><span class="n">operand</span><span class="si">!r}</span><span class="s2">"</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">operand</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_qdrant_clause</span><span class="p">(</span><span class="n">clause</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">models</span><span class="p">:</span> <span class="n">_QdrantModels</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Build a Qdrant ``Filter``/``FieldCondition`` tree for *clause*.</span>
+
+<span class="sd">    Qdrant counterpart of :func:`to_chroma_filter` /</span>
+<span class="sd">    :func:`to_pgvector_filter`: Qdrant filters are typed objects rather</span>
+<span class="sd">    than dicts, so this walks the canonical normalized clause and builds</span>
+<span class="sd">    the matching ``models.Filter`` tree -- ``$and`` becomes ``must``,</span>
+<span class="sd">    ``$or`` becomes ``should``, and each leaf operator becomes a</span>
+<span class="sd">    ``FieldCondition`` wrapping a ``MatchValue``/``MatchAny``/</span>
+<span class="sd">    ``MatchExcept``/``Range``.</span>
+
+<span class="sd">    :param clause: Canonical normalized clause (see</span>
+<span class="sd">        :func:`validate_metadata_filter`)</span>
+<span class="sd">    :param models: ``qdrant_client.models`` module namespace providing</span>
+<span class="sd">        the ``Filter``/``FieldCondition`` constructors</span>
+<span class="sd">    :returns: Qdrant ``models.Filter`` for *clause*</span>
+<span class="sd">    """</span>
+    <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">clause</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+
+    <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">"$and"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">models</span><span class="o">.</span><span class="n">Filter</span><span class="p">(</span><span class="n">must</span><span class="o">=</span><span class="p">[</span><span class="n">_qdrant_clause</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">models</span><span class="p">)</span> <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">value</span><span class="p">])</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">"$or"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">models</span><span class="o">.</span><span class="n">Filter</span><span class="p">(</span><span class="n">should</span><span class="o">=</span><span class="p">[</span><span class="n">_qdrant_clause</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">models</span><span class="p">)</span> <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">value</span><span class="p">])</span>
+
+    <span class="n">op</span><span class="p">,</span> <span class="n">operand</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$eq"</span><span class="p">:</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">FieldCondition</span><span class="p">(</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">MatchValue</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="n">operand</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$ne"</span><span class="p">:</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">FieldCondition</span><span class="p">(</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">MatchExcept</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="p">[</span><span class="n">operand</span><span class="p">])</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$in"</span><span class="p">:</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">FieldCondition</span><span class="p">(</span><span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">MatchAny</span><span class="p">(</span><span class="nb">any</span><span class="o">=</span><span class="n">operand</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$nin"</span><span class="p">:</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">FieldCondition</span><span class="p">(</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">MatchExcept</span><span class="p">(</span><span class="n">except_</span><span class="o">=</span><span class="n">operand</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">op</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"$gt"</span><span class="p">,</span> <span class="s2">"$gte"</span><span class="p">,</span> <span class="s2">"$lt"</span><span class="p">,</span> <span class="s2">"$lte"</span><span class="p">):</span>
+        <span class="c1"># "$gte" -&gt; Range(gte=...); "$lt" -&gt; Range(lt=...)</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">FieldCondition</span><span class="p">(</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="nb">range</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">Range</span><span class="p">(</span><span class="o">**</span><span class="p">{</span><span class="n">op</span><span class="p">[</span><span class="mi">1</span><span class="p">:]:</span> <span class="n">operand</span><span class="p">})</span>
+        <span class="p">)</span>
+    <span class="k">elif</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$contains"</span><span class="p">:</span>
+        <span class="n">condition</span> <span class="o">=</span> <span class="n">models</span><span class="o">.</span><span class="n">FieldCondition</span><span class="p">(</span>
+            <span class="n">key</span><span class="o">=</span><span class="n">key</span><span class="p">,</span> <span class="n">match</span><span class="o">=</span><span class="n">models</span><span class="o">.</span><span class="n">MatchValue</span><span class="p">(</span><span class="n">value</span><span class="o">=</span><span class="n">operand</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>  <span class="c1"># pragma: no cover - validate_metadata_filter already checked ops</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Unsupported operator </span><span class="si">{</span><span class="n">op</span><span class="si">!r}</span><span class="s2">"</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">models</span><span class="o">.</span><span class="n">Filter</span><span class="p">(</span><span class="n">must</span><span class="o">=</span><span class="p">[</span><span class="n">condition</span><span class="p">])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_pgvector_clause</span><span class="p">(</span><span class="n">clause</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Translate one level of the canonical form to a pgvector filter dict.</span>
+
+<span class="sd">    ``langchain_postgres`` accepts the canonical normalized form almost</span>
+<span class="sd">    unchanged, so this is a thin walk: ``$and``/``$or`` levels pass</span>
+<span class="sd">    through with their sub-clauses translated, and the only rewrite is</span>
+<span class="sd">    ``$contains`` -&gt; ``$like`` (the backend has no array-containment</span>
+<span class="sd">    operator; see :func:`to_pgvector_filter`).</span>
+
+<span class="sd">    :param clause: Canonical normalized clause (see</span>
+<span class="sd">        :func:`validate_metadata_filter`)</span>
+<span class="sd">    :returns: ``langchain_postgres`` filter dict for *clause*</span>
+<span class="sd">    """</span>
+    <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">clause</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">LOGICAL_OPERATORS</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="p">[</span><span class="n">_pgvector_clause</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span> <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">value</span><span class="p">]}</span>
+    <span class="n">op</span><span class="p">,</span> <span class="n">operand</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$contains"</span><span class="p">:</span>
+        <span class="c1"># langchain_postgres has no array-contains operator; approximate</span>
+        <span class="c1"># with a substring match over the serialized JSON array text.</span>
+        <span class="n">op</span><span class="p">,</span> <span class="n">operand</span> <span class="o">=</span> <span class="s2">"$like"</span><span class="p">,</span> <span class="sa">f</span><span class="s2">"%</span><span class="si">{</span><span class="n">operand</span><span class="si">}</span><span class="s2">%"</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="p">{</span><span class="n">op</span><span class="p">:</span> <span class="n">operand</span><span class="p">}}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_clause_fields</span><span class="p">(</span><span class="n">clause</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">"""Return the metadata fields referenced by a single-clause DSL dict.</span>
+
+<span class="sd">    Walks a canonical single-clause filter (from :func:`validate_metadata_filter`)</span>
+<span class="sd">    and collects the field names it constrains: a leaf field clause yields</span>
+<span class="sd">    its field; a logical combinator yields the union of its sub-clauses'</span>
+<span class="sd">    fields.  Used by :func:`restrict_metadata_filter` to decide whether a</span>
+<span class="sd">    clause may be applied to a domain whose declared field set does not</span>
+<span class="sd">    include it.</span>
+
+<span class="sd">    :param clause: Canonical single-clause DSL dict</span>
+<span class="sd">    :returns: Set of metadata field names the clause references</span>
+<span class="sd">    """</span>
+    <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">clause</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">LOGICAL_OPERATORS</span><span class="p">:</span>
+        <span class="n">fields</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">value</span><span class="p">:</span>
+            <span class="n">fields</span> <span class="o">|=</span> <span class="n">_clause_fields</span><span class="p">(</span><span class="n">sub</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fields</span>
+    <span class="k">return</span> <span class="p">{</span><span class="n">key</span><span class="p">}</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_clause_matches</span><span class="p">(</span><span class="n">clause</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">],</span> <span class="n">doc</span><span class="p">:</span> <span class="n">Document</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Evaluate a normalized filter clause against a document.</span>
+
+<span class="sd">    Recursive counterpart of :func:`_normalize_clause`: walks a</span>
+<span class="sd">    canonical normalized filter (from :func:`validate_metadata_filter`)</span>
+<span class="sd">    top down.  ``$and``/``$or`` levels recurse into their sub-clauses;</span>
+<span class="sd">    a field clause is delegated to :func:`_operand_matches` with the</span>
+<span class="sd">    document's value for that field (``None`` when the field is absent).</span>
+
+<span class="sd">    Used by :func:`filter_docs_by_metadata` to keep only the documents</span>
+<span class="sd">    that satisfy every constraint, in-memory where no native backend</span>
+<span class="sd">    filter exists (the BM25 store).</span>
+
+<span class="sd">    :param clause: Canonical normalized clause (see</span>
+<span class="sd">        :func:`validate_metadata_filter`)</span>
+<span class="sd">    :param doc: Document whose metadata is tested</span>
+<span class="sd">    :returns: True when *doc* satisfies *clause*</span>
+<span class="sd">    """</span>
+    <span class="n">key</span><span class="p">,</span> <span class="n">value</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">clause</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">"$and"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">all</span><span class="p">(</span><span class="n">_clause_matches</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">doc</span><span class="p">)</span> <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s2">"$or"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">any</span><span class="p">(</span><span class="n">_clause_matches</span><span class="p">(</span><span class="n">sub</span><span class="p">,</span> <span class="n">doc</span><span class="p">)</span> <span class="k">for</span> <span class="n">sub</span> <span class="ow">in</span> <span class="n">value</span><span class="p">)</span>
+    <span class="n">op</span><span class="p">,</span> <span class="n">operand</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">value</span><span class="o">.</span><span class="n">items</span><span class="p">()))</span>
+    <span class="k">return</span> <span class="n">_operand_matches</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="n">operand</span><span class="p">,</span> <span class="n">doc</span><span class="o">.</span><span class="n">metadata</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_operand_matches</span><span class="p">(</span><span class="n">op</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">operand</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span> <span class="n">actual</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Evaluate a single filter operator against a metadata value.</span>
+
+<span class="sd">    This is the leaf evaluator of the Python-side document matcher</span>
+<span class="sd">    (:func:`filter_docs_by_metadata` / :func:`_clause_matches`): given</span>
+<span class="sd">    one field clause from a normalized filter, it decides whether a</span>
+<span class="sd">    document's stored value for that field satisfies the clause.  It is</span>
+<span class="sd">    the in-memory equivalent of the backends' native ``filter=``</span>
+<span class="sd">    queries, used where no native filter exists (the BM25 store).</span>
+
+<span class="sd">    Operator semantics (``actual`` is the document's metadata value for</span>
+<span class="sd">    the field, ``operand`` the value taken from the filter):</span>
+
+<span class="sd">    - ``$eq`` / ``$ne``: equality.  A list-valued field (e.g.</span>
+<span class="sd">      ``authors``) matches when the operand is one of its elements; a</span>
+<span class="sd">      scalar field matches by direct comparison.</span>
+<span class="sd">    - ``$gt`` / ``$gte`` / ``$lt`` / ``$lte``: numeric comparison</span>
+<span class="sd">      against a scalar field.  List/dict values never match, and values</span>
+<span class="sd">      of incomparable types (e.g. an int field vs a str operand) return</span>
+<span class="sd">      False rather than raising.</span>
+<span class="sd">    - ``$in`` / ``$nin``: membership.  A scalar field matches when it is</span>
+<span class="sd">      in the operand list; a list-valued field matches when any of its</span>
+<span class="sd">      elements is in the operand list.</span>
+<span class="sd">    - ``$contains``: element-membership of a list-valued field (the</span>
+<span class="sd">      reverse of ``$in``).  A scalar field falls back to substring</span>
+<span class="sd">      matching against its string form.</span>
+
+<span class="sd">    An absent metadata field (``actual`` is ``None``) never matches any</span>
+<span class="sd">    operator.</span>
+
+<span class="sd">    :param op: Operator from the filter (``$eq``, ``$contains``, ...)</span>
+<span class="sd">    :param operand: Operand value taken from the filter</span>
+<span class="sd">    :param actual: The document's metadata value for the field, or</span>
+<span class="sd">        ``None`` when the field is absent</span>
+<span class="sd">    :returns: True when *actual* satisfies *op* with *operand*</span>
+<span class="sd">    """</span>
+    <span class="k">if</span> <span class="n">actual</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$eq"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">operand</span> <span class="ow">in</span> <span class="n">actual</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="n">actual</span> <span class="o">==</span> <span class="n">operand</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$ne"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">operand</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">actual</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="n">actual</span> <span class="o">!=</span> <span class="n">operand</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">"$gt"</span><span class="p">,</span> <span class="s2">"$gte"</span><span class="p">,</span> <span class="s2">"$lt"</span><span class="p">,</span> <span class="s2">"$lte"</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">dict</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$gt"</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">actual</span> <span class="o">&gt;</span> <span class="n">operand</span>
+            <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$gte"</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">actual</span> <span class="o">&gt;=</span> <span class="n">operand</span>
+            <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$lt"</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">actual</span> <span class="o">&lt;</span> <span class="n">operand</span>
+            <span class="k">return</span> <span class="n">actual</span> <span class="o">&lt;=</span> <span class="n">operand</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$in"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="nb">any</span><span class="p">(</span><span class="n">v</span> <span class="ow">in</span> <span class="n">operand</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">actual</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span>
+            <span class="k">else</span> <span class="n">actual</span> <span class="ow">in</span> <span class="n">operand</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$nin"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">v</span> <span class="ow">in</span> <span class="n">operand</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">actual</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span>
+            <span class="k">else</span> <span class="n">actual</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">operand</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">"$contains"</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">operand</span> <span class="ow">in</span> <span class="n">actual</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="k">else</span> <span class="n">operand</span> <span class="ow">in</span> <span class="nb">str</span><span class="p">(</span><span class="n">actual</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">False</span>  <span class="c1"># pragma: no cover - validate_metadata_filter checked ops</span>
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2026, NeuroML contributors
+            </div>
+            Made with 
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+    </body>
+</html>
