@@ -145,7 +145,7 @@ _KEY_HINTS_DEFAULT = (
 
 #: Key-hints line per HITL ask kind, shown while its panel is active.
 _ASK_KEY_HINTS = {
-    "review": "Approve | Request changes | Cancel (Esc)",
+    "review": "Continue | Revise with feedback | Cancel (Esc)",
     "input": "Answer | Cancel (Esc)",
     "permission": "Choose per path | Submit | Cancel (Esc)",
 }
@@ -252,6 +252,11 @@ class KleaTuiScreen(Screen):
 
         :param event: The ``TextArea.Changed`` event.
         """
+        if event.text_area.id != "query-input":
+            # Only the chat composer drives autocomplete; typing in another
+            # text area (for example the HITL feedback field) must not open
+            # the command list.
+            return
         app = cast("KleaTuiApp", self.app)
         suggestions = self.query_one("#command-suggestions", CommandSuggestions)
         suggestions.update_for(event.text_area.text, app.catalogue, TUI_CAPABILITIES)

@@ -390,6 +390,9 @@ async def test_review_interrupt_panel_shows_headline_and_sections(
         assert str(title.render()) == "Plan"
         body = app.screen.query_one("#hitl-section-0-body", Static)
         assert "Step 1: fetch" in str(body.render())
+        # The ask's question line still renders with its plan sections.
+        question = app.screen.query_one("#hitl-question", Static)
+        assert "request changes" in str(question.render())
         app.screen.query_one("#hitl-approve", Button).press()
         await _settle(pilot, app)
 
@@ -423,6 +426,93 @@ async def test_review_panel_with_long_section_scrolls(fake_backend, make_app):
         await _settle(pilot, app)
 
     assert fake_backend.calls[-1]["interrupt_response"] == {"decision": "approve"}
+
+
+async def test_review_feedback_textarea_enter_is_inert_and_revise_submits(
+    fake_backend, make_app
+):
+    """Enter in the feedback box submits nothing; Revise with feedback sends it."""
+    from klea_utils.ui.tui.components.input import QueryTextArea
+
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "review",
+                    "sections": [{"title": "Plan", "body": "[ ] Step 1"}],
+                    "interrupt_id": "i1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert app.screen.query_one(HitlPanel)
+        feedback = app.screen.query_one("#hitl-feedback", QueryTextArea)
+        feedback.focus()
+        feedback.text = ""
+        calls_before = len(fake_backend.calls)
+        await pilot.press("enter")
+        await pilot.pause()
+        # Enter alone submits nothing: the fake backend records the key as
+        # ``None`` on every call, so the observable check is that no new
+        # call was appended, and the ask stays open.
+        assert len(fake_backend.calls) == calls_before
+        assert fake_backend.calls[-1]["interrupt_response"] is None
+        assert app.screen.query_one(HitlPanel)
+        # The button, not the key, submits the field's text.
+        feedback.text = "line one"
+        app.screen.query_one("#hitl-revise", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["interrupt_response"] == {
+        "decision": "revise",
+        "feedback": "line one",
+    }
+
+
+async def test_review_feedback_typing_does_not_open_command_suggestions(
+    fake_backend, make_app
+):
+    """Typing in the HITL feedback field never opens the command suggestions."""
+    from klea_utils.ui.tui.components.input import QueryTextArea
+
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "review",
+                    "sections": [{"title": "Plan", "body": "[ ] Step 1"}],
+                    "interrupt_id": "i1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        assert app.screen.query_one(HitlPanel)
+        suggestions = app.screen.query_one("#command-suggestions", CommandSuggestions)
+        feedback = app.screen.query_one("#hitl-feedback", QueryTextArea)
+        feedback.focus()
+        await pilot.press("/", "m", "o", "d")
+        await pilot.pause()
+        # The feedback box is not the composer: no completion list appears.
+        assert feedback.text == "/mod"
+        assert suggestions.display is False
+        assert not list(suggestions.options)
+
+        # The guard is narrow: the composer still drives the completion list.
+        app.screen.query_one("#query-input", QueryTextArea).text = "/m"
+        await pilot.pause()
+        assert suggestions.display is True
 
 
 async def test_permission_interrupt_panel(fake_backend, make_app):
@@ -774,11 +864,72 @@ async def test_inline_panel_swaps_the_composer(fake_backend, make_app):
         await _submit(pilot, app, "go")
         await _settle(pilot, app)
         assert app.screen.query_one("#query-input-frame").display is False
-        assert "Approve" in str(app.screen.query_one("#key-hints", Static).render())
+        hints = str(app.screen.query_one("#key-hints", Static).render())
+        # The ask's key hints match the panel's current controls.
+        assert "Continue" in hints
+        assert "Revise with feedback" in hints
+        assert "Cancel (Esc)" in hints
+        # The retired review wording is gone.
+        assert "Approve" not in hints
+        assert "Request changes" not in hints
         app.screen.query_one("#hitl-approve", Button).press()
         await _settle(pilot, app)
         assert app.screen.query_one("#query-input-frame").display is True
         assert "Enter send" in str(app.screen.query_one("#key-hints", Static).render())
+
+
+async def test_query_textarea_enter_is_inert_when_submit_on_enter_is_false() -> None:
+    """Enter posts no Submitted when ``submit_on_enter`` is disabled."""
+    from klea_utils.ui.tui.components.input import QueryTextArea
+    from textual.app import App, ComposeResult
+    from textual.message import Message
+
+    posted: list[Message] = []
+
+    class _Probe(QueryTextArea):
+        def post_message(self, message: Message) -> bool:
+            posted.append(message)
+            return super().post_message(message)
+
+    class _Harness(App):
+        def compose(self) -> ComposeResult:
+            yield _Probe(id="query-input", submit_on_enter=False)
+
+    async with _Harness().run_test() as pilot:
+        field = pilot.app.query_one("#query-input", QueryTextArea)
+        field.focus()
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert not any(
+            isinstance(message, QueryTextArea.Submitted) for message in posted
+        )
+
+
+async def test_query_textarea_enter_submits_by_default() -> None:
+    """The default ``submit_on_enter`` still posts Submitted on Enter."""
+    from klea_utils.ui.tui.components.input import QueryTextArea
+    from textual.app import App, ComposeResult
+    from textual.message import Message
+
+    posted: list[Message] = []
+
+    class _Probe(QueryTextArea):
+        def post_message(self, message: Message) -> bool:
+            posted.append(message)
+            return super().post_message(message)
+
+    class _Harness(App):
+        def compose(self) -> ComposeResult:
+            yield _Probe(id="query-input")
+
+    async with _Harness().run_test() as pilot:
+        field = pilot.app.query_one("#query-input", QueryTextArea)
+        field.focus()
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+        assert any(isinstance(message, QueryTextArea.Submitted) for message in posted)
 
 
 async def test_inline_panel_keeps_the_transcript_scrollable(fake_backend, make_app):

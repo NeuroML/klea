@@ -113,18 +113,23 @@ def _render_ask_sections(ask: dict[str, Any]) -> None:
     sections = [
         section for section in (ask.get("sections") or []) if isinstance(section, dict)
     ]
-    for section in sections:
+    for index, section in enumerate(sections):
         title = str(section.get("title") or "").strip() or "Details"
-        ui.label(title).classes("text-xs font-bold")
+        title_classes = "text-xs font-bold"
+        if index:
+            title_classes = f"{title_classes} mt-2"
+        ui.label(title).classes(title_classes)
         if body := section.get("body"):
-            ui.code(body, language=None).classes("text-xs w-full nicegui-code-noformat")
+            ui.code(body, language=None).classes(
+                "text-sm w-full hitl-ask-body nicegui-code-noformat"
+            )
 
 
 def _render_interrupt_form(ctx: PageContext) -> None:
     """Render the HITL ask form in the turn status region (ADR-0046).
 
-    A ``review`` ask gets Approve / Request changes / Cancel; an ``input``
-    ask gets one text field per question plus Answer / Cancel; a
+    A ``review`` ask gets Continue / Revise with feedback / Cancel; an
+    ``input`` ask gets one text field per question plus Answer / Cancel; a
     ``permission`` ask (ADR-0007) gets one allow-once / allow-session / deny
     choice per requested path; a ``state_edit`` ask renders the generic
     session-state editor.  Submitting calls
@@ -140,7 +145,7 @@ def _render_interrupt_form(ctx: PageContext) -> None:
         render_state_edit(ctx, ask, interrupt_id)
         return
     heading = "Plan review" if kind == "review" else "User input"
-    with ui.column().classes("w-full gap-2 p-3 border border-primary rounded"):
+    with ui.column().classes("w-full gap-2 p-3 border border-primary rounded hitl-ask"):
         ui.label(heading).classes("text-sm font-bold")
         if kind == "review":
             # ``headline`` + ``sections`` adapt to the review's position
@@ -151,22 +156,22 @@ def _render_interrupt_form(ctx: PageContext) -> None:
             if headline := ask.get("headline"):
                 ui.label(headline).classes("text-sm font-bold")
             if question := ask.get("question"):
-                ui.label(question).classes("text-sm")
+                ui.label(question).classes("text-xs text-grey-6")
             _render_ask_sections(ask)
             feedback = (
-                ui.textarea(placeholder="Feedback (required to request changes)")
+                ui.textarea(placeholder="Feedback (required to revise)")
                 .props("outlined autogrow")
-                .classes("w-full")
+                .classes("w-full chat-input")
             )
             with ui.row().classes("gap-2"):
                 ui.button(
-                    "Approve",
+                    "Continue",
                     on_click=lambda: ctx.submit_interrupt(
                         {"decision": "approve"}, interrupt_id, False
                     ),
                 ).props("unelevated color=primary")
                 ui.button(
-                    "Request changes",
+                    "Revise with feedback",
                     on_click=lambda: ctx.submit_interrupt(
                         {"decision": "revise", "feedback": feedback.value or ""},
                         interrupt_id,

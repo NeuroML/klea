@@ -206,6 +206,19 @@ themes:
 - `.cred-status--muted` -- credential state text for an unknown/inactive
   credential; uses the derived `hint` role token (`--klea-hint`).  Also a
   colour rule in `@layer overrides`.
+- `.hitl-ask` -- the HITL ask container scope (`hitl_ask.py`): the ask's
+  controls are keyed to it, so its rules never leak onto the transcript or the
+  composer.
+- `.hitl-ask .hitl-ask-body` -- the body of one HITL ask: it restores the
+  `margin` and `line-height` that the code-block reset collapses, and bounds
+  the body to `40vh` with `overflow-y: auto` and `overscroll-behavior: contain`,
+  so a long ask scrolls inside itself instead of growing the transcript and
+  chaining its scroll out.  Like `.status-entry-body` this is a plain
+  (unlayered) layout rule, not a colour rule, so it needs no
+  `@layer overrides`.
+- The ask's free-text field reuses `.chat-input` (the composer textarea), so
+  the `.chat-input .q-field__native` grow cap (`max-height: 40vh`) applies to
+  the feedback field too: it starts one line high, wraps and grows to that cap.
 
 All of these are styled in `theme.py`; call sites only add the class.
 

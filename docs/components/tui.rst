@@ -194,8 +194,10 @@ Human-in-the-loop
 
 When the agent needs input, the ask replaces the composer below the
 transcript (the input box is hidden while it is active, so the chat stays
-scrollable): a plan awaiting review shows the plan with **Approve** /
-**Request changes** / **Cancel** controls, a plan blocked on a missing fact
+scrollable): a plan awaiting review shows the plan with **Continue** /
+**Revise with feedback** / **Cancel** controls (the feedback field wraps and
+submits only through the button; Enter inserts a newline), a plan blocked on a
+missing fact
 shows one field per question, and a tool call that would touch a path outside
 the project directory (or a sensitive file inside it, such as ``.env``) shows
 one **Once** / **Session** / **Deny** choice per path.  Answering (or

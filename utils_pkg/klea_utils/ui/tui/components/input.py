@@ -90,23 +90,34 @@ class QueryTextArea(TextArea):
             super().__init__()
             self.value = value
 
-    def __init__(self, *, id: str | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        id: str | None = None,
+        submit_on_enter: bool = True,
+        placeholder: str = "Type a query or /command, then Enter...",
+    ) -> None:
         """Build the query entry.
 
         :param id: Optional DOM id for the widget.
+        :param submit_on_enter: Whether Enter submits the entry.  With
+            ``False`` Enter inserts a newline instead, so an ask panel that owns
+            its own submit button never posts a query by accident.
+        :param placeholder: The placeholder shown while the entry is empty.
         """
         super().__init__(
             soft_wrap=True,
-            placeholder="Type a query or /command, then Enter...",
+            placeholder=placeholder,
             id=id,
         )
+        self.submit_on_enter = submit_on_enter
 
     async def _on_key(self, event: events.Key) -> None:
         """Route Enter to submit and a newline key to insert.
 
         :param event: The key event.
         """
-        if event.key == "enter":
+        if event.key == "enter" and self.submit_on_enter:
             event.stop()
             event.prevent_default()
             self.post_message(self.Submitted(self.text))
