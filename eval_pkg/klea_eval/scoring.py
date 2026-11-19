@@ -37,7 +37,11 @@ Deliberately deferred, all belonging to later phases of the implementation plan:
   deterministic rubric checks remain a later phase; the LLM judge is rejected
   as a grader (ADR-0061), so scoring depth must come from deterministic checks.
 - cost derivation: no price table exists, so ``cost_estimate`` is only relayed
-  from the per-run metrics and summed here;
+  from the per-run metrics and summed here; provider pricing is deliberately out
+  of scope because it varies per inference provider and over time, a cost stays
+  derivable from the recorded token counts, and the normalised token units
+  (``total_normalised_units``) are summed alongside the raw token totals, never
+  entering ``task_success``;
 - HITL ``interrupt`` resume, retention (P8), the in-process scheduler (P9), a
   persisted suite report artifact and the Markdown
   reporter, and the CLI/API exposure of :func:`aggregate_suite` (P8).
@@ -84,6 +88,7 @@ class CaseScore:
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_cached_tokens: int = 0
+    total_normalised_units: float = 0.0
     cost_estimate: float | None = None
     error: str | None = None
     failed_check: str | None = None
@@ -100,6 +105,7 @@ class CaseScore:
             "total_input_tokens": self.total_input_tokens,
             "total_output_tokens": self.total_output_tokens,
             "total_cached_tokens": self.total_cached_tokens,
+            "total_normalised_units": self.total_normalised_units,
             "cost_estimate": self.cost_estimate,
             "resolved_models": dict(self.resolved_models),
             "error": self.error,
@@ -123,6 +129,7 @@ class SuiteAggregate:
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_cached_tokens: int = 0
+    total_normalised_units: float = 0.0
     cost_estimate: float = 0.0
     missing_runs: tuple[str, ...] = ()
 
@@ -141,6 +148,7 @@ class SuiteAggregate:
             "total_input_tokens": self.total_input_tokens,
             "total_output_tokens": self.total_output_tokens,
             "total_cached_tokens": self.total_cached_tokens,
+            "total_normalised_units": self.total_normalised_units,
             "cost_estimate": self.cost_estimate,
             "missing_runs": list(self.missing_runs),
         }
@@ -195,6 +203,7 @@ def score_run(run: metrics.RunMetrics) -> CaseScore:
         total_input_tokens=run.total_input_tokens,
         total_output_tokens=run.total_output_tokens,
         total_cached_tokens=run.total_cached_tokens,
+        total_normalised_units=run.total_normalised_units,
         cost_estimate=run.cost_estimate,
         resolved_models=dict(run.resolved_models),
         error=run.error,
@@ -344,6 +353,7 @@ def aggregate_suite(
         total_input_tokens=sum(case.total_input_tokens for case in cases),
         total_output_tokens=sum(case.total_output_tokens for case in cases),
         total_cached_tokens=sum(case.total_cached_tokens for case in cases),
+        total_normalised_units=sum(case.total_normalised_units for case in cases),
         cost_estimate=float(sum(costs)) if costs else 0.0,
         missing_runs=tuple(missing),
     )

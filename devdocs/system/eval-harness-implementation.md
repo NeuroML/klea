@@ -128,9 +128,11 @@ Points discovered while delivering P1-P7; later phases must respect them.
   from the payload and defaults the schema version to `1.0`; the final
   `record_type` "run" envelope is still not written, so the run-level values
   are recomputed from the turn lines and `envelope_present` stays false until
-  the ADR-0059 writer lands in P4. No price table exists, so `cost_estimate`
-  is read from an envelope when present and stays `None` otherwise; cost
-  derivation belongs to P7. `MetricsError` and `MetricsSchemaError` live in
+  the ADR-0059 writer lands in P4. Provider pricing is deliberately out of
+  scope (it varies per inference provider and over time), so `cost_estimate`
+  is only relayed from an envelope when present and stays `None` otherwise; a
+  cost remains derivable from the recorded token counts, which are also
+  reported as normalised units. Normalised-unit derivation belongs to P7. `MetricsError` and `MetricsSchemaError` live in
   `klea_eval/metrics.py`, following the `WorkspaceError` and
   `RunManagerError` precedent, rather than in `klea_eval/errors.py`. The
   failure line a failed run appends is discarded together with the run
@@ -144,7 +146,8 @@ Points discovered while delivering P1-P7; later phases must respect them.
   manager is not wired to it yet, so `run_case` still publishes a run without
   `run.json` or an index line: P6 does that wiring. Retention (the last 20
   complete runs, D11) is deferred to P8, which owns the exit criterion.
-   `cost_estimate` derivation are still absent,
+   Provider pricing stays out of scope (it varies per inference provider and
+   over time, and a cost remains derivable from the recorded token counts),
    belonging to P7; model resolution is implemented instead. A case's
    `run_config.model_overrides` is validated for its shape only at load time (an
    object mapping non-empty role names to non-empty model strings; a role name
@@ -192,7 +195,9 @@ Points discovered while delivering P1-P7; later phases must respect them.
   synchronous `TurnExecutor` through `asyncio.run` and raises when a loop is
   already running; the record it returns carries the usage counters both flat
   and under `usage`, plus `latency_ms`, `tool_calls` and `tool_error_count`.
-  HITL `interrupt` resume, cost derivation and the
+  HITL `interrupt` resume, provider pricing (deliberately out of scope because
+   it varies per inference provider and over time, while a cost stays derivable
+   from the recorded token counts) and the
    pipeline wiring are still absent (P6 and P7); ``transcript.jsonl`` writing landed in ``caa71c05`` as a reduced per-turn record.
 - Phase 6 scope caveats: `klea_eval/pipeline.py` is orchestration only. It
   validates the whole suite through `klea_eval.cases.load_suite` before any run
@@ -246,12 +251,13 @@ Points discovered while delivering P1-P7; later phases must respect them.
   `ResultsError` precedent. An unsupported index `schema_version` propagates
   `ResultsSchemaError` unchanged. Scoring writes no file, no run directory and
   no index line; `SuiteAggregate.to_dict()` is only the in-memory JSON-ready
-  form. Still deferred: deterministic rubric checks over the free-text `criteria` and
-  the `klea_eval/cost.py` per-model price table (ADR-0061): whether a run is
-  graded is settled (no rubrics means no grade and a grade is never inferred),
-  and judged scoring is rejected, so only the machine-checkable rubric checks
-  and the price table are missing; until the table lands `cost_estimate` is
-  only relayed and summed, HITL
+  form. Still deferred: deterministic rubric checks over the free-text `criteria`
+  (ADR-0061): whether a run is graded is settled (no rubrics means no grade and
+  a grade is never inferred), and judged scoring is rejected, so only the
+  machine-checkable rubric checks are missing; provider pricing stays out of
+  scope (it varies per inference provider and over time and a cost remains
+  derivable from the recorded token counts), so `cost_estimate` is only relayed
+  and summed, HITL
   `interrupt` resume, retention (P8), the in-process scheduler (P9), a persisted
   suite report artefact, the Markdown reporter and any CLI or API exposure of
   `aggregate_suite` (P8). `pipeline.run_suite` is unchanged and keeps its
@@ -295,9 +301,10 @@ Points discovered while delivering P1-P7; later phases must respect them.
   archived runs, and an automatic startup index/directory consistency check or
   rebuild-index command (the explicit `klea-eval check` pass is implemented
   instead),
-  HITL `interrupt` resume, cost derivation (no
-  price table exists), the bounded worker pool (P9), MLflow export and the
-  Markdown reporter.
+  HITL `interrupt` resume, provider pricing (deliberately out of scope: it
+  varies per inference provider and over time, and a cost stays derivable from
+  the recorded token counts), the bounded worker pool (P9), MLflow export and
+  the Markdown reporter.
 - Phase 9 scope caveats: `klea_eval/scheduler.py` is only the ADR-0060 Schedule
   stage. It enumerates suites (`discover_suites`: a JSONL file, or a directory's
   `*.jsonl` files sorted by name), drives each through
@@ -330,9 +337,10 @@ Points discovered while delivering P1-P7; later phases must respect them.
   Still deferred: the bounded worker pool and any parallel worker count, an
   external or broker-backed scheduler backend, a `klea-eval schedule` CLI
   command, automatic repair or redo of leftover `.tmp` runs,
-  HITL `interrupt` resume, cost derivation (no price
-  table exists), MLflow export, a persisted per-suite report artefact and the
-   Markdown reporter.
+  HITL `interrupt` resume, provider pricing (deliberately out of
+  scope: it varies per inference provider and over time, and a cost stays
+  derivable from the recorded token counts), MLflow export, a persisted
+  per-suite report artefact and the Markdown reporter.
 
 ### Post-P9 refinements
 
@@ -413,7 +421,8 @@ below is current.
   `case_count`, `suite_score` and `pass_at_k`, so a rubric-less run no longer
   deflates the aggregate; `SuiteAggregate.ungraded_count` and
   `grade_missing_count` expose the excluded counts, while the ungraded cases
-  stay in `cases` (and in the token and cost totals).  An all-ungraded suite
+  stay in `cases` (and in the token, normalised-unit and cost totals).  An
+  all-ungraded suite
   therefore reports `case_count == 0`, `suite_score == 0.0` and
   `pass_at_k == 0.0`, and the stored run status stays `completed`.
 - Per-case cwd: each case's turn carries its isolated run directory as

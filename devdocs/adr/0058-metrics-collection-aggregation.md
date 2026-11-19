@@ -176,26 +176,52 @@ Each metric category has a versioned schema:
   "total_input_tokens": "number",
   "total_output_tokens": "number",
   "total_cached_tokens": "number",
+  "total_normalised_units": "number (token counts as normalised units, see below)",
   "model": "string (model name for this turn)"
 }
 ```
 
+#### Normalised Token Units
+
+A single provider-independent cost proxy is derived on read from the recorded
+token counts, so no price table is required:
+
+    normalised_units =
+        max(input_tokens - cached_tokens, 0) * UNIT_WEIGHT_FRESH_INPUT
+        + cached_tokens * UNIT_WEIGHT_CACHED_INPUT
+        + output_tokens * UNIT_WEIGHT_OUTPUT
+
+The three weights are module-level constants in `klea_eval.metrics`:
+`UNIT_WEIGHT_FRESH_INPUT = 1.0`, `UNIT_WEIGHT_CACHED_INPUT = 0.1` and
+`UNIT_WEIGHT_OUTPUT = 1.0`.  A cached input token **substitutes for** the fresh
+input token it replaces, so it is counted at the cached weight instead of the
+fresh one and the two are never summed as separate terms; output tokens carry
+their own weight and stay separate from input.  A `cached_tokens` value larger
+than `input_tokens` clamps fresh input at zero rather than yielding negative
+units.
+
+The value is derived on read and never written into a run record: it is fully
+derivable from the recorded token counts, so persisting it would add a second
+source of truth and a spurious mismatch against the declared totals.  It is
+exposed as `normalised_units` on `TurnMetrics`, as `total_normalised_units` on
+`RunMetrics`, `CaseScore` and `SuiteAggregate`, and in the `compare_runs` row.
+It is informational and never enters `task_success`, a pass/fail verdict or an
+exit code.
+
 #### Cost Estimation Record
 
 **Cost is calculated solely from token usage, independent of wall-clock latency:**
+it remains derivable from the recorded token counts, which are also reported as
+normalised units (see above).
 
-```json
-{
-  "model": "string (model identifier)",
-  "input_tokens": "number (total input tokens across all turns)",
-  "output_tokens": "number (total output tokens across all turns)",
-  "cached_tokens": "number (total cached tokens, if applicable)",
-  "input_cost_per_1k_tokens": "number (USD, from model pricing)",
-  "output_cost_per_1k_tokens": "number (USD, from model pricing)",
-  "cached_cost_per_1k_tokens": "number (USD, from model pricing, typically 10% of input cost)",
-  "total_cost_usd": "number (calculated as: (input_tokens / 1000) * input_cost_per_1k_tokens + (output_tokens / 1000) * output_cost_per_1k_tokens + (cached_tokens / 1000) * cached_cost_per_1k_tokens)"
-}
-```
+Provider pricing is deliberately out of scope: it varies per inference provider
+and over time, so this ADR introduces no price table, per-model price and no
+price constant anywhere.  `cost_estimate` stays an informational provider
+passthrough: it is read from a run envelope when present and stays `None`
+otherwise, and it is never weighted, never summed into a graded metric, never
+used arithmetically, and never enters `task_success`, a pass/fail verdict or an
+exit code.  The useful, comparable quantity is the token usage and its
+normalised-unit form above.
 
 **Key principle**: Cost depends only on tokens consumed, not on inference latency or wall-clock execution time. A run that takes 10 seconds and a run that takes 100 seconds with identical token usage have identical cost. Latency is an infrastructure and deployment concern, not an agent behavior or cost concern.
 

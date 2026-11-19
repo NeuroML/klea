@@ -18,9 +18,10 @@ Directory creation, the ``COMPLETE`` marker and the atomic rename stay in
 index line, always through a temporary file or a single ``O_APPEND`` write, so
 a reader never observes a partial record.
 
-Retention, role-to-model resolution, cost derivation and suite-level
-aggregation (``pass_at_k``) are deliberately out of scope here: they belong to
-ADR-0060 and the later phases of the implementation plan.
+Retention, role-to-model resolution, provider pricing (a cost stays derivable
+from the recorded token counts) and suite-level aggregation (``pass_at_k``) are
+deliberately out of scope here: they belong to ADR-0060 and the later phases of
+the implementation plan.
 """
 
 from __future__ import annotations

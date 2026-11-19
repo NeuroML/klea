@@ -36,8 +36,9 @@ Deliberately deferred, all belonging to later phases of the implementation plan:
 - a startup index/directory consistency check or an automatic rebuild-index
   command: :func:`check_consistency` is the explicit, operator-invoked pass
   instead;
-- HITL ``interrupt`` resume, cost derivation, the bounded worker pool, MLflow
-  export and the Markdown reporter.
+- HITL ``interrupt`` resume, provider pricing (a cost stays derivable from the
+  recorded token counts), the bounded worker pool, MLflow export and the
+  Markdown reporter.
 """
 
 from __future__ import annotations

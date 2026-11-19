@@ -266,13 +266,13 @@ graph TD
 
     C -->|turn_output,<br/>metadata| E["Scorer<br/>(deterministic checks)"]
 
-    E -->|pass/fail,<br/>score| F["Usage Tracker<br/>(token counts,<br/>latency,<br/>tool errors)"]
+    E -->|pass/fail,<br/>score| F["Usage Tracker<br/>(token counts,<br/>normalised units,<br/>latency,<br/>tool errors)"]
 
     F -->|per-turn records| G["Persist / Writer<br/>(metrics.jsonl,<br/>transcript.jsonl,<br/>flush/fsync,<br/>COMPLETE written last,<br/>atomic rename,<br/>index append)"]
 
-    G -->|completed runs/run_id/| H["Aggregate<br/>(reads runs/index.jsonl;<br/>pass_at_k,<br/>token and cost totals)"]
+    G -->|completed runs/run_id/| H["Aggregate<br/>(reads runs/index.jsonl;<br/>pass_at_k,<br/>token, normalised unit and cost totals)"]
 
-    H -->|suite aggregates| J["Reporter<br/>(summary table,<br/>cost breakdown)"]
+    H -->|suite aggregates| J["Reporter<br/>(summary table,<br/>normalised units,<br/>cost breakdown)"]
 
     J -->|Markdown| M["Summary Report<br/>(task x model grid)"]
 
@@ -377,12 +377,12 @@ sequenceDiagram
 
 ### Usage Tracker
 - **Input**: Turn response metadata (token counts, model identity, latency, tool calls).
-- **Output**: Per-turn usage record (input_tokens, cached_tokens, output_tokens, model, latency_ms, tool_error_count), emitted as a `metrics.jsonl` record carrying `schema_version` and `record_type` "turn".
+- **Output**: Per-turn usage record (input_tokens, cached_tokens, output_tokens, model, latency_ms, tool_error_count) plus derived `normalised_units`, in which a cached input token substitutes for the fresh input token it replaces and output tokens carry their own weight, emitted as a `metrics.jsonl` record carrying `schema_version` and `record_type` "turn".
 - **Responsibility**: Extract token counts from response or DEBUG logs, aggregate per LLM call, track tool errors and retries; records are appended to `metrics.jsonl` at the run root, never under `workspace/`.
 
 ### Result Aggregator
 - **Input**: Per-turn metrics and per-case pass/fail decisions for one run.
-- **Output**: The versioned per-run envelope `{run_id, case_id, schema_version, record_type, metrics{...}}` with `task_success`, token totals and cost estimate.
+- **Output**: The versioned per-run envelope `{run_id, case_id, schema_version, record_type, metrics{...}}` with `task_success`, token totals, `total_normalised_units` and a relayed cost estimate that stays derivable from the recorded token counts and never enters `task_success`.
 - **Responsibility**: Aggregate the run's own records only; `pass_at_k` is a suite-level aggregate computed later by the Aggregate stage from `runs/index.jsonl`, so it is never a per-run field.
 
 ### Persistence (Writer)
@@ -393,7 +393,7 @@ sequenceDiagram
 ### Reporter
 - **Input**: Suite aggregates from the Aggregate stage, read from `runs/index.jsonl`.
 - **Output**: Summary table (task x model grid), cost breakdown, Markdown report.
-- **Responsibility**: Generate human-readable summary tables, compute cost per task/model, produce write-up-ready output.
+- **Responsibility**: Generate human-readable summary tables, report `total_normalised_units` alongside the raw token counts, compute cost per task/model from those counts (provider pricing itself is out of scope), produce write-up-ready output.
 
 ## Data flow
 
@@ -403,7 +403,7 @@ sequenceDiagram
 4. **Score**: Turn output + expected output -> Scorer -> pass/fail + score, recorded through the metrics collector.
 5. **Usage tracking**: Response metadata -> Usage tracker -> per-turn `metrics.jsonl` record (tokens, latency, tool errors).
 6. **Persist**: Buffered records -> `runs/<run_id>.tmp/`; flush and `fsync`, `COMPLETE` written last, atomic rename to `runs/<run_id>/`, then one `O_APPEND` line to `runs/index.jsonl`.
-7. **Aggregate**: `runs/index.jsonl` -> suite-level `pass_at_k`, per-case pass/fail, token totals and cost.
+7. **Aggregate**: `runs/index.jsonl` -> suite-level `pass_at_k`, per-case pass/fail, token totals, `total_normalised_units` and a cost derivable from the recorded token counts.
 8. **Report**: Suite aggregates -> Reporter -> summary table + Markdown.
 
 ## External integrations

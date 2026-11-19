@@ -30,7 +30,14 @@ than repaired here:
   record type is inferred from the payload and ``schema_version`` defaults to
   :data:`SCHEMA_VERSION`;
 - no price table exists yet, so ``cost_estimate`` is read from the envelope when
-  present and stays ``None`` otherwise.
+  present and stays ``None`` otherwise; provider pricing is deliberately out of
+  scope because it varies per inference provider and over time, and a cost
+  stays derivable from the recorded token counts.  Those counts are reported as
+  normalised units: a cached input token substitutes for the fresh input token
+  it replaces (:data:`UNIT_WEIGHT_CACHED_INPUT` instead of
+  :data:`UNIT_WEIGHT_FRESH_INPUT`) and output tokens carry their own
+  :data:`UNIT_WEIGHT_OUTPUT` weight, so no token is counted twice.  No derived
+  measure enters ``task_success``.
 
 ``pass_at_k`` is never produced here: ADR-0058 makes it a suite-level aggregate
 of the ADR-0060 stage, not a per-run field.
@@ -84,6 +91,44 @@ STATUS_COMPLETED = "completed"
 
 #: Status of a turn or run that failed.
 STATUS_FAILED = "failed"
+
+#: Weight of one fresh (uncached) input token in normalised units.
+UNIT_WEIGHT_FRESH_INPUT = 1.0
+
+#: Weight of one cached input token in normalised units; a cached token
+#: substitutes for the fresh input token it replaces.
+UNIT_WEIGHT_CACHED_INPUT = 0.1
+
+#: Weight of one output token in normalised units.
+UNIT_WEIGHT_OUTPUT = 1.0
+
+
+def _normalised_units(
+    input_tokens: int, output_tokens: int, cached_tokens: int
+) -> float:
+    """Return token counts as normalised units.
+
+    A cached input token substitutes for the fresh input token it replaces, so
+    it is counted at :data:`UNIT_WEIGHT_CACHED_INPUT` instead of the fresh
+    weight.  A ``cached_tokens`` value larger than ``input_tokens`` is clamped
+    to zero fresh input rather than yielding negative units.
+    """
+    fresh_input = input_tokens - cached_tokens
+    if fresh_input < 0:
+        logger.warning(
+            "metrics: clamping fresh input at 0 (%d input, %d cached)",
+            input_tokens,
+            cached_tokens,
+        )
+        fresh_input = 0
+
+    units = (
+        fresh_input * UNIT_WEIGHT_FRESH_INPUT
+        + cached_tokens * UNIT_WEIGHT_CACHED_INPUT
+        + output_tokens * UNIT_WEIGHT_OUTPUT
+    )
+    logger.debug(f"{units = }")
+    return float(units)
 
 
 class MetricsError(Exception):
@@ -150,6 +195,13 @@ class TurnMetrics:
     score: dict[str, Any] | None = None
     tool_calls: tuple[ToolCallRecord, ...] = ()
 
+    @property
+    def normalised_units(self) -> float:
+        """Return this turn's recorded tokens as normalised units."""
+        return _normalised_units(
+            self.input_tokens, self.output_tokens, self.cached_tokens
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class RunMetrics:
@@ -165,6 +217,7 @@ class RunMetrics:
     total_input_tokens: int = 0
     total_output_tokens: int = 0
     total_cached_tokens: int = 0
+    total_normalised_units: float = 0.0
     total_latency_ms: float | None = None
     tool_error_count: int = 0
     cost_estimate: float | None = None
@@ -319,6 +372,7 @@ def aggregate(
     total_input = sum(turn.input_tokens for turn in turns)
     total_output = sum(turn.output_tokens for turn in turns)
     total_cached = sum(turn.cached_tokens for turn in turns)
+    total_units = sum(turn.normalised_units for turn in turns)
     latencies = [turn.latency_ms for turn in turns if turn.latency_ms is not None]
     total_latency = float(sum(latencies)) if latencies else None
     tool_errors = sum(_tool_error_count(row) for _, _, row in turn_rows)
@@ -337,6 +391,7 @@ def aggregate(
         total_input = declared.get("input") or 0
         total_output = declared.get("output") or 0
         total_cached = declared.get("cached") or 0
+        total_units = _normalised_units(total_input, total_output, total_cached)
         if not tool_errors:
             tool_errors = sum(
                 _tool_error_count(row) for row in (envelope_metrics or {},)
@@ -369,6 +424,7 @@ def aggregate(
         total_input_tokens=total_input,
         total_output_tokens=total_output,
         total_cached_tokens=total_cached,
+        total_normalised_units=total_units,
         total_latency_ms=total_latency,
         tool_error_count=tool_errors,
         cost_estimate=cost_estimate,
@@ -425,6 +481,7 @@ def compare_runs(*runs: RunMetrics) -> tuple[dict[str, Any], ...]:
                 "total_input_tokens": run.total_input_tokens,
                 "total_output_tokens": run.total_output_tokens,
                 "total_cached_tokens": run.total_cached_tokens,
+                "total_normalised_units": run.total_normalised_units,
                 "cost_estimate": run.cost_estimate,
                 "resolved_models": dict(run.resolved_models),
             }
