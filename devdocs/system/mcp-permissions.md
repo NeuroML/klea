@@ -54,7 +54,12 @@ The single enforcement point is the pre-dispatch gate in
   `preview_token_start`/`preview_token_end` (character offsets),
   `preview_omitted_before`/`preview_omitted_after` (characters elided at each
   end), `argument_length` (the full argument value's length) and `token_line`
-  (the 1-based line the token sits on).  The ask can also carry display-only
+  (the 1-based line the token sits on).  Because discovery normalises a token
+  before it is recorded, the window may instead centre on a recovered fragment
+  of it -- the stripped token, then its basename when the longer forms do not
+  occur in the value (see `path_detect._recover_anchor`) -- so a normalised
+  token is not hidden inside a plain middle truncation.  The ask can also carry
+  display-only
   plan-step context so the user sees the work each path serves: each request
   item has a `steps` list of `{step_number, summary}` entries (the plan steps
   the dispatching call was bound for), and the payload hoists a de-duplicated,
