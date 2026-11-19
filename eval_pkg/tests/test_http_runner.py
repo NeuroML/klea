@@ -363,7 +363,7 @@ def test_as_turn_executor_returns_a_metric_record(tmp_path: Path) -> None:
     assert record["output_tokens"] == 40
     assert record["total_tokens"] == 160
     assert record["usage"]["cached_tokens"] == 20
-    assert record["tool_calls"][0]["tool"] == "write_file"
+    assert record["tool_calls"][0]["tool_name"] == "write_file"
     assert record["tool_error_count"] == 0
     assert record["latency_ms"] >= 0.0
 
