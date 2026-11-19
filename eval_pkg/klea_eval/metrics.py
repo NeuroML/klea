@@ -56,6 +56,7 @@ __all__ = [
     "STATUS_COMPLETED",
     "STATUS_FAILED",
     "SUPPORTED_SCHEMA_VERSIONS",
+    "ExpectationCheckRecord",
     "MetricsError",
     "MetricsSchemaError",
     "RunMetrics",
@@ -103,6 +104,36 @@ class ToolCallRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class ExpectationCheckRecord:
+    """One deterministic expectation verdict retained from a stored run.
+
+    The fields mirror the record
+    :meth:`klea_eval.expectations.ExpectationCheck.to_dict` writes into the run
+    envelope: the checked turn, the case field (``kind``), the file or tool it
+    applied to (``name``), the verdict (``outcome``) and an explanatory
+    ``detail`` for a failure or an unverifiable check.  An older run predates
+    the field, so its absence yields an empty tuple rather than an error and no
+    schema-version bump is needed to read either shape.
+    """
+
+    name: str
+    kind: str
+    outcome: str = ""
+    detail: str | None = None
+    turn_number: int | None = None
+
+    @property
+    def passed(self) -> bool:
+        """Whether the retained check met its expectation."""
+        return self.outcome == "pass"
+
+    @property
+    def unverifiable(self) -> bool:
+        """Whether the recorded evidence cannot decide the check."""
+        return self.outcome == "unverifiable"
+
+
+@dataclass(frozen=True, slots=True)
 class TurnMetrics:
     """One aggregated per-turn record."""
 
@@ -141,6 +172,7 @@ class RunMetrics:
     error: str | None = None
     envelope_present: bool = False
     resolved_models: dict[str, str] = field(default_factory=dict)
+    expectation_checks: tuple[ExpectationCheckRecord, ...] = ()
 
 
 def read_records(path: str | Path) -> tuple[dict[str, Any], ...]:
@@ -324,6 +356,7 @@ def aggregate(
         cost_estimate = _as_float(raw_cost, None)
 
     resolved_models = _envelope_resolved_models(envelope)
+    expectation_checks = _envelope_expectation_checks(envelope)
 
     summary = RunMetrics(
         run_id=resolved_run_id,
@@ -343,6 +376,7 @@ def aggregate(
         error=error,
         envelope_present=envelope is not None,
         resolved_models=resolved_models,
+        expectation_checks=expectation_checks,
     )
     logger.debug(
         f"{summary.run_id = }, {summary.turn_count = }, "
@@ -398,6 +432,84 @@ def compare_runs(*runs: RunMetrics) -> tuple[dict[str, Any], ...]:
 
     logger.debug(f"{len(rows) = }")
     return tuple(rows)
+
+
+def _envelope_expectation_checks(
+    envelope: Mapping[str, Any] | None,
+) -> tuple[ExpectationCheckRecord, ...]:
+    """Return the expectation checks declared by the run envelope.
+
+    The checks are written by :mod:`klea_eval.expectations` into the run
+    envelope; they are looked for in the ``metrics`` mapping first and then on
+    the envelope itself, so either spelling is read.  An older run predates the
+    field, so an absent or malformed value yields an empty tuple instead of
+    failing the aggregate; no schema-version bump is needed to read them.
+    """
+    if envelope is None:
+        logger.debug("metrics: no envelope, so no expectation checks")
+        return ()
+
+    metrics = _envelope_metrics(envelope)
+    candidates = (
+        metrics.get("expectation_checks") if metrics is not None else None,
+        envelope.get("expectation_checks"),
+    )
+    raw = next((value for value in candidates if value is not None), None)
+    if raw is None or isinstance(raw, (str, bytes)) or not isinstance(raw, Iterable):
+        logger.debug("metrics: the envelope carries no expectation checks")
+        return ()
+
+    checks: list[ExpectationCheckRecord] = []
+    for entry in raw:
+        check = _expectation_check(entry)
+        if check is not None:
+            checks.append(check)
+
+    logger.debug(
+        f"{len(checks) = }, "
+        f"{sum(1 for check in checks if check.passed) = }, "
+        f"{sum(1 for check in checks if check.unverifiable) = }"
+    )
+    return tuple(checks)
+
+
+def _expectation_check(entry: Any) -> ExpectationCheckRecord | None:
+    """Normalise one stored expectation verdict to a record.
+
+    The stored shape carries ``turn_number``, ``kind``, ``target``, ``outcome``
+    and ``detail`` (the ``to_dict`` form of
+    :class:`klea_eval.expectations.ExpectationCheck`); the ``name``/``verdict``
+    spelling is accepted too.  An entry that names no kind cannot be reported
+    and is dropped, as with an unusable tool-call entry.
+    """
+    if isinstance(entry, Mapping):
+        kind = entry.get("kind")
+        name = entry.get("target", entry.get("name"))
+        outcome = entry.get("outcome", entry.get("verdict"))
+        detail = entry.get("detail")
+        turn_number = entry.get("turn_number")
+    else:
+        kind = getattr(entry, "kind", None)
+        name = getattr(entry, "target", None) or getattr(entry, "name", None)
+        outcome = getattr(entry, "outcome", None) or getattr(entry, "verdict", None)
+        detail = getattr(entry, "detail", None)
+        turn_number = getattr(entry, "turn_number", None)
+
+    if not isinstance(kind, str) or not kind.strip():
+        logger.warning("metrics: skipping an expectation check with no kind (%r)", kind)
+        return None
+
+    number = turn_number if isinstance(turn_number, int) else None
+    if isinstance(number, bool):
+        number = None
+
+    return ExpectationCheckRecord(
+        name=name.strip() if isinstance(name, str) else "",
+        kind=kind.strip(),
+        outcome=outcome.strip() if isinstance(outcome, str) else "",
+        detail=detail if isinstance(detail, str) else None,
+        turn_number=number,
+    )
 
 
 def _envelope_resolved_models(

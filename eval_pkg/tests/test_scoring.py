@@ -32,6 +32,7 @@ def _write_metrics(
     *,
     task_success: bool | None = None,
     turn_scores: tuple[Mapping[str, object], ...] = (),
+    expectation_checks: tuple[Mapping[str, object], ...] = (),
     cost: float | None = None,
     resolved_models: Mapping[str, str] | None = None,
     status: str = metrics.STATUS_COMPLETED,
@@ -56,6 +57,8 @@ def _write_metrics(
     envelope: dict[str, object] = {}
     if task_success is not None:
         envelope["task_success"] = task_success
+    if expectation_checks:
+        envelope["expectation_checks"] = [dict(check) for check in expectation_checks]
     if cost is not None:
         envelope["cost_estimate"] = cost
     record: dict[str, object] = {
@@ -124,6 +127,140 @@ def _snapshot(root: Path) -> dict[str, bytes]:
         str(path.relative_to(root)): b"" if path.is_dir() else path.read_bytes()
         for path in sorted(root.rglob("*"))
     }
+
+
+def _check(
+    target: str,
+    outcome: str,
+    *,
+    kind: str = "file_present",
+    detail: str | None = None,
+) -> dict[str, object]:
+    """Build one stored ``expectation_checks`` record for a run envelope."""
+    return {
+        "turn_number": 1,
+        "kind": kind,
+        "target": target,
+        "outcome": outcome,
+        "detail": detail,
+    }
+
+
+def test_score_run_grades_from_the_recorded_checks() -> None:
+    # Every recorded verdict passed, so the run is a graded pass even without a
+    # task_success of its own.
+    run = metrics.RunMetrics(
+        run_id="run-4",
+        case_id="case-4",
+        expectation_checks=(
+            metrics.ExpectationCheckRecord(
+                name="out.txt", kind="file_present", outcome="pass"
+            ),
+            metrics.ExpectationCheckRecord(
+                name="read_file", kind="tool_name", outcome="pass"
+            ),
+        ),
+    )
+
+    case = scoring.score_run(run)
+
+    assert case.score == 1.0
+    assert case.passed is True
+    assert case.failed_check is None
+
+
+def test_score_run_fails_on_a_recorded_failing_check() -> None:
+    # A recorded fail wins over a passing task_success and names the check, so
+    # the case is a graded fail (exit 1) rather than an unverified pass.
+    run = metrics.RunMetrics(
+        run_id="run-5",
+        case_id="case-5",
+        task_success=True,
+        expectation_checks=(
+            metrics.ExpectationCheckRecord(
+                name="out.txt", kind="file_present", outcome="pass"
+            ),
+            metrics.ExpectationCheckRecord(
+                name="summary.txt",
+                kind="validation_rule",
+                outcome="fail",
+                detail="validation_rule 'contains' did not hold for 'summary.txt'",
+            ),
+        ),
+    )
+
+    case = scoring.score_run(run)
+
+    assert case.score == 0.0
+    assert case.passed is False
+    assert case.failed_check == "summary.txt"
+    assert case.to_dict()["failed_check"] == "summary.txt"
+
+
+def test_aggregate_counts_a_recorded_failing_check_as_a_failed_case(
+    tmp_path: Path,
+) -> None:
+    _write_metrics(
+        tmp_path,
+        "run-pass",
+        "case-pass",
+        expectation_checks=(_check("out.txt", "pass"),),
+    )
+    _write_metrics(
+        tmp_path,
+        "run-fail",
+        "case-fail",
+        expectation_checks=(
+            _check("out.txt", "pass"),
+            _check("summary.txt", "fail", kind="validation_rule"),
+        ),
+    )
+    _append_index(tmp_path, "run-pass", "case-pass")
+    _append_index(tmp_path, "run-fail", "case-fail")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.case_count == 2
+    assert aggregate.pass_count == 1
+    assert aggregate.suite_score == pytest.approx(0.5)
+    failed = [case for case in aggregate.cases if case.case_id == "case-fail"]
+    assert len(failed) == 1
+    assert failed[0].passed is False
+    assert failed[0].failed_check == "summary.txt"
+
+
+def test_a_case_declaring_expectations_with_no_recorded_checks_is_grade_missing(
+    tmp_path: Path,
+) -> None:
+    # The case expects a grade but no verdict was recorded, so it stays
+    # grade-missing (exit 4) instead of passing or failing by default, and it is
+    # kept out of the score and pass@k denominators.
+    _write_metrics(tmp_path, "run-gm", "case-gm")
+    _append_index(tmp_path, "run-gm", "case-gm")
+    _write_run_json(tmp_path, "run-gm", "case-gm", expects_grade=True)
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.grade_missing_count == 1
+    assert aggregate.ungraded_count == 0
+    assert aggregate.case_count == 0
+    assert aggregate.pass_count == 0
+    assert aggregate.pass_at_k == 0.0
+    assert aggregate.missing_runs == ()
+
+
+def test_a_case_without_expectations_is_ungraded(tmp_path: Path) -> None:
+    # A case declaring nothing is ungraded (exit 0), counted apart from a
+    # grade-missing one.
+    _write_metrics(tmp_path, "run-un", "case-un")
+    _append_index(tmp_path, "run-un", "case-un")
+    _write_run_json(tmp_path, "run-un", "case-un", expects_grade=False)
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.ungraded_count == 1
+    assert aggregate.grade_missing_count == 0
+    assert aggregate.case_count == 0
 
 
 def test_score_run_marks_a_successful_run_passed() -> None:

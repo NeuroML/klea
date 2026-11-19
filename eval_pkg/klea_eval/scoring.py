@@ -20,10 +20,15 @@ line.  :meth:`SuiteAggregate.to_dict` is the in-memory, JSON-ready form that a
 later API or reporter renders.
 
 Per-case score: the mean of the numeric rubric scores recorded in the run's
-turn records, else ``1.0`` when the run's ``task_success`` is true and ``0.0``
-otherwise.  A case is passed when any of its selected runs reports
-``task_success`` true; a case whose metrics cannot be read counts as failed and
-is listed in ``missing_runs`` without aborting the aggregate.
+turn records, else ``1.0`` for a passing run and ``0.0`` otherwise.  Whether a
+run passes is graded from the deterministic expectation verdicts it recorded
+(``RunMetrics.expectation_checks``): a run whose checks all passed is a graded
+pass, any recorded fail forces it to fail and names the failing check, and a run
+that recorded no checks falls back to its ``task_success`` -- so a case that
+declared expectations but recorded no verdicts stays grade-missing rather than
+passing by default.  A case is passed when any of its selected runs passes; a
+case whose metrics cannot be read counts as failed and is listed in
+``missing_runs`` without aborting the aggregate.
 
 Deliberately deferred, all belonging to later phases of the implementation plan:
 
@@ -81,6 +86,7 @@ class CaseScore:
     total_cached_tokens: int = 0
     cost_estimate: float | None = None
     error: str | None = None
+    failed_check: str | None = None
     resolved_models: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -97,6 +103,7 @@ class CaseScore:
             "cost_estimate": self.cost_estimate,
             "resolved_models": dict(self.resolved_models),
             "error": self.error,
+            "failed_check": self.failed_check,
         }
 
 
@@ -142,17 +149,32 @@ class SuiteAggregate:
 def score_run(run: metrics.RunMetrics) -> CaseScore:
     """Score one run from the per-run metrics summary.
 
+    ``passed`` is graded from the run's recorded expectation verdicts: any
+    recorded failing check marks the run failed and is named on the score for the
+    ``failed_check`` field, a run whose checks all passed is a graded pass, and a
+    run that recorded no checks falls back to ``task_success`` -- so a case that
+    declared expectations but recorded none stays grade-missing rather than
+    passing by default.  Rubric ``criteria`` remain deferred: only the recorded
+    deterministic verdicts are graded here.
+
     The score is the mean of the numeric rubric scores recorded on its turns;
-    when no numeric score exists it falls back to ``1.0`` for a run whose
-    ``task_success`` is true and ``0.0`` otherwise.  ``passed`` follows
-    ``task_success`` alone, so a run with unknown success contributes a score
-    but never a pass.
+    when no numeric score exists it falls back to ``1.0`` for a passing run and
+    ``0.0`` otherwise.
     """
     if not isinstance(run, metrics.RunMetrics):
         raise ScoringError(f"expected a RunMetrics, got {type(run).__name__}")
 
     numeric = _numeric_scores(run)
-    passed = run.task_success is True
+    failed_check = _first_failed_check(run)
+    if failed_check is not None:
+        passed = False
+    elif run.expectation_checks and all(
+        check.passed for check in run.expectation_checks
+    ):
+        passed = True
+    else:
+        passed = run.task_success is True
+
     if numeric:
         score = sum(numeric) / len(numeric)
     elif passed:
@@ -161,7 +183,8 @@ def score_run(run: metrics.RunMetrics) -> CaseScore:
         score = 0.0
 
     logger.debug(
-        f"{run.run_id = }, {run.case_id = }, {score = }, {passed = }, {len(numeric) = }"
+        f"{run.run_id = }, {run.case_id = }, {score = }, {passed = }, "
+        f"{len(numeric) = }, {len(run.expectation_checks) = }, {failed_check = }"
     )
     return CaseScore(
         run_id=run.run_id,
@@ -175,7 +198,41 @@ def score_run(run: metrics.RunMetrics) -> CaseScore:
         cost_estimate=run.cost_estimate,
         resolved_models=dict(run.resolved_models),
         error=run.error,
+        failed_check=failed_check,
     )
+
+
+def _first_failed_check(run: metrics.RunMetrics) -> str | None:
+    """Return the name of the first recorded failing check, or ``None``.
+
+    A recorded verdict whose ``outcome`` is ``fail`` forces the run to fail; its
+    ``name`` (the file or tool it applied to) is returned so the score can carry
+    which check did not hold, falling back to the check ``kind`` when the target
+    is unnamed.
+    """
+    for check in run.expectation_checks:
+        if check.outcome == "fail":
+            return check.name or check.kind
+    return None
+
+
+def _recorded_grade(run: metrics.RunMetrics) -> bool | None:
+    """Return the grade a stored run recorded: its verdicts, else its success.
+
+    A run that recorded deterministic expectation verdicts (ADR-0061) is graded
+    from them -- any failing check fails it and a run whose checks all passed
+    passes -- so a run whose envelope omitted ``task_success`` is still graded
+    instead of being counted ungraded.  A run with no recorded verdicts, or one
+    whose verdicts are all unverifiable, falls back to its ``task_success``,
+    which may itself be ``None``.
+    """
+    if run.expectation_checks:
+        if any(check.outcome == "fail" for check in run.expectation_checks):
+            return False
+        if any(check.passed for check in run.expectation_checks):
+            return True
+        return None
+    return run.task_success
 
 
 def _expects_grade(root: Path | None, run_id: str) -> bool:
@@ -249,7 +306,7 @@ def aggregate_suite(
             case = score_run(summary)
             cases.append(case)
 
-            if summary.task_success is None:
+            if _recorded_grade(summary) is None:
                 label = labels.classify_case(
                     status=entry.status,
                     task_success=None,

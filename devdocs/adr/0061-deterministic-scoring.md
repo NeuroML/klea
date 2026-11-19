@@ -56,7 +56,11 @@ criterion above.
 
 The LLM judge is rejected for gating. Deterministic checks are the only grading
 path: a run is graded by machine checks over its `expected_outputs` and its
-`tool_expectations` (ADR-0056), never by a model verdict. Any future judged
+`tool_expectations` (ADR-0056), never by a model verdict. Those checks run in
+the Execute -> Score stage of the pipeline (ADR-0060), and each per-check
+verdict is recorded in the run record as `metrics.expectation_checks` beside the
+derived `task_success`, so `score_run` grades a run from its recorded verdicts
+alone and the grade stays reproducible without re-reading the run workspace. Any future judged
 scoring would need opt-in, a pinned and recorded judge model id in `run.json`,
 cached verdicts so a rerun reuses the same score, and strict non-gating so a
 judged number never reaches `task_success`; that is a new decision and needs its

@@ -197,6 +197,97 @@ def test_single_case_suite_writes_complete_run(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Pipeline: expectation verdicts
+# ---------------------------------------------------------------------------
+def _turn_with_output(
+    turn_number: int, role: str, content: str, file_path: str = "out.txt"
+) -> dict[str, Any]:
+    """Build a turn that declares one exact-match expected output."""
+    payload = _turn(turn_number, role, content)
+    payload["expected_outputs"] = [
+        {
+            "file_path": file_path,
+            "output_format": "text",
+            "validation_rule": "exact_match",
+            "expected_content": "hello",
+        }
+    ]
+    return payload
+
+
+def _run_envelopes(root: Path) -> list[dict[str, Any]]:
+    """Return every stored run-envelope record under ``root``."""
+    envelopes: list[dict[str, Any]] = []
+    for path in sorted(root.rglob(workspace.METRICS_FILE_NAME)):
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            record = json.loads(line)
+            if record.get("record_type") == metrics.RECORD_TYPE_RUN:
+                envelopes.append(record)
+    return envelopes
+
+
+def _envelope_checks(root: Path) -> list[Any]:
+    """Return every expectation verdict recorded in a run envelope."""
+    checks: list[Any] = []
+    for envelope in _run_envelopes(root):
+        payload = envelope.get("metrics", {})
+        if isinstance(payload, Mapping):
+            checks.extend(payload.get("expectation_checks", []))
+    return checks
+
+
+def test_completed_run_records_its_expectation_checks(tmp_path: Path) -> None:
+    """A completed run records the deterministic verdicts of its case."""
+    case = _case("case-checks", [_turn_with_output(1, "user", "Write out.txt")])
+
+    _suite, result = _run(tmp_path, [case])
+
+    assert result.runs[0].status == "completed"
+    envelopes = _run_envelopes(result.workspace_root)
+    assert len(envelopes) == 1
+
+    payload = envelopes[0]["metrics"]
+    checks = payload["expectation_checks"]
+    assert len(checks) == 1
+    assert checks[0]["kind"] == "file_present"
+    assert checks[0]["target"] == "out.txt"
+    assert checks[0]["outcome"] == "fail"
+    assert payload["task_success"] is False
+
+
+def test_a_discarded_run_records_no_expectation_checks(tmp_path: Path) -> None:
+    """A run discarded while resolving models records no verdicts."""
+    suite = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case("case-discard", [_turn_with_output(1, "user", "Write out.txt")])],
+    )
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir(exist_ok=True)
+
+    def applier(*_args: Any, **_kwargs: Any) -> dict[str, str]:
+        raise ModelOverrideError("model 'mystery' is not configured")
+
+    result = run_suite(
+        str(suite),
+        workspace_root=str(workspace_root),
+        execute_turn=Recorder(),
+        harness_seed=1234,
+        max_attempts=1,
+        model_overrides={"planner": "mystery"},
+        apply_models=applier,
+        base_url="http://backend.test",
+        check_models=_accept_all_checker,
+        sleep=lambda _delay: None,
+    )
+
+    assert result.runs[0].status == "failed"
+    assert result.runs[0].output_dir is None
+    assert _envelope_checks(workspace_root) == []
+
+
+# ---------------------------------------------------------------------------
 # Pipeline: multiple cases
 # ---------------------------------------------------------------------------
 def test_multi_case_suite_stores_runs_in_suite_order(tmp_path: Path) -> None:

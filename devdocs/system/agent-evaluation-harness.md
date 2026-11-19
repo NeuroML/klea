@@ -101,6 +101,11 @@ optional condition (model escalation), never a requirement.
   `{run_id, case_id, schema_version, record_type, metrics{...}}` "run"
   envelope (ADR-0058); persistence precedes suite-level aggregation, which
   reads `runs/index.jsonl` (ADR-0059, ADR-0060).
+- Grading: the deterministic checks over `expected_outputs` and
+  `tool_expectations` run in the Execute -> Score stage, while the run's
+  `workspace/` is live; their per-check verdicts are recorded in the run record
+  as `metrics.expectation_checks` beside the derived `task_success`, and
+  `score_run` grades a case from those recorded verdicts (ADR-0061).
 - Topology variants wired as swappable graphs sharing prompts, tools and
   models, so the only independent variable is the topology.
 

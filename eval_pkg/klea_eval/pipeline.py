@@ -353,7 +353,7 @@ def _run_one_case(
             run_id=run_id,
             output_dir=output_dir,
             metrics=_stored_metrics(output_dir),
-            expects_grade=bool(case.rubrics),
+            expects_grade=_expects_grade(case),
         )
 
     try:
@@ -439,8 +439,23 @@ def _run_one_case(
         )
 
     try:
-        _append_run_envelope(context, Path(output_dir), resolved_models)
         summary = metrics.load_run(output_dir)
+        # The deterministic checker reads the run's own workspace and retained
+        # turn records, so it runs here, while both are in scope; a case that
+        # declares no expectation yields no checks and stays ungraded.
+        from klea_eval import expectations
+
+        checks = expectations.check_case(
+            case, Path(output_dir) / "workspace", summary.turns
+        )
+        grade = expectations.grade_checks(checks)
+        logger.info(
+            "pipeline: case %s recorded %d expectation check(s), grade %s",
+            case.case_id,
+            len(checks),
+            grade,
+        )
+        _append_run_envelope(context, Path(output_dir), resolved_models, checks, grade)
         _store_run(context, case, Path(output_dir), root, resolved_models)
     except (
         metrics.MetricsError,
@@ -467,7 +482,23 @@ def _run_one_case(
         run_id=run_id,
         output_dir=Path(output_dir),
         metrics=summary,
-        expects_grade=bool(case.rubrics),
+        expects_grade=_expects_grade(case),
+    )
+
+
+def _expects_grade(case: TestCase) -> bool:
+    """Whether a case declares anything a deterministic grader reports on.
+
+    A case expects a grade when it declares rubrics (ADR-0061) or any turn
+    expectation the checker can evaluate; a case that declares neither is
+    ungraded, which the reporter counts apart from a graded one.
+    """
+    if case.rubrics:
+        return True
+
+    return any(
+        getattr(turn, "expected_outputs", ()) or getattr(turn, "tool_expectations", ())
+        for turn in case.turns
     )
 
 
@@ -483,7 +514,7 @@ def _run_metadata(
         status=run_manager.STATUS_COMPLETED,
         harness_seed=context.harness_seed,
         case_version=case.schema_version,
-        expects_grade=bool(case.rubrics),
+        expects_grade=_expects_grade(case),
         models=context.model_overrides,
         resolved_models=dict(resolved_models or {}),
         chat_id=context.chat_id,
@@ -703,18 +734,34 @@ def _apply_model_overrides(
 
 
 def _append_run_envelope(
-    context: RunContext, output_dir: Path, resolved_models: Mapping[str, str]
+    context: RunContext,
+    output_dir: Path,
+    resolved_models: Mapping[str, str],
+    checks: tuple[Any, ...] = (),
+    grade: bool | None = None,
 ) -> None:
-    """Append the single run-level envelope record of a completed run."""
+    """Append the single run-level envelope record of a completed run.
+
+    ``checks`` are the deterministic expectation verdicts of the run and
+    ``grade`` their reduction; both are recorded in the envelope's ``metrics``
+    mapping, so the aggregate can report the case without re-reading the run
+    workspace.  An ungraded run leaves ``task_success`` out instead of
+    recording a passing verdict it never verified.
+    """
     # ``append_metric`` owns the atomic, fsync'd line write, so the envelope
     # lands on the same durability path as the run's own turn lines.
+    envelope_metrics: dict[str, Any] = {
+        "expectation_checks": [check.to_dict() for check in checks],
+    }
+    if grade is not None:
+        envelope_metrics["task_success"] = grade
     record = {
         "run_id": context.run_id,
         "case_id": context.case_id,
         "schema_version": metrics.SCHEMA_VERSION,
         "record_type": metrics.RECORD_TYPE_RUN,
         "status": run_manager.STATUS_COMPLETED,
-        "metrics": {},
+        "metrics": envelope_metrics,
         "resolved_models": dict(resolved_models),
         "chat_id": context.chat_id,
         "attempt": context.attempt,

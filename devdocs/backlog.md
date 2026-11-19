@@ -130,6 +130,13 @@ commit log and resume instructions) is
 `devdocs/system/eval-harness-implementation.md`; this section keeps only the
 remaining ordered phases and deferred items.
 
+- Package-wide docstring review, **open** (user request, 2026-11-19): the class
+  and method docstrings across `eval_pkg/klea_eval` are minimal and insufficient
+  to understand the behaviour from the source alone; the whole package should
+  be reviewed and its docstrings improved in a dedicated pass.  Until that pass
+  lands, docstrings are improved opportunistically as code is touched
+  (touch-as-you-go interim rule).
+
 Ordered phases.  The package scaffold and distribution (`klea-eval`) are done,
 and the ADR-0056 JSONL case loader shipped in commit `4c1df875`; the CLI
 case-validation command shipped as `klea-eval validate`.  The remaining ordered
@@ -159,12 +166,17 @@ phases are listed below.
   per ADR-0061: a judged verdict would enter `record_evaluation_result` and
   therefore `task_success`, the labels and the exit codes, which must stay
   reproducible from the stored run, so scoring is deterministic checks only.
-- Scoring-depth follow-ups, **open** (ADR-0061): `scoring.py` today consumes
-  none of the concrete case-schema fields a deterministic check would use --
-  `expected_outputs.file_path` / `output_format` / `validation_rule` (default
-  `exact_match`) and `tool_expectations.tool_name` / `call_count` (default
-  `(1, 1)`) / `argument_constraints` -- so wiring them into checks is the next
-  step.  Also open: a `cost.py` per-model price table (until it lands
+- Scoring-depth follow-ups, **done** for expected outputs and tool
+  expectations (ADR-0061): `klea_eval.expectations` (`check_case`,
+  `grade_checks`) consumes the concrete case-schema fields a deterministic
+  check needs -- `expected_outputs.file_path` / `output_format` /
+  `validation_rule` (closed to `exact_match` / `contains`, with an optional
+  `expected_content` operand) and `tool_expectations.tool_name` /
+  `call_count` (default `(1, 1)`) / `argument_constraints` -- runs in the
+  Execute -> Score handover of the pipeline and records one verdict per check
+  as `metrics.expectation_checks` beside the derived `task_success`, so
+  `score_run` grades from the stored verdicts.  Landed on `feat-eval-harness`
+  on top of `7ce0e420`.  Also open: a `cost.py` per-model price table (until it lands
   `cost_estimate` is only relayed and summed), and the design questions of the
   machine-checkable `criteria` predicate form and the scale-rubric pass
   threshold.  Any future judge must be opt-in, pin and record its model id,
