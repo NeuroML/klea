@@ -281,6 +281,13 @@ class MessageBlock(Vertical):
 class Transcript(VerticalScroll):
     """The scrolling transcript of chat messages."""
 
+    #: Message blocks mounted at once; enough to fill several screens.
+    WINDOW_SIZE = 40
+    #: Older messages mounted per scroll-to-top batch.
+    SCROLL_BATCH = 20
+    #: Hard cap on the mounted blocks (two windows).
+    MAX_MOUNTED = 80
+
     def __init__(self, *, id: str | None = None) -> None:
         """Build an empty transcript.
 
@@ -290,6 +297,15 @@ class Transcript(VerticalScroll):
         # Resolved once, at component init, so every block in this transcript
         # draws the same table even if the terminal changes mid-session.
         self._glyphs = get_glyphs()
+        # The authoritative message data (plain dicts, never widgets), so the
+        # whole history survives while only a window of blocks is mounted.
+        self._messages: list[Any] = []
+        # Index in ``_messages`` of the oldest mounted block.
+        self._mounted_start = 0
+        # Guards the scroll-to-top loader against re-entrant mounts.
+        self._loading_older = False
+        # Guards the scroll-to-bottom loader against re-entrant mounts.
+        self._loading_newer = False
 
     def compose(self) -> ComposeResult:
         """Compose the empty placeholder (removed on the first message)."""
@@ -311,16 +327,220 @@ class Transcript(VerticalScroll):
             tints[role] = variables.get(token.lstrip("$"), "")
         return tints
 
+    def _block_for(
+        self, message: Mapping[str, Any], tints: Mapping[str, str]
+    ) -> MessageBlock:
+        """Build a block for *message* with this transcript's glyphs and tints.
+
+        :param message: A message dict (see ``state.MessageData``).
+        :param tints: Role -> colour resolved from the active theme.
+        :returns: The block to mount for *message*.
+        """
+        return MessageBlock(message, glyphs=self._glyphs, tints=tints)
+
+    def _mounted_blocks(self) -> list[MessageBlock]:
+        """Return the mounted message blocks, oldest first."""
+        return [child for child in self.children if isinstance(child, MessageBlock)]
+
+    @property
+    def _mounted_end(self) -> int:
+        """Index in :attr:`_messages` just after the newest mounted block.
+
+        Mounted indices are always contiguous (blocks are added only at the
+        head or the tail and trimmed only at either end), so the end is the
+        oldest mounted index plus the number of mounted blocks.
+        """
+        return self._mounted_start + len(self._mounted_blocks())
+
+    def _evict_oldest(self) -> None:
+        """Unmount the oldest blocks so no more than ``MAX_MOUNTED`` remain.
+
+        ``WINDOW_SIZE`` is the hydration window: ``set_messages`` mounts that
+        many newest messages (via ``_mount_newest``) when a chat is loaded.
+        ``MAX_MOUNTED`` is the live cap: a long session appends messages one at
+        a time, so this bounds the mounted widget tree (and its Rich
+        renderables), which is what made a long session expensive to lay out.
+        The evicted blocks stay in :attr:`_messages`, so nothing is lost.
+        """
+        blocks = self._mounted_blocks()
+        excess = len(blocks) - self.MAX_MOUNTED
+        if excess <= 0:
+            return
+        for block in blocks[:excess]:
+            block.remove()
+        self._mounted_start += excess
+        logger.debug(
+            "evicted %d oldest message blocks (%d remain)", excess, self.MAX_MOUNTED
+        )
+
+    async def _mount_newest(self, tints: Mapping[str, str]) -> None:
+        """Mount the newest ``WINDOW_SIZE`` messages of the transcript.
+
+        :param tints: Role -> colour resolved from the active theme.
+        """
+        start = max(0, len(self._messages) - self.WINDOW_SIZE)
+        self._mounted_start = start
+        for message in self._messages[start:]:
+            await self.mount(self._block_for(message, tints))
+        logger.debug(
+            "mounted %d message blocks from index %d",
+            len(self._messages) - start,
+            start,
+        )
+
+    def _enforce_cap(self) -> None:
+        """Trim the mounted blocks to ``MAX_MOUNTED`` from the newest end.
+
+        Older batches mount above the viewport, so once the hard cap is reached
+        the newest (bottom) blocks are unmounted rather than refusing to load
+        more history: repeated scroll-ups cannot grow the mounted set without
+        bound, and the reader's position above the viewport is untouched.
+        It leaves ``_mounted_end < len(self._messages)``, which is exactly the
+        outstanding range the scroll-down loader (:meth:`_load_newer`)
+        restores.
+        """
+        blocks = self._mounted_blocks()
+        excess = len(blocks) - self.MAX_MOUNTED
+        if excess <= 0:
+            return
+        for block in blocks[-excess:]:
+            block.remove()
+        logger.debug("capped mounted blocks at %d", self.MAX_MOUNTED)
+
+    async def _load_older(self) -> None:
+        """Mount the next older batch of messages when the reader hits the top."""
+        try:
+            mounted = self._mounted_blocks()
+            if not mounted or self._mounted_start <= 0:
+                logger.debug(
+                    f"no older message blocks to mount "
+                    f"(mounted={len(mounted)}, start={self._mounted_start}): "
+                    f"leaving the scroll position to scroll_home"
+                )
+                return
+            start = max(0, self._mounted_start - self.SCROLL_BATCH)
+            count = self._mounted_start - start
+            if count <= 0:
+                return
+            tints = self._resolved_tints()
+            # The block that was at the top before the batch lands is the
+            # viewport anchor, so the reader keeps their place.
+            anchor = mounted[0]
+            # Capture the anchor's top and the reader's offset inside it before
+            # the batch lands, so the restore keeps the reader's position within
+            # the anchor block instead of snapping to its top.
+            anchor_top = anchor.virtual_region.y
+            offset = self.scroll_y
+            for message in self._messages[start : start + count]:
+                await self.mount(self._block_for(message, tints), before=anchor)
+            self._mounted_start = start
+            self._enforce_cap()
+
+            def _restore_position() -> None:
+                y = anchor.virtual_region.y + (offset - anchor_top)
+                self.scroll_to(y=y, animate=False)
+                logger.debug(
+                    f"restored transcript viewport to {y} "
+                    f"(anchor offset {offset - anchor_top:+.0f})"
+                )
+
+            self.call_after_refresh(_restore_position)
+            logger.debug(
+                "mounted %d older message blocks (%d mounted)",
+                count,
+                len(self._mounted_blocks()),
+            )
+        finally:
+            self._loading_older = False
+
+    async def _load_newer(self) -> None:
+        """Mount the next newer batch of messages when the reader hits the bottom.
+
+        The mirror of :meth:`_load_older`: the newest messages trimmed by the
+        live cap (or hidden by :meth:`_enforce_cap`) are mounted below the last
+        mounted block, and the oldest end is trimmed afterwards so
+        ``MAX_MOUNTED`` still holds and mounted indices stay contiguous.  No
+        anchoring is needed: the blocks land below the viewport, so the bottom
+        itself is the fixed point and is pinned by
+        :meth:`_finish_load_newer`.
+        """
+        try:
+            end = self._mounted_end
+            if end >= len(self._messages):
+                logger.debug(
+                    f"no newer message blocks to mount "
+                    f"(end={end}, total={len(self._messages)})"
+                )
+                return
+            count = min(self.SCROLL_BATCH, len(self._messages) - end)
+            tints = self._resolved_tints()
+            for message in self._messages[end : end + count]:
+                await self.mount(self._block_for(message, tints))
+            # Hold the cap by trimming the oldest end only: enforcing it here
+            # would immediately remove the blocks just restored.
+            self._evict_oldest()
+            logger.debug(
+                "mounted %d newer message blocks (%d mounted)",
+                count,
+                len(self._mounted_blocks()),
+            )
+        finally:
+            # The programmatic scroll below must run while the guard is still
+            # set, so it cannot re-trigger this loader and cascade.
+            self.call_after_refresh(self._finish_load_newer)
+
+    def _finish_load_newer(self) -> None:
+        """Pin the viewport to the bottom and release the newer-loader guard."""
+        self.scroll_end(animate=False)
+        self._loading_newer = False
+
+    def watch_scroll_y(self, old_value: float, new_value: float) -> None:
+        """Load older messages when the reader scrolls to the very top.
+
+        :param old_value: The previous scroll offset.
+        :param new_value: The new scroll offset.
+        """
+        super().watch_scroll_y(old_value, new_value)
+        if (
+            new_value <= 0
+            and old_value > 0
+            and self._mounted_start > 0
+            and not self._loading_older
+        ):
+            self._loading_older = True
+            self.run_worker(self._load_older(), group="transcript-older")
+        # The two branches cannot both hold: one requires the top, the other
+        # the bottom (and ``max_scroll_y > 0``), so this is inert for a
+        # transcript that already fits and when no newer range is trimmed.
+        elif (
+            self.max_scroll_y > 0
+            and new_value >= self.max_scroll_y
+            and old_value < self.max_scroll_y
+            and self._mounted_end < len(self._messages)
+            and not self._loading_newer
+        ):
+            self._loading_newer = True
+            self.run_worker(self._load_newer(), group="transcript-newer")
+
     async def append(self, message: MessageData) -> None:
         """Append one message and scroll to the bottom.
+
+        The message is kept in :attr:`_messages`; only the newest window of
+        blocks stays mounted, so a long session does not grow the widget tree.
 
         :param message: A message dict (see ``state.MessageData``).
         """
         for placeholder in self.query("#transcript-empty"):
             placeholder.remove()
-        await self.mount(
-            MessageBlock(message, glyphs=self._glyphs, tints=self._resolved_tints())
-        )
+        self._messages.append(message)
+        # Mount the outstanding tail (the range a prior cap trim left
+        # unmounted, usually empty) plus the new message, so mounted indices
+        # stay contiguous; the cap is still held by trimming the oldest end.
+        end = self._mounted_end
+        tints = self._resolved_tints()
+        for pending in self._messages[end:]:
+            await self.mount(self._block_for(pending, tints))
+        self._evict_oldest()
         self.scroll_end(animate=False)
 
     async def set_messages(self, messages: Sequence[Mapping[str, Any]]) -> None:
@@ -329,14 +549,15 @@ class Transcript(VerticalScroll):
         :param messages: The chat's ``messages`` list.
         """
         await self.remove_children()
-        if not messages:
+        self._messages = list(messages)
+        self._mounted_start = 0
+        self._loading_newer = False
+        if not self._messages:
             await self.mount(
                 SelectableStatic("No messages yet.", id="transcript-empty")
             )
             return
-        tints = self._resolved_tints()
-        for message in messages:
-            await self.mount(MessageBlock(message, glyphs=self._glyphs, tints=tints))
+        await self._mount_newest(self._resolved_tints())
         self.scroll_end(animate=False)
 
 
