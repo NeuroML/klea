@@ -492,6 +492,15 @@ transcript to the newest message only when that chat's message count grew,
 tracked per chat on `PageContext`, so expanding an older message or any other
 re-render of an unchanged message set leaves the viewport where it is.
 
+The web transcript pages this window the same way: reaching the top mounts
+`SCROLL_BATCH` (20) older messages per step and trims the newest end, and
+reaching the bottom re-mounts the newer messages while the oldest end is
+dropped, so the mounted window stays bounded by `MOUNTED_MESSAGE_LIMIT` while
+the store keeps every message.  Expanding a bubble never moves the pane: the
+toggle flips the block's collapsed class and icon in place and records the
+choice in the chat's `expanded` set, so the transcript is not rebuilt and the
+viewport stays put.
+
 The web transcript also bounds its widget tree: `MOUNTED_MESSAGE_LIMIT` (80)
 in `utils_pkg/klea_utils/ui/web/nicegui/components/chat_area.py`, applied in
 `_render_messages`, mounts only the newest window of message bubbles and leaves
