@@ -20,6 +20,8 @@
 - Per-tool call details (name, arguments, error) are retained in the run metrics, so tool expectations can be graded.
 - Eval metrics now report a provider-independent normalised token unit -- fresh input tokens at weight 1, cached input tokens at weight 0.1 in place of the input tokens they substitute for, and output tokens on their own tunable weight -- so cost stays comparable across providers without a pinned price table.
 
+- The user-facing `klea-eval` quickstart and CLI reference are now documented.
+
 ### Changed
 
 - Eval case files now reject an undefined `validation_rule` and the reserved `binary` output format, and may declare `expected_content` as the text a produced file is compared against.

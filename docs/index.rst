@@ -87,6 +87,7 @@ New to Klea? Start with installation and the end-to-end RAG guide:
 
 * :doc:`install` -- install Klea (PyPI or from source, with optional extras)
 * :doc:`guides/create-and-use-rag` -- build your first vector store, configure a domain, and query it
+* :doc:`guides/run-an-evaluation` -- run an evaluation suite against a live server and read the scores
 
 Prototype Deployments
 ---------------------
