@@ -487,6 +487,11 @@ sections that actually changed.  The skip keeps the per-event cost bounded and
 preserves the reader's scroll position; a rebuilt or removed section keeps no
 stamp, so it is rendered from scratch.
 
+The web chat area (`chat_area.py`) follows the same rule: it scrolls the
+transcript to the newest message only when that chat's message count grew,
+tracked per chat on `PageContext`, so expanding an older message or any other
+re-render of an unchanged message set leaves the viewport where it is.
+
 ## Spinner lifecycle
 
 `_run_query` stops the turn spinner unconditionally in its `finally` clause

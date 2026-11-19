@@ -135,6 +135,12 @@ class PageContext:
     # and invoked by handlers after the page is fully assembled)
     render_chat_area: Callable[[], None] = field(default=_noop)
     scroll_chat_bottom: Callable[[], None] = field(default=_noop)
+    #: Key of the chat whose transcript was last rebuilt, and the number of
+    #: messages rendered for each chat key, so the transcript scrolls to the
+    #: bottom only on a chat switch or when new messages arrived (a same-set
+    #: re-render keeps the reader's viewport where it was).
+    last_rendered_chat: str = ""
+    rendered_message_counts: dict[str, int] = field(default_factory=dict)
     refresh_chat_list: Callable[..., Any] = field(default=_noop)
     refresh_status_pane: Callable[..., Any] = field(default=_noop)
     refresh_inspector: Callable[..., Any] = field(default=_noop)

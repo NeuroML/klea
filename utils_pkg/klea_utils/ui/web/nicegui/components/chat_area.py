@@ -872,7 +872,19 @@ def _render_messages(ctx: PageContext) -> None:
                         or ctx.render_chat_area()
                     ),
                 )
-    ctx.scroll_chat_bottom()
+    # Scroll to the bottom only when the shown chat changed or new messages
+    # arrived; a same-set re-render (for example the expand/collapse toggle)
+    # keeps the reader's viewport where it was.
+    render_key = f"{ctx.user_id}:{current}"
+    render_count = len(chats.get(render_key, {}).get("messages", [])) if current else 0
+    should_scroll = (
+        render_key != ctx.last_rendered_chat
+        or render_count > ctx.rendered_message_counts.get(render_key, 0)
+    )
+    ctx.last_rendered_chat = render_key
+    ctx.rendered_message_counts[render_key] = render_count
+    if current and should_scroll:
+        ctx.scroll_chat_bottom()
 
 
 def _scroll_to_bottom(ctx: PageContext) -> None:

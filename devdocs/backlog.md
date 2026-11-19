@@ -502,6 +502,13 @@ Last updated: 2026-11-03.
   `image/svg+xml` sanitisation) is deferred (ADR-0040, `system/streams.md`).
 - TUI `tool` parity: `tool` stream entries render in the web status/inspect
   panes only; the TUI ignores them (`system/streams.md`).
+- Web UI status-pane rebuild cost (deferred): every `usage`/`state`/`context`
+  stream event refreshes `status_pane.py`, which recreates the sticky header
+  and every section body from scratch even when only one section changed.  Add
+  a per-section content signature (the approach of the TUI's
+  `status_panel.py::_reconcile_sections`) so unchanged sections stay mounted
+  instead of being recreated.  Deferred until the web UI has been profiled;
+  see the TODO in `nicegui/components/status_pane.py`.
 
 ## Testing
 
