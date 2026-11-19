@@ -8,6 +8,10 @@ format, the run procedure, how to read the stored results and how to
 troubleshoot a failed run.  The format itself is ADR-0056, isolation
 ADR-0057, metrics ADR-0058, storage ADR-0059 and orchestration ADR-0060.
 
+Public user documentation lives in `docs/guides/run-an-evaluation.rst` (the
+quickstart) and `docs/cli/klea-eval.rst` (the command reference); this note
+remains the internal authoring and operations reference.
+
 ## 1. Prerequisites
 
 * A Python environment with the package installed (`uv pip install -e

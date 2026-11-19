@@ -150,14 +150,19 @@ phases are listed below.
   `eval_pkg/klea_eval/ui/cli.py` as `klea-eval validate`, which renders the
   `CaseValidationError` message and maps it to exit code 2 as
   `klea_eval.errors` and ADR-0060 promise.
-- Run manager and run isolation (ADR-0057): give each case an isolated run
-  directory and environment, with cleanup.
-- Metrics collector (ADR-0058): collect per-case metrics through the runner
-  interfaces.
-- Result storage (ADR-0059): persist run results in the ADR-0059 reporting
-  format.
-- Harness pipeline, CLI and in-process scheduler (ADR-0060): wire loader,
-  runners and storage together behind the `klea-eval` command.
+- Run manager and run isolation (ADR-0057), **done** (2026-11-19): give each
+  case an isolated run directory and environment, with cleanup.  Tracker:
+  `devdocs/system/eval-harness-implementation.md:67`.
+- Metrics collector (ADR-0058), **done** (2026-11-19): collect per-case metrics
+  through the runner interfaces.  Tracker:
+  `devdocs/system/eval-harness-implementation.md:71-79`.
+- Result storage (ADR-0059), **done** (2026-11-19): persist run results in the
+  ADR-0059 reporting format.  Tracker:
+  `devdocs/system/eval-harness-implementation.md:87-103`.
+- Harness pipeline, CLI and in-process scheduler (ADR-0060), **done**
+  (2026-11-19): wire loader, runners and storage together behind the
+  `klea-eval` command.  Tracker:
+  `devdocs/system/eval-harness-implementation.md`.
 - Scoring and aggregation, **settled** (ADR-0060, ADR-0061): the aggregate and
   report half is delivered -- the ADR-0060 Aggregate stage as
   `klea_eval.scoring.aggregate_suite`, the read/inspect API's `suite_summary`
@@ -193,9 +198,25 @@ phases are listed below.
   `-m` defaults plus every case's `run_config.model_overrides` before the first
   case runs, raising `PipelineConfigError` so `klea-eval run` exits 2 with the
   exposed roles listed.  The per-case `ModelOverrideError` path is kept as a
-  backend-side fallback.  The backend still accepts an unknown role in a model
-  override (it stores it) instead of rejecting it; making the backend reject it
-  is a `utils_pkg` follow-up, with an upstream issue filed for it.
+  backend-side fallback.  Rejecting an unknown role at the backend is no longer
+  an open defect: the user reports that the backend now rejects such a role
+  upstream as of 2026-11-19, and this checkout carries the rejection in
+  `utils_pkg/klea_utils/api/models.py` (`_require_known_role`: HTTP 422 naming
+  the supported roles), with the change recorded in `CHANGELOG.md` and amended
+  into `devdocs/adr/0014-runtime-model-switching.md:17-21`.  Verification gap:
+  the upstream behaviour could not be re-verified from this checkout, because
+  the `../klea` tree is inaccessible here, so it rests on the user's report plus
+  this repository's code and docs rather than on a live re-test of the running
+  deployment; no issue or commit id is cited because the repository carries
+  none.
+- User-facing eval documentation, **done** (2026-11-19): the operator-facing
+  coverage of the eval packages -- installing `klea-eval`, running a JSONL
+  suite, reading the results and the exit codes -- lives in the new
+  `docs/guides/run-an-evaluation.rst` quickstart and the
+  `docs/cli/klea-eval.rst` command reference, registered in
+  `docs/guides/index.rst` and `docs/cli/index.rst` with a Quickstart bullet in
+  `docs/index.rst`, with the detailed run book kept in
+  `devdocs/system/eval-harness-run-guide.md` for maintainers.
 - Grading semantics (settled): no rubric means no grade.  `metrics.py` leaves
   `task_success` at None for a run without a grade, and a grade is never
   inferred because there is nothing to infer it from: `ungraded` is a
