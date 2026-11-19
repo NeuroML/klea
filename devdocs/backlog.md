@@ -175,11 +175,18 @@ phases are listed below.
   `call_count` (default `(1, 1)`) / `argument_constraints` -- runs in the
   Execute -> Score handover of the pipeline and records one verdict per check
   as `metrics.expectation_checks` beside the derived `task_success`, so
-  `score_run` grades from the stored verdicts.  Landed on `feat-eval-harness`
-  on top of `7ce0e420`.  Also open: a `cost.py` per-model price table (until it lands
-  `cost_estimate` is only relayed and summed), and the design questions of the
-  machine-checkable `criteria` predicate form and the scale-rubric pass
-  threshold.  Any future judge must be opt-in, pin and record its model id,
+  `score_run` grades from the stored verdicts.  Cost accounting is **settled**
+  (ADR-0058, Normalised Token Units): metrics report normalised token units --
+  fresh input tokens at weight 1, cached input tokens at weight 0.1 and counted
+  in place of the input tokens they substitute for, and output tokens on their
+  own separately tunable weight -- so runs stay comparable across providers
+  without a pinned price table.  Provider pricing is out of scope because it
+  varies per inference provider and over time, and a monetary cost remains
+  derivable from the recorded token counts if it is ever required.  Landed on
+  `feat-eval-harness` after `7ce0e420`, with the implementing commit logged in
+  the commit log of `devdocs/system/eval-harness-implementation.md`.  Also open:
+  the design questions of the machine-checkable `criteria` predicate form and
+  the scale-rubric pass threshold.  Any future judge must be opt-in, pin and record its model id,
   cache verdicts and be strictly non-gating, under its own ADR.
 - Model overrides, **done**: one read-only pre-flight reads the chat's active
   model map once for the first case and rejects an unknown role across caller

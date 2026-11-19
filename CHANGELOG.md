@@ -18,6 +18,7 @@
 - The plan status now opens with a truncated `Goal: ...` line followed by a blank line, so concurrent sessions can be told apart at a glance.
 - Eval runs now grade `expected_outputs` and `tool_expectations` against each run, resolving referenced files under the run's workspace and comparing against `expected_content` where a case supplies it.
 - Per-tool call details (name, arguments, error) are retained in the run metrics, so tool expectations can be graded.
+- Eval metrics now report a provider-independent normalised token unit -- fresh input tokens at weight 1, cached input tokens at weight 0.1 in place of the input tokens they substitute for, and output tokens on their own tunable weight -- so cost stays comparable across providers without a pinned price table.
 
 ### Changed
 
