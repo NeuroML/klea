@@ -478,6 +478,15 @@ message falls back to its collapsed form, and any text selection or focus
 inside it is dropped.  The content itself is never lost, because the message
 stays in `_messages` and is rendered again when the block is re-mounted.
 
+## Status-panel repaint
+
+`_reconcile_sections` stamps each mounted state-section widget with a signature
+of the content it was built from and leaves a section whose signature is
+unchanged mounted in place, so a streamed `state` event repaints only the
+sections that actually changed.  The skip keeps the per-event cost bounded and
+preserves the reader's scroll position; a rebuilt or removed section keeps no
+stamp, so it is rendered from scratch.
+
 ## Spinner lifecycle
 
 `_run_query` stops the turn spinner unconditionally in its `finally` clause
