@@ -64,6 +64,38 @@ def _plan_goal_line(goal_state: Any) -> str:
     return ""
 
 
+def _grouped_tool_lines(records: list[str]) -> list[str]:
+    """Collapse per-call records into one status line per tool.
+
+    *records* holds one ``"<tool>\t<title>\t<ok|failed>"`` entry per dispatched
+    call, in the order the calls ran.  Lines are keyed on the raw tool name
+    (``title`` is only the displayed label, so two tools sharing a title never
+    merge), keep first-seen order, sum each tool's successes and failures, and
+    omit a zero count, so a round that called one tool five times successfully
+    reads ``ok x5``.
+
+    :param records: The per-call records collected from the round.
+    :returns: One markdown bullet per tool, or an empty list when no call ran.
+    """
+    counts: dict[str, list[int]] = {}
+    titles: dict[str, str] = {}
+    for record in records:
+        name, _, rest = record.partition("\t")
+        title, _, outcome = rest.partition("\t")
+        entry = counts.setdefault(name, [0, 0])
+        entry[0 if outcome == "ok" else 1] += 1
+        titles.setdefault(name, title or name)
+    lines: list[str] = []
+    for name, (ok, failed) in counts.items():
+        parts: list[str] = []
+        if ok:
+            parts.append(f"ok x{ok}")
+        if failed:
+            parts.append(f"failed x{failed}")
+        lines.append(f"- **{titles[name]}**: {', '.join(parts)}")
+    return lines
+
+
 class ToolsCallerNode(
     AbstractLangGraphNode[BaseModel, dict[str, Any], ToolCallerContext]
 ):
@@ -800,8 +832,11 @@ class ToolsCallerNode(
                 continue
             info = self._tool_infos.get(tc.tool) if self._tool_infos else None
             title = info.title if info and info.title else tc.tool
-            label = "error" if result.is_error else "ok"
-            lines.append(f"- **{title}**: {label}")
+            outcome = "failed" if result.is_error else "ok"
+            lines.append(f"{tc.tool}\t{title}\t{outcome}")
+        # One line per tool, not per call: a round that calls the same tool
+        # several times stays compact in the status pane.
+        lines = _grouped_tool_lines(lines)
         if not lines:
             return None
         return NodeStreamData(

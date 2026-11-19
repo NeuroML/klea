@@ -17,6 +17,7 @@
 - Status panes in both the terminal and web clients now cap each long state section, such as the plan, at a content-derived height and scroll it inside the pane, so the rest of the overview stays visible.
 - HITL ask sections now render their payload title verbatim, once per section, falling back to `Details` when the title is empty, so the synthetic `Option N` label no longer appears in either frontend.
 - The approval review controls are now `Continue` / `Revise with feedback` / `Cancel`; in the terminal the feedback field wraps and grows and submits only through its button (Enter no longer submits, Ctrl+J inserts a newline), and the ask bodies are spaced for readability.
+- The tool-execution status section now shows one line per distinct tool with its ok/failed counts instead of one line per call, so a repeated tool no longer makes the pane jump.
 
 ### Fixed
 
