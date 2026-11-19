@@ -94,6 +94,15 @@ class MetricsSchemaError(MetricsError):
 
 
 @dataclass(frozen=True, slots=True)
+class ToolCallRecord:
+    """One tool call retained from a stored per-turn record."""
+
+    tool_name: str
+    arguments: dict[str, Any] = field(default_factory=dict)
+    error: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class TurnMetrics:
     """One aggregated per-turn record."""
 
@@ -108,6 +117,7 @@ class TurnMetrics:
     model: str | None = None
     passed: bool | None = None
     score: dict[str, Any] | None = None
+    tool_calls: tuple[ToolCallRecord, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -459,6 +469,7 @@ def _turn_metrics(record: Mapping[str, Any]) -> TurnMetrics:
         model=model,
         passed=_pass_flag(record, score),
         score=score,
+        tool_calls=_tool_call_records(record),
     )
 
 
@@ -476,17 +487,47 @@ def _pass_flag(
     return None
 
 
+def _tool_call_records(record: Mapping[str, Any]) -> tuple[ToolCallRecord, ...]:
+    """Read the tool calls retained on one stored turn record.
+
+    ``tool_name`` is the ADR-0058 key; the legacy ``tool`` key is still read so
+    records written before the rename keep aggregating.  An entry without
+    either key is skipped rather than aborting the whole run summary.
+    """
+    if not isinstance(record, Mapping):
+        return ()
+
+    raw = record.get("tool_calls")
+    if not isinstance(raw, Iterable) or isinstance(raw, (str, bytes, Mapping)):
+        return ()
+
+    found: list[ToolCallRecord] = []
+    for call in raw:
+        if not isinstance(call, Mapping):
+            continue
+        name = _text_or_none(call.get("tool_name")) or _text_or_none(call.get("tool"))
+        if name is None:
+            continue
+        arguments = call.get("arguments")
+        error = call.get("error")
+        found.append(
+            ToolCallRecord(
+                tool_name=name,
+                arguments=dict(arguments) if isinstance(arguments, Mapping) else {},
+                error=str(error) if error is not None else None,
+            )
+        )
+
+    logger.debug(f"{len(found) = }")
+    return tuple(found)
+
+
 def _tool_error_count(record: Mapping[str, Any]) -> int:
     """Count failed tool calls in one record."""
     if not isinstance(record, Mapping):
         return 0
 
-    errors = 0
-    calls = record.get("tool_calls")
-    if isinstance(calls, Iterable) and not isinstance(calls, (str, bytes, Mapping)):
-        for call in calls:
-            if isinstance(call, Mapping) and call.get("error") is not None:
-                errors += 1
+    errors = sum(1 for call in _tool_call_records(record) if call.error is not None)
 
     if errors:
         return errors

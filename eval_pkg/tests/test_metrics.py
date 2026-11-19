@@ -359,6 +359,78 @@ def test_tool_errors_are_counted(tmp_path: Path) -> None:
     assert summary.tool_error_count == 3
 
 
+def _record_field(record: Any, name: str) -> Any:
+    """Read ``name`` from a retained tool-call record (mapping or object)."""
+    if isinstance(record, dict):
+        return record.get(name)
+    return getattr(record, name, None)
+
+
+def _record_tool_name(record: Any) -> Any:
+    """Return a record's tool name, accepting the legacy ``tool`` key too."""
+    name = _record_field(record, "tool_name")
+    if name is None:
+        name = _record_field(record, "tool")
+    return name
+
+
+def test_tool_call_records_are_retained_per_turn(tmp_path: Path) -> None:
+    """Stored tool-call records keep their name, arguments and error."""
+    modern = _turn(
+        1,
+        tool_calls=[
+            {
+                "tool_name": "read_file",
+                "arguments": {"path": "data.json"},
+                "error": None,
+            },
+            {
+                "tool_name": "write_file",
+                "arguments": {"path": "summary.txt"},
+                "error": "permission denied",
+            },
+        ],
+    )
+    legacy = _turn(
+        2,
+        tool_calls=[
+            {
+                "tool": "grep",
+                "arguments": {"pattern": "x"},
+                "error": "boom",
+            }
+        ],
+    )
+    path = _write_records(tmp_path / "metrics.jsonl", modern, legacy)
+
+    summary = load_run(path)
+
+    modern_records = summary.turns[0].tool_calls
+    legacy_records = summary.turns[1].tool_calls
+
+    assert len(modern_records) == 2
+    assert _record_tool_name(modern_records[0]) == "read_file"
+    assert _record_field(modern_records[0], "arguments") == {"path": "data.json"}
+    assert _record_field(modern_records[0], "error") is None
+    assert _record_tool_name(modern_records[1]) == "write_file"
+    assert _record_field(modern_records[1], "arguments") == {"path": "summary.txt"}
+    assert _record_field(modern_records[1], "error") == "permission denied"
+
+    assert len(legacy_records) == 1
+    assert _record_tool_name(legacy_records[0]) == "grep"
+    assert _record_field(legacy_records[0], "arguments") == {"pattern": "x"}
+    assert _record_field(legacy_records[0], "error") == "boom"
+
+    failing = [
+        record
+        for turn in summary.turns
+        for record in turn.tool_calls
+        if _record_field(record, "error")
+    ]
+    assert len(failing) == 2
+    assert summary.tool_error_count == len(failing)
+
+
 def test_missing_metrics_file_raises_metrics_error(tmp_path: Path) -> None:
     missing = tmp_path / "absent.jsonl"
 

@@ -219,7 +219,7 @@ def outcome_to_record(outcome: TurnOutcome) -> dict[str, Any]:
         "status": outcome.status,
         "latency_ms": round(outcome.latency_ms, 3),
         "usage": dict(outcome.usage),
-        "tool_calls": [dict(call) for call in outcome.tool_calls],
+        "tool_calls": [_record_tool_call(call) for call in outcome.tool_calls],
         "tool_error_count": sum(
             1 for call in outcome.tool_calls if _is_error_tool(call)
         ),
@@ -359,6 +359,20 @@ def _tool_entries(event: SSEEvent) -> list[dict[str, Any]]:
     if not isinstance(tools, (list, tuple)):
         return []
     return [dict(entry) for entry in tools if isinstance(entry, Mapping)]
+
+
+def _record_tool_call(call: Mapping[str, Any]) -> dict[str, Any]:
+    """Return one tool-call entry carrying the ADR-0058 ``tool_name`` key.
+
+    The stream still labels the tool ``tool``, so that legacy key is renamed
+    here and no other key is touched; an entry that already carries
+    ``tool_name`` keeps it.
+    """
+    entry = dict(call)
+    legacy = entry.pop("tool", None)
+    if "tool_name" not in entry and isinstance(legacy, str) and legacy.strip():
+        entry["tool_name"] = legacy
+    return entry
 
 
 def _is_error_tool(call: Mapping[str, Any]) -> bool:

@@ -117,6 +117,8 @@ Each run initializes a centralized `RunMetricsCollector` that aggregates metrics
 
 `metrics.jsonl` holds exactly one JSON object per line (pretty printing appears only inside documentation examples such as this one): per-turn lines carry `record_type` "turn" in deterministic order (turn number, then call index), and the last line carries `record_type` "run" with the `{run_id, case_id, schema_version, record_type, metrics{...}}` envelope serialised on a single line. `pass_at_k` is a suite-level aggregate (its formula is defined in this ADR) computed by ADR-0060, so it is not part of the per-run envelope.
 
+Per-tool call records are retained on `TurnMetrics`: each record keeps the tool name, its arguments and any error, so a stored run can explain a failed or unexpected tool call after the fact instead of discarding it. The stored key is `tool_name`; readers also accept the legacy `tool` key for records written before the rename. `tool_error_count` derives from these retained records (the number of them whose `error` is set), not from a separately maintained counter.
+
 ### Instrumentation Hooks
 
 Metrics are collected at key execution points via in-process instrumentation hooks:
