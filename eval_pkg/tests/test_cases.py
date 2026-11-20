@@ -1002,3 +1002,57 @@ def test_model_overrides_accepts_an_unseen_role_name(tmp_path: Path) -> None:
     loaded = load_suite(path)
 
     assert (loaded.cases[0].run_config or {})["model_overrides"] == overrides
+
+
+# ---------------------------------------------------------------------------
+# command / command_timeout
+# ---------------------------------------------------------------------------
+
+
+def test_command_and_timeout_load_and_are_preserved(tmp_path: Path) -> None:
+    """A valid argv `command` and its `command_timeout` are preserved."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(command=["pytest", "-q"], command_timeout=12.5)],
+    )
+
+    loaded = load_suite(path)
+
+    case = loaded.cases[0]
+    assert case.command == ("pytest", "-q")
+    assert case.command_timeout == 12.5
+
+
+@pytest.mark.parametrize("command", ["pytest -q", [], [1], ["  "], ["a\x00b"]])
+def test_command_must_be_an_argv_list(tmp_path: Path, command: Any) -> None:
+    """A command that is not a list of non-empty strings is rejected."""
+    path = _write_suite(tmp_path / "suite.jsonl", [_case(command=command)])
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert "command" in excinfo.value.message
+
+
+@pytest.mark.parametrize("timeout", [0, -1.0, True])
+def test_command_timeout_must_be_positive(tmp_path: Path, timeout: Any) -> None:
+    """A non-positive or boolean `command_timeout` is rejected."""
+    path = _write_suite(
+        tmp_path / "suite.jsonl",
+        [_case(command=["pytest"], command_timeout=timeout)],
+    )
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert "command_timeout" in excinfo.value.message
+
+
+def test_command_timeout_without_command_is_rejected(tmp_path: Path) -> None:
+    """A `command_timeout` declared without a `command` is rejected."""
+    path = _write_suite(tmp_path / "suite.jsonl", [_case(command_timeout=5)])
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert "command" in excinfo.value.message

@@ -9,6 +9,8 @@ no network access and no LLM; it carries the ``eval`` marker only, like
 
 from __future__ import annotations
 
+import shlex
+import sys
 from pathlib import Path
 from typing import Any, cast
 
@@ -18,6 +20,7 @@ from klea_eval.cases import ExpectedOutput, TestCase, ToolExpectation, Turn
 from klea_eval.expectations import (
     KIND_ARGUMENT_CONSTRAINTS,
     KIND_CALL_COUNT,
+    KIND_COMMAND_EXIT,
     KIND_FILE_PRESENT,
     KIND_FORMAT_DECODE,
     KIND_TOOL_NAME,
@@ -82,6 +85,18 @@ def _case(*turns: Turn) -> TestCase:
         schema_version="1.0",
         description="expectation fixture",
         turns=tuple(turns),
+    )
+
+
+def _command_case(command: tuple[str, ...], *, timeout: float = 300.0) -> TestCase:
+    """Build a case whose only declared expectation is ``command``."""
+    return TestCase(
+        case_id="case-1",
+        schema_version="1.0",
+        description="command fixture",
+        turns=(_turn(),),
+        command=command,
+        command_timeout=timeout,
     )
 
 
@@ -411,6 +426,99 @@ def test_argument_constraints_mismatch_fails(tmp_path: Path) -> None:
     constraints = _by_kind(checks, KIND_ARGUMENT_CONSTRAINTS)
     assert constraints.outcome == OUTCOME_FAIL
     assert constraints.detail == "no matching call carried the declared arguments"
+
+
+# ---------------------------------------------------------------------------
+# Execution checks
+# ---------------------------------------------------------------------------
+def test_command_exit_zero_passes(tmp_path: Path) -> None:
+    """A command that exits 0 passes and grades the case."""
+    case = _command_case((sys.executable, "-c", "pass"))
+
+    checks = expectations.check_case(case, _workspace(tmp_path), (_record(1),))
+
+    check = _by_kind(checks, KIND_COMMAND_EXIT)
+    assert check.outcome == OUTCOME_PASS
+    assert check.exit_code == 0
+    assert check.detail is None
+    assert expectations.grade_checks(checks) is True
+
+
+def test_command_non_zero_exit_fails(tmp_path: Path) -> None:
+    """A command that exits non-zero fails and records its status."""
+    case = _command_case((sys.executable, "-c", "raise SystemExit(3)"))
+
+    checks = expectations.check_case(case, _workspace(tmp_path), (_record(1),))
+
+    check = _by_kind(checks, KIND_COMMAND_EXIT)
+    assert check.outcome == OUTCOME_FAIL
+    assert check.exit_code == 3
+    assert check.detail == "the command exited with status 3"
+    assert expectations.grade_checks(checks) is False
+
+
+def test_command_timeout_fails(tmp_path: Path) -> None:
+    """A command that outlives ``command_timeout`` fails without an exit code."""
+    case = _command_case(
+        (sys.executable, "-c", "import time; time.sleep(5)"), timeout=0.1
+    )
+
+    checks = expectations.check_case(case, _workspace(tmp_path), (_record(1),))
+
+    check = _by_kind(checks, KIND_COMMAND_EXIT)
+    assert check.outcome == OUTCOME_FAIL
+    assert check.exit_code is None
+    assert check.detail == "the command did not finish within 0.1s"
+    assert "exit_code" not in check.to_dict()
+
+
+def test_command_runs_in_the_pinned_workspace(tmp_path: Path) -> None:
+    """The command runs with the run workspace as its working directory."""
+    root = _workspace(tmp_path)
+    (root / "probe.txt").write_text("probe", encoding="utf-8")
+    script = (
+        "import pathlib, sys; sys.exit(0 if pathlib.Path('probe.txt').is_file() else 7)"
+    )
+    case = _command_case((sys.executable, "-c", script))
+
+    checks = expectations.check_case(case, root, (_record(1),))
+
+    assert _by_kind(checks, KIND_COMMAND_EXIT).outcome == OUTCOME_PASS
+
+
+def test_command_that_cannot_start_fails(tmp_path: Path) -> None:
+    """A command that cannot be launched fails without an exit code."""
+    case = _command_case(("klea-eval-no-such-command-xyzzy",))
+
+    checks = expectations.check_case(case, _workspace(tmp_path), (_record(1),))
+
+    check = _by_kind(checks, KIND_COMMAND_EXIT)
+    assert check.outcome == OUTCOME_FAIL
+    assert check.exit_code is None
+    assert check.detail is not None
+    assert check.detail.startswith("the command could not be started:")
+
+
+def test_command_is_recorded_with_its_exit_status(tmp_path: Path) -> None:
+    """The check records the command and its exit status."""
+    command = (sys.executable, "-c", "pass")
+    case = _command_case(command)
+
+    checks = expectations.check_case(case, _workspace(tmp_path), (_record(1),))
+
+    check = _by_kind(checks, KIND_COMMAND_EXIT)
+    assert check.target == shlex.join(command)
+    assert check.turn_number == 1
+    assert check.to_dict()["exit_code"] == 0
+
+
+def test_command_only_case_expects_a_grade() -> None:
+    """A case that declares only a command expects a grade."""
+    from klea_eval import pipeline
+
+    assert (
+        pipeline._expects_grade(_command_case((sys.executable, "-c", "pass"))) is True
+    )
 
 
 # ---------------------------------------------------------------------------

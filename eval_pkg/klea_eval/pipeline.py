@@ -490,11 +490,12 @@ def _run_one_case(
 def _expects_grade(case: TestCase) -> bool:
     """Whether a case declares anything a deterministic grader reports on.
 
-    A case expects a grade when it declares rubrics (ADR-0061) or any turn
-    expectation the checker can evaluate; a case that declares neither is
-    ungraded, which the reporter counts apart from a graded one.
+    A case expects a grade when it declares rubrics (ADR-0061), a command to run
+    (ADR-0056 amendment 2026-11-19) or any turn expectation the checker can
+    evaluate; a case that declares none is ungraded, which the reporter counts
+    apart from a graded one.
     """
-    if case.rubrics:
+    if case.rubrics or bool(getattr(case, "command", ())):
         return True
 
     return any(

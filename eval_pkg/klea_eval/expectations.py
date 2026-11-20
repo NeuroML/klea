@@ -33,6 +33,11 @@ Design rules, all deliberate:
 - **Deterministic.**  No clock, no network, no model and no randomisation: the
   same case and the same workspace always produce the same verdicts in the
   same order.
+- **Execution is graded on the exit status alone.**  A case may declare its own
+  ``command`` (ADR-0056 amendment 2026-11-19); it runs once with the run's
+  ``workspace/`` as its working directory, its standard streams are discarded,
+  and only its exit status is graded, so anything it produces must be written to
+  a file an ``expected_outputs`` entry can check.
 
 Only the standard library and the package's own modules are imported, and no
 function here writes a file.
@@ -42,6 +47,8 @@ from __future__ import annotations
 
 import json
 import logging
+import shlex
+import subprocess
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -55,6 +62,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     "KIND_ARGUMENT_CONSTRAINTS",
     "KIND_CALL_COUNT",
+    "KIND_COMMAND_EXIT",
     "KIND_FILE_PRESENT",
     "KIND_FORMAT_DECODE",
     "KIND_TOOL_NAME",
@@ -87,6 +95,10 @@ KIND_TOOL_NAME = "tool_name"
 KIND_CALL_COUNT = "call_count"
 KIND_ARGUMENT_CONSTRAINTS = "argument_constraints"
 
+#: The case's own ``command``, graded on its exit status alone (ADR-0056
+#: amendment 2026-11-19): status ``0`` passes, anything else fails.
+KIND_COMMAND_EXIT = "command_exit"
+
 #: ``validation_rule`` values this module applies; each needs an operand.
 RULE_EXACT_MATCH = "exact_match"
 RULE_CONTAINS = "contains"
@@ -114,7 +126,8 @@ class ExpectationCheck:
 
     The record is stored in the run's metrics envelope as its :meth:`to_dict`
     form, so a stored run stays gradable without the run workspace: the
-    five keys below are the persisted contract.
+    five keys below are the persisted contract, plus an ``exit_code`` that only
+    the ``command_exit`` check writes.
     """
 
     turn_number: int
@@ -122,6 +135,7 @@ class ExpectationCheck:
     target: str
     outcome: str
     detail: str | None = None
+    exit_code: int | None = None
 
     @property
     def identifier(self) -> str:
@@ -145,13 +159,16 @@ class ExpectationCheck:
 
     def to_dict(self) -> dict[str, Any]:
         """Return the check as the plain, JSON-ready record that is stored."""
-        return {
+        record: dict[str, Any] = {
             "turn_number": self.turn_number,
             "kind": self.kind,
             "target": self.target,
             "outcome": self.outcome,
             "detail": self.detail,
         }
+        if self.exit_code is not None:
+            record["exit_code"] = self.exit_code
+        return record
 
 
 def grade_checks(checks: Sequence[ExpectationCheck]) -> bool | None:
@@ -192,7 +209,9 @@ def check_case(
 
     Every declared expectation yields exactly one verdict per checked field, in
     case order and then declaration order, so the result is stable across
-    calls.  A case that declares no expectation yields an empty tuple.
+    calls; a case that declares a ``command`` yields one further verdict for it,
+    recorded under the last turn's number.  A case that declares no expectation
+    yields an empty tuple.
     """
     if not isinstance(workspace_dir, (str, Path)):
         raise ExpectationError(
@@ -215,6 +234,10 @@ def check_case(
             checks.extend(_check_expected_output(number, expected, root))
         for expectation in _as_sequence(getattr(turn, "tool_expectations", None)):
             checks.extend(_check_tool_expectation(number, expectation, metrics_of_turn))
+
+    command = _case_command(case)
+    if command:
+        checks.append(_check_command(case, command, root))
 
     case_id = getattr(case, "case_id", "?")
     logger.debug(
@@ -281,14 +304,85 @@ def _check(
     target: str,
     outcome: str,
     detail: str | None,
+    exit_code: int | None = None,
 ) -> ExpectationCheck:
     """Build one verdict, logging it at the level its outcome deserves."""
-    check = ExpectationCheck(turn_number, kind, target, outcome, detail)
+    check = ExpectationCheck(turn_number, kind, target, outcome, detail, exit_code)
     if check.failed:
         logger.warning(f"{check.identifier = }, {detail = }")
     else:
         logger.debug(f"{check.identifier = }, {outcome = }, {detail = }")
     return check
+
+
+def _case_command(case: Any) -> tuple[str, ...]:
+    """Return the argv a case declares, or an empty tuple when it declares none."""
+    declared = getattr(case, "command", ())
+    if isinstance(declared, (str, bytes)) or not isinstance(declared, Iterable):
+        return ()
+
+    command = tuple(declared)
+    logger.debug(f"{len(command) = }")
+    return command
+
+
+def _check_command(case: Any, command: Sequence[str], root: Path) -> ExpectationCheck:
+    """Run a case's own command once in ``root`` and grade its exit status.
+
+    The verdict is the exit status alone (ADR-0056 amendment 2026-11-19): ``0``
+    passes, any other status fails, and a command that cannot be started or does
+    not finish inside the case's own timeout fails too.  Standard input and both
+    output streams are discarded, so a command with something to report must
+    write it to a file the case's ``expected_outputs`` can check; nothing is ever
+    read back from the process.
+    """
+    turn_number = len(_case_turns(case))
+    target = shlex.join(command)
+    timeout = getattr(case, "command_timeout", None)
+    logger.debug(f"{target = }, {timeout = }, {root = }")
+
+    try:
+        completed = subprocess.run(
+            list(command),
+            cwd=root,
+            timeout=timeout,
+            shell=False,
+            check=False,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except subprocess.TimeoutExpired:
+        return _check(
+            turn_number,
+            KIND_COMMAND_EXIT,
+            target,
+            OUTCOME_FAIL,
+            f"the command did not finish within {timeout}s",
+        )
+    except OSError as exc:
+        return _check(
+            turn_number,
+            KIND_COMMAND_EXIT,
+            target,
+            OUTCOME_FAIL,
+            f"the command could not be started: {exc}",
+        )
+
+    status = completed.returncode
+    if status == 0:
+        return _check(
+            turn_number, KIND_COMMAND_EXIT, target, OUTCOME_PASS, None, status
+        )
+
+    return _check(
+        turn_number,
+        KIND_COMMAND_EXIT,
+        target,
+        OUTCOME_FAIL,
+        f"the command exited with status {status}",
+        status,
+    )
 
 
 def _check_expected_output(

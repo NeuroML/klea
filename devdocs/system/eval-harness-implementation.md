@@ -445,6 +445,15 @@ below is current.
   labelled from its readable `run.json`, falling back to `case=?`,
   `status=incomplete` and `label=unknown`.  The index stays completed-only: the
   report adds no line to it, so a failed run still gains no index entry.
+- Execution-based verification: a case may declare a case-level `command` (an
+  argv list) and `command_timeout` (default 300 s).  `klea_eval.expectations`
+  runs it once with the run's `workspace/` as the working directory, with
+  standard streams discarded and no retry, and grades it on exit status alone
+  as the `command_exit` check kind, which records the command and the exit code
+  in `metrics.expectation_checks`.  Because output is discarded, any result to
+  be graded must be written to a file an `expected_outputs` entry can check.  A
+  case that declares only a command expects a grade.  `schema_version` stays
+  `1.0` (D5): the harness is unreleased.
 
 ---
 

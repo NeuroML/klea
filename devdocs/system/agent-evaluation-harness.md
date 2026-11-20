@@ -31,7 +31,9 @@ Non-goals (first iteration):
 
 - Full reproduction of GAIA/tau-bench/SWE-bench.  Start with a Klea-specific
   suite that mirrors their task shapes, and optionally add a public subset
-  later.
+  later.  The harness stays a general core engine: a benchmark ships its own
+  pre-processing/adapter scripts together with its suite, and those scripts
+  emit case JSONL plus fixtures the loader already accepts.
 - Multi-agent comparisons.  Out of scope per the literature review.
 
 ## What to measure
@@ -106,6 +108,14 @@ optional condition (model escalation), never a requirement.
   `workspace/` is live; their per-check verdicts are recorded in the run record
   as `metrics.expectation_checks` beside the derived `task_success`, and
   `score_run` grades a case from those recorded verdicts (ADR-0061).
+- Execution checks: a case may declare its own `command` (an argv list, never a
+  shell string) with a per-case `command_timeout` (default 300 s).  The harness
+  runs it once with the run's `workspace/` as the working directory and grades
+  it on its exit status alone, recorded as the `command_exit` check kind that
+  carries the command and the exit code (ADR-0056 amendment, 2026-11-19).
+  Standard output and error are discarded, so any result to be graded must be
+  written to a file an `expected_outputs` entry can check.  The command is part
+  of "did the task complete", not part of the task text handed to the agent.
 - Topology variants wired as swappable graphs sharing prompts, tools and
   models, so the only independent variable is the topology.
 
@@ -213,7 +223,10 @@ grounding (see the guardrail section above).
 ## Deferred sub-items
 
 - Public-benchmark subsets (GAIA/tau-bench/SWE-bench) after the Klea-specific
-  suite is stable.
+  suite is stable.  Each subset is an adapter suite: its pre-processing scripts
+  ship with its cases and emit case JSONL plus fixtures, so the harness needs
+  no benchmark-specific code.  Binding a case to a repository or a container
+  image is a separate future capability, not part of the adapter contract.
 - Model-escalation condition (optional multi-model), clearly separated from
   the required single-model condition.
 - Human spot-checks and rubric calibration for deterministic checks.
@@ -371,9 +384,9 @@ sequenceDiagram
 - **Responsibility**: POST turn input to Klea agent/RAG HTTP endpoint, stream SSE response, buffer complete response, handle errors and retries.
 
 ### Scorer
-- **Input**: Turn output, expected output, scoring rules (deterministic checks only; see ADR-0061).
+- **Input**: Turn output, expected output, scoring rules (deterministic checks only; see ADR-0061), and the case's optional `command`.
 - **Output**: Pass/fail decision, score, reasoning.
-- **Responsibility**: Apply deterministic checks (file existence, format validation), record per-turn pass/fail.
+- **Responsibility**: Apply deterministic checks (file existence, format validation) and, when a case declares one, the case-authored `command` exit-status check, which runs once in the pinned run `workspace/` and passes only on exit status 0; record per-turn pass/fail.
 
 ### Usage Tracker
 - **Input**: Turn response metadata (token counts, model identity, latency, tool calls).
@@ -423,6 +436,7 @@ sequenceDiagram
 - **Persistent errors** (HTTP 4xx, invalid response): Log error, skip case, record failure reason.
 - **Scoring errors** (no machine-checkable check): a rubric with no machine-checkable check leaves the case grade-missing and the CLI exits 4 (ADR-0061).
 - **Workspace errors** (fixture copy into `runs/<run_id>.tmp/workspace/fixtures/` failed): Skip run, remove the `.tmp` directory, log error.
+- **Command errors** (a case-authored `command` exits non-zero, exceeds its `command_timeout`, or cannot be started): one failed `command_exit` check, recording the exit status where there is one, with no retry; the run still publishes and the case grades as failed.
 - **Incomplete runs**: A leftover `runs/<run_id>.tmp/` directory is reported as an incomplete run and is never treated as a result; a re-run discards and redoes it.
 
 ## Reproducibility guarantees
@@ -434,6 +448,7 @@ sequenceDiagram
 - **Artifact storage**: `run.json` plus the versioned `metrics.jsonl` (`schema_version`, `record_type`, final "run" envelope), the reduced ``transcript.jsonl`` record and the workspace are stored for offline reproducibility; the transcript is a failure-diagnostics record and never a grading input, so a graded field stays reproducible from ``run.json`` and ``metrics.jsonl`` alone (ADR-0061).
 - **Retention**: Retention is never automatic; the operator runs `klea-eval prune`, which archives a run beyond the most recent N per case (N from run config) by removing only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the reduced ``transcript.jsonl`` record, the `COMPLETE` marker and the index line, with an `ARCHIVED` marker written beside them; `--purge` deletes the whole run directory and drops the index line instead, and `--dry-run` reports the plan without touching the disk (ADR-0059).
 - **Scope of determinism**: Only identifiers, ordering and derived metrics are reproducible; turn content and latency are stochastic.  Grading itself is deterministic per ADR-0061.
+- **Execution verdicts**: an execution verdict is a function of the stored `command` and the recorded exit status only; it is never re-derived by re-running the command or by reading its discarded output, while the file outputs it produced stay graded from the live `workspace/` (ADR-0061 amendment, 2026-11-19).
 
 ---
 

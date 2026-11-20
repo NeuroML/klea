@@ -71,6 +71,10 @@ DEFAULT_VALIDATION_RULE = "exact_match"
 #: Default tool call-count range when an expectation omits one.
 DEFAULT_CALL_COUNT = (1, 1)
 
+#: Default per-case timeout, in seconds, for a declared execution ``command``.
+#: Mirrors the HTTP runner's own read timeout.
+DEFAULT_COMMAND_TIMEOUT_SECONDS = 300.0
+
 #: Keys a turn object may carry, in error-message order.
 ALLOWED_TURN_KEYS = (
     "turn_number",
@@ -136,6 +140,8 @@ class TestCase:
     fixtures: dict[str, Any] | None = None
     run_config: dict[str, Any] | None = None
     rubrics: tuple[Rubric, ...] = ()
+    command: tuple[str, ...] = ()
+    command_timeout: float = DEFAULT_COMMAND_TIMEOUT_SECONDS
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,6 +300,11 @@ def _parse_case(line: str, line_number: int, source: Path) -> TestCase:
                         case_id,
                     )
 
+    command = _parse_command(payload.get("command"), source, line_number, case_id)
+    command_timeout = _parse_command_timeout(
+        payload.get("command_timeout"), bool(command), source, line_number, case_id
+    )
+
     turns_data = payload["turns"]
     if not isinstance(turns_data, list) or not turns_data:
         raise _fail(
@@ -322,7 +333,88 @@ def _parse_case(line: str, line_number: int, source: Path) -> TestCase:
         fixtures=fixtures,
         run_config=run_config,
         rubrics=rubrics,
+        command=command,
+        command_timeout=command_timeout,
     )
+
+
+def _parse_command(
+    value: Any,
+    source: Path,
+    line_number: int,
+    case_id: str,
+) -> tuple[str, ...]:
+    """Parse the optional case-level execution ``command`` in argv form."""
+    if value is None:
+        return ()
+
+    if not isinstance(value, list):
+        raise _fail(
+            "field 'command' must be an array of strings",
+            source,
+            line_number,
+            case_id,
+        )
+    if not value:
+        raise _fail(
+            "field 'command' must be a non-empty array",
+            source,
+            line_number,
+            case_id,
+        )
+
+    argv: list[str] = []
+    for entry in value:
+        if not isinstance(entry, str) or not entry.strip():
+            raise _fail(
+                "field 'command' entries must be non-empty strings",
+                source,
+                line_number,
+                case_id,
+            )
+        if "\x00" in entry:
+            raise _fail(
+                "field 'command' entries must not contain a NUL byte",
+                source,
+                line_number,
+                case_id,
+            )
+        argv.append(entry)
+
+    logger.debug(f"case {case_id!r}: {len(argv) = }, {argv[0] = }")
+    return tuple(argv)
+
+
+def _parse_command_timeout(
+    value: Any,
+    has_command: bool,
+    source: Path,
+    line_number: int,
+    case_id: str,
+) -> float:
+    """Parse the optional per-case execution ``command_timeout`` in seconds."""
+    if value is None:
+        return DEFAULT_COMMAND_TIMEOUT_SECONDS
+
+    invalid = (
+        isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0
+    )
+    if invalid:
+        raise _fail(
+            f"field 'command_timeout' must be a positive number, got {value!r}",
+            source,
+            line_number,
+            case_id,
+        )
+    if not has_command:
+        raise _fail(
+            "field 'command_timeout' requires a 'command'",
+            source,
+            line_number,
+            case_id,
+        )
+
+    return float(value)
 
 
 def _parse_turn(

@@ -21,6 +21,7 @@
 - Eval metrics now report a provider-independent normalised token unit -- fresh input tokens at weight 1, cached input tokens at weight 0.1 in place of the input tokens they substitute for, and output tokens on their own tunable weight -- so cost stays comparable across providers without a pinned price table.
 
 - The user-facing `klea-eval` quickstart and CLI reference are now documented.
+- Eval cases can declare their own `command` and a per-case `command_timeout`; the harness runs it once in the run workspace and grades it on its exit status only, recording the command and the exit code.
 
 ### Changed
 
