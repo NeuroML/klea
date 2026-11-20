@@ -135,6 +135,15 @@ Regression guard: `agent_pkg/tests/test_schemas.py`,
 `utils_pkg/tests/test_call_schema.py` assert every static output schema is
 description-free.
 
+Wire-level consequence: because tool calls travel as the provider's
+`response_format` (above) and dispatch happens in a separate graph node,
+Klea's requests never contain a native `tools` payload followed by an
+assistant `tool_calls` turn.  The DeepSeek/Anthropic/OpenAI rule that reasoning
+content (`reasoning_content`, thinking blocks, reasoning items) be echoed back
+across tool-call turns therefore does not apply.  See the update clause in
+`devdocs/adr/0034-tool-calling-mechanism.md` for the decision and the revisit
+trigger.
+
 ## Rule 7 - LLM output schemas are strict-safe
 
 An output schema must contain **no dynamic-key map** (`dict[...]`).  Such a
