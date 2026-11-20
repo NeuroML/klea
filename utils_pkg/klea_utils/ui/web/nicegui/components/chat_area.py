@@ -15,6 +15,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import html
 import json
 import logging
+import time
 from typing import Any
 
 from nicegui import ui
@@ -28,6 +29,21 @@ from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.state_edit import render_state_edit
 
 logger = logging.getLogger(__name__)
+
+#: Maximum number of message bubbles mounted in the chat scroll area at once.
+#: Mirrors the TUI transcript's ``Transcript.MAX_MOUNTED``: the newest window of
+#: messages is mounted and the oldest bubbles beyond it are left unrendered, so
+#: a long session keeps its widget tree (and layout cost) bounded.  Only the
+#: rendered window is trimmed -- the chat store keeps the full message list,
+#: which ``/export`` and hydration read.
+MOUNTED_MESSAGE_LIMIT = 80
+
+#: Number of stored messages mounted per scroll-to-top / scroll-to-bottom batch
+#: in the web transcript.  Mirrors the TUI transcript's
+#: ``Transcript.SCROLL_BATCH`` (``tui/components/transcript.py``): the mounted
+#: window slides in fixed steps while staying bounded by
+#: :data:`MOUNTED_MESSAGE_LIMIT`.
+SCROLL_BATCH = 20
 
 
 def render_turn_status(ctx: PageContext, retry_cb=None) -> None:
@@ -779,6 +795,88 @@ def _render_permission_form(
             ).props("flat color=negative")
 
 
+#: Body classes that render a ``ChatBubble`` collapsed (mirrors the class
+#: names set by ``chat_bubble``).
+_BUBBLE_COLLAPSED_CLASSES = ("msg-collapsed", "tool-block-collapsed")
+#: Body class that renders a ``ChatBubble`` expanded.
+_BUBBLE_EXPANDED_CLASS = "msg-expanded"
+
+
+def _bubble_children(element: Any) -> list[Any]:
+    """Return the direct default-slot children of a NiceGUI element."""
+    slot = getattr(element, "default_slot", None)
+    return list(getattr(slot, "children", []) or [])
+
+
+def _apply_bubble_collapsed(bubble: Any, role: str, collapsed: bool) -> None:
+    """Show one mounted bubble collapsed or expanded, in place.
+
+    Flips the body's line-clamp class and the toggle button's icon directly on
+    the mounted widget tree instead of rebuilding the transcript, so the
+    reader's scroll position is untouched (the TUI toggles a CSS class in
+    place for the same reason, see ``tui/components/transcript.py``).
+
+    Relies on ``ChatBubble``'s layout: the bubble holds one wrapper div whose
+    children are ``[header?] body row``, and the row ends with the toggle
+    button.
+
+    :param bubble: The mounted ``ChatBubble`` element.
+    :param role: The rendered role (a ``tool`` block uses a different
+        collapsed class).
+    :param collapsed: Whether the block should now be collapsed.
+    """
+    wrapper_children = _bubble_children(bubble)
+    if not wrapper_children:
+        return
+    children = _bubble_children(wrapper_children[0])
+    if len(children) < 2:
+        return
+    body, row = children[-2], children[-1]
+    if collapsed:
+        collapse_class = "tool-block-collapsed" if role == "tool" else "msg-collapsed"
+        body.classes(remove=_BUBBLE_EXPANDED_CLASS, add=collapse_class)
+        icon = "expand_more"
+    else:
+        body.classes(
+            remove=" ".join(_BUBBLE_COLLAPSED_CLASSES), add=_BUBBLE_EXPANDED_CLASS
+        )
+        icon = "expand_less"
+    row_children = _bubble_children(row)
+    if row_children:
+        row_children[-1].props(f"icon={icon}")
+
+
+def _expand_handler(holder: dict[str, Any], idx: int, expanded: set[int], role: str):
+    """Return the expand/collapse click handler for one bubble.
+
+    The handler records the toggle in the chat's ``expanded`` set (still the
+    source of truth for the next rebuild) and flips the mounted bubble in
+    place through :func:`_apply_bubble_collapsed`, so no re-render -- and no
+    viewport reset -- is triggered.
+
+    :param holder: One-element mapping filled with the mounted bubble once it
+        is constructed (the handler is created before the widget exists).
+    :param idx: Absolute store index of the message.
+    :param expanded: The active chat's expanded-index set (mutated in place).
+    :param role: The message role.
+    :returns: A click handler that accepts and ignores any event arguments.
+    """
+
+    def _toggle(*_args: Any) -> None:
+        bubble = holder.get("bubble")
+        if bubble is None:
+            return
+        if idx in expanded:
+            expanded.discard(idx)
+            collapsed = True
+        else:
+            expanded.add(idx)
+            collapsed = False
+        _apply_bubble_collapsed(bubble, role, collapsed)
+
+    return _toggle
+
+
 def _render_messages(ctx: PageContext) -> None:
     """Rebuild the scroll-area content (welcome or messages) for the page.
 
@@ -792,6 +890,15 @@ def _render_messages(ctx: PageContext) -> None:
         len(chats.get(f"{ctx.user_id}:{current}", {}).get("messages", []))
         if current
         else 0,
+    )
+    # Decide the scroll/paging state once, from the store (never mutated): a
+    # chat switch or a new message means "show the newest window and scroll
+    # down"; any other rebuild keeps the reader's current position.
+    render_key = f"{ctx.user_id}:{current}"
+    render_count = len(chats.get(render_key, {}).get("messages", [])) if current else 0
+    should_scroll = (
+        render_key != ctx.last_rendered_chat
+        or render_count > ctx.rendered_message_counts.get(render_key, 0)
     )
     ctx.chat_area.clear()
     # The turn status region is rendered from the active chat's turn status,
@@ -847,11 +954,43 @@ def _render_messages(ctx: PageContext) -> None:
             current_chat = chats.get(f"{ctx.user_id}:{current}")
             msgs = current_chat["messages"] if current_chat else []
             expanded = current_chat["expanded"] if current_chat else set()
-            for idx, msg in enumerate(msgs):
+            # Bound the mounted widget set: mount at most
+            # ``MOUNTED_MESSAGE_LIMIT`` messages starting at the window's
+            # stored first index.  The start is kept per chat on the page
+            # context so scroll paging (older/newer batches) survives a
+            # re-render; on a chat switch or a new message it resets to the
+            # newest window.  ``idx`` stays the absolute index into the full
+            # store list so ``expanded`` / ``on_expand`` / ``ChatBubble(...)``
+            # keep addressing the right message, and the store is never
+            # trimmed (``/export`` and hydration read it whole).
+            # ``mounted_start_by_chat`` lives on the real ``PageContext``;
+            # tolerate a lighter test/embedding context by creating the
+            # mapping when it is absent (the store itself stays untouched).
+            mounted_starts = getattr(ctx, "mounted_start_by_chat", None)
+            if mounted_starts is None:
+                mounted_starts = {}
+            ctx.mounted_start_by_chat = mounted_starts
+            latest_start = max(0, render_count - MOUNTED_MESSAGE_LIMIT)
+            if should_scroll or render_key not in mounted_starts:
+                mount_start = latest_start
+            else:
+                mount_start = mounted_starts[render_key]
+            mount_start = max(0, min(mount_start, latest_start))
+            mounted_starts[render_key] = mount_start
+            mount_end = min(render_count, mount_start + MOUNTED_MESSAGE_LIMIT)
+            for idx in range(mount_start, mount_end):
+                msg = msgs[idx]
                 collapsed = idx not in expanded
                 text = msg.get("text", "")
                 role = msg.get("role", "agent")
-                ChatBubble(
+                # Toggle expand/collapse in place rather than re-running the
+                # renderer: a full rebuild clears the scroll area's content,
+                # which resets the reader's viewport (the TUI flips a CSS
+                # class in place for the same reason).  The chat's
+                # ``expanded`` set stays the source of truth for the next
+                # rebuild, keyed by the absolute store ``idx``.
+                bubble_holder: dict[str, Any] = {}
+                bubble_holder["bubble"] = ChatBubble(
                     # A user message is rendered verbatim (no markdown), so it
                     # is not linkified into markdown links either.
                     text=text if role == "user" else linkify_md(text),
@@ -867,12 +1006,23 @@ def _render_messages(ctx: PageContext) -> None:
                     on_copy=lambda t=text: ui.run_javascript(
                         f"navigator.clipboard.writeText({json.dumps(t)})"
                     ),
-                    on_expand=lambda i=idx: (
-                        (expanded.discard(i) if i in expanded else expanded.add(i))
-                        or ctx.render_chat_area()
-                    ),
+                    on_expand=_expand_handler(bubble_holder, idx, expanded, role),
                 )
-    ctx.scroll_chat_bottom()
+                # Tag the bubble with its absolute store index so scroll
+                # paging can anchor on it when older messages are mounted.
+                # Display-only tag; a lightweight test/embedding double may not
+                # expose ``classes``.
+                add_classes = getattr(bubble_holder["bubble"], "classes", None)
+                if callable(add_classes):
+                    add_classes(f"klea-msg-{idx}")
+    # Scroll to the bottom only when the shown chat changed or new messages
+    # arrived; any other re-render keeps the reader's viewport where it was
+    # (expanding a bubble toggles in place, and scroll paging restores the
+    # anchor position, so neither re-renders to a jump).
+    ctx.last_rendered_chat = render_key
+    ctx.rendered_message_counts[render_key] = render_count
+    if current and should_scroll:
+        ctx.scroll_chat_bottom()
 
 
 def _scroll_to_bottom(ctx: PageContext) -> None:
@@ -896,6 +1046,176 @@ def _scroll_to_bottom(ctx: PageContext) -> None:
     ctx.scroll_area.scroll_to(pixels=99999)
 
 
+def _latest_mount_start(render_count: int) -> int:
+    """Return the start index of the newest bounded transcript window."""
+    return max(0, render_count - MOUNTED_MESSAGE_LIMIT)
+
+
+async def _measure_anchor_offset(idx: int) -> float | None:
+    """Return a bubble's offset from the top of the scroll viewport, in pixels.
+
+    Used to keep the reader's position stable when older messages are mounted
+    above the viewport: the offset of the previously-top bubble is captured
+    before the rebuild and restored after it (the web equivalent of the TUI
+    transcript anchoring on its previously-top block).
+
+    :param idx: Absolute store index of the anchor message.
+    :returns: The pixel offset, or ``None`` when the element is unavailable.
+    """
+    script = f"""
+    return (() => {{
+        const container = document.querySelector(
+            '.chat-scroll-area .q-scrollarea__container');
+        if (!container) return null;
+        const anchor = container.querySelector('.klea-msg-{idx}');
+        if (!anchor) return null;
+        return anchor.getBoundingClientRect().top
+            - container.getBoundingClientRect().top;
+    }})();
+    """
+    try:
+        return await ui.run_javascript(script, timeout=2.0)
+    except Exception:  # noqa: BLE001 - a missing element must not break paging
+        return None
+
+
+async def _restore_anchor_offset(idx: int, offset: float) -> None:
+    """Scroll a rebuilt transcript so *idx*'s bubble sits at *offset* again.
+
+    :param idx: Absolute store index of the anchor message.
+    :param offset: The pixel offset captured before the rebuild.
+    """
+    script = f"""
+    (() => {{
+        const container = document.querySelector(
+            '.chat-scroll-area .q-scrollarea__container');
+        if (!container) return;
+        const anchor = container.querySelector('.klea-msg-{idx}');
+        if (!anchor) return;
+        const current = anchor.getBoundingClientRect().top
+            - container.getBoundingClientRect().top;
+        container.scrollTop += current - ({offset});
+    }})();
+    """
+    try:
+        await ui.run_javascript(script, timeout=2.0)
+    except Exception:
+        logger.debug("anchor offset restore failed", exc_info=True)
+
+
+async def _page_older(ctx: PageContext) -> None:
+    """Mount the previous batch of older messages (reached the top).
+
+    The window's start is lowered by :data:`SCROLL_BATCH` (clamped at 0) and
+    the transcript is rebuilt; the reader's offset within the previously-top
+    bubble is captured and restored, so mounting above the viewport does not
+    jump.  Mirrors the TUI transcript's ``_load_older``.  The store itself is
+    untouched and the mounted window stays bounded by
+    :data:`MOUNTED_MESSAGE_LIMIT`.
+
+    :param ctx: The shared page context.
+    """
+    if ctx.loading_older or time.monotonic() < ctx.scroll_paging_until:
+        return
+    current = ctx.chat_id
+    if not current:
+        return
+    render_key = f"{ctx.user_id}:{current}"
+    chat = chats.get(render_key)
+    msgs = chat["messages"] if chat else []
+    start = ctx.mounted_start_by_chat.get(render_key, _latest_mount_start(len(msgs)))
+    if start <= 0:
+        return
+    ctx.loading_older = True
+    ctx.scroll_paging_until = time.monotonic() + 0.25
+    try:
+        offset = await _measure_anchor_offset(start)
+        ctx.mounted_start_by_chat[render_key] = max(0, start - SCROLL_BATCH)
+        _render_messages(ctx)
+        if offset is not None:
+            await _restore_anchor_offset(start, offset)
+    finally:
+        ctx.loading_older = False
+
+
+async def _page_newer(ctx: PageContext) -> None:
+    """Mount the next batch of newer messages (reached the bottom).
+
+    The window's start is raised by :data:`SCROLL_BATCH` (clamped at the newest
+    window) and the transcript is rebuilt, then pinned to the bottom: the
+    restored blocks land below the viewport, so the bottom is the fixed point
+    (the TUI transcript's ``_load_newer`` / ``_finish_load_newer``).  The
+    oldest end is left behind by the bounded window and the store is never
+    touched.
+
+    :param ctx: The shared page context.
+    """
+    if ctx.loading_newer or time.monotonic() < ctx.scroll_paging_until:
+        return
+    current = ctx.chat_id
+    if not current:
+        return
+    render_key = f"{ctx.user_id}:{current}"
+    chat = chats.get(render_key)
+    msgs = chat["messages"] if chat else []
+    latest_start = _latest_mount_start(len(msgs))
+    start = ctx.mounted_start_by_chat.get(render_key, latest_start)
+    if start >= latest_start:
+        return
+    ctx.loading_newer = True
+    ctx.scroll_paging_until = time.monotonic() + 0.25
+    try:
+        ctx.mounted_start_by_chat[render_key] = min(latest_start, start + SCROLL_BATCH)
+        _render_messages(ctx)
+        ctx.scroll_chat_bottom()
+    finally:
+        ctx.loading_newer = False
+
+
+async def _install_scroll_listener(ctx: PageContext) -> None:
+    """Attach a DOM scroll listener that pages the transcript at either edge.
+
+    NiceGUI's ``ui.scroll_area`` does not surface scroll events, so the Quasar
+    scroll container is observed directly in the browser: reaching the top
+    emits ``klea_scroll_top`` and reaching the bottom emits
+    ``klea_scroll_bottom`` on the element (via NiceGUI's ``emitEvent``), which
+    the handlers registered in :func:`attach_chat_area` receive.  The listener
+    is installed once and survives transcript re-renders.
+
+    :param ctx: The shared page context (uses ``scroll_area``).
+    """
+    element_id = ctx.scroll_area.id
+    script = f"""
+    (() => {{
+        const root = document.querySelector('.chat-scroll-area');
+        if (!root) return;
+        const container = root.querySelector('.q-scrollarea__container') || root;
+        if (container.__kleaScrollWired) return;
+        container.__kleaScrollWired = true;
+        let scheduled = false;
+        container.addEventListener('scroll', () => {{
+            if (scheduled) return;
+            scheduled = true;
+            requestAnimationFrame(() => {{
+                scheduled = false;
+                const atTop = container.scrollTop <= 0;
+                const atBottom = container.scrollTop + container.clientHeight
+                    >= container.scrollHeight - 2;
+                if (atTop) {{
+                    emitEvent({element_id}, 'klea_scroll_top');
+                }} else if (atBottom) {{
+                    emitEvent({element_id}, 'klea_scroll_bottom');
+                }}
+            }});
+        }}, {{ passive: true }});
+    }})();
+    """
+    try:
+        await ui.run_javascript(script)
+    except Exception:
+        logger.debug("scroll listener install failed", exc_info=True)
+
+
 def attach_chat_area(ctx: PageContext) -> None:
     """Build the chat scroll area and register its render callbacks.
 
@@ -913,6 +1233,23 @@ def attach_chat_area(ctx: PageContext) -> None:
     # active it is rendered here and the input row is hidden, so the ask
     # replaces the composer (mirroring the TUI; ADR-0046).
     ctx.interrupt_container = ui.column().classes("w-full")
+
+    # Scroll paging (mirrors the TUI transcript): reaching the top mounts the
+    # previous batch of stored messages and reaching the bottom re-mounts the
+    # next one.  The browser-side listener emits the two events; the handlers
+    # slide the bounded window without touching the store.
+    async def _on_scroll_top() -> None:
+        await _page_older(ctx)
+
+    async def _on_scroll_bottom() -> None:
+        await _page_newer(ctx)
+
+    async def _install_listener() -> None:
+        await _install_scroll_listener(ctx)
+
+    scroll_area.on("klea_scroll_top", _on_scroll_top)
+    scroll_area.on("klea_scroll_bottom", _on_scroll_bottom)
+    ui.timer(0.1, _install_listener, once=True)
 
     ctx.render_chat_area = lambda: _render_messages(ctx)
     ctx.refresh_turn_status = lambda: render_turn_status(

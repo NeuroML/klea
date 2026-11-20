@@ -70,8 +70,11 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   itself once it overflows, so one long section never swallows the pane.
 
 The panes update in place rather than re-rendering wholesale.  The status
-panel reconciles its sections by key, so only a section whose content changed
-is re-mounted and an unchanged one keeps its mounted widgets; the inspector
+panel reconciles its sections by key and stamps a content signature on each
+mounted section, so a section is re-mounted only when its content changed and
+an unchanged one keeps its mounted widgets, its body and the reader's scroll
+place (a streamed `state` event therefore repaints the one section it
+updates, not the whole pane); the inspector
 appends each new entry to the tail (a chat switch or an untrustworthy mounted
 state falls back to a full rebuild), so already-mounted entries keep their
 collapsed/expanded state.  Neither pane scrolls on its own: an update follows
@@ -278,6 +281,15 @@ title is set apart, the body carries a quiet left gutter plus top/bottom
 margins, and the question line is muted.  A permission ask
 shows the full target path (middle-truncated only for pathological values),
 the session approval directory when it differs, and the tool-call context.
+The context is a bounded window centred on the detected token, which is
+reverse-highlighted, followed by an omitted-character/line note.  Because
+discovery normalises a token before it is recorded, the window may instead
+centre on a recovered fragment of it -- the stripped token, then its basename
+when the longer forms do not occur in the value (see
+``path_detect._recover_anchor``) -- so a normalised token is not hidden inside
+a plain middle truncation, which remains the last resort only.  The snippet
+and its offsets come from the server payload, so the terminal and web asks
+render the same window.
 Input asks may also carry plan-history sections (when the automated replan
 budget is exhausted), rendered above the questions.  Decisions are shown in
 the transcript via
@@ -434,6 +446,79 @@ session's bundled MCP client.  See `session-mcp-context.md` and ADR-0055.
 * **Non-goals / known divergence**: no inline media (text fallback, ADR-0040);
   HTML tables/alerts degrade to plain renderables; no live token typing
   (`token` stays unconsumed, streams.md); no always-visible session sidebar.
+
+## Transcript windowing
+
+The transcript keeps every message dict in `Transcript._messages`, so a
+rebuild, an export or a session reload still sees the whole conversation, but
+it mounts only a bounded window of message blocks, so a long session does not
+grow the widget tree without limit:
+
+* `WINDOW_SIZE` (40) is the hydration window mounted by `set_messages`: a
+  freshly loaded transcript builds at most this many message blocks around the
+  tail of the conversation.
+* A live session mounts each message as it arrives and evicts the oldest block
+  only once the mounted count reaches `MAX_MOUNTED` (80), so the widget tree
+  stays bounded while the newest messages remain visible.
+* Scrolling to the top mounts `SCROLL_BATCH` (20) older blocks per step, so a
+  long transcript is paged in on demand.  The reader's viewport position is
+  preserved across each step, and trimming to `MAX_MOUNTED` drops the newest
+  end first, so paging older blocks in never unmounts the ones the reader has
+  scrolled back to.
+* Scrolling back down to the bottom re-mounts the newer blocks that trim
+  evicted, up to `SCROLL_BATCH` (20) per step, so a reader who paged home and
+  then returns to the tail gets the newest messages back.  The oldest end is
+  then trimmed to hold `MAX_MOUNTED`, so the same cap bounds the window in
+  both directions.  The mounted range is tracked as one oldest mounted index
+  plus the mounted count, so the window stays contiguous and a block's
+  position is derived from that start rather than probed per block.
+
+An unmounted block loses only its transient view state: an expanded long
+message falls back to its collapsed form, and any text selection or focus
+inside it is dropped.  The content itself is never lost, because the message
+stays in `_messages` and is rendered again when the block is re-mounted.
+
+## Status-panel repaint
+
+`_reconcile_sections` stamps each mounted state-section widget with a signature
+of the content it was built from and leaves a section whose signature is
+unchanged mounted in place, so a streamed `state` event repaints only the
+sections that actually changed.  The skip keeps the per-event cost bounded and
+preserves the reader's scroll position; a rebuilt or removed section keeps no
+stamp, so it is rendered from scratch.
+
+The web chat area (`chat_area.py`) follows the same rule: it scrolls the
+transcript to the newest message only when that chat's message count grew,
+tracked per chat on `PageContext`, so expanding an older message or any other
+re-render of an unchanged message set leaves the viewport where it is.
+
+The web transcript pages this window the same way: reaching the top mounts
+`SCROLL_BATCH` (20) older messages per step and trims the newest end, and
+reaching the bottom re-mounts the newer messages while the oldest end is
+dropped, so the mounted window stays bounded by `MOUNTED_MESSAGE_LIMIT` while
+the store keeps every message.  Expanding a bubble never moves the pane: the
+toggle flips the block's collapsed class and icon in place and records the
+choice in the chat's `expanded` set, so the transcript is not rebuilt and the
+viewport stays put.
+
+The web transcript also bounds its widget tree: `MOUNTED_MESSAGE_LIMIT` (80)
+in `utils_pkg/klea_utils/ui/web/nicegui/components/chat_area.py`, applied in
+`_render_messages`, mounts only the newest window of message bubbles and leaves
+older ones unrendered.  Nothing is lost: the chat store keeps the full message
+list, which `/export` and hydration read.  The bound covers live appends during
+a turn as well as a session resume, and the scroll rule above compares the full
+store count, so a trim neither suppresses a real append's scroll nor scrolls on
+a same-set re-render.
+
+## Spinner lifecycle
+
+`_run_query` stops the turn spinner unconditionally in its `finally` clause
+through `TurnStatus.stop_spinner()`, so the spinner never keeps running once a
+run has ended.  This includes a stream that closes with no terminal event at
+all (no `complete`, `error` or `interrupt`), where nothing else would clear
+it.  `stop_spinner()` only tears down the timer: it leaves the `show_*` status
+label in place, so the last heading (a stopped or error line, for example)
+stays visible instead of being cleared.
 
 ## Glyphs
 

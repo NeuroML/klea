@@ -224,6 +224,12 @@ number, `total` the number of plan steps), the same progress text the plaintext
 `display` shows, so the glyphed and plain renderings report the same position.
 RAG keeps the base behaviour and its payload is unchanged.
 
+The tool-execution status section body renders one markdown bullet per distinct
+tool, `- **<title>**: ok xN, failed xM`, grouped by the raw tool name, in
+first-seen call order, with a zero count omitted (a tool with no failures shows
+only `ok xN`); per-call detail stays in the section's `details` payload behind
+the collapsible.
+
 ### `notice` (chat progress note)
 
 A concise, user-facing progress note derived from an internal node result: the

@@ -1266,6 +1266,11 @@ class KleaTuiApp(App[None]):
             }
             screen.show_error(f"Request failed: {exc}", True)
         finally:
+            # Stop the spinner on every exit path: a stream that ends without a
+            # terminal event, or a non-transport exception, never reaches a
+            # show_* method, which would leave its timer ticking forever.
+            if screen.query_one(TurnStatus).stop_spinner():
+                logger.debug("run exit: spinner stopped: chat=%s", self.ctx.chat_id)
             self._streaming = False
             self._worker = None
 

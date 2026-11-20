@@ -135,6 +135,24 @@ class PageContext:
     # and invoked by handlers after the page is fully assembled)
     render_chat_area: Callable[[], None] = field(default=_noop)
     scroll_chat_bottom: Callable[[], None] = field(default=_noop)
+    #: Key of the chat whose transcript was last rebuilt, and the number of
+    #: messages rendered for each chat key, so the transcript scrolls to the
+    #: bottom only on a chat switch or when new messages arrived (a same-set
+    #: re-render keeps the reader's viewport where it was).
+    last_rendered_chat: str = ""
+    rendered_message_counts: dict[str, int] = field(default_factory=dict)
+    #: Per-chat start index of the mounted transcript window, for scroll
+    #: paging in the web chat area: the oldest mounted message is
+    #: ``mounted_start_by_chat[key]`` and at most ``MOUNTED_MESSAGE_LIMIT``
+    #: messages follow it.  The chat store itself is never trimmed.
+    mounted_start_by_chat: dict[str, int] = field(default_factory=dict)
+    #: Guards against re-entrant scroll paging in the web chat area (mirrors
+    #: the TUI transcript's ``_loading_older`` / ``_loading_newer``), plus a
+    #: monotonic deadline that suppresses the spurious scroll event a rebuild
+    #: emits when it briefly empties the scroll container.
+    loading_older: bool = False
+    loading_newer: bool = False
+    scroll_paging_until: float = 0.0
     refresh_chat_list: Callable[..., Any] = field(default=_noop)
     refresh_status_pane: Callable[..., Any] = field(default=_noop)
     refresh_inspector: Callable[..., Any] = field(default=_noop)

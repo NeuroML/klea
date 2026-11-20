@@ -17,12 +17,18 @@
 - Status panes in both the terminal and web clients now cap each long state section, such as the plan, at a content-derived height and scroll it inside the pane, so the rest of the overview stays visible.
 - HITL ask sections now render their payload title verbatim, once per section, falling back to `Details` when the title is empty, so the synthetic `Option N` label no longer appears in either frontend.
 - The approval review controls are now `Continue` / `Revise with feedback` / `Cancel`; in the terminal the feedback field wraps and grows and submits only through its button (Enter no longer submits, Ctrl+J inserts a newline), and the ask bodies are spaced for readability.
+- The tool-execution status section now shows one line per distinct tool with its ok/failed counts instead of one line per call, so a repeated tool no longer makes the pane jump.
+- Web UI: a long chat transcript now mounts only its newest messages, so a long session stays responsive.
+- Web UI: the chat transcript now pages older messages in when you scroll to the top and the newer ones back when you return to the bottom, so a long chat can be read from start to finish while staying responsive.
 
 ### Fixed
 
 - Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname; secondary LAN NICs are found via an OS interface scan so multi-homed hosts no longer fall back to a cookie for one of their own IPs.
 - Web UI: re-rendering the chat transcript no longer jumps the viewport to the newest message, so expanding an older message keeps its position.
 - Web UI: expanding a message in the chat transcript no longer moves the pane, so the message opens in place.
+- Web UI: re-rendering the chat transcript no longer jumps the viewport to the newest message, so expanding an older message keeps its position.
+- Web UI: expanding a message in the chat transcript no longer moves the pane, so the message opens in place.
+- Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname.
 - The planner is now told why it was sent back to replan when no reason was supplied, so it revises against a concrete problem instead of guessing.
 - A failed step no longer ends the run while other steps are still pending: the agent replans around it instead of reporting an error.
 - Chat titles are no longer derived from the generated chat id at creation: a chat stores its own title (empty until set) and only falls back to a derived display name while that stored title is empty.
