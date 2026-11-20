@@ -124,6 +124,25 @@ Each expected output:
 > a rule for comparing opaque bytes exists.  The other three formats (`json`,
 > `yaml`, `text`) are fully supported.
 
+> **Amended 2026-11-19.** A case may also declare an execution check: an
+> optional case-level `command` and an optional case-level `command_timeout`.
+> Both keys are optional, so a suite that declares neither loads exactly as
+> before and no `schema_version` bump is introduced.  `command` is a
+> case-authored argv array, not a shell string: the harness runs it once, with
+> no retry, with its working directory pinned to the run's `workspace/`
+> directory, and grades it on its exit status only.  Exit status `0` passes and
+> any other status fails, with a status below zero meaning the process was
+> killed by a signal.  A launch fault (for example a missing executable) and a
+> run that exceeds `command_timeout` (default 300 s) are failed checks, never
+> load errors.  A `command_timeout` without a `command` is a load error.  The
+> declared command and the observed exit status are recorded on the check, so
+> the verdict stays auditable; stdout and stderr are discarded and never
+> graded, so a case that needs its output checked must have the command write a
+> file into the workspace and declare it under `expected_outputs`.
+> `command_exit` is an expectation check kind, not a `validation_rule`: the
+> closed `validation_rule` vocabulary above is unchanged and still rejects any
+> rule other than `exact_match` or `contains`.
+
 #### Tool Expectations Sub-Schema
 
 Each tool expectation:
@@ -168,6 +187,14 @@ The schema enforces the following invariants:
 5. **Reproducibility**: No timestamps or random elements in case definitions. Deterministic turn ordering (sequential, no gaps). Seeds are in `run_config` only.
 6. **Case ID Uniqueness**: Each `case_id` is unique within a test suite. Duplicates are rejected at load time.
 7. **Turn Ordering**: Turns are sequential (1-indexed, no gaps). Out-of-order turns are rejected.
+8. **Execution Check**: An optional case-level `command` (argv form, no shell)
+   is run once per case with its working directory pinned to the run's
+   `workspace/` directory, and graded on its exit status alone (`0` passes, any
+   other status fails); `command_timeout` bounds it per case (default 300 s),
+   and both the declared command and the observed exit status are recorded.  It
+   is an expectation check kind, not a `validation_rule`, so the closed
+   `validation_rule` vocabulary above is unchanged; because both keys are
+   optional, no `schema_version` bump is introduced.
 
 ### Schema Versioning Strategy
 

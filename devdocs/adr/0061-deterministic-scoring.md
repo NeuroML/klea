@@ -55,8 +55,9 @@ keeps the graded fields reproducible from stored artifacts and keeps
 criterion above.
 
 The LLM judge is rejected for gating. Deterministic checks are the only grading
-path: a run is graded by machine checks over its `expected_outputs` and its
-`tool_expectations` (ADR-0056), never by a model verdict. Those checks run in
+path: a run is graded by machine checks over its `expected_outputs`, its
+`tool_expectations` and its case-authored `command` exit status (ADR-0056),
+never by a model verdict. Those checks run in
 the Execute -> Score stage of the pipeline (ADR-0060), and each per-check
 verdict is recorded in the run record as `metrics.expectation_checks` beside the
 derived `task_success`, so `score_run` grades a run from its recorded verdicts
@@ -89,6 +90,24 @@ verdicts from machine checks alone, and no judge protocol, client or
 configuration key exists. The `grade-missing` label and exit code `4` remain the
 only outcome for a rubric-declaring case that its deterministic checks cannot
 grade.
+
+### Amendment 2026-11-19: execution verdicts
+
+An execution check (ADR-0056) is a deterministic check in the sense this ADR
+requires, provided its verdict is a function of recorded evidence alone.  A case
+may declare a case-authored `command`; the harness runs it once, with its
+working directory pinned to the run's `workspace/` directory, and grades it on
+the exit status only: status `0` passes, any other status fails, and a status
+below zero records a signal.  The recorded `expectation_checks` entry carries
+the declared command and the observed exit status, so the verdict is auditable
+from the stored run without re-running anything; `score_run` never re-runs the
+command and never reads its stdout or stderr.  A launch fault or a timeout (per
+case, `command_timeout`, default 300 s) is a failed check, not a load error.
+Because stdout and stderr are not graded, a case that needs its output checked
+must have the command write a file into the workspace and declare it under
+`expected_outputs`, which stays graded from the live workspace as before.  The
+grade therefore remains a deterministic function of the recorded evidence,
+which extends rather than weakens the deterministic-only decision above.
 
 ## Pros and Cons of the Options
 
