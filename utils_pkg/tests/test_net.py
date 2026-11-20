@@ -103,3 +103,38 @@ def test_remote_wifi_peer_is_not_same_machine():
         "192.168.0.5:7860",
         local_addresses={lan},
     )
+
+
+def test_multi_homed_self_access_uses_any_local_source():
+    # URL is the LAN NIC; TCP source is another local NIC (VPN / docker).
+    lan = ipaddress.ip_address("192.168.15.121")
+    vpn = ipaddress.ip_address("10.0.0.2")
+    assert is_same_machine_peer(
+        "10.0.0.2",
+        "192.168.15.121:7860",
+        local_addresses={lan, vpn},
+    )
+
+
+def test_secondary_lan_nic_is_local_when_listed():
+    # Secondary LAN IP may be missing from getaddrinfo / default-route scans.
+    lan = ipaddress.ip_address("192.168.15.121")
+    assert is_local_machine_host("192.168.15.121", local_addresses={lan})
+    assert is_same_machine_peer(
+        "192.168.15.121",
+        "192.168.15.121:7860",
+        local_addresses={lan},
+    )
+
+
+def test_os_listed_addresses_are_merged(monkeypatch):
+    from klea_utils import net as net_mod
+
+    monkeypatch.setattr(
+        net_mod,
+        "_os_listed_addresses",
+        lambda: {"192.168.15.121", "172.17.0.1"},
+    )
+    addresses = net_mod.local_interface_addresses()
+    assert ipaddress.ip_address("192.168.15.121") in addresses
+    assert ipaddress.ip_address("172.17.0.1") in addresses
