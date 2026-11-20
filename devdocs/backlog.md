@@ -284,6 +284,20 @@ phases are listed below.
   pruning is lossy.  Residual follow-ups: re-hydrating an archived run's
   artifacts, a second purge horizon for already-archived runs, and the automatic
   post-publish retention hook, which is rejected rather than deferred.
+- Benchmark adapter contract (deferred): a benchmark ships its own
+  pre-processing/adapter scripts with its suite; the scripts emit case JSONL
+  plus fixtures the loader already accepts, so the harness stays a general core
+  engine and carries no benchmark-specific code.  The expected adapter output
+  shape is not yet documented.
+- Command sandbox and permission model (deferred): an executed case `command`
+  runs with its working directory pinned to the run `workspace/` and nothing
+  else constrained; there is no sandbox, no user or environment allowlist and
+  no filesystem boundary.  `subprocess.run`'s timeout kills only the direct
+  child, so the process-group kill already tracked above is needed here too to
+  reap detached descendants.
+- Repository/container binding (deferred): binding a case to a git repository
+  or a container image is a separate future capability, not part of the adapter
+  contract.
 
 ## Infrastructure / correctness
 
