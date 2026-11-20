@@ -3,3 +3,4 @@
 -e ./rag_pkg[dev]
 -e ./agent_pkg[dev]
 -e ./mcp_pkg[dev]
+-e ./eval_pkg[dev]

@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-11-03.
+Last updated: 2026-11-18.
 
 ## Cancellation / concurrency
 
@@ -122,7 +122,128 @@ Last updated: 2026-11-03.
   always `unverified` (ADR-0030/0036).
 - Independent inline-answer verifier for `chat`-route answers (ADR-0029
   phase).
-- `eval_pkg` harness (see `devdocs/system/agent-evaluation-harness.md`).
+
+## Evaluation harness (`eval_pkg`)
+
+The authoritative implementation tracker (agreed decisions, ordered phases,
+commit log and resume instructions) is
+`devdocs/system/eval-harness-implementation.md`; this section keeps only the
+remaining ordered phases and deferred items.
+
+Ordered phases.  The package scaffold and distribution (`klea-eval`) are done,
+and the ADR-0056 JSONL case loader shipped in commit `4c1df875`; the CLI
+case-validation command shipped as `klea-eval validate`.  The remaining ordered
+phases are listed below.
+
+- JSONL case loader (ADR-0056), **done** (`4c1df875`): `klea_eval.cases`
+  (`load_suite`, `iter_cases`) reads case definitions from the ADR-0056 JSONL
+  format and raises `CaseValidationError` (carrying source path, line number
+  and case id) on invalid input.
+- CLI case-validation command, **done**: the loader is exposed in
+  `eval_pkg/klea_eval/ui/cli.py` as `klea-eval validate`, which renders the
+  `CaseValidationError` message and maps it to exit code 2 as
+  `klea_eval.errors` and ADR-0060 promise.
+- Run manager and run isolation (ADR-0057): give each case an isolated run
+  directory and environment, with cleanup.
+- Metrics collector (ADR-0058): collect per-case metrics through the runner
+  interfaces.
+- Result storage (ADR-0059): persist run results in the ADR-0059 reporting
+  format.
+- Harness pipeline, CLI and in-process scheduler (ADR-0060): wire loader,
+  runners and storage together behind the `klea-eval` command.
+- Scoring and aggregation, **settled** (ADR-0060, ADR-0061): the aggregate and
+  report half is delivered -- the ADR-0060 Aggregate stage as
+  `klea_eval.scoring.aggregate_suite`, the read/inspect API's `suite_summary`
+  delegation and the `report` command -- and app-side API/SSE exposure stays
+  out of scope in `../klea`.  The LLM judge is dropped on determinism grounds
+  per ADR-0061: a judged verdict would enter `record_evaluation_result` and
+  therefore `task_success`, the labels and the exit codes, which must stay
+  reproducible from the stored run, so scoring is deterministic checks only.
+- Scoring-depth follow-ups, **open** (ADR-0061): `scoring.py` today consumes
+  none of the concrete case-schema fields a deterministic check would use --
+  `expected_outputs.file_path` / `output_format` / `validation_rule` (default
+  `exact_match`) and `tool_expectations.tool_name` / `call_count` (default
+  `(1, 1)`) / `argument_constraints` -- so wiring them into checks is the next
+  step.  Also open: a `cost.py` per-model price table (until it lands
+  `cost_estimate` is only relayed and summed), and the design questions of the
+  machine-checkable `criteria` predicate form and the scale-rubric pass
+  threshold.  Any future judge must be opt-in, pin and record its model id,
+  cache verdicts and be strictly non-gating, under its own ADR.
+- Model overrides, **done**: one read-only pre-flight reads the chat's active
+  model map once for the first case and rejects an unknown role across caller
+  `-m` defaults plus every case's `run_config.model_overrides` before the first
+  case runs, raising `PipelineConfigError` so `klea-eval run` exits 2 with the
+  exposed roles listed.  The per-case `ModelOverrideError` path is kept as a
+  backend-side fallback.  The backend still accepts an unknown role in a model
+  override (it stores it) instead of rejecting it; making the backend reject it
+  is a `utils_pkg` follow-up, with an upstream issue filed for it.
+- Grading semantics (settled): no rubric means no grade.  `metrics.py` leaves
+  `task_success` at None for a run without a grade, and a grade is never
+  inferred because there is nothing to infer it from: `ungraded` is a
+  terminal, legitimate outcome for a rubrics-less run, not a pending state.
+  `grade-missing` is an error state instead: a completed run that declared
+  rubrics recorded no grade, i.e. it should have been graded but could not be.
+  It is surfaced as a per-case label, a report counter and, for `run` and the
+  scheduler, the distinct exit code `4` (`EXIT_GRADE_MISSING`): a real case
+  failure still exits `1` and takes precedence over a grade-missing case, and
+  a suite of only ungraded or skipped cases stays `0`.  `report` is unaffected,
+  because it reads the run history from disk rather than from an exit code.
+  The delivered contract names all four codes: `0` and `1` as ADR-0060
+  describes, plus `4` (`EXIT_GRADE_MISSING`) for a rubric-declaring suite whose
+  deterministic checks produced no grade (ADR-0061), alongside `2` for a suite
+  that could not start.  Code `4` is therefore narrower than a general
+  judge-unavailable fallback: it means grading was expected but the
+  machine-checkable checks yielded no grade.  Amending ADR-0060's exit-code
+  table is no longer an open follow-up: it landed in `b97af6b3 docs(eval):
+  document exit code 4 in ADR-0060`, whose table now records codes
+  `0`/`1`/`2`/`3`/`4`, with a real case failure (`1`) taking precedence over a
+  grade-missing case (`4`) (`devdocs/adr/0060-harness-execution.md:76-82`).
+- Run diagnostics record (settled), **done**: ``runs/<run_id>/transcript.jsonl`` is a reduced per-turn record written for reconstruction and failure diagnosis, not a verbatim conversation log and not a grading input. One line per executed turn carries only ``turn_number``, ``role``, ``input``, ``output``, ``status`` and ``error``; run identity, per-turn usage, latency, tool-call counts, scores and resolved models already live in ``run.json`` and ``metrics.jsonl``. Full turn fidelity (system prompts, replayed history, tool payloads) and transcript-fed re-grading are rejected: debugging belongs to the regular development workflow and the ``~/.local/share/klea-*`` logs, and deterministic scoring must stay reproducible from ``run.json`` and ``metrics.jsonl`` alone (ADR-0061), so ``scoring.py`` keeps reading ``expected_outputs`` and ``tool_expectations`` only. Landed in ``caa71c05``. Known limit: a handled failure still discards the ``.tmp`` tree (``run_manager.py:355``), so the record survives a completed run or a hard crash only.
+
+- Failed-run grading (settled): run success is a prerequisite for grading, so a
+  failed run is labelled `failed` and is never graded and never
+  `grade-missing`.
+- Failed-run indexing (settled), **done**: the index is completed-only, so a
+  failed run appends no `runs/index.jsonl` line. The index must stay a
+  projection of the `COMPLETE`-marked run directories so the `klea-eval check`
+  consistency pass is well-defined, and one `run_id` must not carry both a
+  failed line and the line of the run its retry did not replace.  Failure is
+  still carried by the run's own `CaseRun` and label, and the cross-invocation
+  report/observability question is now answered: `klea-eval report` enumerates
+  every published run directory through `workspace.list_run_dirs` (excluding
+  `.tmp`, `.superseded`, `.overwrite` and hidden names) and renders each one
+  with no index line as `... index=missing`, counted in the `unindexed` summary
+  counter.  A complete-but-unindexed directory is classified `drift`, a
+  complete-and-archived one `archived`, and any other residue is labelled from
+  its readable `run.json`, else `case=?` / `status=incomplete` /
+  `label=unknown`.  The index itself stays completed-only, so no failed run
+  gains an index line.
+- Index consistency check (settled): `klea-eval check` is an explicit,
+  operator-invoked check-and-repair pass over `runs/index.jsonl` and the run
+  directories, not an automatic startup hook. It re-indexes a `COMPLETE` run the
+  index omits, drops duplicate index lines (keeping the first) and orphan lines
+  whose run directory is gone, and only flags an unmarked final directory or a
+  leftover `.tmp` staging directory without deleting either. Every dropped
+  `run_id` is reported and logged at WARNING, because a dropped line is
+  unrecoverable. Orphan lines are dropped rather than kept: `prune --purge`
+  (D11) removes a run directory together with its index line, whereas an
+  archived run keeps both, so an index line with no directory is drift by
+  definition, and keeping it would make `get_run`, scoring and reporting fail on
+  a missing file. No ADR is needed: the index stays the completed-only
+  projection already decided above.
+- Retention granularity (settled): retention keeps the most recent 20 completed
+  runs per case (D11); older runs are archived rather than deleted.  Archiving
+  removes only the run's `workspace/` tree and keeps `run.json`,
+  `metrics.jsonl`, the `COMPLETE` marker and its `runs/index.jsonl` line, with
+  an `ARCHIVED` marker written beside them, so an archived run stays a
+  legitimate index-and-directory pair that `get_run`, `list_runs`, `summary` and
+  `klea-eval check` all accept without reporting drift.  `prune --purge`
+  deletes the whole directory and drops the line instead, and `--dry-run`
+  reports the plan without touching the disk.  Retention is explicit-only: it
+  runs only from `klea-eval prune`, never automatically after a publish, because
+  pruning is lossy.  Residual follow-ups: re-hydrating an archived run's
+  artifacts, a second purge horizon for already-archived runs, and the automatic
+  post-publish retention hook, which is rejected rather than deferred.
 
 ## Infrastructure / correctness
 

@@ -4,4 +4,5 @@ extra-paths = [
     "./agent_pkg",
     "./rag_pkg",
     "./mcp_pkg",
+    "./eval_pkg",
 ]

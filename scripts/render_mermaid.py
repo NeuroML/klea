@@ -173,23 +173,23 @@ def main(
         min=1.0,
         help="Scale factor passed to mmdc (2-3 recommended).",
     ),
-    output_dir: Path = typer.Option(
+    output_dir: Path = typer.Option(  # noqa: B008 - typer CLI declaration
         Path("devdocs/system/diagrams"),
         "--output-dir",
         "-o",
         help="Directory that receives the rendered image files (--format, default png).",
     ),
-    work_dir: Path = typer.Option(
+    work_dir: Path = typer.Option(  # noqa: B008 - typer CLI declaration
         Path("build/mermaid/src"),
         "--work-dir",
         help="Directory that receives the extracted .mmd sources.",
     ),
-    devdocs_dir: Path = typer.Option(
+    devdocs_dir: Path = typer.Option(  # noqa: B008 - typer CLI declaration
         Path("devdocs"),
         "--devdocs-dir",
         help="Directory scanned recursively for Markdown files.",
     ),
-    repo_root: Path = typer.Option(
+    repo_root: Path = typer.Option(  # noqa: B008 - typer CLI declaration
         Path("."),
         "--repo-root",
         help="Repository root scanned recursively for .mmd files.",

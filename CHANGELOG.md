@@ -8,11 +8,23 @@
 
 - The plan pane now marks the steps dispatched in the current parallel round, so a fan-out round no longer looks idle.
 - Chat-renderable tool results and status sections can now carry structured content blocks (plain text, ordered item lists, labelled field lists) whose items are tagged with a status role (`ok`, `error`, `current`, `pending`, `plain`), so the frontends mark the step that is currently in progress instead of re-parsing free text; a reader that does not know a block's contract version falls back to the plain display text.
+- Eval run identity now includes the per-role model overrides, the resolved models and the endpoint URL, so runs using different models no longer collide in the results index.
+- A completed eval run that is missing from the results index is re-indexed from its stored artefacts instead of being re-run.
+- `klea-eval report` renders a per-case summary and the run counters from a results index (new `klea_eval.reporting` writer).
+- `klea-eval report` now also lists the run directories that carry no results-index line, marking each `index=missing` and counting it in a new `unindexed` counter, so a failed run from an earlier invocation stays visible in the report.
+- `klea-eval check` verifies the eval run index against the run directories and, with `--repair`, re-indexes a completed run the index omits and drops duplicate or orphaned index lines, naming every dropped run id.
+- Eval runs record in `run.json` whether a case declares rubrics, and the report and CLI distinguish ungraded cases (no rubrics, no grade) from grade-missing cases (rubrics declared but no grade recorded).
+- Eval runs now persist a reduced per-turn ``transcript.jsonl`` record (turn number, role, input, output, status, error) so a stored run can be reconstructed or a failed one explained; it is a diagnostics record, not a grading input.
 - The plan status now opens with a truncated `Goal: ...` line followed by a blank line, so concurrent sessions can be told apart at a glance.
 
 ### Changed
 
+- An unknown model-override role now aborts `klea-eval run` before any case runs with exit code 2, instead of failing each case.
+- `klea-eval prune` now archives runs that fall outside the retention window instead of deleting them: an older run keeps its `run.json`, `metrics.jsonl` and index line, and only its workspace tree is removed; pass `--purge` to delete the whole run directory and drop its index line as before.
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
+- `klea-eval run` now exits 4 when a completed case declared rubrics but recorded no grade, distinct from exit 1 for a failed case.
+- Eval scoring is deterministic only (ADR-0061): a run's pass/fail, exit codes and metrics now derive solely from deterministic checks, with no judged verdict, and exit 4 means a rubric-declaring suite whose deterministic checks produced no grade.
+- Permission dialogs now group the requested paths under the plan step they belong to.
 - Permission dialogs now group the requested paths under the plan step they belong to, with the plan-step heading set apart and emphasised so the prompt is easier to read, a long step summary capped at two lines with `...`, one muted coverage line per step group (`N paths: X outside the project, Y sensitive`), a request's further steps shown once as `Also serves step N` beneath its heading, and a divider between adjacent step groups in the web form.
 - Status panes in both the terminal and web clients now cap each long state section, such as the plan, at a content-derived height and scroll it inside the pane, so the rest of the overview stays visible.
 - HITL ask sections now render their payload title verbatim, once per section, falling back to `Details` when the title is empty, so the synthetic `Option N` label no longer appears in either frontend.
@@ -31,6 +43,14 @@
 - Chat titles are no longer derived from the generated chat id at creation: a chat stores its own title (empty until set) and only falls back to a derived display name while that stored title is empty.
 - A chat created without an explicit title now shows a derived display name (for example "Olivine Caracal" for `olivine-caracal`) in the web chat list instead of a blank label.
 - Failed chat renames are now reported instead of being silently ignored.
+- Eval cases that completed without a grade now show as `ungraded` and are counted apart from `completed`, while the recorded case status and `run.json` stay `completed` and the exit code stays 0.
+- A completed eval case without rubrics no longer deflates the suite score and pass@k: ungraded and grade-missing cases are excluded from the case count and rate denominators, and the report's ungraded counter is no longer always zero.
+- `klea-eval run` uses `KLEA_EVAL_WORKSPACE` when `--workspace` is not given, and only then the current directory.
+- Eval requests now send the staged per-case workspace as `client_context.cwd`, so tool and file cases no longer run in the eval process's directory.
+- An eval run whose overwrite fails keeps its previous run directory and index entry, so a failed publish no longer loses the old results.
+- A malformed or truncated `complete` payload now fails that eval turn instead of yielding a bogus case result.
+- Eval attempts and overwrites each allocate a fresh chat id, so retried cases no longer share conversation state.
+- An eval run's `run.json` is written before the COMPLETE marker, so an interrupted publish cannot leave a COMPLETE run without a manifest.
 - Bundled `grep`, `read_file` and `run_command` output is now capped per line with a visible truncation marker, so one over-long line no longer fails the whole call.
 - A tool result too large for the transport now returns guidance on how to narrow the call instead of a terse stream-limit error.
 - The structured plan status no longer omits the step position: its step items now show the same `Step N/total` progress text as the plaintext plan.
@@ -49,6 +69,7 @@
 
 ### Added
 
+- Per-run model selection: `klea-eval run -m ROLE=MODEL` chooses the model for a role, provider API keys are read from the environment, and the resolved models are recorded in the run envelope.
 - Every tool result is now shown in the web chat, not only `run_command` output: each call appears as its own collapsible block with a bounded preview of its output, including calls that failed.
 - TUI project context: the terminal client sends its working directory, full environment and Python interpreter with each query (loopback only), so one backend can run different chats in different projects or virtual environments. `--cwd`, repeatable `--env KEY=VALUE`, `--interpreter` and `--no-client-context` control it; the client cwd is also the default project root when `/cwd` is unset. A changed context respawns that session's bundled MCP tools (ADR-0055).
 - `/stores` session command (TUI): sets the chat's stores config from an absolute JSON path, or `clear` to drop it; the value lives in the per-chat `ChatData.stores_config` slot and is validated locally (absolute, existing regular file) before it is recorded.
@@ -119,6 +140,7 @@
 
 ### Changed
 
+- Eval harness case validation now rejects a turn without a non-empty `content` field and any turn carrying an unknown key such as `input`, so a misplaced message is caught by `validate` instead of failing at run time.
 - The final answer now summarises tool output instead of reprinting it, since every tool call is shown in the chat.
 - Agent budgets: the tool-error re-pick budget is now 6 (was 3), the per-step non-advancing attempt budget is 6 (was 3), and the automated-replan budget is 8 (was 4), so reading a large file can span more tool rounds before the agent escalates or replans.
 - Terminal UI: Ctrl+C now copies selected text instead of stopping the run; Ctrl+Shift+C stops a run, with F12 as the fallback for terminals that intercept Ctrl+Shift+C.
