@@ -23,11 +23,16 @@ logger = logging.getLogger(__name__)
 #: ``inet`` / ``inet6`` address token in ``ip`` / ``ifconfig`` output.
 _INET_ADDR_RE = re.compile(r"\binet6?\s+([0-9a-fA-F:.]+)")
 
-#: IPv4 address in Windows ``ipconfig`` output.
-_WIN_IPV4_RE = re.compile(r"IPv4 Address[^:]*:\s*([0-9.]+)", re.IGNORECASE)
+#: IPv4 address in Windows ``ipconfig`` output (label may be localized).
+_WIN_IPV4_RE = re.compile(r"IPv4[^:]*:\s*([0-9.]+)", re.IGNORECASE)
 
-#: IPv6 address in Windows ``ipconfig`` output.
-_WIN_IPV6_RE = re.compile(r"IPv6 Address[^:]*:\s*([0-9a-fA-F:]+)", re.IGNORECASE)
+#: IPv6 address in Windows ``ipconfig`` output (label may be localized).
+_WIN_IPV6_RE = re.compile(r"IPv6[^:]*:\s*([0-9a-fA-F:]+)", re.IGNORECASE)
+
+#: Process-lifetime cache for :func:`local_interface_addresses` (no extras).
+_LOCAL_INTERFACE_CACHE: (
+    frozenset[ipaddress.IPv4Address | ipaddress.IPv6Address] | None
+) = None
 
 
 def is_loopback_host(host: str | None) -> bool:
@@ -137,6 +142,12 @@ def _os_listed_addresses() -> set[str]:
     return set()
 
 
+def clear_local_interface_address_cache() -> None:
+    """Drop the cached local interface inventory (tests / rare refresh)."""
+    global _LOCAL_INTERFACE_CACHE
+    _LOCAL_INTERFACE_CACHE = None
+
+
 def local_interface_addresses(
     *,
     extra_hosts: Iterable[str] | None = None,
@@ -147,9 +158,18 @@ def local_interface_addresses(
     ``getaddrinfo(hostname)``, the UDP "outbound" address trick, and any
     *extra_hosts* (useful in tests).  Loopback addresses are always included.
 
+    Results without *extra_hosts* are cached for the process so page loads do
+    not re-run the OS scan.  Call :func:`clear_local_interface_address_cache`
+    to refresh.
+
     :param extra_hosts: Optional host strings to include (tests / callers).
     :returns: The set of local interface addresses.
     """
+    global _LOCAL_INTERFACE_CACHE
+    extras = tuple(extra_hosts or ())
+    if not extras and _LOCAL_INTERFACE_CACHE is not None:
+        return _LOCAL_INTERFACE_CACHE
+
     found: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
 
     def _add(raw: str | None) -> None:
@@ -159,7 +179,7 @@ def local_interface_addresses(
 
     _add("127.0.0.1")
     _add("::1")
-    for raw in extra_hosts or ():
+    for raw in extras:
         _add(raw)
     for raw in _os_listed_addresses():
         _add(raw)
@@ -181,7 +201,10 @@ def local_interface_addresses(
         except OSError:
             continue
 
-    return frozenset(found)
+    result = frozenset(found)
+    if not extras:
+        _LOCAL_INTERFACE_CACHE = result
+    return result
 
 
 def is_local_machine_host(
@@ -240,21 +263,19 @@ def is_same_machine_peer(
     :param local_addresses: Optional precomputed local address set (tests).
     :returns: ``True`` when the peer is this machine.
     """
+    # Loopback clients never need a NIC scan (covers plain localhost).
+    if is_loopback_host(client_host):
+        return True
+    client = parse_ip_host(client_host)
+    advertised = parse_ip_host(host_header_hostname(request_host_header))
+    # Hairpin: browser and Host share the same LAN/docker IP.
+    if client is not None and advertised is not None and client == advertised:
+        return True
     addresses = (
         frozenset(local_addresses)
         if local_addresses is not None
         else local_interface_addresses()
     )
-    if is_local_machine_host(client_host, local_addresses=addresses):
-        return True
-    client = parse_ip_host(client_host)
-    advertised = parse_ip_host(host_header_hostname(request_host_header))
-    if client is not None and advertised is not None and client == advertised:
-        return True
-    # Multi-homed self-access: URL is one of our IPs, TCP source is another.
-    if advertised is not None and advertised in addresses:
-        if client is not None and client in addresses:
-            return True
-        if is_loopback_host(client_host):
-            return True
-    return False
+    # Client is on a local NIC, or multi-homed self-access (source NIC differs
+    # from the URL NIC): both reduce to "client IP is local".
+    return client is not None and client in addresses
