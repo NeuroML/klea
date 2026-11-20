@@ -11,8 +11,28 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 from __future__ import annotations
 
 import ipaddress
+import logging
+import platform
+import re
 import socket
+import subprocess
 from collections.abc import Iterable
+
+logger = logging.getLogger(__name__)
+
+#: ``inet`` / ``inet6`` address token in ``ip`` / ``ifconfig`` output.
+_INET_ADDR_RE = re.compile(r"\binet6?\s+([0-9a-fA-F:.]+)")
+
+#: IPv4 address in Windows ``ipconfig`` output (label may be localized).
+_WIN_IPV4_RE = re.compile(r"IPv4[^:]*:\s*([0-9.]+)", re.IGNORECASE)
+
+#: IPv6 address in Windows ``ipconfig`` output (label may be localized).
+_WIN_IPV6_RE = re.compile(r"IPv6[^:]*:\s*([0-9a-fA-F:]+)", re.IGNORECASE)
+
+#: Process-lifetime cache for :func:`local_interface_addresses` (no extras).
+_LOCAL_INTERFACE_CACHE: (
+    frozenset[ipaddress.IPv4Address | ipaddress.IPv6Address] | None
+) = None
 
 
 def is_loopback_host(host: str | None) -> bool:
@@ -39,7 +59,7 @@ def parse_ip_host(
 
     Accepts bracketed IPv6 (``[::1]``) and IPv4-mapped IPv6 forms.  Hostnames
     such as ``localhost`` return ``None`` (use :func:`is_loopback_host` for
-    those).
+    those).  Zone indices (``fe80::1%lo0``) are stripped.
 
     :param host: Peer host name or address, or ``None``.
     :returns: The parsed address, or ``None`` when *host* is not an IP.
@@ -47,6 +67,8 @@ def parse_ip_host(
     if not host:
         return None
     candidate = host.strip().strip("[]")
+    if "%" in candidate:
+        candidate = candidate.split("%", 1)[0]
     try:
         address = ipaddress.ip_address(candidate)
     except ValueError:
@@ -79,20 +101,75 @@ def host_header_hostname(host_header: str | None) -> str:
     return value
 
 
+def _os_listed_addresses() -> set[str]:
+    """Return interface address strings from the OS (best effort).
+
+    Uses ``ip`` / ``ifconfig`` / ``ipconfig`` so secondary NICs (LAN, docker
+    bridge, VPN) are visible even when ``getaddrinfo(hostname)`` and the UDP
+    default-route trick omit them.
+    """
+    system = platform.system()
+    try:
+        if system == "Linux":
+            output = subprocess.check_output(
+                ["ip", "-o", "addr", "show"],
+                text=True,
+                timeout=2,
+                stderr=subprocess.DEVNULL,
+            )
+            return set(_INET_ADDR_RE.findall(output))
+        if system == "Darwin":
+            output = subprocess.check_output(
+                ["ifconfig", "-a"],
+                text=True,
+                timeout=2,
+                stderr=subprocess.DEVNULL,
+            )
+            return set(_INET_ADDR_RE.findall(output))
+        if system == "Windows":
+            output = subprocess.check_output(
+                ["ipconfig"],
+                text=True,
+                timeout=2,
+                stderr=subprocess.DEVNULL,
+                errors="ignore",
+            )
+            found = set(_WIN_IPV4_RE.findall(output))
+            found.update(_WIN_IPV6_RE.findall(output))
+            return found
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.debug("os interface scan failed: %s", exc)
+    return set()
+
+
+def clear_local_interface_address_cache() -> None:
+    """Drop the cached local interface inventory (tests / rare refresh)."""
+    global _LOCAL_INTERFACE_CACHE
+    _LOCAL_INTERFACE_CACHE = None
+
+
 def local_interface_addresses(
     *,
     extra_hosts: Iterable[str] | None = None,
 ) -> frozenset[ipaddress.IPv4Address | ipaddress.IPv6Address]:
     """Return IP addresses currently assigned to this machine (best effort).
 
-    Combines ``getaddrinfo(hostname)``, the UDP "outbound" address trick, and
-    any *extra_hosts* (useful in tests).  Loopback addresses are always
-    included.  VPN / docker bridges that never appear in those sources may
-    still be recognised by :func:`is_same_machine_peer` via Host-header hairpin.
+    Combines an OS interface listing (``ip`` / ``ifconfig`` / ``ipconfig``),
+    ``getaddrinfo(hostname)``, the UDP "outbound" address trick, and any
+    *extra_hosts* (useful in tests).  Loopback addresses are always included.
+
+    Results without *extra_hosts* are cached for the process so page loads do
+    not re-run the OS scan.  Call :func:`clear_local_interface_address_cache`
+    to refresh.
 
     :param extra_hosts: Optional host strings to include (tests / callers).
     :returns: The set of local interface addresses.
     """
+    global _LOCAL_INTERFACE_CACHE
+    extras = tuple(extra_hosts or ())
+    if not extras and _LOCAL_INTERFACE_CACHE is not None:
+        return _LOCAL_INTERFACE_CACHE
+
     found: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
 
     def _add(raw: str | None) -> None:
@@ -102,7 +179,9 @@ def local_interface_addresses(
 
     _add("127.0.0.1")
     _add("::1")
-    for raw in extra_hosts or ():
+    for raw in extras:
+        _add(raw)
+    for raw in _os_listed_addresses():
         _add(raw)
 
     try:
@@ -122,7 +201,10 @@ def local_interface_addresses(
         except OSError:
             continue
 
-    return frozenset(found)
+    result = frozenset(found)
+    if not extras:
+        _LOCAL_INTERFACE_CACHE = result
+    return result
 
 
 def is_local_machine_host(
@@ -168,21 +250,32 @@ def is_same_machine_peer(
 
     * the client host is loopback / a local interface address, or
     * the client IP equals the ``Host`` header IP (same-machine hairpin to a
-      LAN or docker URL, even when that address was missing from the
-      interface scan).
+      LAN or docker URL), or
+    * the ``Host`` header IP is itself a local interface address and the
+      client is loopback or any other local interface (source NIC may differ
+      from the URL NIC on multi-homed hosts).
 
-    A phone on the same Wi-Fi keeps a different client IP from the server's
-    ``Host``, so it stays remote.
+    A phone on the same Wi-Fi keeps a different client IP that is not on this
+    machine, so it stays remote.
 
     :param client_host: ``request.client.host``.
     :param request_host_header: Raw ``Host`` header value.
     :param local_addresses: Optional precomputed local address set (tests).
     :returns: ``True`` when the peer is this machine.
     """
-    if is_local_machine_host(client_host, local_addresses=local_addresses):
+    # Loopback clients never need a NIC scan (covers plain localhost).
+    if is_loopback_host(client_host):
         return True
     client = parse_ip_host(client_host)
     advertised = parse_ip_host(host_header_hostname(request_host_header))
-    if client is None or advertised is None:
-        return False
-    return client == advertised
+    # Hairpin: browser and Host share the same LAN/docker IP.
+    if client is not None and advertised is not None and client == advertised:
+        return True
+    addresses = (
+        frozenset(local_addresses)
+        if local_addresses is not None
+        else local_interface_addresses()
+    )
+    # Client is on a local NIC, or multi-homed self-access (source NIC differs
+    # from the URL NIC): both reduce to "client IP is local".
+    return client is not None and client in addresses

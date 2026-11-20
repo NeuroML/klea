@@ -162,4 +162,17 @@ async def resolve_page_user_id(
         value = persisted_user_id(identity_app_name)
         logger.debug("canonical local user_id=%s (app=%s)", value, identity_app_name)
         return value
+    request = request_contextvar.get()
+    client_host = (
+        request.client.host
+        if request is not None and request.client is not None
+        else None
+    )
+    host_header = request.headers.get("host") if request is not None else None
+    logger.debug(
+        "cookie user_id fallback (client=%r host=%r server_url=%r)",
+        client_host,
+        host_header,
+        server_url,
+    )
     return await browser_user_id()
