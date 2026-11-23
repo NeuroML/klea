@@ -121,10 +121,10 @@ def _interrupt_ask(ctx: PageContext) -> dict[str, Any]:
 
 
 def _render_ask_sections(ask: dict[str, Any]) -> None:
-    """Render optional HITL sections (review plan/progress, input plan history).
+    """Render optional HITL sections (a review's plan/progress content).
 
-    The sections are rendered monospace so tool names and paths stay literal;
-    full results remain in the inspection pane.
+    Only review asks carry sections; they are rendered monospace so tool names
+    and paths stay literal, and full results remain in the inspection pane.
     """
     sections = [
         section for section in (ask.get("sections") or []) if isinstance(section, dict)

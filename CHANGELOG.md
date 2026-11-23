@@ -20,6 +20,7 @@
 - The tool-execution status section now shows one line per distinct tool with its ok/failed counts instead of one line per call, so a repeated tool no longer makes the pane jump.
 - Web UI: a long chat transcript now mounts only its newest messages, so a long session stays responsive.
 - Web UI: the chat transcript now pages older messages in when you scroll to the top and the newer ones back when you return to the bottom, so a long chat can be read from start to finish while staying responsive.
+- Needs-input HITL prompts no longer show abandoned plan versions, only the blocked step and its question.
 
 ### Fixed
 

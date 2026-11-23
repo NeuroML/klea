@@ -192,14 +192,14 @@ class HitlPanel(HitlDecisionPanel):
             yield from self._compose_input()
 
     def _compose_sections(self) -> ComposeResult:
-        """Compose optional ask sections (review plan/progress, input history).
+        """Compose optional ask sections (a review's plan/progress content).
 
-        Each section is rendered inside a :class:`~textual.widgets.Collapsible`
-        so a multi-section ask (for example several candidate plans) can be
-        reviewed one entry at a time.  The payload title is shown verbatim
-        (falling back to ``Details`` when it is empty) and only the first
-        section starts expanded, so comparing against the history opens on the
-        first entry while the rest stay collapsed until the user expands them.
+        Only review asks carry sections.  Each section is rendered inside a
+        :class:`~textual.widgets.Collapsible` so a multi-section ask (for
+        example several candidate plans) can be reviewed one entry at a time.
+        The payload title is shown verbatim (falling back to ``Details`` when
+        it is empty) and only the first section starts expanded, so the first
+        entry opens while the rest stay collapsed until the user expands them.
         """
         sections = [
             section

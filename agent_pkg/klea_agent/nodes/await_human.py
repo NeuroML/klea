@@ -87,15 +87,15 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
             # Flatten the blocked steps' questions; a step with questions is a
             # draft step that cannot run until they are answered (ADR-0046).
             questions = [
-                {"step_number": step.step_number, "question": question}
+                {
+                    "step_number": step.step_number,
+                    "summary": step.summary,
+                    "question": question,
+                }
                 for step in state.plan.step_list
                 for question in step.needs_input
             ]
             payload: dict[str, Any] = {"kind": "input", "questions": questions}
-            if getattr(state, "plan_history", None):
-                # A guidance ask follows automated replans: show the attempts
-                # that already failed so the user can give informed direction.
-                payload["sections"] = state.plan_history_sections()
             self.logger.debug(
                 "AwaitHuman._ask: pausing for input with %d question(s)",
                 len(questions),

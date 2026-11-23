@@ -21,28 +21,32 @@ class _Interrupt:
 def _input_payload() -> dict:
     return {
         "kind": "input",
-        "sections": [
-            {
-                "title": "Plan version 1 (abandoned)",
-                "body": "Abandoned: tool failed\nSteps:\n[FAILED] 1. read the file",
-            }
-        ],
         "questions": [
             {"step_number": 2, "question": "How should I proceed?"},
         ],
     }
 
 
-def test_input_interrupt_includes_sections_before_questions():
-    text = _interrupt_question(_Interrupt(_input_payload()))
-
-    assert text.startswith("Plan version 1 (abandoned)\nAbandoned: tool failed")
-    assert text.endswith("How should I proceed?")
-
-
-def test_input_interrupt_without_sections_keeps_questions_only():
+def test_input_interrupt_renders_step_context_without_plan_history():
     payload = _input_payload()
-    payload.pop("sections")
+    payload["questions"] = [
+        {
+            "step_number": 1,
+            "summary": "read the file",
+            "question": "How should I proceed?",
+        }
+    ]
+
+    text = _interrupt_question(_Interrupt(payload))
+
+    assert text == "Step 1: read the file\nHow should I proceed?"
+    assert "Plan version" not in text
+    assert "Abandoned" not in text
+
+
+def test_input_interrupt_without_step_context_keeps_the_question_only():
+    payload = _input_payload()
+    payload["questions"] = [{"question": "How should I proceed?"}]
 
     assert _interrupt_question(_Interrupt(payload)) == "How should I proceed?"
 
@@ -60,8 +64,17 @@ def test_review_interrupt_does_not_duplicate_sections():
     )
 
 
-def test_input_event_includes_sections_before_questions():
-    text = _interrupt_event_question({"data": _input_payload()})
+def test_input_event_renders_step_context_without_plan_history():
+    payload = _input_payload()
+    payload["questions"] = [
+        {
+            "step_number": 1,
+            "summary": "read the file",
+            "question": "How should I proceed?",
+        }
+    ]
 
-    assert text.startswith("Plan version 1 (abandoned)\nAbandoned: tool failed")
-    assert text.endswith("How should I proceed?")
+    text = _interrupt_event_question({"data": payload})
+
+    assert text == "Step 1: read the file\nHow should I proceed?"
+    assert "Plan version" not in text
