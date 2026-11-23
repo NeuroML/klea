@@ -373,8 +373,9 @@ deferred ADR-0041 open item.
   2026-09-21).
 * ``plan_history: list[PlanRevision]`` (superseded plan versions, newest last,
   capped at 9; each carries the full steps and the reason it was abandoned.
-  The active plan remains in ``plan``, so the Planner and guidance HITL see
-  1 active + 9 previous versions.  Retained across automated replans, human
+  The active plan remains in ``plan``, so the Planner sees the active plan plus
+  the retained previous versions; the needs-input ask shows only the blocked
+  step and its question (review asks are built from ``review_sections``).  Retained across automated replans, human
   input and review revisions; cleared by ``ResetState`` at a ``task`` or
   ``continue`` boundary.  The cap is independent of the automated-replan
   budget, which resets on human input.)
@@ -647,9 +648,9 @@ loop with the automated-replan budget, and hands the decision to a human at
 exhaustion.
 
 On exhaustion the Planner preserves the plan and writes ``needs_input`` with a
-blocked guidance step.  The ordinary input HITL ask includes sections for the
-previous and current plan versions, so the user can see what was tried and why
-it failed.  The answer re-enters the Planner as ``human_input``; the automated
+blocked guidance step.  The input HITL ask shows only the blocked guidance step
+and its question; the question text itself names the replan budget, the failure
+reason and the plan versions.  The answer re-enters the Planner as ``human_input``; the automated
 budget resets, while ``plan_history`` is retained.  Routing stays on the normal
 ``needs_input`` path; the run is not marked ``unplannable``.
 

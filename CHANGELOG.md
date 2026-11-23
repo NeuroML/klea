@@ -18,10 +18,14 @@
 - HITL ask sections now render their payload title verbatim, once per section, falling back to `Details` when the title is empty, so the synthetic `Option N` label no longer appears in either frontend.
 - The approval review controls are now `Continue` / `Revise with feedback` / `Cancel`; in the terminal the feedback field wraps and grows and submits only through its button (Enter no longer submits, Ctrl+J inserts a newline), and the ask bodies are spaced for readability.
 - The tool-execution status section now shows one line per distinct tool with its ok/failed counts instead of one line per call, so a repeated tool no longer makes the pane jump.
+- Web UI: a long chat transcript now mounts only its newest messages, so a long session stays responsive.
+- Web UI: the chat transcript now pages older messages in when you scroll to the top and the newer ones back when you return to the bottom, so a long chat can be read from start to finish while staying responsive.
+- Needs-input HITL prompts no longer show abandoned plan versions, only the blocked step and its question.
 
 ### Fixed
 
 - Web UI: re-rendering the chat transcript no longer jumps the viewport to the newest message, so expanding an older message keeps its position.
+- Web UI: expanding a message in the chat transcript no longer moves the pane, so the message opens in place.
 - Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname.
 - The planner is now told why it was sent back to replan when no reason was supplied, so it revises against a concrete problem instead of guessing.
 - A failed step no longer ends the run while other steps are still pending: the agent replans around it instead of reporting an error.

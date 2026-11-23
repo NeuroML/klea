@@ -237,3 +237,37 @@ new dependency or converter.
   (huggingface.co/docs/text-generation-inference/en/messages_api),
   langchain-core 1.6.2 sources, opencode sources (reviewed
   2026-09-09).
+
+## Update (2026-11-20): Provider reasoning-content continuation is not required
+
+The evidence above was collected before provider reasoning modes became a live
+concern for the picker.  This update records why the decision still holds:
+providers now require reasoning content to be echoed back, but only inside a
+native tool-calling loop that Klea does not run.
+
+* (a) DeepSeek thinking mode requires an assistant turn's
+  `reasoning_content` to be echoed back on follow-up requests that carry a
+  native `tools` payload; otherwise the request is rejected
+  (https://api-docs.deepseek.com/guides/thinking_mode/).
+* (b) Anthropic extended/adaptive thinking has the equivalent rule: thinking
+  blocks must be preserved in assistant turns that carry tool results
+  (https://platform.claude.com/docs/en/build-with-claude/extended-thinking/),
+  and OpenAI reasoning models likewise pass reasoning items back alongside
+  function-call outputs.
+* (c) The requirement is conditional on the native tool-calling loop, which
+  Klea never uses.  `tools_picker.py` (lines 282-297) builds a per-tool
+  discriminated union sent via
+  `with_structured_output(..., method="json_schema")`, i.e. as the provider's
+  `response_format`; `tools_caller.py` (lines 265-285) dispatches over MCP and
+  writes `tool_results` into graph state; later nodes rebuild prompts from
+  state (`nodes/abstract.py` lines 426-433) with results injected as
+  observation text (`tools_picker.py` lines 327-334).  No request therefore
+  carries an assistant `tool_calls` message plus tool results.
+* (d) `klea_utils` has no reasoning-field plumbing whatsoever (no
+  `reasoning_content`, `reasoning_effort`, `thinking` or `extra_body`); the
+  only trace is the `reasoning_tokens` counter in `graph/schemas.py`
+  (lines 28-30).
+* (e) Revisit trigger: adopting native `bind_tools`/`tools=`/`tool_choice`
+  with a native tool node that echoes results back, or replaying raw provider
+  `AIMessage` objects from persisted history.  At that point this decision and
+  the continuation requirement must be reassessed together.

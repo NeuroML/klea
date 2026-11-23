@@ -131,20 +131,16 @@ async def test_interrupt_renders_form_and_answer_is_sent(fake_backend, agent_use
     assert any("interrupt_response" in body for body in fake_backend.stream_bodies())
 
 
-async def test_input_interrupt_renders_plan_history_sections(fake_backend, agent_user):
-    """An input ask renders abandoned plan versions above its questions."""
+async def test_input_interrupt_renders_questions_without_plan_history(
+    fake_backend, agent_user
+):
+    """An input ask shows its question without abandoned plan versions."""
     fake_backend.stream_events = [
         {
             "type": "interrupt",
             "node": "Awaiting input",
             "data": {
                 "kind": "input",
-                "sections": [
-                    {
-                        "title": "Plan version 1 (abandoned)",
-                        "body": "Abandoned: tool failed\nSteps:\n[FAILED] 1. read",
-                    }
-                ],
                 "questions": [{"step_number": 2, "question": "how should I proceed?"}],
                 "interrupt_id": "i1",
             },
@@ -154,8 +150,8 @@ async def test_input_interrupt_renders_plan_history_sections(fake_backend, agent
     await agent_user.should_not_see("Backend is starting")
     _send(agent_user, "Hello")
     await agent_user.should_see("User input", retries=50)
-    await agent_user.should_see("Plan version 1 (abandoned)", retries=50)
-    await agent_user.should_see("Abandoned: tool failed", retries=50)
+    await agent_user.should_not_see("Plan version 1 (abandoned)")
+    await agent_user.should_not_see("Abandoned: tool failed")
     await agent_user.should_see("how should I proceed?", retries=50)
 
 

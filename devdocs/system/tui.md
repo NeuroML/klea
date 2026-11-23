@@ -290,8 +290,8 @@ when the longer forms do not occur in the value (see
 a plain middle truncation, which remains the last resort only.  The snippet
 and its offsets come from the server payload, so the terminal and web asks
 render the same window.
-Input asks may also carry plan-history sections (when the automated replan
-budget is exhausted), rendered above the questions.  Decisions are shown in
+Input asks show each question under its blocked step heading and carry no
+plan-history sections; review asks render their sections above the questions.  Decisions are shown in
 the transcript via
 `klea_utils/api/hitl.py:render_interrupt_response` so live and reloaded text
 cannot drift.  A pending interrupt is re-presented on load/switch from
@@ -324,8 +324,8 @@ the form introduced no new class or token, drawing the group divider with
 `ui.separator()` and reusing the existing `text-grey-6` (dark-mode
 `--klea-muted`) mapping for its muted labels.
 
-* **Section containers.** Every logical part of an ask -- the summary, the plan
-  history, the questions, the requested paths -- is one section container with
+* **Section containers.** Every logical part of an ask -- the
+  summary, the questions, the requested paths -- is one section container with
   its own heading and a blank line before the next, not a run of loose labels.
   A section owns its rows, so the panel can be rebuilt section by section
   without reflowing the rest, and a `Rule` separates the fixed chrome (heading,
@@ -336,14 +336,13 @@ the form introduced no new class or token, drawing the group divider with
   single section shows it as a plain heading above its body.  No synthetic
   `Option N` label is added, so the heading is the backend's title and nothing
   else.
-* **Plan history is presentation, not selection.** When the automated replan
-  budget is exhausted, the input ask renders the earlier plans above its
-  questions as collapsibles in payload order.  The first is expanded and the
-  rest collapsed, so the reader sees the current plan in place and can open an
-  earlier one for comparison.  These collapsibles are history only: expanding
-  one never chooses it, resubmits it or changes what the ask will submit -- the
-  answer still comes from the question fields below, so a stray expand/collapse
-  cannot alter the run.
+* **Review sections are presentation, not selection.** A review ask renders its
+  plan-history sections above its question as collapsibles in payload order.
+  The first is expanded and the rest collapsed, so the reader sees the current
+  plan in place and can open an earlier one for comparison.  These collapsibles
+  are history only: expanding one never chooses it, resubmits it or changes what
+  the ask will submit -- the answer still comes from the control below, so a
+  stray expand/collapse cannot alter the run.
 * **Empty-feedback guard.** An action that requires feedback (request changes,
   or a question marked as needing text) never submits an empty value: it moves
   focus to the field and shows the short hint there instead of closing the
@@ -491,6 +490,24 @@ The web chat area (`chat_area.py`) follows the same rule: it scrolls the
 transcript to the newest message only when that chat's message count grew,
 tracked per chat on `PageContext`, so expanding an older message or any other
 re-render of an unchanged message set leaves the viewport where it is.
+
+The web transcript pages this window the same way: reaching the top mounts
+`SCROLL_BATCH` (20) older messages per step and trims the newest end, and
+reaching the bottom re-mounts the newer messages while the oldest end is
+dropped, so the mounted window stays bounded by `MOUNTED_MESSAGE_LIMIT` while
+the store keeps every message.  Expanding a bubble never moves the pane: the
+toggle flips the block's collapsed class and icon in place and records the
+choice in the chat's `expanded` set, so the transcript is not rebuilt and the
+viewport stays put.
+
+The web transcript also bounds its widget tree: `MOUNTED_MESSAGE_LIMIT` (80)
+in `utils_pkg/klea_utils/ui/web/nicegui/components/chat_area.py`, applied in
+`_render_messages`, mounts only the newest window of message bubbles and leaves
+older ones unrendered.  Nothing is lost: the chat store keeps the full message
+list, which `/export` and hydration read.  The bound covers live appends during
+a turn as well as a session resume, and the scroll rule above compares the full
+store count, so a trim neither suppresses a real append's scroll nor scrolls on
+a same-set re-render.
 
 ## Spinner lifecycle
 

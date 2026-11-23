@@ -265,6 +265,10 @@ Last updated: 2026-11-03.
   `thinking`/`reasoning_effort`); a config `variants` section; `#variant`
   parsing in `parse_model_name` (`provider:model#variant[:suffix]`); picker
   support (dropdown from `reasoning_options`, free-text fallback); and an ADR.
+  Adopting provider thinking/model variants presupposes the native
+  tool-calling loop, so reasoning-content continuation (echoing
+  `reasoning_content` / preserving thinking blocks across tool-call turns)
+  must be revisited at that point; see the update clause in ADR-0034.
 - Verify the HuggingFace local (`:local`) backend end to end once a working
   local `torch` is available; the maintainer's env has a broken CUDA build
   (`undefined symbol: ncclCommResume`).

@@ -618,7 +618,7 @@ streamed and persisted user-visible reply, remains the bare answer.
 
 ### 5.18 `Awaiting input`
 
-**Purpose.** Collect a planner-requested answer from a human. This is a distinct graph instance from `Awaiting review`, although both use `await_human.py`.
+**Purpose.** Collect a planner-requested answer from a human. This is a distinct graph instance from `Awaiting review`, although both use `await_human.py`. The interrupt payload carries `kind` plus `questions`, each entry carrying the blocked step's `step_number`, `summary` and `question`, and no `sections`; review asks carry `kind`, `headline`, `question` and `sections`.
 
 #### Inputs
 

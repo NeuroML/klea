@@ -78,7 +78,7 @@ class TestPlanRevision:
         assert "Abandoned: tool failed" in rendered
         assert "read the input" in rendered
 
-    def test_previous_plans_text_and_sections(self):
+    def test_previous_plans_text(self):
         history = [PlanRevision(version=1, abandoned_reason="first attempt")]
         state = KleaAgentState(
             plan_history=history,
@@ -87,13 +87,9 @@ class TestPlanRevision:
                 plan_version=2,
             ),
         )
-        assert "Plan version 1" in state.previous_plans_text()
-        sections = state.plan_history_sections()
-        assert [section["title"] for section in sections] == [
-            "Plan version 1 (abandoned)",
-            "Current plan version 2",
-        ]
-        assert len(state.plan_history_sections(include_current=False)) == 1
+        rendered = state.previous_plans_text()
+        assert "Plan version 1" in rendered
+        assert "first attempt" in rendered
 
     def test_trim_plan_history_keeps_the_most_recent(self):
         history = [PlanRevision(version=index) for index in range(12)]
