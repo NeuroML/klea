@@ -226,7 +226,8 @@ grounding (see the guardrail section above).
   suite is stable.  Each subset is an adapter suite: its pre-processing scripts
   ship with its cases and emit case JSONL plus fixtures, so the harness needs
   no benchmark-specific code.  Binding a case to a repository or a container
-  image is a separate future capability, not part of the adapter contract.
+  image is out of scope (2026-11-23): it is environment provisioning, not a
+  statement about task correctness, so suites that need it are not used.
 - Model-escalation condition (optional multi-model), clearly separated from
   the required single-model condition.
 - Human spot-checks and rubric calibration for deterministic checks.

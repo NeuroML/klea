@@ -284,20 +284,38 @@ phases are listed below.
   pruning is lossy.  Residual follow-ups: re-hydrating an archived run's
   artifacts, a second purge horizon for already-archived runs, and the automatic
   post-publish retention hook, which is rejected rather than deferred.
-- Benchmark adapter contract (deferred): a benchmark ships its own
+- Benchmark adapter contract -- **closed, no harness feature** (2026-11-23):
+  a benchmark ships its own
   pre-processing/adapter scripts with its suite; the scripts emit case JSONL
   plus fixtures the loader already accepts, so the harness stays a general core
-  engine and carries no benchmark-specific code.  The expected adapter output
+  engine and carries no benchmark-specific code.  **Rationale (2026-11-23):** a
+  per-benchmark converter script is cheaper than permanent adapter surface (a
+  plugin API, discovery, versioning, an error contract), and the case format is
+  the contract, self-checked by `klea-eval validate`.  A converter must map the
+  benchmark's verdict onto `expected_outputs`, `tool_expectations` or `command` /
+  `command_timeout`; a benchmark graded only by free-text rubrics maps to no
+  deterministic check.  The expected adapter output
   shape is not yet documented.
 - Command sandbox and permission model (deferred): an executed case `command`
   runs with its working directory pinned to the run `workspace/` and nothing
   else constrained; there is no sandbox, no user or environment allowlist and
-  no filesystem boundary.  `subprocess.run`'s timeout kills only the direct
-  child, so the process-group kill already tracked above is needed here too to
-  reap detached descendants.
-- Repository/container binding (deferred): binding a case to a git repository
-  or a container image is a separate future capability, not part of the adapter
-  contract.
+  no filesystem boundary.  **Won't implement (2026-11-23):** this is deliberate.
+  The harness does not grow a sandbox or a permission model; the operator
+  isolates the run (container, bubblewrap, chroot) and runs only trusted suites,
+  consistent with the existing stance that only OS-level sandboxing is a hard
+  boundary (ADR-0007 layer 3, ADR-0038).
+- Carve-out retained: process-group kill for case commands.  `subprocess.run`'s
+  timeout kills only the direct child, so the process-group kill already tracked
+  above is needed here too to reap detached descendants; this remains an open
+  backlog item (resource-leak/correctness defect, not sandboxing) and is needed
+  here as well as for the agent's `run_command`.
+- Carve-out retained: a case command inherits the harness process environment
+  verbatim (there is no `env=`), so a suite author must be trusted and provider
+  credentials must not be exported into the harness environment.
+- Repository/container binding -- **out of scope** (2026-11-23): binding a case
+  to a git repository or a container image is environment provisioning, not a
+  statement about task correctness, so suites that need it are simply not used.
+  No harness change follows from this decision.
 
 ## Infrastructure / correctness
 
