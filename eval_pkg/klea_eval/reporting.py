@@ -1,6 +1,11 @@
 # Copyright 2026 Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """Minimal report rendering for the stored evaluation runs (ADR-0060).
 
+Renders from stored records only, the same records the inspection commands
+read, so a report can be regenerated without re-executing a case and never
+depends on live process state.
+
+
 The module turns the run index that :mod:`klea_eval.results` maintains into a
 small, readable report: a header naming the workspace root, one line per stored
 run in index order and a closing line of status counters.  Each entry's run

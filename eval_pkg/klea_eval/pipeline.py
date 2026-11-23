@@ -149,11 +149,12 @@ class SuiteResult:
 
     @property
     def exit_code(self) -> int:
-        """``0`` when every case passed, ``1`` when one failed its rubrics.
+        """``0`` when every case passed, ``1`` when at least one case failed.
 
         A completed case that declared rubrics but recorded no grade makes the
         suite exit ``4`` (:data:`EXIT_GRADE_MISSING`), which is distinct from
-        ``1`` so a scoring fault is never reported as a real verdict.
+        ``1`` so a scoring fault is never reported as a real verdict.  A real
+        failure outranks a missing grade, so ``1`` wins when both occur.
 
         A configuration fault never reaches this property: it aborts the suite
         before any run starts and is mapped to ``2`` by the CLI.
@@ -241,6 +242,11 @@ def run_suite(
     later phase).  A case that fails is recorded and skipped, never promoted to
     a suite-level error; an already complete run is left untouched and reports
     :data:`klea_eval.run_manager.STATUS_SKIPPED` unless ``overwrite`` is set.
+
+    After a case is stored, its graded summary is re-read from the run so the
+    recorded ``task_success`` is visible to the suite, and the returned
+    :class:`SuiteResult` reports the ``0``/``1``/``2``/``4`` exit-code contract
+    of :attr:`SuiteResult.exit_code`.
     """
     if not isinstance(suite_path, (str, Path)):
         raise PipelineConfigError(f"expected a path, got {type(suite_path).__name__}")

@@ -1,6 +1,12 @@
 # Copyright 2026 Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """Deterministic run identity derivation for the evaluation harness.
 
+The run id is a pure function of the inputs that define a run (the case, the
+suite, the model selection and the run configuration), so re-running the same
+configuration yields the same id and an existing run is detected instead of
+duplicated.
+
+
 A run is identified by the triple ``(run_id, user_id, chat_id)`` (ADR-0057).
 Every identifier is derived from the case inputs, never generated randomly, so
 the same ``case_id`` and ``harness_seed`` always produce the same identifiers

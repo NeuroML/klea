@@ -1,6 +1,12 @@
 # Copyright 2026 Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """Runner adapters: SSE framing plus the HTTP turn driver.
 
+``sse`` turns a raw event-stream line sequence into ordered events, and
+``http`` drives one evaluation turn against the backend's streaming endpoint
+and returns the events the harness later checks.  Adapters execute a turn and
+return evidence only; scoring is not their concern.
+
+
 :mod:`klea_eval.runners.sse` owns the Server-Sent Events framing: it turns the
 ``/query/stream`` byte stream into ordered events and never talks to a network.
 :mod:`klea_eval.runners.http` owns the Execute stage's network surface

@@ -99,7 +99,12 @@ class TurnOutcome:
 
 
 class HttpRunner:
-    """Drive one evaluation turn at a time against the agent endpoint."""
+    """Drive one evaluation turn at a time against the agent endpoint.
+
+    Each turn is posted to the chat endpoint, with ``client_context.cwd``
+    pinned to ``context.run_dir / 'workspace'``.  A turn ends when the stream
+    reports the SSE complete event.
+    """
 
     def __init__(
         self,
@@ -132,6 +137,11 @@ class HttpRunner:
 
     async def run_turn(self, context: RunContext, turn: Turn) -> TurnOutcome:
         """Send one turn and buffer its streamed response.
+
+        The turn is posted with ``client_context.cwd`` pinned to
+        ``context.run_dir / 'workspace'``, and the streamed response is
+        buffered into a :class:`TurnOutcome` until the SSE complete event ends
+        the turn.
 
         A client created here is closed here; an injected client belongs to its
         owner and is left open.  ``asyncio.CancelledError`` is never swallowed.

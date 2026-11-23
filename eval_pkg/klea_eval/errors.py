@@ -1,6 +1,11 @@
 # Copyright 2026 Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """Validation errors raised by the test-case loader (ADR-0056).
 
+A raised error means the suite or case file is malformed, so no run starts; the
+loader validates the whole file before any turn executes.  The CLI reports
+these as a validation failure (exit code 2) rather than a graded failure.
+
+
 The loader in :mod:`klea_eval.cases` raises :class:`CaseValidationError` for
  every load-time rejection of a JSONL test case.  The class carries the
 source file, the JSONL line number and the case identifier of the offending

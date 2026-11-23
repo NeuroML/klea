@@ -447,6 +447,10 @@ def load_run(metrics_file: str | Path) -> RunMetrics:
     ``metrics_file`` is either the ``metrics.jsonl`` file itself or the run
     directory that holds it, so a published run and a ``.tmp`` run under
     construction are both accepted.
+
+    ``task_success`` is taken from the ``run.json`` envelope when it is
+    present, so a caller that needs the graded verdict must read this after the
+    envelope has been stored.
     """
     if not isinstance(metrics_file, (str, Path)):
         raise MetricsError(f"expected a path, got {type(metrics_file).__name__}")

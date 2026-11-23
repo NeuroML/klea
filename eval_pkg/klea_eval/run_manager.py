@@ -151,7 +151,7 @@ class RunContext:
 
     @property
     def fixture_dir(self) -> Path:
-        """Directory inside the run workspace that holds the copied fixtures."""
+        """The ``<run dir>/workspace/fixtures`` directory of copied fixtures."""
         return self.run_dir / workspace.WORKSPACE_DIR_NAME / FIXTURE_DIR_NAME
 
     @property

@@ -212,6 +212,12 @@ def check_case(
     calls; a case that declares a ``command`` yields one further verdict for it,
     recorded under the last turn's number.  A case that declares no expectation
     yields an empty tuple.
+
+    The ``command`` check runs once with the working directory pinned to
+    ``workspace_dir`` and ``shell=False``, discarding standard input, output
+    and error; it is never retried.  Exit status ``0`` passes and any non-zero
+    status fails, while a timeout or a launch failure fails the check without
+    an exit code.
     """
     if not isinstance(workspace_dir, (str, Path)):
         raise ExpectationError(

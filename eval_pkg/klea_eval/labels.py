@@ -1,6 +1,13 @@
 # Copyright 2026 Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """Shared read-time labels for a stored case run.
 
+A label is derived on read from the stored run record and its metrics, not
+persisted as the source of truth, so a run stored before a label rule changed
+is still labelled under the current rules.  ``classify_case`` is the single
+place that maps stored evidence to a label, which keeps reports, aggregation
+and exit codes in agreement.
+
+
 The stored :class:`klea_eval.results.RunMetadata` envelope records what the
 harness *observed* -- a ``status`` of ``completed``, ``failed`` or ``skipped``
 -- but it does not record an outcome, because a ``completed`` run may still be
@@ -64,6 +71,10 @@ def classify_case(
     expects_grade: bool,
 ) -> str:
     """Return the display label for one stored case run.
+
+    A recorded failure wins.  :data:`CASE_GRADE_MISSING` applies only to a
+    completed run that declares rubrics but recorded no grade; any other
+    completed run without a verdict is :data:`CASE_UNGRADED`.
 
     Args:
         status: Envelope status recorded in ``run.json``.

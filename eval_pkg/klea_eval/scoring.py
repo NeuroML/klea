@@ -168,6 +168,10 @@ def score_run(run: metrics.RunMetrics) -> CaseScore:
     The score is the mean of the numeric rubric scores recorded on its turns;
     when no numeric score exists it falls back to ``1.0`` for a passing run and
     ``0.0`` otherwise.
+
+    This function only re-scores a stored run and never executes anything;
+    grading itself happens inside :func:`klea_eval.pipeline.run_suite`, and only
+    the recorded deterministic verdicts are graded here.
     """
     if not isinstance(run, metrics.RunMetrics):
         raise ScoringError(f"expected a RunMetrics, got {type(run).__name__}")

@@ -1,6 +1,11 @@
 # Copyright 2026 Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """Apply a run's model selection to the backend (ADR-0057).
 
+Isolates the one piece of mutable backend state a run changes, the model
+selection, so applying and resetting it happen in one place instead of being
+scattered through the pipeline.
+
+
 The run manager never touches the network, so the model overrides a run asks
 for are applied here, before its first turn executes.  The helper drives the
 same routes the dashboard uses (ADR-0042):

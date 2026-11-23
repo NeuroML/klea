@@ -205,7 +205,11 @@ class IndexEntry:
 
 @dataclass(frozen=True, slots=True)
 class StoredRun:
-    """A run read back from storage: its envelope and its metrics summary."""
+    """A run read back from storage.
+
+    It bundles the ``run.json`` envelope with the aggregated metrics summary
+    read back from storage.
+    """
 
     metadata: RunMetadata
     metrics: metrics.RunMetrics
@@ -382,7 +386,11 @@ def read_index(root: str | Path | None = None) -> tuple[IndexEntry, ...]:
 
 
 def to_index_entry(metadata: RunMetadata) -> IndexEntry:
-    """Build the index line that points at a stored run."""
+    """Build the index line that points at a stored run.
+
+    The :class:`IndexEntry` is derived from the run's envelope and its metrics
+    summary.
+    """
     if not isinstance(metadata, RunMetadata):
         raise ResultsError(f"expected a RunMetadata, got {type(metadata).__name__}")
 
