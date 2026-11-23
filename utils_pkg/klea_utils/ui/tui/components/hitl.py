@@ -459,15 +459,18 @@ class PermissionPanel(HitlDecisionPanel):
 
         text = Text()
         if tool:
-            text.append(f"Tool: {tool}\n")
+            text.append("Tool: ", style="bold")
+            text.append(f"{tool}\n")
         if argument:
-            text.append(f"Argument: {argument}\n")
+            text.append("Argument: ", style="bold")
+            text.append(f"{argument}\n")
         if raw:
-            text.append(f"Detected path: {raw} ({reason})\n")
+            text.append("Detected path: ", style="bold")
+            text.append(f"{raw} ({reason})\n")
         context = Text(preview)
         if isinstance(token_end, int) and token_end > token_start:
             context.stylize("reverse", token_start, min(token_end, len(preview)))
-        text.append("Context: ")
+        text.append("Context: ", style="bold")
         text.append_text(context)
         text.append(
             f" ({omitted} chars omitted before/after, line {token_line} of {total_lines})"

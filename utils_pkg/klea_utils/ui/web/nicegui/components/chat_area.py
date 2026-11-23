@@ -370,15 +370,17 @@ def _render_permission_hint(request: dict[str, Any]) -> None:
             ui.label(hint).classes("text-xs text-grey-6").style("white-space: pre-line")
         return
     if parts["tool"]:
-        ui.label(f"Tool: {parts['tool']}").classes("text-xs font-bold")
+        tool = html.escape(parts["tool"])
+        ui.html(f"<b>Tool:</b> {tool}").classes("text-xs")
     if parts["argument"]:
-        ui.label(f"Argument: {parts['argument']}").classes("text-xs font-bold")
+        argument = html.escape(parts["argument"])
+        ui.html(f"<b>Argument:</b> {argument}").classes("text-xs")
     if parts["raw"]:
         ui.code(parts["raw"], language=None).classes("text-xs")
     if parts["reason"]:
         ui.label(parts["reason"]).classes("text-xs text-grey-6")
     ui.html(
-        "<div>Context: "
+        "<div><b>Context:</b> "
         f"{parts['context_html']} "
         f"({parts['omitted']} chars omitted before/after, "
         f"line {parts['token_line']} of {parts['total_lines']})</div>"

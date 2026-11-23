@@ -385,7 +385,7 @@ class TestInterruptDisplay:
                     ]
                 }
             )
-            == "- Allowed once: `/tmp`\n- Allowed for session: `/proj`\n- Denied: `/proj/.env`\n- Not a path: `not/a/real/path`"
+            == "- **Allowed once**: `/tmp`\n- **Allowed for session**: `/proj`\n- **Denied**: `/proj/.env`\n- **Not a path**: `not/a/real/path`"
         )
 
     def test_cancel_and_empty(self):
