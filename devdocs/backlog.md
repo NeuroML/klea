@@ -130,12 +130,12 @@ commit log and resume instructions) is
 `devdocs/system/eval-harness-implementation.md`; this section keeps only the
 remaining ordered phases and deferred items.
 
-- Package-wide docstring review, **open** (user request, 2026-11-19): the class
-  and method docstrings across `eval_pkg/klea_eval` are minimal and insufficient
-  to understand the behaviour from the source alone; the whole package should
-  be reviewed and its docstrings improved in a dedicated pass.  Until that pass
-  lands, docstrings are improved opportunistically as code is touched
-  (touch-as-you-go interim rule).
+- Package-wide docstring review, **done** (2026-11-23, commit `948c0c43`
+  `docs(eval): correct klea_eval docstrings`): the class and method docstrings
+  across `eval_pkg/klea_eval` were minimal and insufficient to understand the
+  behaviour from the source alone, so every module and public symbol of the
+  package was audited and its docstrings improved in a dedicated pass.  That
+  pass supersedes the interim touch-as-you-go rule.
 
 Ordered phases.  The package scaffold and distribution (`klea-eval`) are done,
 and the ADR-0056 JSONL case loader shipped in commit `4c1df875`; the CLI
