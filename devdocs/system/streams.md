@@ -88,10 +88,9 @@ pathological plan cannot flood the ask.  Its per-path decisions are
 guessed value; ADR-0007 update 2026-10-14); guessed values keep the `session`
 option.  See ADR-0051 for review steps.
 
-An `input` ask normally carries only `questions`; when the Planner has
-exhausted its automated replan budget it may also carry `sections` with the
-abandoned plan versions and the active plan, rendered above the questions so
-the user can see what was already tried.  The resume payload is unchanged
+An `input` ask carries `kind` plus `questions`, each entry carrying the
+blocked step's `step_number`, its `summary` and its `question`, and no
+`sections`; review asks carry `sections`.  The resume payload is unchanged
 (`answers` / `action`).
 
 `context` carries the checkpointed session context (e.g. the agent operating

@@ -61,52 +61,44 @@ async def _pending_interrupts(graph: Any, thread_id: str) -> tuple[Any, ...]:
     return _snapshot_interrupts(snapshot)
 
 
-def _render_input_sections(value: Mapping[str, Any]) -> str:
-    """Render the sections of an input ask, such as abandoned plan versions.
+def _render_questions(questions: list[Any]) -> str:
+    """Render an ask's question entries with their blocked step's context.
 
-    Review asks also carry sections, but they are already represented by the
-    review question/transcript; only input asks need the extra context.
+    Each entry carries the blocked step's ``step_number`` and ``summary``
+    (ADR-0046), rendered as a ``Step N: summary`` line above the question so
+    the user knows which step they are answering for; a bare question
+    renders on its own.
+
+    :param questions: The ask's ``questions`` entries.
+    :returns: The rendered questions, joined by blank lines.
     """
-    if value.get("kind") != "input":
-        return ""
-    sections = value.get("sections")
-    if not isinstance(sections, list):
-        return ""
     parts: list[str] = []
-    for section in sections:
-        if not isinstance(section, Mapping):
+    for question in questions:
+        if not isinstance(question, Mapping):
             continue
-        title = str(section.get("title", "")).strip()
-        body = str(section.get("body", "")).strip()
-        if title and body:
-            parts.append(f"{title}\n{body}")
-        elif title or body:
-            parts.append(title or body)
-    return "\n\n".join(parts)
+        text = str(question.get("question", ""))
+        step_number = question.get("step_number")
+        summary = str(question.get("summary", "")).strip()
+        if step_number is not None and summary:
+            parts.append(f"Step {step_number}: {summary}\n{text}")
+        else:
+            parts.append(text)
+    return "\n\n".join(part for part in parts if part)
 
 
 def _interrupt_question(intr: Any) -> str:
     """Render an ``Interrupt`` payload as the question text for the transcript.
 
     :param intr: A ``langgraph.types.Interrupt``.
-    :returns: The ask's sections (for input asks) followed by the blocked
-        steps' questions, joined by newlines.
+    :returns: The blocked steps' questions (each with its step context), or
+        the ask's question, or the payload rendered as JSON.
     """
     value = getattr(intr, "value", None)
     if isinstance(value, Mapping):
-        sections = _render_input_sections(value)
         questions = value.get("questions")
         if isinstance(questions, list):
-            question_text = "\n".join(
-                str(question.get("question", ""))
-                for question in questions
-                if isinstance(question, Mapping)
-            )
-            return "\n\n".join(part for part in (sections, question_text) if part)
-        question_text = str(value.get("question", "")) or json.dumps(
-            dict(value), default=str
-        )
-        return "\n\n".join(part for part in (sections, question_text) if part)
+            return _render_questions(questions)
+        return str(value.get("question", "")) or json.dumps(dict(value), default=str)
     return str(value)
 
 
@@ -115,17 +107,10 @@ def _interrupt_event_question(event: Mapping[str, Any]) -> str:
     data = event.get("data")
     if not isinstance(data, Mapping):
         return ""
-    sections = _render_input_sections(data)
     questions = data.get("questions")
     if isinstance(questions, list):
-        question_text = "\n".join(
-            str(question.get("question", ""))
-            for question in questions
-            if isinstance(question, Mapping)
-        )
-        return "\n\n".join(part for part in (sections, question_text) if part)
-    question_text = str(data.get("question", ""))
-    return "\n\n".join(part for part in (sections, question_text) if part)
+        return _render_questions(questions)
+    return str(data.get("question", ""))
 
 
 #: Human-readable labels for the review decision literals (ADR-0046).  The

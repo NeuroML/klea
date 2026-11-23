@@ -1191,36 +1191,6 @@ class KleaAgentState(BaseGraphSchema):
             revision.render() for revision in trim_plan_history(self.plan_history)
         )
 
-    def plan_history_sections(
-        self, *, include_current: bool = True
-    ) -> list[dict[str, str]]:
-        """Return previous (and optionally active) plans as HITL sections.
-
-        The same rendering feeds the guidance ask so the user can see what was
-        already tried and why it was abandoned.
-
-        :param include_current: Include the active plan as a final section.
-        :returns: ``{"title": ..., "body": ...}`` sections in plan order.
-        """
-        sections = [
-            {
-                "title": f"Plan version {revision.version} (abandoned)",
-                "body": revision.render_body(),
-            }
-            for revision in trim_plan_history(self.plan_history)
-        ]
-        if include_current and self.plan.step_list:
-            body = (
-                "\n".join(step.render() for step in self.plan.step_list) or "(no steps)"
-            )
-            sections.append(
-                {
-                    "title": f"Current plan version {self.plan.plan_version}",
-                    "body": body,
-                }
-            )
-        return sections
-
     def build_continuation_evidence(
         self,
         final_answer: str,

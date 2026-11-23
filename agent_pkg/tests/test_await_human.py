@@ -66,8 +66,8 @@ async def test_input_batches_step_questions_and_writes_answers():
     assert intr.value == {
         "kind": "input",
         "questions": [
-            {"step_number": 2, "question": "Which file?"},
-            {"step_number": 2, "question": "Which mode?"},
+            {"step_number": 2, "summary": "deploy", "question": "Which file?"},
+            {"step_number": 2, "summary": "deploy", "question": "Which mode?"},
         ],
     }
     # One interrupt, a typed form with a positional answers list.
@@ -83,8 +83,8 @@ async def test_input_batches_step_questions_and_writes_answers():
     assert (await graph.aget_state(config)).next == ()
 
 
-def test_input_ask_includes_abandoned_plan_sections():
-    """A guidance input ask carries the failed plan versions for context."""
+def test_input_ask_omits_abandoned_plan_sections():
+    """A guidance input ask omits the failed plan versions."""
     node = AwaitHuman(logging.getLogger("test"), "Awaiting", kind="input")
     state = KleaAgentState(
         plan=PlanSchema(
@@ -117,14 +117,13 @@ def test_input_ask_includes_abandoned_plan_sections():
 
     assert payload["kind"] == "input"
     assert payload["questions"] == [
-        {"step_number": 2, "question": "How should I proceed?"}
+        {
+            "step_number": 2,
+            "summary": "Provide guidance to continue",
+            "question": "How should I proceed?",
+        }
     ]
-    assert [section["title"] for section in payload["sections"]] == [
-        "Plan version 1 (abandoned)",
-        "Current plan version 2",
-    ]
-    assert "tool failed" in payload["sections"][0]["body"]
-    assert "old approach" in payload["sections"][0]["body"]
+    assert "sections" not in payload
 
 
 async def test_review_approve_runs_the_plan():
