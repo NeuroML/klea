@@ -77,6 +77,19 @@ Example (`suites/smoke.jsonl`):
 {"case_id": "smoke-001", "schema_version": "1.0", "turns": [{"turn_number": 1, "role": "user", "content": "Summarise the NeuroML repository layout."}]}
 ```
 
+The shipped `samples/hello_world.jsonl` is the smallest runnable example of the
+format plus an execution check.  One prompt turn asks the agent to write
+`hello world` to `hello.txt` in the workspace, and a case-authored `command`
+(an argv list, no shell string) with a 30 s `command_timeout` is graded on exit
+status alone.  The command reads `hello.txt` from the run's `workspace/`, which
+is its working directory, and exits 0 only when the file holds exactly that
+text.  Because the command's output is discarded, the graded result has to be
+a file the check itself can read: there is no `expected_outputs` entry, the
+`command_exit` verdict carries the decision.  Against an empty workspace the
+same case fails cleanly (the missing file makes the command exit non-zero), so
+it passes only when the artefact was really produced.
+```
+
 ## 3. Validate before running
 
 `validate` loads the suite without touching the network.  It prints

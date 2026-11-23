@@ -22,6 +22,7 @@
 
 - The user-facing `klea-eval` quickstart and CLI reference are now documented.
 - Eval cases can declare their own `command` and a per-case `command_timeout`; the harness runs it once in the run workspace and grades it on its exit status only, recording the command and the exit code.
+- The harness now ships a hello-world sample suite whose case-authored command grades on exit status, exercising execution-based verification end to end.
 
 ### Changed
 

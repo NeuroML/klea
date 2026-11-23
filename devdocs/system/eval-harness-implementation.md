@@ -452,7 +452,13 @@ below is current.
   as the `command_exit` check kind, which records the command and the exit code
   in `metrics.expectation_checks`.  Because output is discarded, any result to
   be graded must be written to a file an `expected_outputs` entry can check.  A
-  case that declares only a command expects a grade.  `schema_version` stays
+  case that declares only a command expects a grade.  The shipped
+  `samples/hello_world.jsonl` is the minimal example of that pattern: one prompt
+  turn writes `hello world` to `hello.txt` in the workspace, and the case's
+  `python3 -c` command -- run with the run's `workspace/` as its working
+  directory and its streams discarded -- exits 0 only when that file holds
+  exactly that text, so the `command_exit` verdict is decidable from the
+  recorded exit status alone.  `schema_version` stays
   `1.0` (D5): the harness is unreleased.
 
 ---
