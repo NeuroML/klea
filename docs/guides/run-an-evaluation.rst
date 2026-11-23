@@ -27,14 +27,28 @@ Prerequisites
   endpoint path defaults to ``/query/stream``; pass ``--endpoint`` only for a
   different surface.
 
+* Model overrides for a run, passed with ``--model`` / ``-m ROLE=MODEL``.  A
+  model name carries its provider prefix, for example
+  ``opencode:deepseek-v4.1-flash``.  Override every role the run resolves
+  (``chat``, ``plan`` and ``tool_picker``) so no role is left on a default the
+  target server cannot serve; a role a case's own ``run_config`` pins still
+  wins for that role.
+
 * Credentials for the provider of any ``--model`` override you use, taken
-  from the environment of the harness process: ``OPENAI_API_KEY``,
-  ``ANTHROPIC_API_KEY``, ``MISTRAL_API_KEY``, ``HF_TOKEN``; a local ``ollama``
-  runtime needs none.  Other providers follow the ``<PROVIDER>_API_KEY``
-  convention.  A key is pushed only to the run's own user scope and is never
-  printed, echoed in an error, or recorded in the run's artefacts.  A locked
-  role rejects an override with ``403`` and ``The '<role>' model is locked``;
-  the lock is a server-side setting.
+  from the environment of the harness process using the ``<PROVIDER>_API_KEY``
+  convention: the ``opencode:`` prefix needs ``OPENCODE_API_KEY`` (not
+  ``OPENAI_API_KEY``), while ``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``,
+  ``MISTRAL_API_KEY`` and ``HF_TOKEN`` cover their own providers and a local
+  ``ollama`` runtime needs none.  A key is pushed only to the run's own user
+  scope and is never printed, echoed in an error, or recorded in the run's
+  artefacts.  A locked role rejects an override with ``403`` and
+  ``The '<role>' model is locked``; the lock is a server-side setting.
+
+* ``--timeout`` above its 60 s default for suites whose turns run long agent
+  paths, and a ``--workspace`` / ``-w`` directory outside the repository so
+  the run artefacts do not pollute the working tree.  The agent works in the
+  run's own ``workspace/`` directory, not the server's working directory, and
+  a case's execution-check ``command`` runs there too.
 
 Writing a suite
 ---------------

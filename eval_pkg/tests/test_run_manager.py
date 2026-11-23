@@ -333,6 +333,9 @@ def test_declared_fixture_is_copied_and_original_untouched(tmp_path):
 
     fixture_dir = Path(context.fixture_dir)
     assert fixture_dir.name == run_manager.FIXTURE_DIR_NAME
+    assert fixture_dir == (
+        Path(context.run_dir) / "workspace" / run_manager.FIXTURE_DIR_NAME
+    )
 
     assert context.fixtures is not None
     copied = Path(context.fixtures["input"])

@@ -400,7 +400,7 @@ def _build_payload(context: RunContext, turn: Turn) -> dict[str, Any]:
     if isinstance(number, int) and not isinstance(number, bool):
         payload["turn_number"] = number
 
-    payload["client_context"] = {"cwd": str(context.run_dir)}
+    payload["client_context"] = {"cwd": str(context.run_dir / "workspace")}
 
     return payload
 

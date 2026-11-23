@@ -31,6 +31,8 @@
 - `klea-eval prune` now archives runs that fall outside the retention window instead of deleting them: an older run keeps its `run.json`, `metrics.jsonl` and index line, and only its workspace tree is removed; pass `--purge` to delete the whole run directory and drop its index line as before.
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
 - `klea-eval run` now exits 4 when a completed case declared rubrics but recorded no grade, distinct from exit 1 for a failed case.
+- The hello-world sample suite's case fixtures now live under the run's `workspace/`, so the sample runs out of the box.
+- The `klea-eval` quickstart now documents the prerequisites for running an eval case.
 - Eval scoring is deterministic only (ADR-0061): a run's pass/fail, exit codes and metrics now derive solely from deterministic checks, with no judged verdict, and exit 4 means a rubric-declaring suite whose deterministic checks produced no grade.
 - Permission dialogs now group the requested paths under the plan step they belong to.
 - Permission dialogs now group the requested paths under the plan step they belong to, with the plan-step heading set apart and emphasised so the prompt is easier to read, a long step summary capped at two lines with `...`, one muted coverage line per step group (`N paths: X outside the project, Y sensitive`), a request's further steps shown once as `Also serves step N` beneath its heading, and a divider between adjacent step groups in the web form.
@@ -56,6 +58,8 @@
 - A completed eval case without rubrics no longer deflates the suite score and pass@k: ungraded and grade-missing cases are excluded from the case count and rate denominators, and the report's ungraded counter is no longer always zero.
 - `klea-eval run` uses `KLEA_EVAL_WORKSPACE` when `--workspace` is not given, and only then the current directory.
 - Eval requests now send the staged per-case workspace as `client_context.cwd`, so tool and file cases no longer run in the eval process's directory.
+- An execution-check eval case now grades the files the agent actually produced, because the agent works in the run's `workspace/`.
+- A recorded failing eval grade now exits 1, while exit 4 stays reserved for a declared expectation that recorded no grade.
 - An eval run whose overwrite fails keeps its previous run directory and index entry, so a failed publish no longer loses the old results.
 - A malformed or truncated `complete` payload now fails that eval turn instead of yielding a bogus case result.
 - Eval attempts and overwrites each allocate a fresh chat id, so retried cases no longer share conversation state.

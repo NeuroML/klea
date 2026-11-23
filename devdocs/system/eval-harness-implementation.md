@@ -227,7 +227,12 @@ Points discovered while delivering P1-P7; later phases must respect them.
   failed its rubrics and `4` when a rubric-declaring suite's deterministic
   checks produced no grade (`EXIT_GRADE_MISSING`, surfaced by the
   `SuiteResult.grade_missing` property; ADR-0061); the CLI maps `CaseValidationError`
-  and `PipelineConfigError` to exit code `2`. The `klea-eval run` command forwards
+  and `PipelineConfigError` to exit code `2`.  The per-case decision is
+  explicit: `exit_code` returns `1` when `case_run.metrics is not None and
+  case_run.metrics.task_success is False`, and returns `4` only when no case
+  failed and `self.grade_missing` is non-zero, so a grade recorded on a stored
+  run yields `1` and `4` stays reserved for a declared expectation that
+  recorded no grade at all. The `klea-eval run` command forwards
   the workspace, endpoint, timeout, harness seed, attempt budget and overwrite
   options, requires a base URL (`--base-url` or `KLEA_EVAL_BASE_URL`) before it
   calls the pipeline, and prints one `<case_id>: pass|fail` line per run.
@@ -428,9 +433,11 @@ below is current.
   all-ungraded suite
   therefore reports `case_count == 0`, `suite_score == 0.0` and
   `pass_at_k == 0.0`, and the stored run status stays `completed`.
-- Per-case cwd: each case's turn carries its isolated run directory as
-  `client_context.cwd`, so the agent works inside the case workspace rather
-  than in the server's working directory.
+- Per-case cwd: each case's turn carries the run's `workspace/` directory
+  (`<run dir>/workspace/`) as `client_context.cwd`, so the agent works inside
+  the case workspace rather than in the server's working directory; a case's
+  execution-check `command` runs with that same `workspace/` as its working
+  directory.  Declared fixtures are copied into `<run dir>/workspace/fixtures`.
 - Workspace precedence: the workspace root resolves `--workspace`, then
   `KLEA_EVAL_WORKSPACE`, then `.`, taking the first that is set.
 - `klea-eval report`: added beside `validate`, `run`, `show`, `runs`, `prune`

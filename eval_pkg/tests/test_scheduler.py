@@ -62,6 +62,9 @@ def _passing_executor(passed: bool = True):
     """Return a fake turn executor that reports a fixed task outcome."""
 
     def execute(context: RunContext, turn: Any) -> dict[str, Any]:
+        workspace_dir = Path(context.run_dir) / "workspace"
+        workspace_dir.mkdir(parents=True, exist_ok=True)
+        (workspace_dir / "hello.txt").write_text("hello world", encoding="utf-8")
         return {
             "status": run_manager.STATUS_COMPLETED,
             "task_success": passed,

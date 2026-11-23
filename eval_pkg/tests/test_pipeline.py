@@ -460,6 +460,43 @@ def test_suite_exit_code_for_a_grade_missing_case(tmp_path: Path) -> None:
     assert result.ok is False
 
 
+def test_a_recorded_failing_grade_exits_one_not_grade_missing(
+    tmp_path: Path,
+) -> None:
+    """A case whose command fails is a real failure (1), never grade-missing (4).
+
+    The suite's exit code reads ``CaseRun.metrics.task_success``, so the pipeline
+    must return the grade it recorded rather than the summary it read before the
+    run envelope was appended.  A stale summary carries no grade, which made this
+    failing case look grade-missing and exited 4 instead of 1.
+    """
+    suite = tmp_path / "suite.jsonl"
+    case = {
+        "case_id": "case-failing-command",
+        "schema_version": "1.0",
+        "turns": [{"turn_number": 1, "role": "user", "content": "Hello"}],
+        # An executable that does not exist fails the command check on every
+        # platform, without relying on a shell or a specific exit status.
+        "command": ["klea-eval-no-such-command-xyzzy"],
+        "command_timeout": 30.0,
+    }
+    suite.write_text(json.dumps(case) + "\n", encoding="utf-8")
+
+    result = run_suite(
+        str(suite),
+        workspace_root=str(tmp_path / "workspace"),
+        execute_turn=Recorder(),
+        harness_seed=1234,
+        max_attempts=1,
+    )
+
+    assert result.runs[0].status == "completed"
+    assert result.runs[0].expects_grade is True
+    assert result.runs[0].metrics is not None
+    assert result.runs[0].metrics.task_success is False
+    assert result.exit_code == pipeline.EXIT_CASE_FAILURE == 1
+
+
 def test_suite_exit_code_for_an_ungraded_case(tmp_path: Path) -> None:
     """A rubric-less case with no task outcome still exits 0."""
     result = _suite_result(tmp_path, _case_run("case-plain", passed=None))

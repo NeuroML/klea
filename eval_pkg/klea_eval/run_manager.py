@@ -14,7 +14,7 @@ Lifecycle of one run:
    :func:`klea_eval.identity.derive_identity`, prepares the run directory
    through :func:`klea_eval.workspace.prepare_run` (which also clears any
    leftover staging directory), copies the declared fixtures into
-   ``<run dir>/fixtures/`` (the originals stay untouched) and returns a
+   ``<run dir>/workspace/fixtures/`` (the originals stay untouched) and returns a
    :class:`RunContext`.
 2. :func:`run_case` walks ``case.turns`` in loader order (the loader already
    enforces 1-based, contiguous ``turn_number`` values, so nothing is sorted
@@ -152,7 +152,7 @@ class RunContext:
     @property
     def fixture_dir(self) -> Path:
         """Directory inside the run workspace that holds the copied fixtures."""
-        return self.run_dir / FIXTURE_DIR_NAME
+        return self.run_dir / workspace.WORKSPACE_DIR_NAME / FIXTURE_DIR_NAME
 
     @property
     def metrics_file(self) -> Path:
@@ -200,7 +200,7 @@ def start_run(
     resolve against, normally ``load_suite(path).source.parent``: the case
     object does not carry its owning suite file, so the caller supplies it and
     the current working directory is never guessed.  Every declared fixture is
-    copied into ``<run dir>/fixtures/``; the originals are left untouched.
+    copied into ``<run dir>/workspace/fixtures/``; the originals are left untouched.
 
     ``attempt`` counts a retry of the same run and ``revision`` counts an
     overwrite of it.  Both only enter the ``chat_id``, so a retried or
@@ -228,7 +228,12 @@ def start_run(
 
     prepared = workspace.prepare_run(identity.run_id, root)
     run_dir = Path(prepared) if prepared is not None else root / identity.run_id
-    copied = _copy_fixtures(sources, base, run_dir / FIXTURE_DIR_NAME, case.case_id)
+    copied = _copy_fixtures(
+        sources,
+        base,
+        run_dir / workspace.WORKSPACE_DIR_NAME / FIXTURE_DIR_NAME,
+        case.case_id,
+    )
 
     context = RunContext(
         identity=identity,
@@ -480,7 +485,7 @@ def _reprepare(context: RunContext) -> RunContext:
     copied = _copy_fixtures(
         context.fixture_sources,
         context.fixture_base,
-        run_dir / FIXTURE_DIR_NAME,
+        run_dir / workspace.WORKSPACE_DIR_NAME / FIXTURE_DIR_NAME,
         context.case_id,
     )
     return replace(context, run_dir=run_dir, fixtures=copied)

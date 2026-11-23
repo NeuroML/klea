@@ -34,6 +34,15 @@ eval_pkg`), so the `klea-eval` console script (pointed at
   `/query/stream` -- the route above, which is also
   `klea_eval.runners.http.DEFAULT_ENDPOINT`.  Pass the flag for any other
   surface.
+* Model overrides: `run` sets all three roles (`chat`, `plan` and
+  `tool_picker`) with `--model` / `-m ROLE=MODEL`; the model name carries its
+  provider prefix, for example `opencode:deepseek-v4.1-flash`.  The credential
+  is read from the harness process environment using the `<PROVIDER>_API_KEY`
+  convention, so the `opencode` provider needs `OPENCODE_API_KEY`.
+* `--timeout` must be raised above its 60 s default for suites whose turns run
+  long agent paths.
+* `--workspace` / `-w` should point at a directory outside the repository, so
+  the run artefacts do not pollute the working tree.
 
 ```console
 klea-serve                       # 127.0.0.1:8006, the harness target
@@ -69,7 +78,11 @@ fields the loader relies on:
 
 Optional per-case `fixtures` are resolved relative to the directory of the
 JSONL file that owns the case (decision D4), so a suite can carry its own
-fixture tree.
+fixture tree.  Each case's turns run with the run's own `workspace/`
+directory as the agent's working directory (`<run dir>/workspace/`), and a
+case's execution-check `command` runs there too.  Declared fixtures are
+copied into `<run dir>/workspace/fixtures`, so both the agent and the command
+find them under `workspace/fixtures`.
 
 Example (`suites/smoke.jsonl`):
 
@@ -141,6 +154,15 @@ suite's `exit_code`:
 
 A real case failure outranks a grade-missing case, so a run that has both
 exits `1`.
+
+The pipeline reads a case's stored metrics before the run envelope is
+appended, so the exit-code decision could previously see a case that had
+recorded a failing grade as grade-missing and exit `4`.  `_run_one_case` now
+re-reads the stored run (`metrics.load_run`) after both writes, so the
+returned `CaseRun` agrees with the run on disk: a recorded failing grade
+exits `1`, and `4` stays reserved for a case that declared an expectation and
+recorded no grade at all.  The contract above was already correct; the code
+now matches it.
 
 ### The `run_id` is deterministic, so a rerun skips unless forced
 

@@ -458,6 +458,13 @@ def _run_one_case(
         )
         _append_run_envelope(context, Path(output_dir), resolved_models, checks, grade)
         _store_run(context, case, Path(output_dir), root, resolved_models)
+        # The summary above was read before the run envelope was appended, so it
+        # cannot carry the recorded grade; re-read it after both writes so the
+        # returned CaseRun agrees with the stored run.  Otherwise a case that did
+        # record a failing grade would still look grade-missing to the suite's
+        # exit-code decision, which must exit 1 for a real failure and reserve 4
+        # for a declared expectation that recorded no grade at all.
+        summary = metrics.load_run(output_dir)
     except (
         metrics.MetricsError,
         results.ResultsError,

@@ -30,6 +30,22 @@ Environment variables
 ``KLEA_LOG_LEVEL``
     Default for ``--log-level``; ``INFO`` when unset.
 
+``OPENCODE_API_KEY`` (and the ``<PROVIDER>_API_KEY`` convention)
+    Credential for the provider named by a ``--model`` override's prefix.  A
+    model such as ``opencode:deepseek-v4.1-flash`` is served by the
+    ``opencode`` provider and reads ``OPENCODE_API_KEY``, not
+    ``OPENAI_API_KEY``.  ``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``,
+    ``MISTRAL_API_KEY`` and ``HF_TOKEN`` cover their own providers, and a local
+    ``ollama`` runtime needs none.
+
+``run`` sets model roles with ``--model`` / ``-m ROLE=MODEL`` (repeatable).
+The model string carries its provider prefix, for example
+``opencode:deepseek-v4.1-flash``, and every role the run resolves -- ``chat``,
+``plan`` and ``tool_picker`` -- should be overridden so none is left on a
+default the target server cannot serve.  A run also needs ``--base-url`` (or
+``KLEA_EVAL_BASE_URL``) before it starts, and ``--timeout`` raised above its
+60 s default for suites whose turns run long agent paths.
+
 Exit codes
 ----------
 
