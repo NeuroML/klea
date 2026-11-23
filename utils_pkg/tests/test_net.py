@@ -157,13 +157,13 @@ def test_secondary_lan_nic_is_local_when_listed():
     )
 
 
-def test_os_listed_addresses_are_merged(monkeypatch):
+def test_adapter_listed_addresses_are_merged(monkeypatch):
     from klea_utils import net as net_mod
 
     clear_local_interface_address_cache()
     monkeypatch.setattr(
         net_mod,
-        "_os_listed_addresses",
+        "_adapter_listed_addresses",
         lambda: {"192.168.15.121", "172.17.0.1"},
     )
     addresses = net_mod.local_interface_addresses()
@@ -171,37 +171,70 @@ def test_os_listed_addresses_are_merged(monkeypatch):
     assert ipaddress.ip_address("172.17.0.1") in addresses
 
 
-def test_local_interface_addresses_are_cached(monkeypatch):
+def test_local_interface_addresses_are_ttl_cached(monkeypatch):
     from klea_utils import net as net_mod
 
     clear_local_interface_address_cache()
     calls: list[int] = []
+    clock = {"now": 1000.0}
 
     def _listed() -> set[str]:
         calls.append(1)
         return {"192.168.15.121"}
 
-    monkeypatch.setattr(net_mod, "_os_listed_addresses", _listed)
+    monkeypatch.setattr(net_mod, "_adapter_listed_addresses", _listed)
+    monkeypatch.setattr(net_mod.time, "monotonic", lambda: clock["now"])
+
     first = net_mod.local_interface_addresses()
     second = net_mod.local_interface_addresses()
     assert first is second
     assert calls == [1]
-    clear_local_interface_address_cache()
+
+    # Still inside the TTL window: no rescan.
+    clock["now"] += net_mod._ADAPTER_LIST_TTL_S - 1
+    assert net_mod.local_interface_addresses() is first
+    assert calls == [1]
+
+    # Past the TTL: DHCP / NIC changes are re-read.
+    clock["now"] += 2
     third = net_mod.local_interface_addresses()
     assert third == first
     assert calls == [1, 1]
 
+    clear_local_interface_address_cache()
+    fourth = net_mod.local_interface_addresses()
+    assert fourth == first
+    assert calls == [1, 1, 1]
 
-def test_win_ipconfig_regex_accepts_localized_labels():
+
+def test_adapter_listed_addresses_reads_ifaddr(monkeypatch):
     from klea_utils import net as net_mod
 
-    german = """
-Ethernet-Adapter Ethernet:
+    class _IP:
+        def __init__(self, ip):
+            self.ip = ip
 
-   Verbindungsspezifisches DNS-Suffix:
-   IPv4-Adresse . . . . . . . . . . : 192.168.15.121
-   Subnetzmaske . . . . . . . . . . : 255.255.255.0
-   IPv6-Adresse . . . . . . . . . . : fe80::1
-"""
-    assert "192.168.15.121" in net_mod._WIN_IPV4_RE.findall(german)
-    assert "fe80::1" in net_mod._WIN_IPV6_RE.findall(german)
+    class _Adapter:
+        def __init__(self, ips):
+            self.ips = ips
+
+    fake_ifaddr = type(
+        "ifaddr",
+        (),
+        {
+            "get_adapters": staticmethod(
+                lambda: [
+                    _Adapter(
+                        [
+                            _IP("192.168.15.121"),
+                            _IP(("fe80::1", 0, 0)),
+                            _IP("172.17.0.1"),
+                        ]
+                    )
+                ]
+            )
+        },
+    )
+    monkeypatch.setitem(__import__("sys").modules, "ifaddr", fake_ifaddr)
+    found = net_mod._adapter_listed_addresses()
+    assert found == {"192.168.15.121", "fe80::1", "172.17.0.1"}

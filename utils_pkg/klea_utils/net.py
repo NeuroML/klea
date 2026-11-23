@@ -12,27 +12,20 @@ from __future__ import annotations
 
 import ipaddress
 import logging
-import platform
-import re
 import socket
-import subprocess
+import time
 from collections.abc import Iterable
 
 logger = logging.getLogger(__name__)
 
-#: ``inet`` / ``inet6`` address token in ``ip`` / ``ifconfig`` output.
-_INET_ADDR_RE = re.compile(r"\binet6?\s+([0-9a-fA-F:.]+)")
+#: How long a cached interface inventory stays trusted (DHCP / NIC churn).
+_ADAPTER_LIST_TTL_S = 60.0
 
-#: IPv4 address in Windows ``ipconfig`` output (label may be localized).
-_WIN_IPV4_RE = re.compile(r"IPv4[^:]*:\s*([0-9.]+)", re.IGNORECASE)
-
-#: IPv6 address in Windows ``ipconfig`` output (label may be localized).
-_WIN_IPV6_RE = re.compile(r"IPv6[^:]*:\s*([0-9a-fA-F:]+)", re.IGNORECASE)
-
-#: Process-lifetime cache for :func:`local_interface_addresses` (no extras).
+#: Cached local interface inventory and the monotonic time it was taken.
 _LOCAL_INTERFACE_CACHE: (
     frozenset[ipaddress.IPv4Address | ipaddress.IPv6Address] | None
 ) = None
+_LOCAL_INTERFACE_CACHE_AT: float | None = None
 
 
 def is_loopback_host(host: str | None) -> bool:
@@ -101,51 +94,36 @@ def host_header_hostname(host_header: str | None) -> str:
     return value
 
 
-def _os_listed_addresses() -> set[str]:
-    """Return interface address strings from the OS (best effort).
+def _adapter_listed_addresses() -> set[str]:
+    """Return interface address strings via ``ifaddr`` (best effort).
 
-    Uses ``ip`` / ``ifconfig`` / ``ipconfig`` so secondary NICs (LAN, docker
-    bridge, VPN) are visible even when ``getaddrinfo(hostname)`` and the UDP
-    default-route trick omit them.
+    Same library NiceGUI uses in ``welcome._get_all_ips`` for access URLs.
+    Soft-imports so callers without the web extra still work (they keep the
+    ``getaddrinfo`` / UDP fallbacks only).
     """
-    system = platform.system()
     try:
-        if system == "Linux":
-            output = subprocess.check_output(
-                ["ip", "-o", "addr", "show"],
-                text=True,
-                timeout=2,
-                stderr=subprocess.DEVNULL,
-            )
-            return set(_INET_ADDR_RE.findall(output))
-        if system == "Darwin":
-            output = subprocess.check_output(
-                ["ifconfig", "-a"],
-                text=True,
-                timeout=2,
-                stderr=subprocess.DEVNULL,
-            )
-            return set(_INET_ADDR_RE.findall(output))
-        if system == "Windows":
-            output = subprocess.check_output(
-                ["ipconfig"],
-                text=True,
-                timeout=2,
-                stderr=subprocess.DEVNULL,
-                errors="ignore",
-            )
-            found = set(_WIN_IPV4_RE.findall(output))
-            found.update(_WIN_IPV6_RE.findall(output))
-            return found
-    except (OSError, subprocess.SubprocessError) as exc:
-        logger.debug("os interface scan failed: %s", exc)
-    return set()
+        import ifaddr
+    except ImportError:
+        logger.debug("ifaddr not installed; skipping adapter scan")
+        return set()
+    found: set[str] = set()
+    try:
+        for adapter in ifaddr.get_adapters():
+            for ip in adapter.ips:
+                # IPv4 is a string; IPv6 is ``(addr, flowinfo, scope_id)``.
+                raw = ip.ip[0] if isinstance(ip.ip, tuple) else ip.ip
+                if raw:
+                    found.add(str(raw))
+    except OSError as exc:
+        logger.debug("ifaddr adapter scan failed: %s", exc)
+    return found
 
 
 def clear_local_interface_address_cache() -> None:
     """Drop the cached local interface inventory (tests / rare refresh)."""
-    global _LOCAL_INTERFACE_CACHE
+    global _LOCAL_INTERFACE_CACHE, _LOCAL_INTERFACE_CACHE_AT
     _LOCAL_INTERFACE_CACHE = None
+    _LOCAL_INTERFACE_CACHE_AT = None
 
 
 def local_interface_addresses(
@@ -154,20 +132,27 @@ def local_interface_addresses(
 ) -> frozenset[ipaddress.IPv4Address | ipaddress.IPv6Address]:
     """Return IP addresses currently assigned to this machine (best effort).
 
-    Combines an OS interface listing (``ip`` / ``ifconfig`` / ``ipconfig``),
-    ``getaddrinfo(hostname)``, the UDP "outbound" address trick, and any
+    Combines an ``ifaddr`` adapter listing (same approach as NiceGUI's welcome
+    URLs), ``getaddrinfo(hostname)``, the UDP "outbound" address trick, and any
     *extra_hosts* (useful in tests).  Loopback addresses are always included.
 
-    Results without *extra_hosts* are cached for the process so page loads do
-    not re-run the OS scan.  Call :func:`clear_local_interface_address_cache`
-    to refresh.
+    Results without *extra_hosts* are cached for :data:`_ADAPTER_LIST_TTL_S` so
+    page loads do not re-scan every request, while DHCP / NIC changes are not
+    trusted forever.  Call :func:`clear_local_interface_address_cache` to
+    refresh immediately.
 
     :param extra_hosts: Optional host strings to include (tests / callers).
     :returns: The set of local interface addresses.
     """
-    global _LOCAL_INTERFACE_CACHE
+    global _LOCAL_INTERFACE_CACHE, _LOCAL_INTERFACE_CACHE_AT
     extras = tuple(extra_hosts or ())
-    if not extras and _LOCAL_INTERFACE_CACHE is not None:
+    now = time.monotonic()
+    if (
+        not extras
+        and _LOCAL_INTERFACE_CACHE is not None
+        and _LOCAL_INTERFACE_CACHE_AT is not None
+        and (now - _LOCAL_INTERFACE_CACHE_AT) < _ADAPTER_LIST_TTL_S
+    ):
         return _LOCAL_INTERFACE_CACHE
 
     found: set[ipaddress.IPv4Address | ipaddress.IPv6Address] = set()
@@ -181,7 +166,7 @@ def local_interface_addresses(
     _add("::1")
     for raw in extras:
         _add(raw)
-    for raw in _os_listed_addresses():
+    for raw in _adapter_listed_addresses():
         _add(raw)
 
     try:
@@ -204,6 +189,7 @@ def local_interface_addresses(
     result = frozenset(found)
     if not extras:
         _LOCAL_INTERFACE_CACHE = result
+        _LOCAL_INTERFACE_CACHE_AT = now
     return result
 
 
