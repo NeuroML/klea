@@ -46,9 +46,9 @@
 
 ### Fixed
 
+- Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname; secondary LAN NICs are found via `ifaddr` (same approach as NiceGUI's welcome URLs) so multi-homed hosts no longer fall back to a cookie for one of their own IPs.
 - Web UI: re-rendering the chat transcript no longer jumps the viewport to the newest message, so expanding an older message keeps its position.
 - Web UI: expanding a message in the chat transcript no longer moves the pane, so the message opens in place.
-- Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname.
 - The planner is now told why it was sent back to replan when no reason was supplied, so it revises against a concrete problem instead of guessing.
 - A failed step no longer ends the run while other steps are still pending: the agent replans around it instead of reporting an error.
 - Chat titles are no longer derived from the generated chat id at creation: a chat stores its own title (empty until set) and only falls back to a derived display name while that stored title is empty.
