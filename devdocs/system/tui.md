@@ -204,7 +204,9 @@ enforcement point for each:
   the picker lists server metadata (`GET /chat/{user_id}`), including each
   chat's first user query as a truncated preview.  The preview follows the
   highlighted chat and is shown below the Rename/Delete/Cancel buttons, so it
-  does not crowd the session rows.
+  does not crowd the session rows.  The list itself has a bounded viewport and
+  scrolls when a user has more sessions than fit, so every row stays reachable
+  without the dialog growing past the screen.
 * Create mints a chat id (coolname slug) and `POST`s it with no title, so the
   stored title starts empty instead of being filled from the id:
   `create_chat_on_server` posts only the `chat_id`, `api.create_chat` no longer
