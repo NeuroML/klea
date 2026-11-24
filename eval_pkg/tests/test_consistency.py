@@ -59,14 +59,22 @@ def _index_entry(
     case_id: str = "case-a",
     status: str = COMPLETED,
 ) -> results.IndexEntry:
-    """Append one index line without requiring a run directory."""
+    """Write one raw index line without requiring a run directory.
+
+    The write bypasses :func:`results.append_index_entry`, which replaces
+    an existing line for the same ``run_id``, so a fixture can still build
+    the duplicate and orphan index states the consistency checks detect.
+    """
     entry = results.IndexEntry(
         run_id=run_id,
         case_id=case_id,
         status=status,
         timestamp=TIMESTAMP,
     )
-    results.append_index_entry(entry, root)
+    path = results.index_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        print(json.dumps(entry.to_dict(), sort_keys=True), file=handle)
     return entry
 
 

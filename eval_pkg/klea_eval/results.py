@@ -29,7 +29,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -296,11 +296,16 @@ def read_metadata(run_dir: str | Path) -> RunMetadata:
 
 
 def append_index_entry(entry: IndexEntry, root: str | Path | None = None) -> Path:
-    """Append ``entry`` as one line of ``runs/index.jsonl``.
+    """Write ``entry`` as the one ``runs/index.jsonl`` line of its run.
 
-    The line is written with a single ``O_APPEND`` write and fsynced, so
-    concurrent writers never truncate earlier lines and earlier entries stay
-    intact.  The index path is returned.
+    A ``run_id`` the index does not name yet is appended with a single
+    ``O_APPEND`` write and fsynced, so concurrent writers never truncate
+    earlier lines and earlier entries stay intact.  A ``run_id`` the index
+    already names is replaced instead of being appended a second time: its
+    stale line(s) are dropped, the fresh line is placed last so file order
+    stays age order, and the file is rewritten through a fsynced sibling moved
+    into place with :func:`os.replace`.  The index therefore keeps exactly one
+    line per run, and the index path is returned.
     """
     if not isinstance(entry, IndexEntry):
         raise ResultsError(f"expected an IndexEntry, got {type(entry).__name__}")
@@ -316,6 +321,14 @@ def append_index_entry(entry: IndexEntry, root: str | Path | None = None) -> Pat
         ) from exc
 
     line = f"{text}\n".encode()
+    existing = read_index(root)
+    if any(stored.run_id == entry.run_id for stored in existing):
+        survivors = [stored for stored in existing if stored.run_id != entry.run_id]
+        survivors.append(entry)
+        _atomic_write(target, _index_payload(survivors, target))
+        logger.debug(f"{target = }, {entry.run_id = }, replaced its existing line")
+        return target
+
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
@@ -602,3 +615,16 @@ def _atomic_write(target: Path, data: bytes) -> None:
         raise ResultsError(f"could not write '{target}': {exc}") from exc
 
     logger.debug(f"{target = }, {len(data) = }")
+
+
+def _index_payload(entries: Sequence[IndexEntry], target: Path) -> bytes:
+    """Render ``entries`` as the one-line-per-entry byte payload of an index."""
+    try:
+        return "".join(
+            f"{json.dumps(stored.to_dict(), sort_keys=True, ensure_ascii=True)}\n"
+            for stored in entries
+        ).encode()
+    except (TypeError, ValueError) as exc:
+        raise ResultsError(
+            f"index entries for '{target}' are not JSON serialisable: {exc}"
+        ) from exc

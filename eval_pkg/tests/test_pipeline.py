@@ -326,8 +326,8 @@ def test_complete_run_is_skipped_without_duplicate_index_line(
     assert executor.calls == calls_after_first
 
 
-def test_overwrite_reruns_and_appends_index_line(tmp_path: Path) -> None:
-    """``overwrite`` reruns a finished case and appends a fresh index line."""
+def test_overwrite_reruns_and_replaces_index_line(tmp_path: Path) -> None:
+    """``overwrite`` reruns a finished case and replaces its index line."""
     cases = [_case("case-1", [_turn(1, "user", "Hello")])]
     executor = Recorder()
 
@@ -337,7 +337,9 @@ def test_overwrite_reruns_and_appends_index_line(tmp_path: Path) -> None:
     _suite, result = _run(tmp_path, cases, execute_turn=executor, overwrite=True)
     assert result.exit_code == 0
     assert result.runs[0].status == "completed"
-    assert len(_index_lines(result.workspace_root)) == 2
+    lines = _index_lines(result.workspace_root)
+    assert len(lines) == 1
+    assert json.loads(lines[0])["run_id"] == first.runs[0].run_id
     assert len(executor.calls) == 2
 
 
@@ -692,7 +694,7 @@ def test_archived_run_is_skipped_without_duplicate_index_line(
 
 
 def test_overwrite_replaces_an_archived_run(tmp_path: Path) -> None:
-    """``overwrite`` reruns an archived run and appends a fresh index line."""
+    """``overwrite`` reruns an archived run and replaces its index line."""
     cases = [_case("case-1", [_turn(1, "user", "Hello")])]
     executor = Recorder()
     _suite, first = _run(tmp_path, cases, execute_turn=executor)
@@ -706,7 +708,7 @@ def test_overwrite_replaces_an_archived_run(tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert result.runs[0].status == "completed"
     assert len(executor.calls) == len(calls_before) + 1
-    assert len(_index_lines(result.workspace_root)) == 2
+    assert len(_index_lines(result.workspace_root)) == 1
     assert Path(result.runs[0].output_dir) == output_dir
     assert not workspace.is_archived(output_dir)
 
