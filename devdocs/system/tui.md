@@ -295,7 +295,10 @@ a plain middle truncation, which remains the last resort only.  The snippet
 and its offsets come from the server payload, so the terminal and web asks
 render the same window.
 Input asks show each question under its blocked step heading and carry no
-plan-history sections; review asks render their sections above the questions.  Decisions are shown in
+plan-history sections; a multi-question ask separates its question and input
+sets with the `Rule` widget carrying the `hitl-question-divider` class (N
+questions give N-1 dividers, none above the first or below the last), matching
+the permission panel's existing `Rule()` convention.  Review asks render their sections above the questions.  Decisions are shown in
 the transcript via
 `klea_utils/api/hitl.py:render_interrupt_response` so live and reloaded text
 cannot drift.  A pending interrupt is re-presented on load/switch from

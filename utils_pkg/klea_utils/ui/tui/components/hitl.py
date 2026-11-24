@@ -148,6 +148,9 @@ class HitlDecisionPanel(VerticalScroll):
         color: $text-muted;
         height: auto;
     }
+    HitlDecisionPanel .hitl-question-divider {
+        margin: 1 0;
+    }
     HitlDecisionPanel .perm-request {
         height: auto;
         margin-top: 1;
@@ -281,6 +284,10 @@ class HitlPanel(HitlDecisionPanel):
             questions = [{"question": fallback}]
         self._questions = [q for q in questions if isinstance(q, dict)]
         for index, question in enumerate(self._questions):
+            # Separate consecutive question + input sets with a rule, mirroring
+            # the permission panel; the first set needs no divider above it.
+            if index:
+                yield Rule(classes="hitl-question-divider")
             yield SelectableStatic(str(question.get("question", "")))
             yield Input(id=f"hitl-answer-{index}")
         with Horizontal(classes="actions"):

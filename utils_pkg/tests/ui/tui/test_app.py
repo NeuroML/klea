@@ -840,6 +840,42 @@ async def test_input_ask_renders_questions_without_plan_history(fake_backend, ma
     assert fake_backend.calls[-1]["interrupt_response"] == {"answers": ["try again"]}
 
 
+async def test_input_ask_separates_multiple_questions(fake_backend, make_app):
+    """A multi-question input ask puts one divider between consecutive questions."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "input",
+                    "questions": [
+                        {"step_number": 1, "question": "Which file?"},
+                        {"step_number": 2, "question": "How should I proceed?"},
+                    ],
+                    "interrupt_id": "i1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        panel = app.screen.query_one(HitlPanel)
+        assert len(panel.query("Rule.hitl-question-divider")) == 1
+        assert len(panel.query("#hitl-answer-0")) == 1
+        assert len(panel.query("#hitl-answer-1")) == 1
+        app.screen.query_one("#hitl-answer-0", Input).value = "a.txt"
+        app.screen.query_one("#hitl-answer-1", Input).value = "try again"
+        app.screen.query_one("#hitl-answer", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["interrupt_response"] == {
+        "answers": ["a.txt", "try again"]
+    }
+
+
 async def test_inline_panel_swaps_the_composer(fake_backend, make_app):
     """The ask replaces the composer while active and restores it on a decision."""
     fake_backend.scripts = [
