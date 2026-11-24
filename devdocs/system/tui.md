@@ -278,7 +278,9 @@ key-hints line shows the ask's actions.  The review ask's feedback field is a
 and grows to a capped height, and submits only through
 **Revise with feedback** (Enter no longer submits; Ctrl+J inserts a newline).
 Typing in the field never opens the command suggestions, which only the
-composer drives.  The ask bodies are spaced for readability: each section
+composer drives.  Both the review field and every input ask field keep a
+permanent `$primary` border and a `$primary 15%` fill, so they read as editable
+while unfocused; focus then brightens that same border to full `$primary`.  The ask bodies are spaced for readability: each section
 title is set apart, the body carries a quiet left gutter plus top/bottom
 margins, and the question line is muted.  A permission ask
 shows the full target path (middle-truncated only for pathological values),
@@ -293,7 +295,10 @@ a plain middle truncation, which remains the last resort only.  The snippet
 and its offsets come from the server payload, so the terminal and web asks
 render the same window.
 Input asks show each question under its blocked step heading and carry no
-plan-history sections; review asks render their sections above the questions.  Decisions are shown in
+plan-history sections; a multi-question ask separates its question and input
+sets with the `Rule` widget carrying the `hitl-question-divider` class (N
+questions give N-1 dividers, none above the first or below the last), matching
+the permission panel's existing `Rule()` convention.  Review asks render their sections above the questions.  Decisions are shown in
 the transcript via
 `klea_utils/api/hitl.py:render_interrupt_response` so live and reloaded text
 cannot drift.  A pending interrupt is re-presented on load/switch from
@@ -454,6 +459,16 @@ session's bundled MCP client.  See `session-mcp-context.md` and ADR-0055.
 * **Non-goals / known divergence**: no inline media (text fallback, ADR-0040);
   HTML tables/alerts degrade to plain renderables; no live token typing
   (`token` stays unconsumed, streams.md); no always-visible session sidebar.
+* **Per-block timestamp**: each `MessageBlock` closes with one footer row
+  (`.message-footer`, a `Horizontal` of `height: 1`) holding the overflow hint
+  on the left and the timestamp on the right, both sourced from
+  `state.MessageData` (`stamp`).  The `.message-more` hint is content-sized and
+  only shown when the body overflows; the `.message-stamp` takes the rest of
+  the row (`width: 1fr`, `text-align: right`) and is always rendered, so the
+  timestamp stays right-aligned whether or not the hint is present.  The two
+  remain separate widgets, so the hint's display gate, the click-to-toggle and
+  text selection behave as before, and the stamp stays out of the selectable
+  body.
 
 ## Transcript windowing
 
@@ -505,9 +520,16 @@ The web transcript pages this window the same way: reaching the top mounts
 reaching the bottom re-mounts the newer messages while the oldest end is
 dropped, so the mounted window stays bounded by `MOUNTED_MESSAGE_LIMIT` while
 the store keeps every message.  Expanding a bubble never moves the pane: the
-toggle flips the block's collapsed class and icon in place and records the
-choice in the chat's `expanded` set, so the transcript is not rebuilt and the
-viewport stays put.
+toggle flips the block's collapsed class and its control label in place and
+records the choice in the chat's `expanded` set, so the transcript is not
+rebuilt and the viewport stays put.  The control is a labelled button (`Show
+  more` / `Show less`) rather than an icon, and it is rendered only when the
+  body overflows its collapsed height, so a block that fits carries no toggle.
+  The collapsed wording is prefixed with the shared truncation glyph, so the
+  control also reads as clipped and drops the marker once expanded.  Each
+  block's footer is one row: the control first, then a right-aligned group
+  holding the timestamp and the copy button, so the control's presence never
+  shifts the stamp.
 
 The web transcript also bounds its widget tree: `MOUNTED_MESSAGE_LIMIT` (80)
 in `utils_pkg/klea_utils/ui/web/nicegui/components/chat_area.py`, applied in

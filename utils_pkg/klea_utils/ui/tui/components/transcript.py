@@ -26,7 +26,7 @@ from rich.syntax import Syntax
 from rich.text import Text
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Vertical, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.widgets import Static
 
 from klea_utils.ui.glyphs import GlyphSet, get_glyphs
@@ -195,10 +195,21 @@ class MessageBlock(Vertical):
         max-height: 10000;
         overflow-y: hidden;
     }}
+    MessageBlock .message-footer {{
+        height: 1;
+        width: 100%;
+    }}
     MessageBlock .message-more {{
         height: 1;
+        width: auto;
         color: $text-muted;
         display: none;
+    }}
+    MessageBlock .message-stamp {{
+        height: 1;
+        width: 1fr;
+        color: $text-muted;
+        text-align: right;
     }}
     """
 
@@ -224,7 +235,7 @@ class MessageBlock(Vertical):
         self.add_class(f"message-{message.get('role', 'agent')}")
 
     def compose(self) -> ComposeResult:
-        """Compose the clipped body and the expand hint."""
+        """Compose the clipped body, the expand hint, and the timestamp."""
         with VerticalScroll(classes="message-scroll"):
             # SelectableStatic adds Textual's selection protocol to the
             # MIME-aware Rich renderable; see its class docstring for why we
@@ -232,7 +243,20 @@ class MessageBlock(Vertical):
             yield SelectableStatic(
                 render_message(self._message, glyphs=self._glyphs, tints=self._tints)
             )
-        yield SelectableStatic("", classes="message-more", markup=False)
+        yield Horizontal(
+            SelectableStatic("", classes="message-more", markup=False),
+            # A shared footer row: the overflow hint sits on the left (hidden
+            # until the body overflows) and the timestamp stays right-aligned.
+            # Keeping them separate widgets preserves the hint's display gate,
+            # the ``.message-more``/``.message-stamp`` query targets, the toggle
+            # and text selection.
+            SelectableStatic(
+                str(self._message.get("stamp", "")),
+                classes="message-stamp",
+                markup=False,
+            ),
+            classes="message-footer",
+        )
 
     def on_mount(self) -> None:
         """Decide, after layout, whether the hint is needed."""
