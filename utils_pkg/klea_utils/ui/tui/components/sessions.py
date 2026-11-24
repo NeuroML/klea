@@ -81,8 +81,8 @@ class SessionPicker(ModalScreen[SessionAction]):
         height: 1;
     }
     #sessions-list {
-        height: auto;
-        max-height: 16;
+        height: 16;
+        scrollbar-size-vertical: 1;
     }
     #sessions-preview {
         height: auto;

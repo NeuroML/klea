@@ -179,6 +179,16 @@ def _add_css_overrides() -> None:
         # theme with no literal colour at the call site.
         "  .tool-header--success { color: var(--q-positive); }\n"
         "  .tool-header--error { color: var(--q-negative); }\n"
+        # The labelled expand/collapse control in a chat block: a colour rule
+        # (token-driven control text) plus the small, non-uppercase layout
+        # Quasar buttons do not give us, so it reads as a quiet inline action
+        # beside the timestamp instead of a raised call-to-action.
+        "  .msg-expand {\n"
+        "    color: var(--klea-control) !important;\n"
+        "    font-size: 0.75rem;\n"
+        "    text-transform: none;\n"
+        "    min-height: 1.5rem;\n"
+        "  }\n"
         # Inspector text roles: hint is the quietest label (timings, section
         # stamps, empty-state copy), muted the secondary body text, so the
         # inspector follows the theme tokens instead of fixed Quasar greys.
@@ -253,6 +263,14 @@ def _add_css_overrides() -> None:
         ".hitl-ask .hitl-ask-body { "
         "margin: 0.35rem 0; line-height: 1.5; "
         "max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }"
+    )
+    # Consecutive question sets in a multi-question HITL ask: a rule between
+    # adjacent sets reproduces the TUI's N-1 divider behaviour without an
+    # index check (same idiom as ``.inspector-section``).  Plain layout
+    # declarations, so this stays unlayered like the body bound above.
+    ui.add_css(
+        ".hitl-ask .hitl-question-set + .hitl-question-set { "
+        "border-top: 1px solid rgba(127, 127, 127, 0.3); padding-top: 0.5rem; }"
     )
     # Inspector query sections: same disclosure triangle as entries, plus a
     # separating rule between sections so consecutive queries are distinct.

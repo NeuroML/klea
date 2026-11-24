@@ -840,6 +840,42 @@ async def test_input_ask_renders_questions_without_plan_history(fake_backend, ma
     assert fake_backend.calls[-1]["interrupt_response"] == {"answers": ["try again"]}
 
 
+async def test_input_ask_separates_multiple_questions(fake_backend, make_app):
+    """A multi-question input ask puts one divider between consecutive questions."""
+    fake_backend.scripts = [
+        [
+            {
+                "type": "interrupt",
+                "data": {
+                    "kind": "input",
+                    "questions": [
+                        {"step_number": 1, "question": "Which file?"},
+                        {"step_number": 2, "question": "How should I proceed?"},
+                    ],
+                    "interrupt_id": "i1",
+                },
+            }
+        ],
+        [{"type": "complete", "message_for_user": "done"}],
+    ]
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await _settle(pilot, app)
+        panel = app.screen.query_one(HitlPanel)
+        assert len(panel.query("Rule.hitl-question-divider")) == 1
+        assert len(panel.query("#hitl-answer-0")) == 1
+        assert len(panel.query("#hitl-answer-1")) == 1
+        app.screen.query_one("#hitl-answer-0", Input).value = "a.txt"
+        app.screen.query_one("#hitl-answer-1", Input).value = "try again"
+        app.screen.query_one("#hitl-answer", Button).press()
+        await _settle(pilot, app)
+
+    assert fake_backend.calls[-1]["interrupt_response"] == {
+        "answers": ["a.txt", "try again"]
+    }
+
+
 async def test_inline_panel_swaps_the_composer(fake_backend, make_app):
     """The ask replaces the composer while active and restores it on a decision."""
     fake_backend.scripts = [
@@ -1703,6 +1739,25 @@ async def test_message_blocks_have_padding(fake_backend, make_app):
         block = app.screen.query(MessageBlock).first()
         assert block.styles.padding.top >= 1
         assert block.styles.padding.bottom >= 1
+
+
+async def test_message_block_renders_right_aligned_timestamp(fake_backend, make_app):
+    """The stamp shares one footer row with the hint, right-aligned."""
+    long_text = "\n\n".join(f"paragraph {i}" for i in range(20))
+    fake_backend.scripts = [[{"type": "complete", "message_for_user": long_text}]]
+    app = make_app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        block = app.screen.query(MessageBlock).last()
+        stamp = block.query_one(".message-stamp", Static)
+        assert str(stamp.render())
+        assert stamp.styles.text_align == "right"
+        # The hint and the stamp share one footer row, hint first.
+        hint = block.query_one(".message-more", Static)
+        assert hint.region.y == stamp.region.y
+        assert hint.region.x < stamp.region.x
+        assert "drag to select" in str(hint.render())
 
 
 async def test_short_message_is_not_collapsed(fake_backend, make_app):
