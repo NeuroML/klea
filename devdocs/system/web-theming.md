@@ -216,6 +216,13 @@ themes:
   chaining its scroll out.  Like `.status-entry-body` this is a plain
   (unlayered) layout rule, not a colour rule, so it needs no
   `@layer overrides`.
+- `.hitl-question-set` -- the wrapper around one question and its input in a
+  multi-question ask.  Consecutive sets are separated by an adjacent-sibling
+  `border-top` rule (`.hitl-question-set + .hitl-question-set`), so N
+  questions give N-1 dividers (none above the first or below the last) with
+  no extra divider element, mirroring the TUI's `Rule.hitl-question-divider`
+  convention.  These are plain layout declarations, so the rule stays
+  unlayered.
 - The ask's free-text field reuses `.chat-input` (the composer textarea), so
   the `.chat-input .q-field__native` grow cap (`max-height: 40vh`) applies to
   the feedback field too: it starts one line high, wraps and grows to that cap.

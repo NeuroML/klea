@@ -209,8 +209,9 @@ def _render_interrupt_form(ctx: PageContext) -> None:
             questions = [{"question": fallback}]
         fields = []
         for question in questions:
-            ui.label(str(question.get("question", ""))).classes("text-sm")
-            fields.append(ui.input().props("outlined dense").classes("w-full"))
+            with ui.column().classes("w-full gap-2 hitl-question-set"):
+                ui.label(str(question.get("question", ""))).classes("text-sm")
+                fields.append(ui.input().props("outlined dense").classes("w-full"))
 
         def _submit() -> None:
             ctx.submit_interrupt(

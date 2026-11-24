@@ -254,6 +254,14 @@ def _add_css_overrides() -> None:
         "margin: 0.35rem 0; line-height: 1.5; "
         "max-height: 40vh; overflow-y: auto; overscroll-behavior: contain; }"
     )
+    # Consecutive question sets in a multi-question HITL ask: a rule between
+    # adjacent sets reproduces the TUI's N-1 divider behaviour without an
+    # index check (same idiom as ``.inspector-section``).  Plain layout
+    # declarations, so this stays unlayered like the body bound above.
+    ui.add_css(
+        ".hitl-ask .hitl-question-set + .hitl-question-set { "
+        "border-top: 1px solid rgba(127, 127, 127, 0.3); padding-top: 0.5rem; }"
+    )
     # Inspector query sections: same disclosure triangle as entries, plus a
     # separating rule between sections so consecutive queries are distinct.
     ui.add_css(

@@ -105,6 +105,118 @@ async def test_exit_dialog_cancel_keeps_the_server_running(utils_user, monkeypat
     assert shutdown_calls == []
 
 
+async def test_hitl_input_form_separates_consecutive_question_sets(
+    fake_backend, utils_user
+):
+    """A multi-question ask renders one .hitl-question-set per question.
+
+    The ask only renders for the active chat (``render_turn_status`` reads the
+    active chat's own state), so the test hydrates one chat, switches to it,
+    and then inspects the mounted form: one ``.hitl-question-set`` wrapper per
+    question, each holding exactly one label and one input, in question order.
+    The separator is the adjacent-sibling ``border-top`` CSS rule on the
+    wrappers, so no divider element is mounted.
+    """
+    from klea_utils.ui.state import ensure_chat
+
+    fake_backend.chats = [{"chat_id": "c1", "title": "Ask Chat", "created_at": 0}]
+
+    await utils_user.open("/")
+    await utils_user.should_see("Ask Chat", retries=50)
+
+    chat = ensure_chat("u", "c1")
+    chat["turn_status"] = {"kind": "awaiting_input"}
+    chat["interrupt"] = {
+        "kind": "input",
+        "interrupt_id": "i1",
+        "questions": [
+            {"question": "first question?"},
+            {"question": "second question?"},
+        ],
+    }
+
+    def _descendants(element) -> list:
+        """Return *element*'s descendants (version tolerant)."""
+        walker = getattr(element, "descendants", None)
+        if callable(walker):
+            return list(walker())
+        slot = getattr(element, "default_slot", None)
+        found = []
+        for child in list(getattr(slot, "children", []) or []):
+            found.append(child)
+            found.extend(_descendants(child))
+        return found
+
+    def _classes(element) -> str:
+        """Return a rendered element's CSS classes (version tolerant)."""
+        classes = getattr(element, "_classes", None)
+        if classes is None:
+            attr = getattr(element, "classes", "")
+            classes = attr() if callable(attr) else attr
+        if isinstance(classes, (list, tuple, set)):
+            return " ".join(str(name) for name in classes)
+        return str(classes)
+
+    def _texts(element) -> list:
+        """Return the text of *element* and its descendants."""
+        nodes = [element, *_descendants(element)]
+        return [str(getattr(node, "text", "") or "") for node in nodes]
+
+    # Selecting the chat sets ``ctx.chat_id`` and re-renders the transcript,
+    # which mounts the pending ask from that chat's state.
+    chat_items = [
+        item
+        for item in utils_user.find(ui.item).elements
+        if any("Ask Chat" in text for text in _texts(item))
+    ]
+    assert chat_items
+    UserInteraction(utils_user, {chat_items[0]}, None).click()
+    await utils_user.should_see("User input", retries=50)
+
+    set_containers = [
+        column
+        for column in utils_user.find(ui.column).elements
+        if "hitl-question-set" in _classes(column)
+    ]
+    assert len(set_containers) == 2
+
+    question_texts = []
+    for container in set_containers:
+        descendants = _descendants(container)
+        labels = [node for node in descendants if isinstance(node, ui.label)]
+        inputs = [node for node in descendants if isinstance(node, ui.input)]
+        assert len(labels) == 1
+        assert len(inputs) == 1
+        question_texts.append(str(getattr(labels[0], "text", "")))
+
+    # ``find`` does not guarantee render order, so compare the questions as a
+    # set here; the render order is asserted below from the ask's slot
+    # children (which are mounted in question order).
+    assert sorted(question_texts) == ["first question?", "second question?"]
+
+    ask_containers = [
+        column
+        for column in utils_user.find(ui.column).elements
+        if "hitl-ask" in _classes(column)
+    ]
+    assert len(ask_containers) == 1
+    slot = getattr(ask_containers[0], "default_slot", None)
+    ordered_sets = [
+        child
+        for child in list(getattr(slot, "children", []) or [])
+        if "hitl-question-set" in _classes(child)
+    ]
+    assert len(ordered_sets) == 2
+    ordered_texts = []
+    for container in ordered_sets:
+        labels = [
+            node for node in _descendants(container) if isinstance(node, ui.label)
+        ]
+        assert len(labels) == 1
+        ordered_texts.append(str(getattr(labels[0], "text", "")))
+    assert ordered_texts == ["first question?", "second question?"]
+
+
 async def test_empty_state_prompts_when_a_required_model_is_missing(
     fake_backend, utils_user
 ):
