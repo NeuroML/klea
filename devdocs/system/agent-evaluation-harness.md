@@ -458,6 +458,16 @@ sequenceDiagram
 - **Fixture snapshots**: Fixtures copied under `runs/<run_id>/workspace/`; the original fixture is preserved and the copy is immutable.
 - **Artifact storage**: `run.json` plus the versioned `metrics.jsonl` (`schema_version`, `record_type`, final "run" envelope), the reduced ``transcript.jsonl`` record and the workspace are stored for offline reproducibility; the transcript is a failure-diagnostics record and never a grading input, so a graded field stays reproducible from ``run.json`` and ``metrics.jsonl`` alone (ADR-0061).
 - **Retention**: Retention is never automatic; the operator runs `klea-eval prune`, which archives a run beyond the most recent N per case (N from run config) by removing only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the reduced ``transcript.jsonl`` record, the `COMPLETE` marker and the index line, with an `ARCHIVED` marker written beside them; `--purge` deletes the whole run directory and drops the index line instead, and `--dry-run` reports the plan without touching the disk (ADR-0059).  Two known current limitations apply: an archived run's artifacts cannot be re-hydrated, and there is no second purge horizon for already-archived runs.
+- **Case command descendants**: a timed-out case command is killed only at the
+  process level (`subprocess.run`'s own timeout), so a descendant that detaches
+  from its process group (`setsid`/`setpgid`) can survive and keep using the
+  run `workspace/`.  This is an accepted current limitation, because a portable
+  whole-tree kill is not implemented (it would need a platform-specific
+  mechanism or a racy recursive walk); the same limitation applies to the
+  agent's `run_command`.  A timeout is still reported as a failed
+  `command_exit` check, so the verdict never depends on the surviving
+  descendant.  See the `run_command` whole-tree kill entry in
+  `devdocs/backlog.md`.
 - **Scope of determinism**: Only identifiers, ordering and derived metrics are reproducible; turn content and latency are stochastic.  Grading itself is deterministic per ADR-0061.
 - **Execution verdicts**: an execution verdict is a function of the stored `command` and the recorded exit status only; it is never re-derived by re-running the command or by reading its discarded output, while the file outputs it produced stay graded from the live `workspace/` (ADR-0061 amendment, 2026-11-19).
 

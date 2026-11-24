@@ -36,7 +36,7 @@ Chosen option: "Per-suite scripts plus operator isolation", because it preserves
 
 Good: there is no adapter plugin surface and no sandbox surface to maintain, test, or secure.
 
-Accepted limits: a case command inherits the harness environment verbatim, and a detached descendant of a case command can escape subprocess.run's timeout kill. The latter stays an open backlog item.
+Accepted limits: a case command inherits the harness environment verbatim, and a detached descendant of a case command can escape subprocess.run's timeout kill. The latter is an accepted, deferred limitation, not an open item: a portable whole-tree kill would need a platform-specific mechanism (for example cgroup v2 or a subreaper on Linux, Windows Job Objects, or a racy psutil-style recursive walk), which is not implemented; see ADR-0038 and the matching backlog entry.
 
 ## Related Decisions
 

@@ -108,12 +108,15 @@ Last updated: 2026-11-18.
   forces the backward tail scan to byte 0 and reports the total when the file
   fits within `max_bytes`; a dedicated count mode or cached line count is
   deferred until agents need it often.
-- `run_command` whole-tree kill: the process-group kill (SIGTERM then SIGKILL)
-  now drains the group, but a descendant that detaches (``setsid``/``setpgid``,
-  e.g. `mock`/`systemd-nspawn`) escapes and survives.  Reaching it needs a
-  platform-native mechanism (Linux cgroup v2 / `PR_SET_CHILD_SUBREAPER`,
-  Windows Job Objects) or a cross-platform best-effort recursive walk (adds a
-  `psutil` dependency and is racy).  Deferred; see ADR-0038.
+- `run_command` whole-tree kill: accepted deferred limitation, not planned.
+  The process-group kill (SIGTERM then SIGKILL) drains the group, but a
+  descendant that detaches (``setsid``/``setpgid``, e.g. `mock`/
+  `systemd-nspawn`) escapes and survives.  A portable whole-tree kill is not
+  implemented because reaching a detached descendant would need a
+  platform-specific mechanism (cgroup v2 or `PR_SET_CHILD_SUBREAPER` on Linux,
+  Job Objects on Windows) or a `psutil`-style recursive walk, which adds a
+  dependency and stays racy.  Both callers work without it: a timeout is
+  reported and never halts the run.  See ADR-0038 and ADR-0062.
 
 ## Scientific mode / correctness / evaluation
 
@@ -306,11 +309,13 @@ phases are listed below.
   consistent with the existing stance that only OS-level sandboxing is a hard
   boundary (ADR-0007 layer 3, ADR-0038).  Recorded in ADR-0062 (Klea-only
   evaluation harness scope exclusions).
-- Carve-out retained: process-group kill for case commands.  `subprocess.run`'s
-  timeout kills only the direct child, so the process-group kill already tracked
-  above is needed here too to reap detached descendants; this remains an open
-  backlog item (resource-leak/correctness defect, not sandboxing) and is needed
-  here as well as for the agent's `run_command`.
+- Carve-out retained: process-group kill for case commands.  The harness shares
+  the accepted deferred whole-tree-kill limitation recorded above for the agent's
+  `run_command`: `subprocess.run`'s timeout kills only the direct child, so a
+  descendant that detaches can survive.  Both callers work without a whole-tree
+  kill, because the timeout is reported (a failed `command_exit` check for the
+  harness, a non-halting error for `run_command`) and never halts the run.  See
+  ADR-0038 and ADR-0062.
 - Carve-out retained: a case command inherits the harness process environment
   verbatim (there is no `env=`), so a suite author must be trusted and provider
   credentials must not be exported into the harness environment.
