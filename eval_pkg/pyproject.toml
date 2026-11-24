@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.pytest.ini_options]
 markers = [
-    "localonly", # test to not be run on GH actions: they require an LLM.
+    "localonly", # needs a live Klea endpoint: skipped unless KLEA_EVAL_BASE_URL is set.
     "eval", # test that exercises the evaluation harness end to end.
 ]
 asyncio_mode = "auto"
