@@ -26,8 +26,18 @@ import shutil
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Annotated
 
 import typer
+
+#: Default directory for rendered diagram output.
+DEFAULT_OUTPUT_DIR = Path("devdocs/system/diagrams")
+#: Default directory for generated Mermaid sources.
+DEFAULT_WORK_DIR = Path("build/mermaid/src")
+#: Default documentation root.
+DEFAULT_DEVDOCS_DIR = Path("devdocs")
+#: Default repository root.
+DEFAULT_REPO_ROOT = Path(".")
 
 app = typer.Typer(
     add_completion=False,
@@ -173,27 +183,35 @@ def main(
         min=1.0,
         help="Scale factor passed to mmdc (2-3 recommended).",
     ),
-    output_dir: Path = typer.Option(  # noqa: B008 - typer CLI declaration
-        Path("devdocs/system/diagrams"),
-        "--output-dir",
-        "-o",
-        help="Directory that receives the rendered image files (--format, default png).",
-    ),
-    work_dir: Path = typer.Option(  # noqa: B008 - typer CLI declaration
-        Path("build/mermaid/src"),
-        "--work-dir",
-        help="Directory that receives the extracted .mmd sources.",
-    ),
-    devdocs_dir: Path = typer.Option(  # noqa: B008 - typer CLI declaration
-        Path("devdocs"),
-        "--devdocs-dir",
-        help="Directory scanned recursively for Markdown files.",
-    ),
-    repo_root: Path = typer.Option(  # noqa: B008 - typer CLI declaration
-        Path("."),
-        "--repo-root",
-        help="Repository root scanned recursively for .mmd files.",
-    ),
+    output_dir: Annotated[
+        Path,
+        typer.Option(
+            "--output-dir",
+            "-o",
+            help="Directory that receives the rendered image files (--format, default png).",
+        ),
+    ] = DEFAULT_OUTPUT_DIR,
+    work_dir: Annotated[
+        Path,
+        typer.Option(
+            "--work-dir",
+            help="Directory that receives the extracted .mmd sources.",
+        ),
+    ] = DEFAULT_WORK_DIR,
+    devdocs_dir: Annotated[
+        Path,
+        typer.Option(
+            "--devdocs-dir",
+            help="Directory scanned recursively for Markdown files.",
+        ),
+    ] = DEFAULT_DEVDOCS_DIR,
+    repo_root: Annotated[
+        Path,
+        typer.Option(
+            "--repo-root",
+            help="Repository root scanned recursively for .mmd files.",
+        ),
+    ] = DEFAULT_REPO_ROOT,
     mmdc: str = typer.Option(
         "mmdc",
         "--mmdc",
@@ -211,12 +229,14 @@ def main(
         "-f",
         help="Output format passed to mmdc (png, svg, pdf, jpg).",
     ),
-    puppeteer_config: Path | None = typer.Option(
-        None,
-        "--puppeteer-config",
-        "-p",
-        help="Optional Puppeteer configuration file for mmdc.",
-    ),
+    puppeteer_config: Annotated[
+        Path | None,
+        typer.Option(
+            "--puppeteer-config",
+            "-p",
+            help="Optional Puppeteer configuration file for mmdc.",
+        ),
+    ] = None,
 ) -> None:
     """Discover and render every Mermaid diagram in the repository."""
     repo_root = repo_root.resolve()
