@@ -179,6 +179,16 @@ def _add_css_overrides() -> None:
         # theme with no literal colour at the call site.
         "  .tool-header--success { color: var(--q-positive); }\n"
         "  .tool-header--error { color: var(--q-negative); }\n"
+        # The labelled expand/collapse control in a chat block: a colour rule
+        # (token-driven control text) plus the small, non-uppercase layout
+        # Quasar buttons do not give us, so it reads as a quiet inline action
+        # beside the timestamp instead of a raised call-to-action.
+        "  .msg-expand {\n"
+        "    color: var(--klea-control) !important;\n"
+        "    font-size: 0.75rem;\n"
+        "    text-transform: none;\n"
+        "    min-height: 1.5rem;\n"
+        "  }\n"
         # Inspector text roles: hint is the quietest label (timings, section
         # stamps, empty-state copy), muted the secondary body text, so the
         # inspector follows the theme tokens instead of fixed Quasar greys.

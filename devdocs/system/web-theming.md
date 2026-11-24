@@ -152,8 +152,28 @@ agent/tool bodies pass through a Markdown renderer.
 Prefer a semantic class over inline colours so the token applies in both
 themes:
 
-- `.icon-btn` -- neutral icon-only flat buttons (chat kebab, message
-  copy/expand, model settings).
+- `.icon-btn` -- neutral icon-only flat buttons (chat kebab, message copy,
+  model settings).
+- `.msg-expand` -- the labelled expand/collapse control of a chat block
+  (`chat_bubble.py`): a flat button reading `Show more` / `Show less` instead
+  of a bare icon, so the action is discoverable.  It is shown only when the
+  body overflows its collapsed height (a block that fits is not expandable),
+  and its label flips in place on toggle.  The collapsed label is prefixed
+  with the truncation glyph (`overflow` in `klea_utils/ui/glyphs.py`), so the
+  control also marks the body as clipped and drops the marker once expanded;
+  the glyph comes from the shared table, never a literal.  Its text colour is
+  the `--klea-control` token, so the rule is a colour rule in
+  `@layer overrides`; the small, non-uppercase font and the reduced minimum
+  height are plain layout values.  The overflow gate is the pure estimate in
+  `content_overflows` (collapsed message height / one-line tool block), not a
+  client-side measurement, so it is observable without a live DOM.
+- The chat block footer is one row: the `.msg-expand` control first, then a
+  right-aligned group holding the timestamp (`text-xs text-grey-5`) and the
+  `.icon-btn` copy button.  The row is a plain layout flex row using
+  `justify-between` with an always-emitted left slot, so the group stays
+  pinned right whether or not the body carries a control.  These are layout
+  utilities, so they stay unlayered; only the `--klea-control` colour rule
+  needs `@layer overrides`.
 - `.choice-row`, `.choice-label`, `.choice-btn`, `.choice-btn--active` -- the
   segmented single-choice control (`choice.py`); the inactive option is a
   Quasar `outline` button whose border follows the text colour

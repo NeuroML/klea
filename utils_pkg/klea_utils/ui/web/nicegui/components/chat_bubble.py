@@ -7,10 +7,14 @@ Copyright 2026 Ankur Sinha
 Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
+import logging
+
 from nicegui import ui
 
 from klea_utils.ui.glyphs import UNICODE_GLYPHS
 from klea_utils.ui.linkify import linkify_html
+
+logger = logging.getLogger(__name__)
 
 #: Browser output is always Unicode-capable, so the web reuses the TUI's glyph
 #: table directly (the terminal detection / ASCII fallback does not apply); one
@@ -24,6 +28,52 @@ _ROLES = ("user", "agent", "tool", "system")
 #: type; ``text/x-patch`` is git's).  Rendered as a fenced block, which
 #: markdown2/Pygments highlights with its diff lexer.
 _DIFF_MIMES = ("text/x-diff", "text/x-patch")
+
+#: Lines a collapsed message shows before the expand control appears (matches
+#: ``.msg-collapsed { max-height: 9em; }`` at roughly 1.5em line-height).
+MSG_COLLAPSED_LINES = 6
+
+#: Lines a collapsed tool block shows (matches
+#: ``.tool-block-collapsed { max-height: 1.8em; }``).
+TOOL_COLLAPSED_LINES = 1
+
+#: Conservative character width per rendered line; over-detect rather than clip
+#: content with no way to expand it.
+MSG_WRAP_CHARS = 60
+
+#: Text labels for the expand/collapse control.
+EXPAND_LABEL = "Show more"
+COLLAPSE_LABEL = "Show less"
+
+#: Class marking the labelled expand/collapse control.
+EXPAND_CONTROL_CLASS = "msg-expand"
+
+
+def expand_label(collapsed: bool) -> str:
+    """Return the label for the expand/collapse control.
+
+    A collapsed (truncated) block prefixes its label with the shared overflow
+    glyph, so the truncation marker is drawn from the glyph table (never a
+    pasted literal) and disappears once the block is expanded.
+    """
+    return COLLAPSE_LABEL if not collapsed else f"{GLYPHS.overflow} {EXPAND_LABEL}"
+
+
+def content_overflows(role: str, text: str, data: str = "", mime: str = "") -> bool:
+    """Return whether the body would overflow its collapsed height.
+
+    A pure-Python estimate: each logical line counts as at least one rendered
+    line, and long lines wrap at :data:`MSG_WRAP_CHARS`.  The estimate is
+    deliberately conservative, so a short body never loses content and a
+    long one always gets a control.
+    """
+    body = text if mime.startswith(("image/", "audio/")) else data or text
+    lines = 0
+    for line in body.splitlines() or [""]:
+        lines += max(1, (len(line) + MSG_WRAP_CHARS - 1) // MSG_WRAP_CHARS)
+    limit = TOOL_COLLAPSED_LINES if role == "tool" else MSG_COLLAPSED_LINES
+    logger.debug("overflow check role=%s lines=%d limit=%d", role, lines, limit)
+    return lines > limit
 
 
 def _is_code_mime(mime: str) -> bool:
@@ -83,9 +133,11 @@ class ChatBubble(ui.element):
     distinguishes them (semantic ``chat-bubble--<role>`` classes in
     ``theme.py``), so user blocks read as tinted prompts, agent blocks as
     plain document text, and tool blocks as neutral blocks.  Each block has
-    an optional header, collapsible text content, a timestamp, a copy
-    button, and an expand / collapse toggle -- all flowing naturally inside
-    the block (no CSS hacks).
+    an optional header, collapsible text content, an expand / collapse
+    control that starts the footer line (its label is prefixed with the
+    shared overflow glyph while the body is truncated), and a right-aligned
+    timestamp with the copy button -- all flowing naturally inside the block
+    (no CSS hacks).
 
     Usage inside a ``@ui.refreshable``::
 
@@ -111,6 +163,8 @@ class ChatBubble(ui.element):
         is_error: bool = False,
         on_expand=None,
         on_copy=None,
+        *,
+        overflowing: bool = False,
     ) -> None:
         """Build the block.
 
@@ -120,7 +174,7 @@ class ChatBubble(ui.element):
             client command's output), or ``"notice"`` (a compact progress
             note, rendered with the system surface); unknown values fall back
             to ``"agent"``.
-        :param collapsed: ``True`` if the text is collapsed to 4 lines.
+        :param collapsed: ``True`` if the text is collapsed to a few lines.
         :param idx: Message index (used for expand/collapse tracking).
         :param header: Optional small bold header, e.g. a tool block's
             name and change counts.
@@ -131,6 +185,8 @@ class ChatBubble(ui.element):
             renderers that need it.
         :param is_error: Whether a ``tool`` block's result is an error; the
             header is rendered in the theme's negative colour.
+        :param overflowing: Whether the body overflows its collapsed height;
+            the expand/collapse control is shown only when it does.
         :param on_expand: Callable with no args, fired on expand/collapse click.
         :param on_copy: Callable with no args, fired on copy click.
         """
@@ -192,16 +248,24 @@ class ChatBubble(ui.element):
                     notice_glyph=is_notice and not header,
                 )
 
-            with ui.row().classes("flex flex-row justify-start items-center gap-1"):
-                ui.label(stamp).classes("text-xs text-grey-5")
+            with ui.row().classes(
+                "w-full flex flex-row justify-between items-center gap-1"
+            ):
+                # Left slot: the expand control (whose label carries the
+                # overflow ellipsis) starts the line when the body is
+                # truncated.  The slot is emitted even when empty so
+                # ``justify-between`` keeps the timestamp/copy group
+                # right-aligned in both branches.
+                with ui.element("div").classes("flex flex-row items-center gap-1"):
+                    if on_expand and overflowing:
+                        ui.button(expand_label(collapsed), on_click=on_expand).props(
+                            "flat dense size=sm"
+                        ).classes(EXPAND_CONTROL_CLASS)
 
-                if on_copy:
-                    ui.button(icon="content_copy").props(
-                        "flat dense round size=sm"
-                    ).classes("icon-btn").on("click", on_copy)
+                with ui.row().classes("flex flex-row items-center gap-1"):
+                    ui.label(stamp).classes("text-xs text-grey-5")
 
-                if on_expand:
-                    icon = "expand_less" if not collapsed else "expand_more"
-                    ui.button(icon=icon).props("flat dense round size=sm").classes(
-                        "icon-btn"
-                    ).on("click", on_expand)
+                    if on_copy:
+                        ui.button(icon="content_copy").props(
+                            "flat dense round size=sm"
+                        ).classes("icon-btn").on("click", on_copy)

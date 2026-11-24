@@ -23,6 +23,7 @@ from types import SimpleNamespace
 from typing import ClassVar, Self, cast
 
 import pytest
+from klea_utils.ui.glyphs import UNICODE_GLYPHS
 from klea_utils.ui.web.nicegui.components import chat_area as ca
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
@@ -133,6 +134,22 @@ def test_expand_toggles_in_place_without_resetting_scroll(
     on_expand()
 
     assert 1 in data["u:c"]["expanded"]
+
+    # The renderer always hands the bubble its overflow gate; the labelled
+    # control is then shown only when that gate is true.
+    for bubble in FakeBubble.instances:
+        assert "overflowing" in bubble.kwargs
+
+    # The gate is a pure estimate over the body, and the control label is
+    # derived from the collapsed state.
+    assert ca.content_overflows("agent", "short") is False
+    assert ca.content_overflows("agent", "line\n" * 7) is True
+    assert ca.content_overflows("tool", "one line") is False
+    # The truncation glyph prefixes the collapsed wording, so the control also
+    # says the body is clipped; it disappears once expanded.  The glyph comes
+    # from the shared table, never a literal, so the test source stays ASCII.
+    assert ca.expand_label(True) == f"{UNICODE_GLYPHS.overflow} Show more"
+    assert ca.expand_label(False) == "Show less"
     # The expand must not rebuild the transcript: no clear (which would reset
     # the offset), so the reader's scroll position is exactly preserved.
     assert ctx.chat_area.clear_count == clear_before

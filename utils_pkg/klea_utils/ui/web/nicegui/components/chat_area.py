@@ -23,7 +23,12 @@ from nicegui import ui
 from klea_utils.llm import missing_required_roles
 from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.state import TurnStatus, chats, missing_credentials
-from klea_utils.ui.web.nicegui.components.chat_bubble import ChatBubble
+from klea_utils.ui.web.nicegui.components.chat_bubble import (
+    EXPAND_CONTROL_CLASS,
+    ChatBubble,
+    content_overflows,
+    expand_label,
+)
 from klea_utils.ui.web.nicegui.components.choice import choice_buttons
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.state_edit import render_state_edit
@@ -811,6 +816,22 @@ def _bubble_children(element: Any) -> list[Any]:
     return list(getattr(slot, "children", []) or [])
 
 
+_CONTROL_SEARCH_DEPTH = 3
+
+
+def _find_expand_control(element: Any, depth: int = _CONTROL_SEARCH_DEPTH) -> Any:
+    """Return the expand toggle, which lives inside the footer row's always-emitted left slot."""
+    if depth < 0:
+        return None
+    for child in _bubble_children(element):
+        if EXPAND_CONTROL_CLASS in (getattr(child, "_classes", None) or ()):
+            return child
+        found = _find_expand_control(child, depth - 1)
+        if found is not None:
+            return found
+    return None
+
+
 def _apply_bubble_collapsed(bubble: Any, role: str, collapsed: bool) -> None:
     """Show one mounted bubble collapsed or expanded, in place.
 
@@ -820,8 +841,8 @@ def _apply_bubble_collapsed(bubble: Any, role: str, collapsed: bool) -> None:
     place for the same reason, see ``tui/components/transcript.py``).
 
     Relies on ``ChatBubble``'s layout: the bubble holds one wrapper div whose
-    children are ``[header?] body row``, and the row ends with the toggle
-    button.
+    children are ``[header?] body row``; the row's left slot carries the labelled toggle
+    when the body overflows its collapsed height.
 
     :param bubble: The mounted ``ChatBubble`` element.
     :param role: The rendered role (a ``tool`` block uses a different
@@ -838,15 +859,24 @@ def _apply_bubble_collapsed(bubble: Any, role: str, collapsed: bool) -> None:
     if collapsed:
         collapse_class = "tool-block-collapsed" if role == "tool" else "msg-collapsed"
         body.classes(remove=_BUBBLE_EXPANDED_CLASS, add=collapse_class)
-        icon = "expand_more"
     else:
         body.classes(
             remove=" ".join(_BUBBLE_COLLAPSED_CLASSES), add=_BUBBLE_EXPANDED_CLASS
         )
-        icon = "expand_less"
-    row_children = _bubble_children(row)
-    if row_children:
-        row_children[-1].props(f"icon={icon}")
+    # The toggle is a labelled control: retitle it in place.  A body that fits
+    # its collapsed height carries no control, so an absent one is expected and
+    # skipped (the class flip above still applies).
+    for row_child in (
+        (_control,) if (_control := _find_expand_control(row)) is not None else ()
+    ):
+        if EXPAND_CONTROL_CLASS in (getattr(row_child, "_classes", None) or ()):
+            label = expand_label(collapsed)
+            set_text = getattr(row_child, "set_text", None)
+            if callable(set_text):
+                set_text(label)
+            else:
+                row_child.props(f"label={label}")
+            break
 
 
 def _expand_handler(holder: dict[str, Any], idx: int, expanded: set[int], role: str):
@@ -986,6 +1016,11 @@ def _render_messages(ctx: PageContext) -> None:
                 collapsed = idx not in expanded
                 text = msg.get("text", "")
                 role = msg.get("role", "agent")
+                # Show the expand control only when the body actually exceeds
+                # its collapsed height; a block that fits is not expandable.
+                overflowing = content_overflows(
+                    role, text, msg.get("data", ""), msg.get("mime", "")
+                )
                 # Toggle expand/collapse in place rather than re-running the
                 # renderer: a full rebuild clears the scroll area's content,
                 # which resets the reader's viewport (the TUI flips a CSS
@@ -1004,6 +1039,7 @@ def _render_messages(ctx: PageContext) -> None:
                     data=msg.get("data", ""),
                     meta=msg.get("meta", {}),
                     is_error=msg.get("is_error", False),
+                    overflowing=overflowing,
                     collapsed=collapsed,
                     idx=idx,
                     on_copy=lambda t=text: ui.run_javascript(
