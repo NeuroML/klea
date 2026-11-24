@@ -7,7 +7,8 @@ ADR-0058 and ADR-0059:
 - a run under construction lives at ``<root>/runs/<run_id>.tmp/``;
 - ``metrics.jsonl`` sits at the run root, never under ``workspace/``;
 - ``COMPLETE`` is written last, and the final directory only ever appears by an
-  atomic rename, so a reader sees no run or a complete run;
+  atomic rename whose parent ``runs/`` directory is fsynced, so a reader sees no
+  run or a complete run and the rename survives a crash;
 - ``ARCHIVED`` is written alongside ``COMPLETE`` only by the explicit retention
   pass, and marks a complete run kept for the record rather than a fresh result.
 
@@ -299,7 +300,12 @@ def publish_run(run_id: str, root: Path | None = None, overwrite: bool = False) 
         if moved_aside:
             logger.warning(f"restoring previous run {superseded_dir} for {run_id = }")
             os.replace(superseded_dir, final_dir)
+            _fsync_dir(final_dir.parent)
         raise
+
+    # Make the rename durable too: a reader sees no run or a complete run, and
+    # the published directory entry survives a crash after this point.
+    _fsync_dir(final_dir.parent)
 
     if moved_aside:
         shutil.rmtree(superseded_dir, ignore_errors=True)
