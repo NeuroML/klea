@@ -1741,6 +1741,25 @@ async def test_message_blocks_have_padding(fake_backend, make_app):
         assert block.styles.padding.bottom >= 1
 
 
+async def test_message_block_renders_right_aligned_timestamp(fake_backend, make_app):
+    """The stamp shares one footer row with the hint, right-aligned."""
+    long_text = "\n\n".join(f"paragraph {i}" for i in range(20))
+    fake_backend.scripts = [[{"type": "complete", "message_for_user": long_text}]]
+    app = make_app()
+    async with app.run_test(size=(80, 30)) as pilot:
+        await _submit(pilot, app, "hi")
+        await _settle(pilot, app)
+        block = app.screen.query(MessageBlock).last()
+        stamp = block.query_one(".message-stamp", Static)
+        assert str(stamp.render())
+        assert stamp.styles.text_align == "right"
+        # The hint and the stamp share one footer row, hint first.
+        hint = block.query_one(".message-more", Static)
+        assert hint.region.y == stamp.region.y
+        assert hint.region.x < stamp.region.x
+        assert "drag to select" in str(hint.render())
+
+
 async def test_short_message_is_not_collapsed(fake_backend, make_app):
     """A short message gets no clip and no expand hint."""
     app = make_app()
