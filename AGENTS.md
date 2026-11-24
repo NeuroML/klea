@@ -53,10 +53,13 @@ Verification in step 2 covers:
 | `agent_pkg/` | `klea_agent` | `klea`, `klea-serve` |
 | `rag_pkg/` | `klea_rag` | `klea-rag`, `klea-rag-serve` |
 | `mcp_pkg/` | `neuroml_mcp` | `nml-mcp` |
+| `eval_pkg/` | `klea-eval` | `klea-eval` |
 
 `klea_agent` is the main application: a general-purpose research agent
 (coding, workflows, analysis, hypothesis generation).  `klea_rag` is
 primarily consumed by `klea_agent` (as a retrieval/RAG service).
+`klea_eval` is a Klea-only evaluation harness; its scope exclusions are
+recorded in `devdocs/adr/0062-klea-only-scope-exclusions.md`.
 
 Each has its own `AGENTS.md` with architecture details -- refer to those for
 package-specific commands, node layout, and conventions.

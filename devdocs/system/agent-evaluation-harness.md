@@ -3,7 +3,9 @@
 Status: scope and orientation note, not an ADR.  It records the task
 taxonomy, model conditions, threats to validity, the boundary guardrail
 test and the `eval_pkg` layout; the normative decisions now live in
-ADR-0056, ADR-0057, ADR-0058, ADR-0059 and ADR-0060, all dated 2026-10-27.
+ADR-0056, ADR-0057, ADR-0058, ADR-0059 and ADR-0060, all dated 2026-10-27,
+plus ADR-0061 (deterministic-only scoring) and ADR-0062 (Klea-only evaluation
+harness scope exclusions), added later.
 Companion to `agent-topology-literature-review.md`.  Written 2026-09-10 by
 opencode (model: deepseek-flash).  The concrete `eval_pkg` implementation
 plan is captured at the end of this document; it is deferred until the
@@ -14,6 +16,8 @@ and is not a general-purpose evaluation harness or benchmarking platform.
 Every suite, fixture and check targets Klea's own agent or RAG server.  The
 three deferred items below (no harness-level sandbox, no general adapter
 contract, no repository/container binding) follow from that Klea-only remit.
+
+See ADR-0062 (Klea-only evaluation harness scope exclusions).
 
 ## Why
 
@@ -453,7 +457,7 @@ sequenceDiagram
 - **Prompt versioning**: Prompt text and version logged in `run.json`.
 - **Fixture snapshots**: Fixtures copied under `runs/<run_id>/workspace/`; the original fixture is preserved and the copy is immutable.
 - **Artifact storage**: `run.json` plus the versioned `metrics.jsonl` (`schema_version`, `record_type`, final "run" envelope), the reduced ``transcript.jsonl`` record and the workspace are stored for offline reproducibility; the transcript is a failure-diagnostics record and never a grading input, so a graded field stays reproducible from ``run.json`` and ``metrics.jsonl`` alone (ADR-0061).
-- **Retention**: Retention is never automatic; the operator runs `klea-eval prune`, which archives a run beyond the most recent N per case (N from run config) by removing only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the reduced ``transcript.jsonl`` record, the `COMPLETE` marker and the index line, with an `ARCHIVED` marker written beside them; `--purge` deletes the whole run directory and drops the index line instead, and `--dry-run` reports the plan without touching the disk (ADR-0059).
+- **Retention**: Retention is never automatic; the operator runs `klea-eval prune`, which archives a run beyond the most recent N per case (N from run config) by removing only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the reduced ``transcript.jsonl`` record, the `COMPLETE` marker and the index line, with an `ARCHIVED` marker written beside them; `--purge` deletes the whole run directory and drops the index line instead, and `--dry-run` reports the plan without touching the disk (ADR-0059).  Two known current limitations apply: an archived run's artifacts cannot be re-hydrated, and there is no second purge horizon for already-archived runs.
 - **Scope of determinism**: Only identifiers, ordering and derived metrics are reproducible; turn content and latency are stochastic.  Grading itself is deterministic per ADR-0061.
 - **Execution verdicts**: an execution verdict is a function of the stored `command` and the recorded exit status only; it is never re-derived by re-running the command or by reading its discarded output, while the file outputs it produced stay graded from the live `workspace/` (ADR-0061 amendment, 2026-11-19).
 
@@ -570,4 +574,4 @@ Status: questions 1, 3, 4 and 5 are settled by ADR-0056, ADR-0057, ADR-0058, ADR
 5. **Result persistence**: Filesystem-only per ADR-0059 -- versioned `run.json` plus `metrics.jsonl` under `runs/<run_id>/`, with `runs/index.jsonl` as a lookup-only index.
 6. **Scoring latency**: No judged scoring (ADR-0061); deterministic checks run synchronously.
 
-These decisions are recorded in ADR-0056, ADR-0057, ADR-0058, ADR-0059, ADR-0060 and ADR-0061.  The genuinely open items above, and the deferred extensions such as parallel turns, per-turn model selection and an external tracking backend, can be revisited as the harness matures.
+These decisions are recorded in ADR-0056, ADR-0057, ADR-0058, ADR-0059, ADR-0060, ADR-0061 and ADR-0062.  The genuinely open items above, and the deferred extensions such as parallel turns, per-turn model selection and an external tracking backend, can be revisited as the harness matures.

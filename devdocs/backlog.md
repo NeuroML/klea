@@ -281,9 +281,10 @@ phases are listed below.
   deletes the whole directory and drops the line instead, and `--dry-run`
   reports the plan without touching the disk.  Retention is explicit-only: it
   runs only from `klea-eval prune`, never automatically after a publish, because
-  pruning is lossy.  Residual follow-ups: re-hydrating an archived run's
-  artifacts, a second purge horizon for already-archived runs, and the automatic
-  post-publish retention hook, which is rejected rather than deferred.
+  pruning is lossy.  Deferred known current limitations (recorded in the Retention bullet of
+  `devdocs/system/agent-evaluation-harness.md`): re-hydrating an archived run's
+  artifacts, and a second purge horizon for already-archived runs.  The
+  automatic post-publish retention hook stays rejected rather than deferred.
 - Benchmark adapter contract -- **closed, no harness feature** (2026-11-23):
   a benchmark ships its own
   pre-processing/adapter scripts with its suite; the scripts emit case JSONL
@@ -294,8 +295,8 @@ phases are listed below.
   the contract, self-checked by `klea-eval validate`.  A converter must map the
   benchmark's verdict onto `expected_outputs`, `tool_expectations` or `command` /
   `command_timeout`; a benchmark graded only by free-text rubrics maps to no
-  deterministic check.  The expected adapter output
-  shape is not yet documented.
+  deterministic check.  Recorded in ADR-0062 (Klea-only evaluation
+  harness scope exclusions).
 - Command sandbox and permission model (deferred): an executed case `command`
   runs with its working directory pinned to the run `workspace/` and nothing
   else constrained; there is no sandbox, no user or environment allowlist and
@@ -303,7 +304,8 @@ phases are listed below.
   The harness does not grow a sandbox or a permission model; the operator
   isolates the run (container, bubblewrap, chroot) and runs only trusted suites,
   consistent with the existing stance that only OS-level sandboxing is a hard
-  boundary (ADR-0007 layer 3, ADR-0038).
+  boundary (ADR-0007 layer 3, ADR-0038).  Recorded in ADR-0062 (Klea-only
+  evaluation harness scope exclusions).
 - Carve-out retained: process-group kill for case commands.  `subprocess.run`'s
   timeout kills only the direct child, so the process-group kill already tracked
   above is needed here too to reap detached descendants; this remains an open
@@ -315,7 +317,8 @@ phases are listed below.
 - Repository/container binding -- **out of scope** (2026-11-23): binding a case
   to a git repository or a container image is environment provisioning, not a
   statement about task correctness, so suites that need it are simply not used.
-  No harness change follows from this decision.
+  No harness change follows from this decision.  Recorded in ADR-0062
+  (Klea-only evaluation harness scope exclusions).
 
 ## Infrastructure / correctness
 

@@ -135,6 +135,8 @@ the updated images alongside the source change.
 | `adr/0058-metrics-collection-aggregation.md` | ADR-0058: Metrics Collection & Aggregation |
 | `adr/0059-result-storage.md` | ADR-0059: Result Storage |
 | `adr/0060-harness-execution.md` | ADR-0060: Harness Execution & Orchestration |
+| `adr/0061-deterministic-only-scoring.md` | ADR-0061: Deterministic-only scoring |
+| `adr/0062-klea-only-scope-exclusions.md` | ADR-0062: Klea-only evaluation harness scope exclusions |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-component-agent.md` | C4 model Level 3: Agent component diagram (graph nodes + supporting components, auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |

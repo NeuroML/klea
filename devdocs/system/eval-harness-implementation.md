@@ -14,6 +14,8 @@ Relevant ADRs:
 - ADR-0058: metrics collector and runner interfaces.
 - ADR-0059: result storage and reporting format.
 - ADR-0060: harness pipeline, CLI, scheduler and exit codes.
+- ADR-0061: deterministic-only scoring.
+- ADR-0062: Klea-only evaluation harness scope exclusions.
 
 If this note and an ADR disagree, the ADR wins and this note is corrected.
 

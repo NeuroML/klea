@@ -4,10 +4,9 @@ Guidance for agents working inside the `eval_pkg` package.
 
 ## Purpose
 
-`eval_pkg` is the evaluation harness for the architecture decision records
-0056 through 0060. It provides the fixtures, runners and reporting helpers
-used to evaluate those ADRs reproducibly, and it exists so that every
-reviewer runs the same evaluation the same way.
+`eval_pkg` is the evaluation harness for Klea. It provides the fixtures, runners
+and reporting helpers used to evaluate Klea reproducibly, and it exists so that
+every reviewer runs the same evaluation the same way.
 
 `eval_pkg` (import name `klea_eval`) is the Klea-specific evaluation harness:
 it exists to evaluate Klea and is not a general-purpose evaluation harness or
@@ -16,11 +15,13 @@ agent or RAG server.
 
 ## Governing ADRs
 
-- ADR 0056 - evaluation harness scope
-- ADR 0057 - fixture and data handling
-- ADR 0058 - runner interfaces
-- ADR 0059 - result reporting format
-- ADR 0060 - reproducibility and pinned environments
+- ADR 0056 - Test Case Storage Format
+- ADR 0057 - Run Manager & Isolation
+- ADR 0058 - Metrics Collection & Aggregation
+- ADR 0059 - Result Storage
+- ADR 0060 - Harness Execution & Orchestration
+- ADR 0061 - Deterministic-only scoring
+- ADR 0062 - Klea-only evaluation harness scope exclusions
 
 Changes to this package must stay consistent with the ADRs above.
 
@@ -28,7 +29,7 @@ Changes to this package must stay consistent with the ADRs above.
 
 - `eval_pkg/__init__.py` - package entry point and public exports.
 - `eval_pkg/runners/` - evaluation runners that drive a single scenario.
-- `eval_pkg/fixtures/` - fixture loaders and the fixture data used by runs.
+- `tests/fixtures/` - fixture data used by the harness tests.
 - `eval_pkg/reporting/` - result collection and report rendering.
 - `tests/` - unit and integration tests for this package.
 - `AGENTS.md` - this file.
