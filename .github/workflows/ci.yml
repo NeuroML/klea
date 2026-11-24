@@ -113,7 +113,9 @@ jobs:
           bash ./scripts/run_tests.sh
         fi
 
+    # Note: scripts/run_tests.sh already runs eval_pkg on Linux/macOS
     - name: Run eval-marked tests
+      if: runner.os == 'Windows'
       run: |
         cd eval_pkg
         pytest -q -m eval
