@@ -278,7 +278,9 @@ key-hints line shows the ask's actions.  The review ask's feedback field is a
 and grows to a capped height, and submits only through
 **Revise with feedback** (Enter no longer submits; Ctrl+J inserts a newline).
 Typing in the field never opens the command suggestions, which only the
-composer drives.  The ask bodies are spaced for readability: each section
+composer drives.  Both the review field and every input ask field keep a
+permanent `$primary` border and a `$primary 15%` fill, so they read as editable
+while unfocused; focus then brightens that same border to full `$primary`.  The ask bodies are spaced for readability: each section
 title is set apart, the body carries a quiet left gutter plus top/bottom
 margins, and the question line is muted.  A permission ask
 shows the full target path (middle-truncated only for pathological values),

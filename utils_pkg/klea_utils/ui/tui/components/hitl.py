@@ -124,15 +124,22 @@ class HitlDecisionPanel(VerticalScroll):
     HitlDecisionPanel Input {
         width: 1fr;
         margin-top: 1;
+        border: tall $primary 40%;
+        background: $primary 15%;
     }
     HitlDecisionPanel QueryTextArea {
         width: 1fr;
         height: auto;
         max-height: 8;
-        border: none;
+        border: tall $primary 40%;
+        background: $primary 15%;
         margin-top: 1;
         /* Keep the buttons below the field from sitting flush against it. */
         margin-bottom: 1;
+    }
+    HitlDecisionPanel Input:focus,
+    HitlDecisionPanel QueryTextArea:focus {
+        border: tall $primary;
     }
     HitlDecisionPanel RadioSet {
         margin-top: 1;
