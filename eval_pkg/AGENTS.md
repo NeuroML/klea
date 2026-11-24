@@ -27,10 +27,10 @@ Changes to this package must stay consistent with the ADRs above.
 
 ## Layout
 
-- `eval_pkg/__init__.py` - package entry point and public exports.
-- `eval_pkg/runners/` - evaluation runners that drive a single scenario.
-- `tests/fixtures/` - fixture data used by the harness tests.
-- `eval_pkg/reporting/` - result collection and report rendering.
+- `eval_pkg/klea_eval/__init__.py` - package entry point and public exports.
+- `eval_pkg/klea_eval/runners/` - evaluation runners that drive a single scenario.
+- `eval_pkg/tests/fixtures/` - fixture data used by the harness tests.
+- `eval_pkg/klea_eval/reporting.py` - result collection and report rendering.
 - `tests/` - unit and integration tests for this package.
 - `AGENTS.md` - this file.
 
