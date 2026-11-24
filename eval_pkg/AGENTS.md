@@ -38,7 +38,7 @@ Changes to this package must stay consistent with the ADRs above.
 
 Run from the repository root.
 
-- Install (editable, with dev extras): `pip install -e ".[dev]"`
+- Install (editable, with dev extras): `uv pip install -e "./eval_pkg[dev]"`
 - Test: `pytest eval_pkg`
 - Lint: `ruff check eval_pkg`
 - Type check: `ty check eval_pkg`
