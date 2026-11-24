@@ -7,6 +7,11 @@ For a step-by-step walkthrough of a first run -- prerequisites, the JSONL
 suite format, and how to read the stored results -- see
 :doc:`../guides/run-an-evaluation`.
 
+``klea-eval`` is the Klea-specific evaluation harness: it exists to evaluate
+Klea and is not a general-purpose evaluation harness or benchmarking
+platform.  Every suite, fixture and check targets Klea's own agent or RAG
+server.
+
 .. typer:: klea_eval.ui.cli:app
    :prog: klea-eval
    :show-nested:

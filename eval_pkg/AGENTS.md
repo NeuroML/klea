@@ -9,6 +9,11 @@ Guidance for agents working inside the `eval_pkg` package.
 used to evaluate those ADRs reproducibly, and it exists so that every
 reviewer runs the same evaluation the same way.
 
+`eval_pkg` (import name `klea_eval`) is the Klea-specific evaluation harness:
+it exists to evaluate Klea and is not a general-purpose evaluation harness or
+benchmarking platform.  Every suite, fixture and check targets Klea's own
+agent or RAG server.
+
 ## Governing ADRs
 
 - ADR 0056 - evaluation harness scope

@@ -62,7 +62,7 @@ the updated images alongside the source change.
 | `system/external-source-pools.md` | External source pools: the shared keyless-first provider-pool + sequential-fallback pattern (DOI resolver, web search, paper search) and each one's adaptations |
 | `system/edit-format-strategy.md` | Edit-format strategy for coding tools: write (whole-file) + edit (search/replace) dual tools with model-guided selection |
 | `system/agent-topology-literature-review.md` | Literature review: agent loop topology, cost-aware inference, planning/verification and small-model agency |
-| `system/agent-evaluation-harness.md` | Planning note: task-level evaluation harness for comparing agent topologies on correctness and cost |
+| `system/agent-evaluation-harness.md` | Planning note: Klea-specific task-level evaluation harness for comparing agent topologies on correctness and cost (not a general-purpose benchmark platform) |
 | `system/eval-harness-run-guide.md` | Run guide: prerequisites, case JSONL format, validate/run/inspect/prune commands, deterministic run_id and --overwrite, troubleshooting |
 | `system/agent-general-path-control-flow.md` | General-path control flow: nodes, failure triage, evaluator routing and escalation (ADR-0035 mechanics; companion to the C4 Agent component diagram) |
 | `system/web-theming.md` | Web UI theming: design tokens, the `@layer overrides` cascade-layer contract, and semantic classes |

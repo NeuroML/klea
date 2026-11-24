@@ -1,6 +1,6 @@
 # Eval harness implementation plan
 
-This note is the implementation tracker for the evaluation harness in `eval_pkg/`.
+This note is the implementation tracker for the Klea-specific evaluation harness in `eval_pkg/`.
 It sits beside `devdocs/system/agent-evaluation-harness.md`, which holds the
 architecture (stage graph, run lifecycle sequence, report shape). This note holds
 the delivery plan: the decisions taken before coding, the ordered phases, and the

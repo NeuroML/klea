@@ -12,6 +12,8 @@ Public user documentation lives in `docs/guides/run-an-evaluation.rst` (the
 quickstart) and `docs/cli/klea-eval.rst` (the command reference); this note
 remains the internal authoring and operations reference.
 
+Scope: the harness exists to evaluate Klea only.  `klea_eval` is the Klea-specific evaluation harness: it exists to evaluate Klea and is not a general-purpose evaluation harness or benchmarking platform.  Every suite, fixture and check targets Klea's own agent or RAG server.
+
 ## 1. Prerequisites
 
 * A Python environment with the package installed (`uv pip install -e

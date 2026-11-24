@@ -9,6 +9,12 @@ opencode (model: deepseek-flash).  The concrete `eval_pkg` implementation
 plan is captured at the end of this document; it is deferred until the
 general path stabilises.
 
+`klea_eval` is the Klea-specific evaluation harness: it exists to evaluate Klea
+and is not a general-purpose evaluation harness or benchmarking platform.
+Every suite, fixture and check targets Klea's own agent or RAG server.  The
+three deferred items below (no harness-level sandbox, no general adapter
+contract, no repository/container binding) follow from that Klea-only remit.
+
 ## Why
 
 The general-path topology must be chosen on evidence, and the scientific
@@ -31,8 +37,8 @@ Non-goals (first iteration):
 
 - Full reproduction of GAIA/tau-bench/SWE-bench.  Start with a Klea-specific
   suite that mirrors their task shapes, and optionally add a public subset
-  later.  The harness stays a general core engine: a benchmark ships its own
-  pre-processing/adapter scripts together with its suite, and those scripts
+  later.  The harness stays a Klea-specific engine: a suite ships its own
+  pre-processing/adapter scripts together with it, and those scripts
   emit case JSONL plus fixtures the loader already accepts.
 - Multi-agent comparisons.  Out of scope per the literature review.
 

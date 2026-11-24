@@ -7,6 +7,11 @@ reported on afterwards.  This page takes you from a running server to a
 stored, readable run.  See :doc:`../cli/klea-eval` for the complete command
 reference.
 
+``klea-eval`` is the Klea-specific evaluation harness: it exists to evaluate
+Klea and is not a general-purpose evaluation harness or benchmarking
+platform.  Every suite, fixture and check targets Klea's own agent or RAG
+server.
+
 Prerequisites
 -------------
 
