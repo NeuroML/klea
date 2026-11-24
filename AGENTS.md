@@ -58,6 +58,7 @@ Verification in step 2 covers:
 `klea_agent` is the main application: a general-purpose research agent
 (coding, workflows, analysis, hypothesis generation).  `klea_rag` is
 primarily consumed by `klea_agent` (as a retrieval/RAG service).
+`neuroml_mcp` is the NEURON/NML MCP server (`nml-mcp`).
 `klea_eval` is a Klea-only evaluation harness; its scope exclusions are
 recorded in `devdocs/adr/0062-klea-only-scope-exclusions.md`.
 
@@ -226,8 +227,8 @@ Git log has the step-by-step edits. Omit routine work.
 ## Versioning
 
 - Version is tracked in each package's ``setup.cfg`` (``version`` field).
-- ``klea_utils`` and ``klea_rag`` are published to PyPI; ``klea_agent`` and
-  ``neuroml_mcp`` are not yet published.
+- ``klea_utils`` and ``klea_rag`` are published to PyPI; ``klea_agent``,
+  ``neuroml_mcp`` and ``klea-eval`` are not yet published.
 - Pre-1.0 (0.x.y) releases: bump minor for new features, patch for bug fixes.
 - When cutting a release:
   1. ``git tag v<version>`` and ``git push --tags``
