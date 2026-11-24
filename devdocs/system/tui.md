@@ -369,6 +369,11 @@ the form introduced no new class or token, drawing the group divider with
   `token_line` of the preview's total lines.  A request with no token offsets
   (an older checkpoint) falls back to the plain `_hint` string, so the panel
   always renders; the two forms read the same, only the highlight differs.
+  The field headings are differentiated on every surface: the TUI panel and the
+  web ask render `Tool:`, `Argument:`, `Detected path:` and `Context:` as bold
+  labels, and the API transcript renders the permission decision label
+  (`Allowed once`, `Allowed for session`, `Denied`, `Not a path`) bold on its
+  own line, so a reader never mistakes a label for part of the value.
 
   ```
   1. Outside project path: /tmp/outside.txt
@@ -383,9 +388,11 @@ the form introduced no new class or token, drawing the group divider with
      ( ) Once  ( ) Session  ( ) Not a path  (o) Deny
   ```
 
-  The `Context:` token is shown in reverse video (the `<path>` span above);
-  with no offsets the same lines render as plain text and the token is not
-  highlighted.
+  Above the values, the `Tool:`, `Argument:`, `Detected path:` and `Context:`
+  headings are shown in a bold style (a code block cannot carry it, so the
+  sample spells them as plain labels); the `Context:` token is shown in reverse
+  video (the `<path>` span above), and with no offsets the same lines render as
+  plain text and the token is not highlighted.
 
 ## App composition
 

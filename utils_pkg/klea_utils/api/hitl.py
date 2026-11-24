@@ -154,7 +154,8 @@ def _render_decisions(value: Mapping[str, Any]) -> str | None:
         decision = str(entry.get("decision", ""))
         label = _PERMISSION_DECISION_LABELS.get(decision, decision or "Unknown")
         key = str(entry.get("key", ""))
-        parts.append(f"- {label}: `{key}`" if key else label)
+        heading = f"**{label}**"
+        parts.append(f"- {heading}: `{key}`" if key else heading)
     return "\n".join(parts)
 
 
@@ -181,9 +182,11 @@ def render_interrupt_response(value: Mapping[str, Any]) -> str:
     """Render an interrupt resume mapping as the user turn for the transcript.
 
     Each interrupt kind has a renderer (see :data:`_RESPONSE_RENDERERS`):
-    input ``answers`` are joined; path-permission ``decisions`` are shown as
-    "Allowed once: /tmp", "Allowed for session: /proj", "Denied: <key>" or
-    "Not a path: <key>"; a review ``decision`` becomes "Plan approved" /
+    input ``answers`` are joined; path-permission ``decisions`` are shown as a
+    bold label followed by the backticked key on its own line, e.g.
+    "**Allowed once**: `/tmp`", "**Allowed for session**: `/proj`",
+    "**Denied**: `/proj/.env`" or "**Not a path**: `not/a/real/path`"; a
+    review ``decision`` becomes "Plan approved" /
     "Revision requested: <feedback>".  An unknown shape falls back to its JSON
     form.  This is display only: the wire values are unchanged.
 

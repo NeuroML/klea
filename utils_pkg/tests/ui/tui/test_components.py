@@ -593,6 +593,14 @@ class TestPermissionPanelHelpers:
 
         assert isinstance(rendered, Text)
         assert "Detected path" in rendered.plain
+        # The "Detected path: " heading itself is bold-styled.
+        heading_start = rendered.plain.index("Detected path: ")
+        heading_end = heading_start + len("Detected path: ")
+        bold_spans = [span for span in rendered.spans if str(span.style) == "bold"]
+        assert any(
+            span.start <= heading_start and span.end >= heading_end
+            for span in bold_spans
+        )
         reverse_spans = [
             span for span in rendered.spans if str(span.style) == "reverse"
         ]
