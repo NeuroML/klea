@@ -272,6 +272,20 @@ def test_http_runner_ignores_ping(tmp_path: Path) -> None:
     assert [event.event for event in outcome.events] == ["complete"]
 
 
+def test_complete_without_message_for_user_is_an_error(tmp_path: Path) -> None:
+    """A ``complete`` event without a string message is a malformed turn."""
+    payloads: list[dict[str, object]] = [
+        {"type": "complete"},
+        {"type": "complete", "data": {"node": "answer_user"}},
+        {"type": "complete", "message_for_user": None},
+    ]
+    for payload in payloads:
+        stream = _frame("complete", payload)
+        runner, _ = _make_runner(_stream_handler(stream))
+        with pytest.raises(RunnerStreamError, match="message_for_user"):
+            _run_turn(runner, _context(tmp_path), FakeTurn())
+
+
 def test_http_runner_raises_on_an_error_event(tmp_path: Path) -> None:
     runner, _ = _make_runner(_stream_handler(_fixture("error_turn.sse")))
     with pytest.raises(RunnerStreamError, match="run_command failed"):
