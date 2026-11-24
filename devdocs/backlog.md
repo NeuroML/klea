@@ -324,6 +324,16 @@ phases are listed below.
   statement about task correctness, so suites that need it are simply not used.
   No harness change follows from this decision.  Recorded in ADR-0062
   (Klea-only evaluation harness scope exclusions).
+- Root `AGENTS.md` corrections, **deferred** to a later repo-docs pass (repo
+  documentation, no eval-harness code change): two gaps found during the eval
+  work in the root `AGENTS.md`.  (1) The Versioning bullet lists `klea_utils`
+  and `klea_rag` as published and `klea_agent`/`neuroml_mcp` as not, but says
+  nothing about `klea-eval`, so it needs one sentence stating whether
+  `klea-eval` is published.  (2) The `Packages at a glance` intro sentence
+  names only `klea_agent` (the main application) and `klea_rag` (consumed by
+  it) while the table below lists five packages, so the intro omits `mcp_pkg`
+  and `eval_pkg`.  Both are documentation-only fixes to the root `AGENTS.md`
+  and are not applied in this run.
 
 ## Infrastructure / correctness
 
