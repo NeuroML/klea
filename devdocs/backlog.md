@@ -334,6 +334,22 @@ phases are listed below.
   it) while the table below lists five packages, so the intro omits `mcp_pkg`
   and `eval_pkg`.  Both are documentation-only fixes to the root `AGENTS.md`
   and are not applied in this run.
+- Automatic retry on the `409` awaiting-answer state, **deferred** to a later
+  pass in the main git worktree (agent-side change, not eval-harness code;
+  nothing is changed in this eval worktree).  The observed seed-0 failure
+  mode is a `409 {"detail": "This chat is awaiting your answer."}` response
+  that the operator retries by hand with `ctrl+R`; the agent should retry
+  automatically instead, because the state is either a transient provider
+  error worth a retry or an HITL node pausing for input.
+- Autonomous mode (no HITL, no path checking), **deferred** to the same later
+  pass in the main git worktree (agent-side change, not eval-harness code).
+  The HITL nodes have to be removed and path checking relaxed so a task runs
+  to completion without human intervention.  Step-4 finding: every turn is
+  posted with `client_context.cwd` pinned to
+  `context.run_dir / 'workspace'` (`_build_payload` in
+  `eval_pkg/klea_eval/runners/http.py`), so relaxing the permission root has
+  to follow that cwd -- the harness keeps pinning the run workspace while the
+  agent stops gating paths.
 
 ## Infrastructure / correctness
 
