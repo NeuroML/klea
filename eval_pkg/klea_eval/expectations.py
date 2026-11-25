@@ -174,10 +174,10 @@ class ExpectationCheck:
 def grade_checks(checks: Sequence[ExpectationCheck]) -> bool | None:
     """Reduce the checks of one case to its grade.
 
-    ``True`` when every check passed, ``False`` as soon as one check failed, and
-    ``None`` when nothing at all could be verified -- a case whose checks are
-    all unverifiable is left ungraded (and so reports grade-missing) rather
-    than passing by default.
+    ``True`` only when every check passed, ``False`` as soon as one check
+    failed, and ``None`` when any check could not be verified -- a passing check
+    never overrides an unverifiable one, and a case with nothing verifiable is
+    left ungraded (and so reports grade-missing) rather than passing by default.
     """
     if not checks:
         logger.debug("expectations: no checks to grade")
@@ -186,7 +186,11 @@ def grade_checks(checks: Sequence[ExpectationCheck]) -> bool | None:
         failures = sum(1 for check in checks if check.failed)
         logger.debug(f"{len(checks) = }, {failures = }")
         return False
-    if any(check.passed for check in checks):
+    if any(check.unverifiable for check in checks):
+        unverifiable = sum(1 for check in checks if check.unverifiable)
+        logger.debug(f"{len(checks) = }, {unverifiable = }")
+        return None
+    if all(check.passed for check in checks):
         logger.debug(f"{len(checks) = }, every check passed")
         return True
 

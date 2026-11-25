@@ -119,6 +119,35 @@ def _by_kind(checks: Any, kind: str) -> Any:
     return found[0]
 
 
+def test_grade_checks_stays_unverifiable_over_a_passing_check() -> None:
+    """A passing check never overrides an unverifiable one."""
+    checks = (
+        expectations.ExpectationCheck(
+            turn_number=1,
+            kind=KIND_FILE_PRESENT,
+            target="out.txt",
+            outcome=OUTCOME_PASS,
+            detail="present",
+        ),
+        expectations.ExpectationCheck(
+            turn_number=1,
+            kind=KIND_FORMAT_DECODE,
+            target="out.txt",
+            outcome=OUTCOME_PASS,
+            detail="decoded",
+        ),
+        expectations.ExpectationCheck(
+            turn_number=1,
+            kind=KIND_VALIDATION_RULE,
+            target="out.txt",
+            outcome=OUTCOME_UNVERIFIABLE,
+            detail="no rule to apply",
+        ),
+    )
+
+    assert expectations.grade_checks(checks) is None
+
+
 # ---------------------------------------------------------------------------
 # Expected outputs: file presence, decoding and validation rules
 # ---------------------------------------------------------------------------
@@ -283,7 +312,7 @@ def test_validation_rule_without_expected_content_is_unverifiable(
     assert rule.detail == (
         "validation_rule 'exact_match' has no expected value in the case schema"
     )
-    assert expectations.grade_checks(checks) is True
+    assert expectations.grade_checks(checks) is None
 
 
 def test_missing_output_file_fails(tmp_path: Path) -> None:
