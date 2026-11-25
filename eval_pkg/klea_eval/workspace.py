@@ -262,6 +262,7 @@ def publish_run(run_id: str, root: Path | None = None, overwrite: bool = False) 
 
     if not tmp_dir.is_dir():
         logger.debug(f"{run_id = }, {tmp_dir = }")
+        _overwrite_marker(run_id, root).unlink(missing_ok=True)
         raise WorkspaceError(f"no run under construction at {tmp_dir}")
 
     overwrite_marker = _overwrite_marker(run_id, root)
@@ -297,10 +298,15 @@ def publish_run(run_id: str, root: Path | None = None, overwrite: bool = False) 
     try:
         os.replace(tmp_dir, final_dir)
     except OSError:
-        if moved_aside:
-            logger.warning(f"restoring previous run {superseded_dir} for {run_id = }")
-            os.replace(superseded_dir, final_dir)
-            _fsync_dir(final_dir.parent)
+        try:
+            if moved_aside:
+                logger.warning(
+                    f"restoring previous run {superseded_dir} for {run_id = }"
+                )
+                os.replace(superseded_dir, final_dir)
+                _fsync_dir(final_dir.parent)
+        finally:
+            overwrite_marker.unlink(missing_ok=True)
         raise
 
     # Make the rename durable too: a reader sees no run or a complete run, and

@@ -296,3 +296,29 @@ def test_publish_run_requires_a_tmp_tree(tmp_path):
         workspace.publish_run("never-prepared", root=tmp_path)
 
     assert not workspace.run_dir("never-prepared", tmp_path).exists()
+
+
+def test_publish_run_clears_the_overwrite_sentinel_when_the_rename_fails(
+    tmp_path, monkeypatch
+):
+    """A failed final rename restores the old run and drops the sentinel."""
+    final_dir = _make_complete_run(tmp_path, "fail-me")
+    tmp_dir = workspace.prepare_run("fail-me", root=tmp_path, overwrite=True)
+    (tmp_dir / "fresh.txt").write_text("new")
+    sentinel = final_dir.with_name(f"{final_dir.name}.overwrite")
+    assert sentinel.is_file()
+
+    real_replace = workspace.os.replace
+
+    def failing_replace(source, destination):
+        if source == tmp_dir:
+            raise OSError("simulated rename failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(workspace.os, "replace", failing_replace)
+
+    with pytest.raises(OSError):
+        workspace.publish_run("fail-me", root=tmp_path)
+
+    assert not sentinel.is_file()
+    assert workspace.is_complete(final_dir)
