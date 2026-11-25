@@ -481,6 +481,12 @@ def summary(
         raise typer.Exit(code=2) from error
     typer.echo(f"suite_score: {aggregate.suite_score:.4f}")
     typer.echo(f"pass_at_k: {aggregate.pass_at_k:.4f}")
+    ratio = aggregate.input_output_ratio
+    typer.echo(
+        f"input_output_ratio: {ratio:.4f}"
+        if ratio is not None
+        else "input_output_ratio: n/a"
+    )
 
 
 if __name__ == "__main__":

@@ -132,6 +132,9 @@ class SuiteAggregate:
     total_normalised_units: float = 0.0
     cost_estimate: float = 0.0
     missing_runs: tuple[str, ...] = ()
+    #: Output tokens per input token over the aggregate totals; ``None`` when no
+    #: input tokens were recorded, so a missing denominator stays explicit.
+    input_output_ratio: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return the suite aggregate as a plain, JSON-ready mapping."""
@@ -151,6 +154,7 @@ class SuiteAggregate:
             "total_normalised_units": self.total_normalised_units,
             "cost_estimate": self.cost_estimate,
             "missing_runs": list(self.missing_runs),
+            "input_output_ratio": self.input_output_ratio,
         }
 
 
@@ -358,6 +362,14 @@ def aggregate_suite(
     suite_score = sum(case_score_values) / case_count if case_count else 0.0
     pass_at_k = pass_count / case_count if case_count else 0.0
     costs = [case.cost_estimate for case in cases if case.cost_estimate is not None]
+    total_input_tokens = sum(case.total_input_tokens for case in cases)
+    total_output_tokens = sum(case.total_output_tokens for case in cases)
+    # Output tokens per input token over the aggregate totals.  A zero input
+    # total leaves the ratio undefined, so it is reported as ``None`` (null)
+    # rather than raising or masquerading as ``0.0``.
+    input_output_ratio = (
+        total_output_tokens / total_input_tokens if total_input_tokens else None
+    )
 
     aggregate = SuiteAggregate(
         root=str(root_path) if root_path is not None else None,
@@ -369,12 +381,13 @@ def aggregate_suite(
         pass_at_k=pass_at_k,
         ungraded_count=ungraded_count,
         grade_missing_count=grade_missing_count,
-        total_input_tokens=sum(case.total_input_tokens for case in cases),
-        total_output_tokens=sum(case.total_output_tokens for case in cases),
+        total_input_tokens=total_input_tokens,
+        total_output_tokens=total_output_tokens,
         total_cached_tokens=sum(case.total_cached_tokens for case in cases),
         total_normalised_units=sum(case.total_normalised_units for case in cases),
         cost_estimate=float(sum(costs)) if costs else 0.0,
         missing_runs=tuple(missing),
+        input_output_ratio=input_output_ratio,
     )
     logger.debug(
         f"{aggregate.case_count = }, {aggregate.pass_count = }, "

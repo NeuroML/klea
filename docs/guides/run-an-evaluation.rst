@@ -173,12 +173,13 @@ Reading the results
     klea-eval runs                       # the run index, one line per run
     klea-eval runs --case-id smoke-001 --status completed
     klea-eval show <run_id>              # <run_id>: <case_id> <status> pass|fail
-    klea-eval summary --k 1              # suite_score and pass_at_k
+    klea-eval summary --k 1              # suite_score, pass_at_k, input_output_ratio
     klea-eval report results.json -o report.md
 
 ``runs`` prints ``<run_id> <case_id> <status> <timestamp>`` per stored run and
 accepts ``--case-id`` and ``--status`` filters.  ``show`` reads one run back
-through the API.  ``summary`` prints ``suite_score`` and ``pass_at_k`` for
+through the API.  ``summary`` prints ``suite_score``, ``pass_at_k`` and the output-to-input
+``input_output_ratio`` for
 ``--k`` attempts per case (default ``1``).  ``report`` renders a report from
 already collected results to ``--output`` / ``-o``, where ``-`` means standard
 output.

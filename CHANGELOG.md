@@ -19,6 +19,7 @@
 - Eval runs now grade `expected_outputs` and `tool_expectations` against each run, resolving referenced files under the run's workspace and comparing against `expected_content` where a case supplies it.
 - Per-tool call details (name, arguments, error) are retained in the run metrics, so tool expectations can be graded.
 - Eval metrics now report a provider-independent normalised token unit -- fresh input tokens at weight 1, cached input tokens at weight 0.1 in place of the input tokens they substitute for, and output tokens on their own tunable weight -- so cost stays comparable across providers without a pinned price table.
+- `klea-eval summary` now prints `input_output_ratio`, the suite's output tokens per input token over the aggregate totals, reported as `n/a` when no input tokens were recorded.
 
 - The user-facing `klea-eval` quickstart and CLI reference are now documented.
 - Eval cases can declare their own `command` and a per-case `command_timeout`; the harness runs it once in the run workspace and grades it on its exit status only, recording the command and the exit code.

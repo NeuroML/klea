@@ -480,6 +480,57 @@ def test_aggregate_suite_follows_index_order_and_dedupes_runs(tmp_path: Path) ->
     assert first.to_dict() == second.to_dict()
 
 
+def test_aggregate_reports_the_output_to_input_token_ratio(tmp_path: Path) -> None:
+    # The ratio is output tokens per input token over the aggregate totals.
+    _write_metrics(
+        tmp_path,
+        "run-ratio",
+        "case-ratio",
+        task_success=True,
+        turn_tokens=(({"input_tokens": 100, "output_tokens": 25},)),
+    )
+    _append_index(tmp_path, "run-ratio", "case-ratio")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.total_input_tokens == 100
+    assert aggregate.total_output_tokens == 25
+    assert aggregate.input_output_ratio == pytest.approx(0.25)
+    assert aggregate.to_dict()["input_output_ratio"] == pytest.approx(0.25)
+
+
+def test_aggregate_ratio_is_null_without_input_tokens(tmp_path: Path) -> None:
+    # A zero input total leaves the ratio undefined: null, never an exception.
+    _write_metrics(
+        tmp_path,
+        "run-zero",
+        "case-zero",
+        task_success=True,
+        turn_tokens=(({"input_tokens": 0, "output_tokens": 40},)),
+    )
+    _append_index(tmp_path, "run-zero", "case-zero")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.total_input_tokens == 0
+    assert aggregate.total_output_tokens == 40
+    assert aggregate.input_output_ratio is None
+    assert aggregate.to_dict()["input_output_ratio"] is None
+
+
+def test_aggregate_ratio_is_null_when_runs_are_missing(tmp_path: Path) -> None:
+    # An unpublished run contributes no tokens, so the ratio stays null.
+    _write_metrics(tmp_path, "run-present", "case-present", task_success=True)
+    _append_index(tmp_path, "run-missing", "case-missing")
+    _append_index(tmp_path, "run-present", "case-present")
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.missing_runs == ("run-missing",)
+    assert aggregate.total_input_tokens == 0
+    assert aggregate.input_output_ratio is None
+
+
 def test_aggregate_suite_rejects_k_below_one(tmp_path: Path) -> None:
     with pytest.raises(scoring.ScoringError):
         scoring.aggregate_suite(tmp_path, k=0)
