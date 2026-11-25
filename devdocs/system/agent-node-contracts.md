@@ -51,8 +51,9 @@ A change to implementation without synchronized schemas, tests, diagrams, and do
 Node-scoped stream events also carry additive identity and attempt metadata
 that no node authors.  `node_id`, `run_id` and `step` are stamped by the graph
 runner (`_stream_identity` in `utils_pkg/klea_utils/graph/base.py`), and
-`llm_calls` (on `usage`) and `try_number` (on `tool` and the tools caller's and
-triage router's `inspect`/`state` payloads) ride the payloads.  They are
+`llm_calls` (on `usage`) and the 0-based `retry_count` (on `tool` and the tools
+caller's and triage router's `inspect`/`state` payloads; consumers add one for
+a 1-based attempt number) ride the payloads.  They are
 observability data, not graph-state updates, and are not part of any node's
 write contract.
 

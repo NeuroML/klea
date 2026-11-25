@@ -129,12 +129,13 @@ Two attempt counters ride the same payloads:
   only with a usage event, so it is >= 1 whenever present.  Usage is
   attributed per node execution; the turn-level totals in `api/context.py` and
   `ui/stream_events.py` stay aggregates, not per-call attribution.
-* `try_number` - the 1-based tool-call attempt number of the plan step, stamped
-  on every `tool` entry and on the tools caller's and triage router's
-  `inspect`/`state` payloads: `tool_retry_counts[step] + 1`, where the counter
-  holds the step's previous consecutive failures from ADaPT and is cleared when
-  the step makes progress.  It is `1` on a plan-less run such as Klea RAG, and
-  is never affected by HTTP/LLM transport retries.
+* `retry_count` - the 0-based count of the plan step's previous consecutive
+  failures from ADaPT (`tool_retry_counts[step]`), cleared when the step makes
+  progress, and stamped on every `tool` entry and on the tools caller's and
+  triage router's `inspect`/`state` payloads.  Consumers add one for a 1-based
+  attempt number.  It is `0` on a plan-less run such as Klea RAG, escalation
+  tests it against `max_retries`, and HTTP/LLM transport retries never affect
+  it.
 
 ## Persistence and hydration (ADR-0032 update)
 
