@@ -14,10 +14,13 @@ and re-runs are comparable and resumable (decision D6, ADR-0057, ADR-0060).
 
 Derivation rules:
 
-- ``run_id`` is a UUID v5 over ``RUN_NAMESPACE`` and the name
-  ``"<case_id>:<harness_seed>"``, suffixed with ``"|<config>"`` when a
-  result-affecting configuration (model overrides, resolved models, endpoint)
-  is supplied, where ``<config>`` is its ``sort_keys`` JSON serialisation.
+- ``run_id`` is a UUID v5 over ``RUN_NAMESPACE`` and the length-prefixed
+  name ``"<len(case_id)>:<case_id>:<len(seed)>:<seed>"``, suffixed with
+  ``"|<config>"`` when a result-affecting configuration (model overrides,
+  resolved models, endpoint) is supplied, where ``<config>`` is its
+  ``sort_keys`` JSON serialisation.  The length prefix makes the encoding
+  unambiguous, so a ``:`` or ``|`` inside a case id or seed can no longer
+  collide with another pair.
 - ``user_id`` is a UUID v5 over ``USER_NAMESPACE`` and the same name, so it is
   deterministic in the same inputs while staying independent of ``run_id``.
 - ``chat_id`` is a UUID v5 over ``CHAT_NAMESPACE`` and the name
@@ -94,7 +97,8 @@ def _config_text(
 
     The payload is dumped with ``sort_keys`` so the same configuration always
     yields the same text.  An empty configuration yields the empty string and
-    leaves the plain ``"<case_id>:<harness_seed>"`` name unchanged.
+    leaves the plain length-prefixed
+    ``"<len(case_id)>:<case_id>:<len(seed)>:<seed>"`` name unchanged.
     """
     payload: dict[str, Any] = {}
     overrides = _clean_mapping(model_overrides)
@@ -116,11 +120,17 @@ def _case_seed_name(
     harness_seed: str | int,
     config: str = "",
 ) -> str:
-    """Build the ``"<case_id>:<harness_seed>"`` UUID v5 name, plus ``config``."""
+    """Build the length-prefixed UUID v5 name, plus ``config``.
+
+    The name is ``"<len(case_id)>:<case_id>:<len(seed)>:<seed>"``; the length
+    prefix makes the encoding unambiguous, so a ``:`` or ``|`` inside a case
+    id or seed can no longer collide with another pair.
+    """
     case = case_id.strip()
     if not case:
         raise ValueError("case_id must be a non-empty string")
-    name = f"{case}:{_seed_text(harness_seed)}"
+    seed = _seed_text(harness_seed)
+    name = f"{len(case)}:{case}:{len(seed)}:{seed}"
     if config:
         name = f"{name}|{config}"
     return name

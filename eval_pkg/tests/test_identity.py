@@ -27,18 +27,19 @@ from klea_eval.identity import (
 )
 
 # Pinned vectors: the derivation must never change these values, otherwise
-# every stored run identifier silently changes meaning.
+# every stored run identifier silently changes meaning. These are pinned to
+# the length-prefixed, collision-free name form (``<len>:<value>:<len>:<value>``).
 PINNED_CASE_ID = "case-1"
 PINNED_SEED = "seed-alpha"
-PINNED_RUN_ID = "3de2da1a-1912-59cc-856a-d2116a896856"
-PINNED_USER_ID = "be25e56d-7cf4-5566-b9fb-7e3baf26ed9e"
-PINNED_CHAT_ID = "66109eec-08a9-5c01-9c8e-596b816e2823"
+PINNED_RUN_ID = "fae8469a-e18d-5358-a96d-9bb9cca808a7"
+PINNED_USER_ID = "c0790b31-9d05-54c7-92c9-cbd2969d10cd"
+PINNED_CHAT_ID = "2c641184-c380-5f66-bfe1-e5881b8174eb"
 
 SECOND_CASE_ID = "case-2"
 SECOND_SEED = 42
-SECOND_RUN_ID = "b73b260a-c2dd-5e8a-a393-bdb708586d74"
-SECOND_USER_ID = "f047665a-669d-53a3-a4d2-c2a92ea1a0e6"
-SECOND_CHAT_ID = "51f389ce-ac60-5a6e-86ca-6298eef7189a"
+SECOND_RUN_ID = "3b91e57f-429a-5bbc-b2cb-f4f8a03be641"
+SECOND_USER_ID = "ec2666ab-69fe-5abd-a41c-0ee8bf3e070a"
+SECOND_CHAT_ID = "7bfc9f16-4fb7-5eb6-94ce-20a5e5fd10ce"
 
 
 # ---------------------------------------------------------------------------
@@ -148,19 +149,45 @@ def test_namespaces_are_distinct_uuids() -> None:
 
 
 def test_run_id_is_uuid5_in_run_namespace() -> None:
-    """``run_id`` is the UUID v5 of ``<case_id>:<seed>`` in the run namespace."""
-    expected = str(uuid.uuid5(RUN_NAMESPACE, f"{PINNED_CASE_ID}:{PINNED_SEED}"))
+    """``run_id`` is the UUID v5 of ``<len>:<case_id>:<len>:<seed>`` in the run namespace."""
+    expected = str(
+        uuid.uuid5(
+            RUN_NAMESPACE,
+            f"{len(PINNED_CASE_ID)}:{PINNED_CASE_ID}:{len(PINNED_SEED)}:{PINNED_SEED}",
+        )
+    )
 
     assert derive_run_id(PINNED_CASE_ID, PINNED_SEED) == expected
     assert expected == PINNED_RUN_ID
 
 
 def test_user_id_is_uuid5_in_user_namespace() -> None:
-    """``user_id`` is the UUID v5 of ``<case_id>:<seed>`` in the user namespace."""
-    expected = str(uuid.uuid5(USER_NAMESPACE, f"{PINNED_CASE_ID}:{PINNED_SEED}"))
+    """``user_id`` is the UUID v5 of ``<len>:<case_id>:<len>:<seed>`` in the user namespace."""
+    expected = str(
+        uuid.uuid5(
+            USER_NAMESPACE,
+            f"{len(PINNED_CASE_ID)}:{PINNED_CASE_ID}:{len(PINNED_SEED)}:{PINNED_SEED}",
+        )
+    )
 
     assert derive_user_id(PINNED_CASE_ID, PINNED_SEED) == expected
     assert expected == PINNED_USER_ID
+
+
+def test_adjacent_field_split_does_not_collide() -> None:
+    """A different split of adjacent fields must derive different identifiers."""
+    first_run_id = derive_run_id("a:b", "c")
+    second_run_id = derive_run_id("a", "b:c")
+
+    assert first_run_id != second_run_id
+    assert first_run_id == derive_run_id("a:b", "c")
+    assert derive_user_id("a:b", "c") != derive_user_id("a", "b:c")
+
+
+def test_adjacent_field_split_does_not_collide_on_pipe() -> None:
+    """A different split of adjacent fields on a pipe must not collide either."""
+    assert derive_run_id("a|b", "c") != derive_run_id("a", "b|c")
+    assert derive_user_id("a|b", "c") != derive_user_id("a", "b|c")
 
 
 # ---------------------------------------------------------------------------
