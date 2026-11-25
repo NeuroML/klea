@@ -280,10 +280,13 @@ def aggregate_suite(
 
     Entries are grouped by ``case_id`` in first-index-occurrence order, deduped
     by ``run_id`` and restricted to completed runs; only the first ``k``
-    attempts of a case are inspected.  ``case_ids`` optionally narrows the
-    aggregate to the named cases.  A run whose metrics cannot be read is
-    recorded in ``missing_runs`` with score ``0.0`` and does not abort the
-    aggregate.  An empty index yields an empty aggregate.
+    attempts of a case are inspected.  ``case_ids`` names the scheduled cases:
+    it narrows the aggregate to them, and a scheduled case that published no
+    run (an execution failure never reaches the index) is still counted, scoring
+    ``0.0`` and passing nothing, so it enters both ``case_count`` and the
+    ``pass_at_k`` denominator.  A run whose metrics cannot be read is recorded
+    in ``missing_runs`` with score ``0.0`` and does not abort the aggregate.  An
+    empty index with no scheduled cases yields an empty aggregate.
     """
     logger.debug(f"{root = }, {k = }, {case_ids = }")
 
@@ -297,6 +300,13 @@ def aggregate_suite(
     logger.debug(f"{len(entries) = }")
 
     groups = _group_entries(entries, selected, k)
+    if selected:
+        # A scheduled case that published no run (an execution failure never
+        # reaches the index) still belongs to the suite: it scores 0.0 and
+        # cannot pass, so the denominator is the scheduled set rather than only
+        # the cases that happened to store a run.
+        for case_id in selected:
+            groups.setdefault(case_id, [])
     root_path = Path(root) if root is not None else None
 
     cases: list[CaseScore] = []
@@ -309,6 +319,11 @@ def aggregate_suite(
     from klea_eval import labels
 
     for case_id, chosen in groups.items():
+        if not chosen:
+            logger.debug(f"{case_id = }, no published run; counting it as zero")
+            case_score_values.append(0.0)
+            continue
+
         scores: list[float] = []
         passed_any = False
         for entry in chosen:
@@ -414,10 +429,19 @@ def _load_summary(
     case_id: str,
     missing: list[str],
 ) -> metrics.RunMetrics | None:
-    """Read one run's metrics summary, recording an unreadable run as missing."""
+    """Read one run's metrics summary, recording an unreadable run as missing.
+
+    A :class:`metrics.MetricsSchemaError` records a schema violation, not a
+    recoverable read failure, so it propagates instead of being scored as a
+    silently missing run.
+    """
     run_dir = workspace.runs_dir(root) / run_id
     try:
         summary = metrics.load_run(run_dir)
+    except metrics.MetricsSchemaError as exc:
+        raise ScoringError(
+            f"run '{run_id}' of case '{case_id}' has invalid metrics: {exc}"
+        ) from exc
     except metrics.MetricsError as exc:
         logger.warning(
             "scoring: could not read the metrics of run '%s' for case '%s' (%s)",

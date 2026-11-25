@@ -513,6 +513,18 @@ def test_unsupported_index_schema_is_propagated(tmp_path: Path) -> None:
         scoring.aggregate_suite(tmp_path)
 
 
+def test_aggregate_suite_counts_a_scheduled_case_without_a_run(tmp_path: Path) -> None:
+    """A scheduled case that published no run still enters the denominator."""
+    _write_metrics(tmp_path, "run-pass", "case-pass", task_success=True)
+    _append_index(tmp_path, "run-pass", "case-pass")
+
+    aggregate = scoring.aggregate_suite(tmp_path, case_ids=["case-pass", "case-failed"])
+
+    assert aggregate.case_count == 2
+    assert aggregate.pass_count == 1
+    assert aggregate.pass_at_k == 0.5
+
+
 def test_aggregate_suite_writes_nothing(tmp_path: Path) -> None:
     _write_metrics(tmp_path, "run-a", "case-a", task_success=True)
     _append_index(tmp_path, "run-a", "case-a")
