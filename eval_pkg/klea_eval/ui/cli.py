@@ -470,9 +470,15 @@ def summary(
     # Deferred import: the aggregate reads the per-run metrics, which are only
     # needed once this command actually summarises something.
     from klea_eval.api import suite_summary
+    from klea_eval.scoring import ScoringError
 
     logger.debug("klea-eval: summarising the suite, k=%d", k)
-    aggregate = suite_summary(workspace or None, k=k)
+    try:
+        aggregate = suite_summary(workspace or None, k=k)
+    except ScoringError as error:
+        # A schema violation in a stored run is a real error, never a quiet 0.0.
+        typer.echo(str(error), err=True)
+        raise typer.Exit(code=2) from error
     typer.echo(f"suite_score: {aggregate.suite_score:.4f}")
     typer.echo(f"pass_at_k: {aggregate.pass_at_k:.4f}")
 

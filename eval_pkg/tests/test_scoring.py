@@ -525,6 +525,21 @@ def test_aggregate_suite_counts_a_scheduled_case_without_a_run(tmp_path: Path) -
     assert aggregate.pass_at_k == 0.5
 
 
+def test_aggregate_suite_propagates_a_metrics_schema_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stored run violating the metrics schema is an error, not a zero score."""
+    _append_index(tmp_path, "run-bad", "case-bad")
+
+    def broken_load(run_dir: Path) -> None:
+        raise metrics.MetricsSchemaError("bad record")
+
+    monkeypatch.setattr(metrics, "load_run", broken_load)
+
+    with pytest.raises(scoring.ScoringError):
+        scoring.aggregate_suite(tmp_path)
+
+
 def test_aggregate_suite_writes_nothing(tmp_path: Path) -> None:
     _write_metrics(tmp_path, "run-a", "case-a", task_success=True)
     _append_index(tmp_path, "run-a", "case-a")
