@@ -228,7 +228,13 @@ def _parse_case(line: str, line_number: int, source: Path) -> TestCase:
     case_id = payload["case_id"]
     if not isinstance(case_id, str) or not case_id.strip():
         raise _fail("field 'case_id' must be a non-empty string", source, line_number)
-    case_id = case_id.strip()
+    if case_id != case_id.strip():
+        raise _fail(
+            f"field 'case_id' must not have leading or trailing whitespace "
+            f"(got {case_id!r})",
+            source,
+            line_number,
+        )
 
     schema_version = payload["schema_version"]
     if not isinstance(schema_version, str):

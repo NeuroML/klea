@@ -288,6 +288,18 @@ def test_empty_case_id_is_rejected(tmp_path: Path) -> None:
     assert excinfo.value.message == "field 'case_id' must be a non-empty string"
 
 
+def test_whitespace_padded_case_id_is_rejected(tmp_path: Path) -> None:
+    """A `case_id` with surrounding whitespace is rejected, not stripped."""
+    path = _write_suite(tmp_path / "suite.jsonl", [_case(case_id=" padded ")])
+
+    with pytest.raises(CaseValidationError) as excinfo:
+        load_suite(path)
+
+    assert excinfo.value.message == (
+        "field 'case_id' must not have leading or trailing whitespace (got ' padded ')"
+    )
+
+
 def test_duplicate_case_id_is_rejected(tmp_path: Path) -> None:
     """A repeated case_id within a suite is rejected."""
     path = _write_suite(tmp_path / "suite.jsonl", [_case(), _case()])
