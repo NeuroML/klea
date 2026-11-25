@@ -264,13 +264,18 @@ def run_case(
     sleep: Callable[[float], None] | None = None,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
     overwrite: bool = False,
+    before_publish: Callable[[RunContext, Path], None] | None = None,
 ) -> RunResult:
     """Execute every turn of ``case`` in the prepared run ``context``.
 
     Each turn is attempted up to ``max_attempts`` times; ``sleep`` is called
     with the backoff delay between attempts and defaults to :func:`time.sleep`.
     One metric line is appended per successful turn, carrying the number of
-    attempts it needed as ``attempts``.
+    attempts it needed as ``attempts``.  ``before_publish``, when supplied, is
+    called with the context and the staging directory once every turn has been
+    recorded and before the run is published, so a caller can record artefacts
+    (the pipeline records the expectation grade) that the ``COMPLETE`` marker
+    then vouches for.
 
     A run whose directory already holds a finished run is skipped (the
     directory is left untouched) unless ``overwrite`` is true.  On success the
@@ -299,6 +304,8 @@ def run_case(
         raise RunManagerError("max_attempts must be at least 1")
     if not isinstance(overwrite, bool):
         raise RunManagerError("overwrite must be a boolean")
+    if before_publish is not None and not callable(before_publish):
+        raise RunManagerError("before_publish must be callable or None")
 
     state = _state_text(workspace.detect_state(context.run_id, context.workspace_root))
     logger.debug(
@@ -351,6 +358,9 @@ def run_case(
                 },
             )
             records.append(record)
+
+        if before_publish is not None:
+            before_publish(context, context.run_dir)
     except Exception as exc:
         attempts: int | None = None
         cause = exc

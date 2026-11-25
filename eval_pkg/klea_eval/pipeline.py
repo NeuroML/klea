@@ -8,7 +8,8 @@ the collaborators that already own their part of the contract:
 - :func:`klea_eval.run_manager.start_run` schedules one case and prepares its
   isolated run directory (ADR-0057);
 - :func:`klea_eval.run_manager.run_case` executes and scores the turns through
-  the injected executor and scorer, and publishes the run (ADR-0057);
+  the injected executor and scorer, records the deterministic expectation
+  checks through its pre-publish hook and publishes the run (ADR-0057);
 - :func:`klea_eval.metrics.load_run` aggregates the run's own records
   (ADR-0058);
 - :func:`klea_eval.results.write_metadata` and
@@ -284,7 +285,9 @@ def run_suite(
             "no base URL: the model overrides need one to be applied"
         )
 
-    _check_override_roles(checker, base_url, overrides, loaded_cases, harness_seed)
+    _check_override_roles(
+        checker, base_url, overrides, loaded_cases, harness_seed, endpoint
+    )
 
     outcomes: list[CaseRun] = []
     for case in loaded_cases:
@@ -404,6 +407,30 @@ def _run_one_case(
             )
         resolved_models = applied or {}
 
+    def score_before_publish(run_context: RunContext, run_dir: Path) -> None:
+        """Record the run's expectation checks and grade before publication.
+
+        Called by :func:`klea_eval.run_manager.run_case` once every turn metric
+        line has been appended and before ``publish_run`` renames the staging
+        directory, so the ``COMPLETE`` marker only ever names a run whose grade
+        is already recorded.
+        """
+        # The deterministic checker reads the run's own workspace and retained
+        # turn records, so it runs here, while both are in scope; a case that
+        # declares no expectation yields no checks and stays ungraded.
+        from klea_eval import expectations
+
+        summary = metrics.load_run(run_dir)
+        checks = expectations.check_case(case, run_dir / "workspace", summary.turns)
+        grade = expectations.grade_checks(checks)
+        logger.info(
+            "pipeline: case %s recorded %d expectation check(s), grade %s",
+            case.case_id,
+            len(checks),
+            grade,
+        )
+        _append_run_envelope(run_context, run_dir, resolved_models, checks, grade)
+
     try:
         _write_run_metadata(context, case, resolved_models)
         outcome = run_manager.run_case(
@@ -414,6 +441,7 @@ def _run_one_case(
             sleep=sleep,
             max_attempts=max_attempts,
             overwrite=overwrite,
+            before_publish=score_before_publish,
         )
     except Exception as exc:
         logger.exception("pipeline: case %s failed to execute", case.case_id)
@@ -446,30 +474,17 @@ def _run_one_case(
         )
 
     try:
-        summary = metrics.load_run(output_dir)
-        # The deterministic checker reads the run's own workspace and retained
-        # turn records, so it runs here, while both are in scope; a case that
-        # declares no expectation yields no checks and stays ungraded.
-        from klea_eval import expectations
-
-        checks = expectations.check_case(
-            case, Path(output_dir) / "workspace", summary.turns
-        )
-        grade = expectations.grade_checks(checks)
-        logger.info(
-            "pipeline: case %s recorded %d expectation check(s), grade %s",
-            case.case_id,
-            len(checks),
-            grade,
-        )
-        _append_run_envelope(context, Path(output_dir), resolved_models, checks, grade)
+        # The expectation checks and their grade were recorded in the staging
+        # directory before ``publish_run`` renamed it, so only the published
+        # envelope and the index line are stamped here.  A crash between the
+        # rename and these writes leaves a complete run without an index line,
+        # which ``check_consistency`` repairs.
         _store_run(context, case, Path(output_dir), root, resolved_models)
-        # The summary above was read before the run envelope was appended, so it
-        # cannot carry the recorded grade; re-read it after both writes so the
-        # returned CaseRun agrees with the stored run.  Otherwise a case that did
-        # record a failing grade would still look grade-missing to the suite's
-        # exit-code decision, which must exit 1 for a real failure and reserve 4
-        # for a declared expectation that recorded no grade at all.
+        # The grade is already in the stored run; read it back so the returned
+        # CaseRun agrees with it.  Otherwise a case that did record a failing
+        # grade would still look grade-missing to the suite's exit-code
+        # decision, which must exit 1 for a real failure and reserve 4 for a
+        # declared expectation that recorded no grade at all.
         summary = metrics.load_run(output_dir)
     except (
         metrics.MetricsError,
@@ -646,6 +661,7 @@ def _check_override_roles(
     defaults: Mapping[str, str],
     loaded_cases: tuple[TestCase, ...],
     harness_seed: str | int | None,
+    endpoint: str | None = None,
 ) -> None:
     """Reject an override role the backend does not expose, before any case runs.
 
@@ -667,10 +683,19 @@ def _check_override_roles(
     from klea_eval.run_config import ModelOverrideError
 
     # The active map is per chat, so address the chat the first case will use:
-    # derive its identity from the same inputs the run manager uses.
+    # derive its identity from the same inputs the run manager uses, including
+    # ``endpoint``, so the pre-flight ``chat_id`` can never drift from the one
+    # the run itself will use.  The pre-flight deliberately takes the suite-wide
+    # role union rather than the per-case merged overrides: the exposed role set
+    # is app-wide, so one read covers every case's own overrides too.
     reference = loaded_cases[0]
     seed = _normalized_seed(reference, harness_seed)
-    derived = identity.derive_identity(reference.case_id, seed, model_overrides=roles)
+    derived = identity.derive_identity(
+        reference.case_id,
+        seed,
+        model_overrides=roles,
+        endpoint=endpoint,
+    )
 
     try:
         checker(base_url, derived.user_id, derived.chat_id, roles)

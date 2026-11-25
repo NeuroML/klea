@@ -14,7 +14,7 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from klea_eval import labels, metrics, pipeline, results, workspace
+from klea_eval import expectations, labels, metrics, pipeline, results, workspace
 from klea_eval.errors import CaseValidationError
 from klea_eval.pipeline import PipelineConfigError, PipelineError, run_suite
 from klea_eval.results import load_stored_run
@@ -623,6 +623,109 @@ def test_run_json_is_written_before_the_complete_marker(
     assert results.run_metadata_path(output_dir).is_file()
     assert load_stored_run(output_dir).metadata.run_id == result.runs[0].run_id
     assert len(_index_lines(result.workspace_root)) == 1
+
+
+class _StubCheck:
+    """Minimal expectation check exposing the ``to_dict`` contract."""
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"name": "stub", "passed": True}
+
+
+def test_run_grade_is_recorded_before_the_complete_marker(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """The graded envelope is in the staging directory before publication."""
+    cases = [_case("graded", [_turn(1, "user", "Hello")])]
+    seen: dict[str, Any] = {}
+
+    def stub_check(*args: Any, **kwargs: Any) -> tuple[_StubCheck, ...]:
+        return (_StubCheck(),)
+
+    monkeypatch.setattr(expectations, "check_case", stub_check)
+    monkeypatch.setattr(expectations, "grade_checks", lambda checks: True)
+
+    real_publish = workspace.publish_run
+
+    def checking_publish(run_id: str, *args: Any, **kwargs: Any) -> Path:
+        root = args[0] if args else kwargs.get("root")
+        staged = workspace.run_dir_tmp(run_id, root)
+        records = [
+            json.loads(line)
+            for line in workspace.metrics_path(staged)
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        seen["envelope"] = next(
+            (record for record in records if record.get("record_type") == "run"), None
+        )
+        seen["complete_marker"] = (staged / "COMPLETE").exists()
+        return real_publish(run_id, *args, **kwargs)
+
+    monkeypatch.setattr(workspace, "publish_run", checking_publish)
+
+    _suite, result = _run(tmp_path, cases, execute_turn=Recorder())
+
+    assert seen["complete_marker"] is False
+    envelope = seen["envelope"]
+    assert envelope is not None
+    expected_checks = [{"name": "stub", "passed": True}]
+    assert envelope["metrics"]["expectation_checks"] == expected_checks
+    assert envelope["metrics"]["task_success"] is True
+    assert result.exit_code == pipeline.EXIT_OK
+    assert result.runs[0].metrics is not None
+    assert result.runs[0].metrics.task_success is True
+
+
+def test_preflight_identity_carries_the_run_endpoint(tmp_path: Path) -> None:
+    """The pre-flight chat identity is derived with the run's own endpoint."""
+    cases = [
+        _case(
+            "case-1",
+            [_turn(1, "user", "Hello")],
+            run_config={"model_overrides": {"chat": "model-a"}},
+        )
+    ]
+    recorded: dict[str, Any] = {}
+
+    def check_models(
+        base_url: str | None,
+        user_id: str,
+        chat_id: str,
+        roles: Mapping[str, str],
+    ) -> dict[str, str]:
+        recorded["chat_id"] = chat_id
+        return dict(roles)
+
+    def apply_models(
+        client: Any,
+        base_url: str | None,
+        user_id: str,
+        chat_id: str,
+        models: Mapping[str, str],
+    ) -> dict[str, str]:
+        return dict(models)
+
+    suite = _write_suite(tmp_path / "suite.jsonl", cases)
+    workspace_root = tmp_path / "workspace"
+    workspace_root.mkdir()
+
+    result = run_suite(
+        str(suite),
+        workspace_root=str(workspace_root),
+        execute_turn=Recorder(),
+        base_url="http://example.test",
+        endpoint="/query/stream",
+        harness_seed=1234,
+        max_attempts=1,
+        sleep=lambda _delay: None,
+        apply_models=apply_models,
+        check_models=check_models,
+    )
+
+    payload = _single_payload(result.workspace_root)
+    assert recorded["chat_id"] == payload["chat_id"]
 
 
 def test_complete_run_without_an_index_line_is_reindexed(tmp_path: Path) -> None:
