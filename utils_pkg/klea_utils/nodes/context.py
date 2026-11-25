@@ -70,6 +70,9 @@ class LLMNodeContext(NodeContext, Generic[TOutput]):
     final_state: dict[str, Any] | None = None
     #: Token usage for this run.
     token_usage: TokenUsage | None = None
+    #: Number of LLM invocations folded into ``token_usage`` (validation
+    #: retries included); ``0`` when no usage was recorded.
+    llm_calls: int = 0
 
 
 @dataclass

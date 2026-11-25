@@ -323,6 +323,30 @@ def test_llm_post_exec_stream_emits_usage_event():
     event_types = [e["type"] for e in events]
     assert event_types == ["usage"]
     assert events[0]["data"]["details"]["input_tokens"] == 10
+    # A context whose ``llm_calls`` was never set reports zero invocations.
+    assert events[0]["data"]["details"]["llm_calls"] == 0
+
+
+def test_llm_post_exec_stream_passes_llm_calls_through():
+    """``llm_calls`` is an int folded into the usage details unchanged."""
+    node = _node(AnswerSchema)
+    events: list[dict] = []
+    cast(Any, node).write_custom_stream = events.append
+
+    node._post_exec_stream(
+        MemoryState(),
+        LLMNodeContext(
+            token_usage=TokenUsage(input_tokens=10, output_tokens=5, total_tokens=15),
+            llm_calls=2,
+        ),
+    )
+
+    details = events[0]["data"]["details"]
+    assert details["llm_calls"] == 2
+    assert isinstance(details["llm_calls"], int)
+    assert details["input_tokens"] == 10
+    assert details["output_tokens"] == 5
+    assert details["total_tokens"] == 15
 
 
 def test_emit_notice_does_not_truncate_content():
