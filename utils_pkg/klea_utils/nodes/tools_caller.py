@@ -64,6 +64,51 @@ def _plan_goal_line(goal_state: Any) -> str:
     return ""
 
 
+def _current_step(state: Any) -> int:
+    """Return the 1-based plan step whose attempts ``try_number`` counts.
+
+    Mirrors the router's notion of the current step by duck typing only
+    (this package must not import ``klea_agent``): the plan's
+    ``current_step()`` number when it is a positive int, else the first
+    positive ``step`` stamped on the batch's tool calls, else ``1``.
+
+    :param state: Current graph state.
+    :returns: The 1-based plan step number.
+    """
+    plan = getattr(state, "plan", None)
+    if plan is not None:
+        current = getattr(plan, "current_step", None)
+        if callable(current):
+            number = getattr(current(), "step_number", 0)
+            if isinstance(number, int) and number > 0:
+                return number
+    for call in getattr(state, "tool_calls", None) or []:
+        number = getattr(call, "step", None)
+        if isinstance(number, int) and number > 0:
+            return number
+    return 1
+
+
+def _try_number(state: Any) -> int:
+    """Return the 1-based attempt number for the current plan step.
+
+    ``tool_retry_counts`` holds a step's **previous consecutive failed**
+    attempts (ADaPT; the counter is cleared as soon as the step makes
+    progress), so the running attempt is that count plus one.  A state
+    without ``tool_retry_counts`` has attempt ``1``.  HTTP/LLM transport
+    retries never affect this number.
+
+    :param state: Current graph state.
+    :returns: The 1-based attempt number for the current step.
+    """
+    counts = getattr(state, "tool_retry_counts", None) or {}
+    try:
+        count = int(counts.get(_current_step(state), 0))
+    except (TypeError, ValueError):
+        return 1
+    return count + 1
+
+
 def _grouped_tool_lines(records: list[str]) -> list[str]:
     """Collapse per-call records into one status line per tool.
 
@@ -432,11 +477,15 @@ class ToolsCallerNode(
         The entries are the chat-renderable payloads (one per result at most).
         """
         tool_calls = getattr(state, "tool_calls", [])
-        per_result = [
-            self._display_entry_for(tc, result)
-            for tc, result in zip(tool_calls, ctx.tool_results, strict=False)
-        ]
-        return [entry for entry in per_result if entry is not None]
+        try_number = _try_number(state)
+        entries: list[dict[str, Any]] = []
+        for tc, result in zip(tool_calls, ctx.tool_results, strict=False):
+            entry = self._display_entry_for(tc, result)
+            if entry is None:
+                continue
+            entry["try_number"] = try_number
+            entries.append(entry)
+        return entries
 
     def _tool_display_entries(
         self, tool_calls: list[Any], results: list[CallToolResult]
@@ -716,6 +765,7 @@ class ToolsCallerNode(
             heading="Tool Execution",
             summary=f"Called {len(tool_names)} tool(s), {success_count} succeeded",
             details={
+                "try_number": _try_number(state),
                 "tool_names": tool_names,
                 "total_calls": len(tool_names),
                 "successful_calls": success_count,
@@ -775,6 +825,7 @@ class ToolsCallerNode(
             display=display,
             key="plan",
             preformatted=True,
+            details={"try_number": _try_number(state)},
         )
 
     def _get_running_tools(self, state: BaseModel) -> NodeStreamData | None:
@@ -805,6 +856,7 @@ class ToolsCallerNode(
             key=self.label,
             summary=f"Running {len(tool_calls)} tool(s)",
             display="\n".join(lines),
+            details={"try_number": _try_number(state)},
         )
 
     def _get_status(
@@ -844,4 +896,5 @@ class ToolsCallerNode(
             key=self.label,
             summary=f"Called {len(tool_calls)} tool(s)",
             display="\n".join(lines),
+            details={"try_number": _try_number(state)},
         )

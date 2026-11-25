@@ -194,6 +194,10 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
         self.logger.debug("TriageRouter.execute: decided route=%s", route)
 
         results = getattr(state, "tool_results", None) or []
+        step = current_step_key(state)
+        retry_count = int(
+            (getattr(state, "tool_retry_counts", None) or {}).get(step, 0)
+        )
         info = NodeStreamData(
             heading="Triage",
             summary=f"Routing: {route}",
@@ -201,12 +205,9 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
                 "route": route,
                 "has_error": any(getattr(r, "is_error", False) for r in results),
                 "tool_count": len(results),
-                "step": current_step_key(state),
-                "retry_count": int(
-                    (getattr(state, "tool_retry_counts", None) or {}).get(
-                        current_step_key(state), 0
-                    )
-                ),
+                "step": step,
+                "retry_count": retry_count,
+                "try_number": retry_count + 1,
                 "max_retries": self.max_retries,
             },
         )
