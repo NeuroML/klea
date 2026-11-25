@@ -97,7 +97,12 @@ optional condition (model escalation), never a requirement.
   copied into `runs/<run_id>/workspace/fixtures/` and generated files under
   `runs/<run_id>/workspace/outputs/` (ADR-0057).  Case fixture paths resolve
   against the case-file directory, never the run workspace (ADR-0056).
-- Tools sandboxed through the existing permission boundary.
+- Tools sandboxed through the existing permission boundary.  This is deferred:
+  the harness binds each run to its own `workspace/` (sent as
+  `client_context.cwd`) and that is the whole isolation it can provide from
+  this repository.  A per-run permission boundary (a sandbox) and any mapping
+  of a remote workspace remain the backend's responsibility and are tracked in
+  `devdocs/backlog.md`.
 - Temperature 0 and fixed seeds where possible; N repetitions to compute
   pass^k.
 - Pin and record model versions and prompt versions in the result JSON.
@@ -364,7 +369,7 @@ sequenceDiagram
         W->>W: flush and fsync every file
         W->>W: write zero-byte COMPLETE last
         W->>W: atomic rename runs/{run_id}.tmp/ to runs/{run_id}/
-        W->>I: append one O_APPEND line to runs/index.jsonl with run_id, case_id, status, timestamp, schema_version, metrics path
+        W->>I: record the run line in runs/index.jsonl (append for a new run_id, replace the line of an existing run_id) with run_id, case_id, status, timestamp, schema_version, metrics path
         Note over W,I: a reader sees no run or a complete run, a leftover .tmp is an incomplete run
         I->>R: retention is explicit only: the operator runs klea-eval prune
         alt case has more than N runs
@@ -411,8 +416,8 @@ sequenceDiagram
 
 ### Persistence (Writer)
 - **Input**: A finished run: its `run.json` envelope, `metrics.jsonl` records, the reduced ``transcript.jsonl`` record and `workspace/`.
-- **Output**: The completed run directory `runs/<run_id>/` plus one appended line in `runs/index.jsonl`.
-- **Responsibility**: Own the single write protocol: write into `runs/<run_id>.tmp/` as the run proceeds, flush and `fsync` every file, write the zero-byte `COMPLETE` marker last, rename the directory to `runs/<run_id>/` atomically and `fsync` its parent `runs/` directory so the rename is durable (the same fsync is applied when a superseded run is restored after a failed rename), then append one `O_APPEND` line to `runs/index.jsonl`; retention is never applied by the writer: the operator invokes `klea-eval prune` explicitly, which by default archives a run beyond the most recent N per case (N from run config) by dropping only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the `COMPLETE` marker and its index line, with an `ARCHIVED` marker written beside them, or with `--purge` deletes the whole run directory and drops its index line; a leftover `.tmp` directory is unambiguously an incomplete run.
+- **Output**: The completed run directory `runs/<run_id>/` plus one line in `runs/index.jsonl` (one line per `run_id`, replaced on a re-run).
+- **Responsibility**: Own the single write protocol: write into `runs/<run_id>.tmp/` as the run proceeds, flush and `fsync` every file, write the zero-byte `COMPLETE` marker last, rename the directory to `runs/<run_id>/` atomically and `fsync` its parent `runs/` directory so the rename is durable (the same fsync is applied when a superseded run is restored after a failed rename), then record the run's line in `runs/index.jsonl`, appending a line for a new `run_id` and replacing in place the line of an already indexed `run_id` so a re-run never duplicates its entry; retention is never applied by the writer: the operator invokes `klea-eval prune` explicitly, which by default archives a run beyond the most recent N per case (N from run config) by dropping only its `workspace/` tree and keeping `run.json`, `metrics.jsonl`, the `COMPLETE` marker and its index line, with an `ARCHIVED` marker written beside them, or with `--purge` deletes the whole run directory and drops its index line; a leftover `.tmp` directory is unambiguously an incomplete run.
 
 ### Reporter
 - **Input**: Suite aggregates from the Aggregate stage, read from `runs/index.jsonl`.

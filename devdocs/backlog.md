@@ -74,6 +74,15 @@ Last updated: 2026-11-18.
   `agent_pkg/klea_agent/nodes/reasoning.py:34`): a downstream consumer branches
   on its typed `conclusion` field, so that schema is not droppable.
 
+## Evaluation harness
+
+- Per-run permission boundary (sandbox): the harness binds a run to its own
+  `workspace/` through the request's `client_context.cwd`, which is the whole
+  isolation it can provide from this repository.  Enforcing what the agent may
+  read or write outside it, and mapping a local run workspace onto a remote
+  backend, need the backend's own permission boundary and are deferred until
+  that boundary is exposed.
+
 ## Tools
 
 - `web_search` configuration: the provider pool uses a fixed default order

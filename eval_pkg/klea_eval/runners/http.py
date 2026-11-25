@@ -415,6 +415,12 @@ def _build_payload(context: RunContext, turn: Turn) -> dict[str, Any]:
     if isinstance(number, int) and not isinstance(number, bool):
         payload["turn_number"] = number
 
+    # The run's ``workspace/`` is the only isolation the harness can provide:
+    # it bounds where Klea reads and writes for this run, but the backend still
+    # owns the per-run permission boundary (a sandbox) and any mapping of a
+    # remote workspace, which are deferred (devdocs/backlog.md).  Sending the
+    # path explicitly keeps a review from assuming the harness sandboxes the
+    # agent itself.
     payload["client_context"] = {"cwd": str(context.run_dir / "workspace")}
 
     return payload
