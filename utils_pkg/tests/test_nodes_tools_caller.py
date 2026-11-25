@@ -89,7 +89,7 @@ def _retry_state(
     plan=None,
     step: int = 1,
 ) -> Any:
-    """Build a minimal state for the ``try_number`` cases.
+    """Build a minimal state for the ``retry_count`` cases.
 
     ``MiniState`` has no ``tool_retry_counts`` field, so these cases use a
     ``SimpleNamespace``: the utils-local step resolver reads the retry counts,
@@ -110,53 +110,53 @@ class _StepTwoPlan:
         return SimpleNamespace(step_number=2)
 
 
-def test_try_number_defaults_to_one_without_plan():
-    """A first attempt on a plan-less state reports ``try_number`` 1."""
+def test_retry_count_defaults_to_zero_without_plan():
+    """A first attempt on a plan-less state reports ``retry_count`` 0."""
     node = _make_node(client=FakeMCPClient())
     state = _retry_state()
     ctx = _ctx(state.tool_results)
 
     entries = node._compute_displays(state, ctx)
     assert entries
-    assert [entry["try_number"] for entry in entries] == [1]
+    assert [entry["retry_count"] for entry in entries] == [0]
 
     inspect = node._get_inspect(state, ctx)
     assert inspect is not None
-    assert inspect.details["try_number"] == 1
+    assert inspect.details["retry_count"] == 0
 
     running = node._get_running_tools(state)
     assert running is not None
-    assert running.details["try_number"] == 1
+    assert running.details["retry_count"] == 0
 
     status = node._get_status(state, ctx)
     assert status is not None
-    assert status.details["try_number"] == 1
+    assert status.details["retry_count"] == 0
 
 
-def test_try_number_counts_recorded_failures_without_plan():
-    """Two recorded failures make the current attempt number 3."""
+def test_retry_count_counts_recorded_failures_without_plan():
+    """Two recorded failures report ``retry_count`` 2."""
     node = _make_node(client=FakeMCPClient())
     state = _retry_state(counts={1: 2})
     ctx = _ctx(state.tool_results)
 
     entries = node._compute_displays(state, ctx)
     assert entries
-    assert [entry["try_number"] for entry in entries] == [3]
+    assert [entry["retry_count"] for entry in entries] == [2]
 
     inspect = node._get_inspect(state, ctx)
     assert inspect is not None
-    assert inspect.details["try_number"] == 3
+    assert inspect.details["retry_count"] == 2
 
     running = node._get_running_tools(state)
     assert running is not None
-    assert running.details["try_number"] == 3
+    assert running.details["retry_count"] == 2
 
     status = node._get_status(state, ctx)
     assert status is not None
-    assert status.details["try_number"] == 3
+    assert status.details["retry_count"] == 2
 
 
-def test_try_number_prefers_plan_current_step():
+def test_retry_count_prefers_plan_current_step():
     """The utils-local step resolver prefers the plan's current step."""
     node = _make_node(client=FakeMCPClient())
     state = _retry_state(counts={2: 1}, plan=_StepTwoPlan())
@@ -164,19 +164,19 @@ def test_try_number_prefers_plan_current_step():
 
     entries = node._compute_displays(state, ctx)
     assert entries
-    assert [entry["try_number"] for entry in entries] == [2]
+    assert [entry["retry_count"] for entry in entries] == [1]
 
     inspect = node._get_inspect(state, ctx)
     assert inspect is not None
-    assert inspect.details["try_number"] == 2
+    assert inspect.details["retry_count"] == 1
 
     running = node._get_running_tools(state)
     assert running is not None
-    assert running.details["try_number"] == 2
+    assert running.details["retry_count"] == 1
 
     status = node._get_status(state, ctx)
     assert status is not None
-    assert status.details["try_number"] == 2
+    assert status.details["retry_count"] == 1
 
 
 async def test_skips_when_no_tool_calls_or_client():

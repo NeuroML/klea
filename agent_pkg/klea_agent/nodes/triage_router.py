@@ -207,7 +207,6 @@ class TriageRouter(AbstractRouterNode[KleaAgentState]):
                 "tool_count": len(results),
                 "step": step,
                 "retry_count": retry_count,
-                "try_number": retry_count + 1,
                 "max_retries": self.max_retries,
             },
         )
