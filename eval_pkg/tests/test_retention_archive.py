@@ -126,6 +126,31 @@ def test_archive_keeps_the_index_line(tmp_path: Path) -> None:
     assert not workspace.is_archived(newer)
 
 
+def test_archive_writes_no_marker_when_the_workspace_delete_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed ``workspace/`` removal leaves the run unarchived and marked."""
+    root = tmp_path / "workspace"
+    older, _newer = _two_runs(root)
+    workspace_dir = older / workspace.WORKSPACE_DIR_NAME
+    real_rmtree = api.shutil.rmtree
+
+    def failing_rmtree(target):
+        if Path(target) == workspace_dir:
+            raise OSError("simulated delete failure")
+        return real_rmtree(target)
+
+    monkeypatch.setattr(api.shutil, "rmtree", failing_rmtree)
+
+    result = api.apply_retention(root, keep=1)
+
+    assert result.archived_runs == ()
+    assert workspace_dir.is_dir()
+    assert not workspace.is_archived(older)
+    assert workspace.metrics_path(older).is_file()
+    assert _index_ids(root) == ["run-older", "run-newer"]
+
+
 # -- archive keeps the retained file set ----------------------------------
 def test_archive_retains_run_json_metrics_and_markers(tmp_path: Path) -> None:
     """Only the ``workspace/`` tree is removed; the record files survive."""
