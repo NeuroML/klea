@@ -118,7 +118,7 @@ jobs:
       if: runner.os == 'Windows'
       run: |
         cd eval_pkg
-        pytest -q -m eval
+        pytest -q -m "not localonly"
 
     - name: Lint with ruff
       run: |
