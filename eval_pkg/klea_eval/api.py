@@ -309,8 +309,14 @@ def apply_retention(
             logger.debug(f"api: would archive run {entry.run_id} at {directory}")
             continue
 
+        if workspace_dir.is_dir():
+            try:
+                shutil.rmtree(workspace_dir)
+            except OSError as exc:
+                logger.warning("api: could not archive run %s (%s)", entry.run_id, exc)
+                continue
+
         try:
-            shutil.rmtree(workspace_dir, ignore_errors=True)
             _write_marker(directory, workspace.ARCHIVED_MARKER_NAME)
         except OSError as exc:
             logger.warning("api: could not archive run %s (%s)", entry.run_id, exc)
@@ -610,15 +616,26 @@ def _is_completed(entry: results.IndexEntry) -> bool:
 def _prune_positions(
     entries: Sequence[results.IndexEntry], keep: int
 ) -> frozenset[int]:
-    """Return the index positions of the completed runs retention would prune."""
-    per_case: dict[str, list[int]] = {}
+    """Return the index positions of the completed runs retention would prune.
+
+    The keep window counts distinct run identifiers per case, not index lines:
+    ordering the runs by their latest occurrence and dropping every line of a
+    run outside the window means a legacy index that lists one run twice cannot
+    keep an old run alive, and every dropped run's directory and index lines
+    stay consistent.
+    """
+    per_case: dict[str, dict[str, list[int]]] = {}
     for position, entry in enumerate(entries):
         if _is_completed(entry):
-            per_case.setdefault(entry.case_id, []).append(position)
+            per_case.setdefault(entry.case_id, {}).setdefault(entry.run_id, []).append(
+                position
+            )
 
     dropped: set[int] = set()
-    for positions in per_case.values():
-        dropped.update(positions[:-keep])
+    for runs in per_case.values():
+        ordered = sorted(runs.values(), key=lambda positions: positions[-1])
+        for positions in ordered[:-keep]:
+            dropped.update(positions)
 
     logger.debug(f"{len(entries) = }, {len(per_case) = }, {len(dropped) = }")
     return frozenset(dropped)

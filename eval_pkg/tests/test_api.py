@@ -705,3 +705,27 @@ def test_cli_report_keeps_an_indexed_archived_run(tmp_path: Path) -> None:
     assert "run-archived case=case-a status=completed" in text
     assert "index=missing" not in text
     assert "total=1 unindexed=0" in text
+
+
+def test_retention_counts_distinct_run_ids_not_index_lines(tmp_path: Path) -> None:
+    """A run listed twice must not shift the keep window onto another run."""
+    root = tmp_path / "workspace"
+    _make_run(root, "run-old", "case-a", passed=True)
+    _make_run(root, "run-new", "case-a", passed=True)
+
+    # A legacy index may list one run twice; append the first line raw so the
+    # fixture never depends on whether the writer replaces duplicate lines.
+    index_file = results.index_path(root)
+    first_line = index_file.read_text(encoding="utf-8").splitlines()[0]
+    with index_file.open("a", encoding="utf-8") as handle:
+        handle.write(first_line + "\n")
+
+    result = api.apply_retention(root, keep=1, purge=True)
+
+    assert result.pruned_runs == ("run-new",)
+    assert workspace.run_dir("run-old", root).is_dir()
+    assert not workspace.run_dir("run-new", root).exists()
+    assert [entry.run_id for entry in results.read_index(root)] == [
+        "run-old",
+        "run-old",
+    ]
