@@ -594,18 +594,24 @@ def group_tools_by_server(
 def format_mcp_servers(
     server_names: Iterable[str], tools_by_server: Mapping[str, Iterable[str]]
 ) -> str:
-    """Return the user-facing MCP server listing for ``/mcp``."""
+    """Return the user-facing MCP server listing for ``/mcp``.
+
+    The reply is rendered as Markdown by both frontends, so server and tool
+    names are code spans (a ``_`` in ``read_file`` is not read as emphasis)
+    and each server's tools form a real list, set off by blank lines so the
+    lines are not joined into one paragraph.
+    """
     names = list(server_names)
     if not names:
         return "No MCP servers configured."
     lines = [f"MCP servers ({len(names)}):"]
     for name in names:
         tools = list(tools_by_server.get(name, ()))
-        lines.append(f"  {name}:")
+        lines.extend(["", f"`{name}`:", ""])
         if tools:
-            lines.extend(f"  - {tool}" for tool in tools)
+            lines.extend(f"- `{tool}`" for tool in tools)
         else:
-            lines.append("  - (no tools)")
+            lines.append("- (no tools)")
     return "\n".join(lines)
 
 

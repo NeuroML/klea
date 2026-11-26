@@ -248,11 +248,32 @@ class TestMcpHelpers:
             ["bundled", "empty"],
             {"bundled": ["read_file"], "empty": []},
         )
-        assert "MCP servers (2):" in message
-        assert "  bundled:" in message
-        assert "  - read_file" in message
-        assert "  empty:" in message
-        assert "  - (no tools)" in message
+        assert message == (
+            "MCP servers (2):\n"
+            "\n"
+            "`bundled`:\n"
+            "\n"
+            "- `read_file`\n"
+            "\n"
+            "`empty`:\n"
+            "\n"
+            "- (no tools)"
+        )
+
+    def test_format_renders_as_a_markdown_list(self):
+        """The web chat renders the reply as Markdown: names stay intact."""
+        markdown2 = pytest.importorskip("markdown2")
+        message = format_mcp_servers(
+            ["bundled", "my_srv"],
+            {"bundled": ["download_file", "edit_file"], "my_srv": ["run_command"]},
+        )
+        html = markdown2.markdown(message)
+        # A ``_`` pair across two names must not turn into emphasis.
+        assert "<em>" not in html
+        assert "<li><code>download_file</code></li>" in html
+        assert "<li><code>edit_file</code></li>" in html
+        assert "<p><code>my_srv</code>:</p>" in html
+        assert html.count("<ul>") == 2
 
 
 class TestMcpHandler:
@@ -272,9 +293,9 @@ class TestMcpHandler:
         updates = await node.execute(_state("/mcp list"))
         message = updates["message_for_user"]
         assert "MCP servers (1):" in message
-        assert "  bundled:" in message
-        assert "  - read_file" in message
-        assert "  - write_file" in message
+        assert "`bundled`:" in message
+        assert "- `read_file`" in message
+        assert "- `write_file`" in message
         assert any(e.get("type") == "inspect" for e in events)
 
     async def test_multi_server_grouping(self):
@@ -285,8 +306,8 @@ class TestMcpHandler:
         )
         updates = await node.execute(_state("/mcp"))
         message = updates["message_for_user"]
-        assert "  - bundled_read_file" in message
-        assert "  - NeuroML_list_models" in message
+        assert "- `bundled_read_file`" in message
+        assert "- `NeuroML_list_models`" in message
 
     async def test_unknown_verb(self):
         node = _agent_node([])
