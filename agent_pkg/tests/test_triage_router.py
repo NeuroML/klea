@@ -143,3 +143,39 @@ class TestTriageExecute:
         assert emitted[0]["type"] == "progress"
         assert emitted[-1]["type"] == "inspect"
         assert emitted[-1]["data"]["details"]["route"] == "replan"
+
+        details = emitted[-1]["data"]["details"]
+        assert details["retry_count"] == 9
+        assert details["max_retries"] == 6
+
+    @pytest.mark.asyncio
+    async def test_execute_inspect_retry_count_from_step_counts(self, monkeypatch):
+        router = TriageRouter(logging.getLogger("test.triage"), "Triage")
+        emitted: list[dict] = []
+        monkeypatch.setattr(router, "write_custom_stream", emitted.append)
+
+        route = await router.execute(_state(error=True, step=1, counts={2: 2}))
+
+        assert route == "retry"
+        assert emitted[-1]["type"] == "inspect"
+
+        details = emitted[-1]["data"]["details"]
+        assert details["retry_count"] == 2
+        assert details["max_retries"] == 6
+
+    @pytest.mark.asyncio
+    async def test_execute_inspect_retry_count_zero_for_first_attempt(
+        self, monkeypatch
+    ):
+        router = TriageRouter(logging.getLogger("test.triage"), "Triage")
+        emitted: list[dict] = []
+        monkeypatch.setattr(router, "write_custom_stream", emitted.append)
+
+        route = await router.execute(_state(error=True))
+
+        assert route == "retry"
+        assert emitted[-1]["type"] == "inspect"
+
+        details = emitted[-1]["data"]["details"]
+        assert details["retry_count"] == 0
+        assert details["max_retries"] == 6

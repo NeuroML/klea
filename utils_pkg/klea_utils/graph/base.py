@@ -113,6 +113,36 @@ def _interrupt_event(intr: Any, node: str) -> dict[str, Any]:
     return {"type": "interrupt", "node": node, "data": data}
 
 
+def _stream_identity(event: Any, node: str) -> dict[str, Any]:
+    """Build the additive identity fields stamped on a node-scoped event.
+
+    ``node_id``, ``step`` and ``run_id`` are stamped by this runner, not
+    authored by a node: nodes are shared singletons and one display label may
+    be reached from several registration sites, so the display ``node`` label
+    is kept verbatim and the identity fields ride alongside it.
+
+    The underlying v3 payload envelope is read defensively, so a missing or
+    partial envelope never raises: ``node_id`` falls back to the display
+    label, ``step`` is present only when the envelope carries an integer
+    ``langgraph_step`` (a ``bool`` is not accepted), and ``run_id`` only when
+    the envelope carries one.
+
+    :param event: The raw v3 protocol event the runner is projecting.
+    :param node: The display label of the emitting node.
+    :returns: A dict of extra keys to splat into the yielded event.
+    """
+    metadata = event.get("metadata") or {}
+    node_id = metadata.get("langgraph_node") or node
+    identity: dict[str, Any] = {"node_id": str(node_id)}
+    step = metadata.get("langgraph_step")
+    if isinstance(step, int) and not isinstance(step, bool):
+        identity["step"] = step
+    run_id = event.get("run_id")
+    if run_id:
+        identity["run_id"] = str(run_id)
+    return identity
+
+
 #: SQLite PRAGMAs applied to every Klea SQLite database so the checkpoint
 #: and session stores share one durability and concurrency policy: WAL
 #: journalling (readers never block the single writer), ``NORMAL``
@@ -1258,6 +1288,16 @@ class BaseLangGraph(ABC):
         ``{"type": "complete", "message_for_user": "<answer>"}``
             Final answer from the completed graph
 
+        Every node-scoped event (``progress``, ``inspect``, ``state``,
+        ``usage``, ``tool``, ``notice``, ``token``, ``interrupt``) also
+        carries the additive identity keys stamped by this runner:
+        ``node_id`` (the envelope's ``metadata["langgraph_node"]``, falling
+        back to the display ``node`` label) plus, when the event envelope
+        supplies them, ``step`` (an integer ``metadata["langgraph_step"]``)
+        and ``run_id``.  ``context`` and ``complete`` carry ``run_id`` only
+        when one was available.  These keys are never authored by a node and
+        never replace or remove the display ``node`` label.
+
         Uses LangGraph's ``astream_events`` v3 protocol.  Progress events
         from all nodes (LLM and non-LLM) arrive via the ``custom`` channel.
         LLM token output is read from the ``messages`` channel.
@@ -1312,6 +1352,7 @@ class BaseLangGraph(ABC):
 
         current_node = ""
         current_heading = ""
+        last_run_id = ""
         node_start = time.monotonic()
         total_start = time.monotonic()
         last_values: dict = {}
@@ -1320,6 +1361,9 @@ class BaseLangGraph(ABC):
 
         async for event in stream:
             method = event["method"]
+            run_id = event.get("run_id")
+            if run_id:
+                last_run_id = str(run_id)
 
             if method == "custom":
                 data = event["params"]["data"]
@@ -1350,6 +1394,7 @@ class BaseLangGraph(ABC):
                             "type": "progress",
                             "node": current_node,
                             "data": payload,
+                            **_stream_identity(event, current_node),
                         }
                     elif heading and heading != current_heading:
                         # Same node, changed heading (e.g. an LLM invoke retry):
@@ -1359,6 +1404,7 @@ class BaseLangGraph(ABC):
                             "type": "progress",
                             "node": current_node,
                             "data": payload,
+                            **_stream_identity(event, current_node),
                         }
 
                 elif event_type in ("inspect", "state", "usage", "tool", "notice"):
@@ -1371,6 +1417,7 @@ class BaseLangGraph(ABC):
                         "type": event_type,
                         "node": node,
                         "data": data_out,
+                        **_stream_identity(event, node),
                     }
 
             elif method == "messages":
@@ -1391,6 +1438,7 @@ class BaseLangGraph(ABC):
                                 "type": "token",
                                 "content": delta["text"],
                                 "node": current_node,
+                                **_stream_identity(event, current_node),
                             }
 
             elif method == "values":
@@ -1411,7 +1459,13 @@ class BaseLangGraph(ABC):
                 context_data = self.context_snapshot(snapshot)
                 if context_data is not None and context_data != last_context:
                     last_context = context_data
-                    yield {"type": "context", "data": context_data}
+                    context_event: dict[str, Any] = {
+                        "type": "context",
+                        "data": context_data,
+                    }
+                    if last_run_id:
+                        context_event["run_id"] = last_run_id
+                    yield context_event
 
         total_elapsed = time.monotonic() - total_start
         if current_node:
@@ -1438,7 +1492,10 @@ class BaseLangGraph(ABC):
                     getattr(intr, "id", None),
                     current_node,
                 )
-                yield _interrupt_event(intr, current_node)
+                intr_event = _interrupt_event(intr, current_node)
+                if last_run_id:
+                    intr_event["run_id"] = last_run_id
+                yield intr_event
             self.logger.info("Graph paused at an interrupt after %.2fs", total_elapsed)
             return
         self.logger.info("Graph completed in %.2fs", total_elapsed)
@@ -1449,4 +1506,10 @@ class BaseLangGraph(ABC):
                 message = last_values.get("message_for_user", "")
             elif hasattr(last_values, "message_for_user"):
                 message = last_values.message_for_user
-        yield {"type": "complete", "message_for_user": message}
+        complete_event: dict[str, Any] = {
+            "type": "complete",
+            "message_for_user": message,
+        }
+        if last_run_id:
+            complete_event["run_id"] = last_run_id
+        yield complete_event

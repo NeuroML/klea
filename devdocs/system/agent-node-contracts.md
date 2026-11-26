@@ -48,6 +48,15 @@ A change to implementation without synchronized schemas, tests, diagrams, and do
 5. An inspection or progress event is not a graph-state update unless the node returns that field in its state update.
 6. A router may emit progress or inspection data but normally does not write graph state. Any callback-side update must be stated explicitly.
 
+Node-scoped stream events also carry additive identity and attempt metadata
+that no node authors.  `node_id`, `run_id` and `step` are stamped by the graph
+runner (`_stream_identity` in `utils_pkg/klea_utils/graph/base.py`), and
+`llm_calls` (on `usage`) and the 0-based `retry_count` (on `tool` and the tools
+caller's and triage router's `inspect`/`state` payloads; consumers add one for
+a 1-based attempt number) ride the payloads.  They are
+observability data, not graph-state updates, and are not part of any node's
+write contract.
+
 ## 3. Requiredness notation and field conventions
 
 ### 3.1 Requiredness

@@ -508,6 +508,10 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             ctx.token_usage = TokenUsage(role=self.model_role, **usage_totals)
         else:
             ctx.token_usage = None
+        # Every LLM invocation folded into ``token_usage`` (validation retries
+        # included) is counted here, so the usage event can report how many
+        # calls the token totals cover.
+        ctx.llm_calls = usage_calls
         final_state = self._update_usage_metrics(ctx.token_usage, ctx.state_updates)
         ctx.final_state = final_state
 
@@ -645,12 +649,18 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
     def _get_usage(self, ctx: LLMNodeContext[TOutput]) -> NodeStreamData | None:
         """Build a ``NodeStreamData`` wrapper for the current node's token usage.
 
+        The usage event is emitted only when token usage exists, so
+        ``details["llm_calls"]`` is present (and therefore ``>= 1``) in a real
+        run: it counts every LLM invocation folded into ``ctx.token_usage``,
+        including validation retries whose output was discarded.
+
         :param ctx: Per-run node context.
         :returns: ``NodeStreamData`` with numeric token details, or ``None`` if no
             usage recorded
         """
         if ctx.token_usage is not None:
             details = ctx.token_usage.model_dump()
+            details["llm_calls"] = int(ctx.llm_calls)
             self.logger.debug(f"{details =}")
             return NodeStreamData(summary="", details=details)
         return None

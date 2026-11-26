@@ -103,6 +103,40 @@ The TUI stores it on the chat and rebuilds the status-panel app slots on a
 `context` change (`StatusPanel.set_state(refresh_extras=True)`), and its
 mode/access selectors read the resolved value from the chat's context.
 
+### Event identity and attempt metadata
+
+Every node-scoped event (`progress`, `inspect`, `state`, `usage`, `tool`,
+`notice`, `token`, `interrupt`) also carries identity fields stamped by the
+graph runner in `run_graph_astream_events`
+(`utils_pkg/klea_utils/graph/base.py::_stream_identity`), never by a node;
+timing and dedup still key on the display `node` label.
+
+* `node_id` - the envelope's `metadata["langgraph_node"]`, falling back to the
+  display label when the envelope carries no metadata.
+* `run_id` - the yielding invocation's run id when present; per-invocation, so
+  repeated executions of one node can be told apart.
+* `step` - the integer `metadata["langgraph_step"]`, present only when
+  supplied.
+
+`context` and `complete` are graph-level and carry `run_id` only.  All three
+fields are additive: consumers that do not need them may ignore them, and a
+persisted `inspect`/`state` event replays unchanged.
+
+Two attempt counters ride the same payloads:
+
+* `usage.data.details.llm_calls` - integer, the LLM invocations folded into
+  this node execution's token totals (validation retries included), present
+  only with a usage event, so it is >= 1 whenever present.  Usage is
+  attributed per node execution; the turn-level totals in `api/context.py` and
+  `ui/stream_events.py` stay aggregates, not per-call attribution.
+* `retry_count` - the 0-based count of the plan step's previous consecutive
+  failures from ADaPT (`tool_retry_counts[step]`), cleared when the step makes
+  progress, and stamped on every `tool` entry and on the tools caller's and
+  triage router's `inspect`/`state` payloads.  Consumers add one for a 1-based
+  attempt number.  It is `0` on a plan-less run such as Klea RAG, escalation
+  tests it against `max_retries`, and HTTP/LLM transport retries never affect
+  it.
+
 ## Persistence and hydration (ADR-0032 update)
 
 A reloaded chat must match the live session, so the UI-visible outputs are
