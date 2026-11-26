@@ -17,7 +17,9 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import asyncio
 import json
 import logging
+from collections.abc import AsyncGenerator
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import AsyncMock
 
 import pytest
@@ -29,6 +31,7 @@ from klea_utils.client_context import ClientContext
 from klea_utils.commands.common import Command as CommandSpec
 from klea_utils.commands.common import CommandRegistry, Persists
 from klea_utils.llm import LLMModel
+from klea_utils.ui.stream_events import STOPPED_TOOL_NOTE
 from langgraph.types import Command
 
 
@@ -1013,6 +1016,149 @@ class TestSingleFlightAndCancel:
         # No assistant row on cancel; thread is free for a new run.
         assert [m["role"] for m in store.get_messages("u", "c")] == ["user"]
         assert not request.app.state.active_runs.is_active("user_u:chat_c")
+
+
+def _tool_round_event(running_calls: list[dict] | None) -> dict:
+    """A tool-round ``state`` event: running (with calls) or finished."""
+    details: dict = {"retry_count": 0}
+    if running_calls is not None:
+        details["running_calls"] = running_calls
+    return {
+        "type": "state",
+        "node": "Running tools",
+        "data": {
+            "heading": "Tool Execution",
+            "key": "Running tools",
+            "display": "- **Run command**: running",
+            "details": details,
+        },
+    }
+
+
+_SLEEP_CALL = {
+    "tool": "run_command",
+    "title": "Run command",
+    "call": 'run_command(command="sleep 40")',
+}
+
+
+class TestStreamResponseStoppedTools:
+    """A run stopped mid tool round records the calls left running (#250)."""
+
+    @staticmethod
+    def _stream(events: list[dict], started: asyncio.Event, *, finish: bool):
+        async def _events(query, thread_id, *, extra_state=None, context=None):
+            for event in events:
+                yield event
+            started.set()
+            if finish:
+                yield {"type": "complete", "message_for_user": "done"}
+                return
+            # A long tool call: the run sits here until it is stopped.
+            await asyncio.sleep(10)
+            yield {"type": "complete", "message_for_user": "late"}
+
+        return _events
+
+    async def _stop_mid_run(self, store, graph, events: list[dict]):
+        """Start a streamed run, then stop it the way the frontends do."""
+        started = asyncio.Event()
+        graph.run_graph_astream_events = self._stream(events, started, finish=False)
+        request = _shared_request(store, graph)
+        response = await chat_core.stream_response(
+            request, query="go", user_id="u", chat_id="c"
+        )
+
+        async def _drain():
+            async for _ in response.body_iterator:
+                pass
+
+        task = asyncio.create_task(_drain())
+        await started.wait()
+        assert chat_common.cancel_run(request, "u", "c") is True
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        return store.get_messages("u", "c")
+
+    async def test_stop_mid_round_stores_running_calls(self, store, graph):
+        """Each call still running gets an error tool row with the note."""
+        second = {**_SLEEP_CALL, "call": 'run_command(command="sleep 50")'}
+        rows = await self._stop_mid_run(
+            store, graph, [_tool_round_event([_SLEEP_CALL, second])]
+        )
+
+        assert [m["role"] for m in rows] == ["user", "tool", "tool"]
+        first = rows[1]
+        assert first["metadata"]["header"] == "Run command"
+        assert first["metadata"]["mime"] == "text/x-shell"
+        assert first["metadata"]["is_error"] is True
+        assert first["metadata"]["data"] == (
+            'run_command(command="sleep 40")\n' + STOPPED_TOOL_NOTE
+        )
+        assert STOPPED_TOOL_NOTE in first["content"]
+        assert 'command="sleep 50"' in rows[2]["metadata"]["data"]
+
+    async def test_client_disconnect_mid_round_stores_running_calls(self, store, graph):
+        """Closing the stream (a client disconnect) records the calls too."""
+        started = asyncio.Event()
+        graph.run_graph_astream_events = self._stream(
+            [_tool_round_event([_SLEEP_CALL])], started, finish=False
+        )
+        response = await chat_core.stream_response(
+            _shared_request(store, graph), query="go", user_id="u", chat_id="c"
+        )
+        # The SSE body is the ``event_stream`` generator; close it like a
+        # client disconnect does.
+        body = cast(AsyncGenerator, response.body_iterator)
+        await anext(body)  # the running tool-round event
+        await body.aclose()
+
+        rows = store.get_messages("u", "c")
+        assert [m["role"] for m in rows] == ["user", "tool"]
+        assert STOPPED_TOOL_NOTE in rows[1]["metadata"]["data"]
+
+    async def test_stop_after_round_finished_stores_nothing(self, store, graph):
+        """A round that already reported its outcome has nothing running."""
+        rows = await self._stop_mid_run(
+            store,
+            graph,
+            [_tool_round_event([_SLEEP_CALL]), _tool_round_event(None)],
+        )
+
+        assert [m["role"] for m in rows] == ["user"]
+
+    async def test_disconnect_after_complete_stores_nothing(self, store, graph):
+        """A disconnect right after ``complete`` is not a stopped run."""
+        started = asyncio.Event()
+        graph.run_graph_astream_events = self._stream(
+            [_tool_round_event([_SLEEP_CALL])], started, finish=True
+        )
+        response = await chat_core.stream_response(
+            _shared_request(store, graph), query="go", user_id="u", chat_id="c"
+        )
+        # The SSE body is the ``event_stream`` generator; close it like a
+        # client disconnect does.
+        body = cast(AsyncGenerator, response.body_iterator)
+        await anext(body)  # the running tool-round event
+        assert "complete" in str(await anext(body))
+        await body.aclose()
+
+        rows = store.get_messages("u", "c")
+        assert [m["role"] for m in rows] == ["user", "assistant"]
+
+    async def test_completed_run_stores_no_stopped_rows(self, store, graph):
+        """A run that completes normally never writes the note."""
+        started = asyncio.Event()
+        graph.run_graph_astream_events = self._stream(
+            [_tool_round_event([_SLEEP_CALL])], started, finish=True
+        )
+        response = await chat_core.stream_response(
+            _shared_request(store, graph), query="go", user_id="u", chat_id="c"
+        )
+        _ = [c async for c in response.body_iterator]
+
+        rows = store.get_messages("u", "c")
+        assert [m["role"] for m in rows] == ["user", "assistant"]
 
 
 class TestCommandPersistMode:
