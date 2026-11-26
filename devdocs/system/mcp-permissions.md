@@ -432,3 +432,56 @@ its author: never connect to a server you do not trust.
 See also ``../adr/0007-mcp-permissions.md`` (path layers) and
 ``../adr/0037-tool-access-levels.md`` (invocation axis / access level) for
 the architectural decisions that adopt this posture.
+
+## Path-check modes, stance and precedence
+
+Three session values control the client-side path gate: `path_check_mode`,
+`path_check_stance` and `hitl_enabled`.  They are seeded per turn and can be
+changed with session commands (see `system/session-commands.md`).
+
+### Modes (`path_check_mode`)
+
+- `strict` (default): all four discovery layers run -- declared `checkpaths`,
+  picker-declared paths, path-like argument names, and the value/shell-token
+  heuristic.
+- `declared`: only the first two layers run.  The path-like-argument-name
+  layer and the value/shell heuristic are skipped, so an undeclared argument
+  is not inspected.
+- `off`: no path checking at all.
+
+`off` disables path *checking* only.  The access gate and path resolution
+still run, so a resolved path is still validated against the workspace
+boundary.  Because `off` relaxes containment, an operator who selects it must
+sandbox the process by other means.
+
+### Stance (`path_check_stance`)
+
+- `deny` (default, fail closed): a call whose detected path is not permitted
+  is refused.
+- `allow`: the call proceeds.
+
+The stance only bites when HITL is off.  With HITL on, an out-of-root path
+raises an approval ask and the stance is not consulted -- the human decides.
+
+### Environment variables and serve flags
+
+- `KLEA_AGENT_PATH_CHECK` fixes the mode.
+- `KLEA_AGENT_PATH_CHECK_STANCE` fixes the stance.
+- `KLEA_AGENT_HITL` fixes whether HITL is on.
+
+The same values can be fixed with the corresponding serve flags.  A value set
+this way is a ceiling.
+
+### Precedence
+
+1. process-level environment variable or serve flag (ceiling)
+2. checkpointed session-command value
+3. built-in default
+
+A session command that tries to loosen a ceiling is rejected and reports the
+conflict rather than overriding it.
+
+### Defaults
+
+The defaults fail closed: mode `strict`, stance `deny`, HITL on.  An operator
+must opt out of any of them explicitly.

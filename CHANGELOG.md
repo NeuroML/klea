@@ -10,6 +10,11 @@
 - Chat-renderable tool results and status sections can now carry structured content blocks (plain text, ordered item lists, labelled field lists) whose items are tagged with a status role (`ok`, `error`, `current`, `pending`, `plain`), so the frontends mark the step that is currently in progress instead of re-parsing free text; a reader that does not know a block's contract version falls back to the plain display text.
 - The plan status now opens with a truncated `Goal: ...` line followed by a blank line, so concurrent sessions can be told apart at a glance.
 - Streamed events now carry node/run identity, a per-node LLM-call count and a 0-based tool-call retry count (add one for an attempt number), so an evaluation harness can attribute and trace them.
+- Path-check modes and a non-interactive permission stance for file access.
+- An on/off toggle for human-in-the-loop (HITL) approvals.
+- New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands.
+- New `klea-serve` flags for path checking and HITL.
+
 
 ### Changed
 
