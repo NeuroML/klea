@@ -147,7 +147,8 @@ persisted server-side and rehydrated on load:
   (`role="tool"`, `content` = the display fallback, rendering keys
   `header`/`mime`/`data`/`meta`/`is_error` in the row's `metadata`), plus a
   `notice` row for each user-facing progress note (`role="notice"`, with the
-  emitting node as `header`).  Hydrated via
+  emitting node as `header`), plus a `tool` row for each call still running
+  when the run was stopped (see `state` above).  Hydrated via
   `GET /chat/{user_id}/{chat_id}/messages`;
   `server_message_to_data` rebuilds the frontend message shape.
 * **Inspection/status panes** - `sessions_db.chat_events`:
@@ -215,6 +216,17 @@ section in place (empty = key by node label); the Planner and Evaluator share
 `key="plan"` so the plan section is live but singular.  `NodeStreamData.preformatted`
 renders `display` as monospace `<pre>` (the plan) so tool names with `_` are
 not parsed as markdown.
+
+The tool round's `running` section (`_get_running_tools`, key
+`TOOL_ROUND_SECTION_KEY`) also lists each dispatched call in
+`details.running_calls` (`tool`, `title` and the `tool(arg=...)` call line);
+the end-of-round `ok`/`failed` section replaces it and has none.  When a run
+is stopped mid-round, `ui/stream_events.py:stopped_tool_entries` turns those
+calls into error `tool` entries with `STOPPED_TOOL_NOTE` ("Run cancelled but
+this tool may still be running. Please terminate it manually."), because
+Stop does not yet cancel a tool on the MCP server (#254).  `chat_core` stores
+them as `tool` rows, and the frontends show the same blocks on Stop through
+`apply_stopped_tool_round`, so the live chat and a reload match.
 
 The shared `ToolsCallerNode` also emits its own `state` event at the start of a
 dispatch round, alongside (not inside) the running-tools entry, marking the

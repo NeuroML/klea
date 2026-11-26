@@ -101,6 +101,12 @@ Notes:
 * `POST /query/cancel` is a separate, idempotent request (always 204) that
   reaches the registered asyncio task via `ActiveRunRegistry.cancel`; the
   graph leaves a resumable checkpoint.
+* A run stopped (or disconnected) during a tool round does not stop the tools
+  already sent to the MCP server (#254).  The `event_stream` `finally` stores a
+  `tool` row (`is_error=True`) per call that was still running, with the call
+  line and a note to terminate it manually; the calls come from the last
+  tool-round `state` event (`details.running_calls`).  A run that reaches
+  `complete` stores none.
 * `chat_core.stream_response` injects a periodic `ping` frame whenever no graph
   event arrives for `HEARTBEAT_INTERVAL_SECONDS` (15 s), so a long-running node
   (e.g. `run_command`) does not let the client's idle read timeout (300 s) or a
@@ -291,7 +297,8 @@ Notes:
 * **Resuming a failed run**: `resume: true` re-invokes the graph with `None`
   input so the failed node re-runs from its checkpoint (no user turn written).
 * **Stopping an active run**: `POST /query/cancel` (idempotent, 204) cancels
-  the asyncio task; the checkpoint stays resumable.
+  the asyncio task; the checkpoint stays resumable.  Tool calls still running
+  are recorded as `tool` rows with a note to terminate them manually.
 * **Hydration**: the transcript comes from `/messages`
   (`user`/`assistant`/`tool`/`notice` rows); the inspection/status panes from `/events`
   (the stored `inspect`/`state` events plus a per-turn `query` marker,
