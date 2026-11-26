@@ -119,6 +119,18 @@ These are sent to the graph and run there.
      - ``/init``
      - Generate project guidance (``AGENTS.md``) for the current project so
        future sessions pick up its conventions (Agent, full access).
+   * - ``/pathcheck``
+     - ``/pathcheck [strict|declared|off]``
+     - Show or set the session's path-check mode; with no argument it reports
+       the current mode.
+   * - ``/pathcheck-stance``
+     - ``/pathcheck-stance [deny|allow]``
+     - Show or set what happens when a path check cannot be resolved; with no
+       argument it reports the current stance.
+   * - ``/hitl``
+     - ``/hitl [on|off]``
+     - Show or turn human-in-the-loop approvals on or off; with no argument it
+       reports the current setting.
 
 ``/init`` writes ``AGENTS.md`` in the project directory, so its file-write
 needs the ``full`` tool access level; ``/compact`` is offered only when

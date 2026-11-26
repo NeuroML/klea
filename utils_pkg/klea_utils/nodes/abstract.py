@@ -468,6 +468,10 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             # still accounted for exactly once.
             attempt_usage = self._extract_usage(ctx)
             if attempt_usage is not None:
+                # One entry per LLM invocation, in call order, so callers can
+                # attribute tokens to individual attempts (validation retries
+                # included) while the summed totals stay unchanged.
+                ctx.usage_attempts.append(attempt_usage)
                 usage_calls += 1
                 for field_name in usage_totals:
                     usage_totals[field_name] += getattr(attempt_usage, field_name)
@@ -654,6 +658,12 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         run: it counts every LLM invocation folded into ``ctx.token_usage``,
         including validation retries whose output was discarded.
 
+        ``details["llm_usage"]`` holds one dict per LLM invocation, in call
+        order (validation retries included), alongside the unchanged summed
+        totals.  It is live-stream only: it travels on the emitted ``usage``
+        event and is not persisted into the final state.  When no usage was
+        recorded the list is empty.
+
         :param ctx: Per-run node context.
         :returns: ``NodeStreamData`` with numeric token details, or ``None`` if no
             usage recorded
@@ -661,6 +671,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         if ctx.token_usage is not None:
             details = ctx.token_usage.model_dump()
             details["llm_calls"] = int(ctx.llm_calls)
+            details["llm_usage"] = [u.model_dump() for u in ctx.usage_attempts]
             self.logger.debug(f"{details =}")
             return NodeStreamData(summary="", details=details)
         return None

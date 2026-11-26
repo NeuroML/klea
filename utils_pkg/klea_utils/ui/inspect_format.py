@@ -75,6 +75,46 @@ def _prepare(value: Any) -> Any:
     return value
 
 
+#: ``details`` keys that are eval/harness-only bookkeeping (the ADaPT retry
+#: budgets).  They ride the ``inspect``/``state``/``tool`` payloads so the eval
+#: harness can read them (``devdocs/system/streams.md``), but a frontend must
+#: never render them as user-facing text.
+NOT_DISPLAYED_DETAIL_KEYS: frozenset[str] = frozenset({"retry_count", "max_retries"})
+
+
+def _drop_not_displayed(value: Any) -> Any:
+    """Recursively drop :data:`NOT_DISPLAYED_DETAIL_KEYS` from mapping keys.
+
+    Only keys are removed; list items and scalars are kept, so a nested
+    mapping inside a list is still filtered.
+
+    :param value: The details payload (or a nested value).
+    :returns: An equivalent structure without the not-displayed keys.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _drop_not_displayed(item)
+            for key, item in value.items()
+            if key not in NOT_DISPLAYED_DETAIL_KEYS
+        }
+    if isinstance(value, list):
+        return [_drop_not_displayed(item) for item in value]
+    return value
+
+
+def drop_not_displayed(details: Any) -> Any:
+    """Return *details* with :data:`NOT_DISPLAYED_DETAIL_KEYS` dropped everywhere.
+
+    Public wrapper around :func:`_drop_not_displayed` so frontends (the NiceGUI
+    status pane, the TUI) share one recursive filter instead of each
+    duplicating the not-displayed key list.
+
+    :param details: The ``details`` payload (or any nested value).
+    :returns: An equivalent structure without the not-displayed keys.
+    """
+    return _drop_not_displayed(details)
+
+
 def format_details(details: Any) -> str:
     """Render structured inspect ``details`` as readable indented JSON.
 
@@ -86,6 +126,9 @@ def format_details(details: Any) -> str:
       text;
     * a value that is itself a JSON object/array string is parsed and inlined
       as nested, pretty-printed JSON;
+    * keys listed in :data:`NOT_DISPLAYED_DETAIL_KEYS` (internal retry-budget
+      bookkeeping that only the eval harness reads) are dropped, at any
+      nesting depth, so they never reach user-facing text;
     * all other values (numbers, booleans, ``null``, single-line strings
       such as a Pydantic ``repr``) are rendered as normal JSON.
 
@@ -93,6 +136,7 @@ def format_details(details: Any) -> str:
     :returns: A human-readable, indented multi-line string.
     """
     logger.debug(f"{type(details) = }")
-    return json.dumps(_prepare(details), indent=2, ensure_ascii=False).replace(
+    filtered = _drop_not_displayed(details)
+    return json.dumps(_prepare(filtered), indent=2, ensure_ascii=False).replace(
         _NEWLINE_SENTINEL, "\n"
     )

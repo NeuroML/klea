@@ -55,7 +55,17 @@ runner (`_stream_identity` in `utils_pkg/klea_utils/graph/base.py`), and
 caller's and triage router's `inspect`/`state` payloads; consumers add one for
 a 1-based attempt number) ride the payloads.  They are
 observability data, not graph-state updates, and are not part of any node's
-write contract.
+write contract.  They are harness-only and are never rendered by a frontend;
+see `devdocs/system/streams.md` for the not-displayed filtering rule.
+
+The `usage` event additionally carries an additive `llm_usage` list beside the
+top-level totals and `llm_calls`: one dict per LLM invocation in the node
+execution (`input_tokens`, `output_tokens`, `total_tokens`, `cached_tokens`,
+`reasoning_tokens`), in call order and with validation retries included.  The
+top-level totals and `llm_calls` remain authoritative, so a consumer that
+ignores the list sees the event it always saw.  `llm_usage` is live-stream only:
+`usage` events are not persisted, so a reloaded chat sees only the checkpointed
+cumulative totals, never the per-call list.
 
 ## 3. Requiredness notation and field conventions
 
@@ -513,6 +523,16 @@ Klea Agent runs `AgentToolsCaller` (`agent_pkg/klea_agent/nodes/agent_tools_call
 | Evaluation is usable and the plan is aborted | `abort` | Writes aborted status and a failure explanation where required. | `operational_evaluator.py`; `klea_agent.py` |
 | A replan reason is present | `need_replan` | Preserves the reason for Planner re-entry. | `operational_evaluator.py`; `klea_agent.py` |
 | Evaluation is empty or inconsistent | Retry with feedback, then fail closed | No pending work is silently discarded and no inconsistent plan completion is accepted. | `operational_evaluator.py`; control-flow note |
+
+**Step-incomplete retry details.**  A step-incomplete retry emits the
+Evaluator's own `inspect` entry with additive retry keys rather than a new event
+type: `kind: "evaluator_retry"`, `plan_step` (the step being retried),
+`attempt` (1-based, read from `state_updates["step_attempt_counts"]`, which
+`_update_state` writes before `_post_exec_stream`) and `max_attempts`
+(`self.max_step_attempts`).  The failure reason still rides
+`evaluations[step]["reason"]`.  The keys are additive observability data, not a
+graph-state update, so the shared reducer and `format_details` render them
+without a frontend change.
 
 ### 5.14 `Preparing review`
 

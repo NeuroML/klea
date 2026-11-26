@@ -344,17 +344,28 @@ def attach_status_pane(ctx: PageContext) -> None:
                                 )
                             details = section.get("details", {})
                             if details:
-                                with ui.element("details").classes(
-                                    "status-details text-xs text-grey-5 "
-                                    "cursor-pointer w-full"
-                                ):
-                                    with ui.element("summary").classes(
-                                        "text-xs w-full"
+                                # Eval-only detail keys (ADaPT retry budgets)
+                                # ride the payload so the harness can read them,
+                                # but the pane must not show them
+                                # (``devdocs/system/streams.md``).
+                                from klea_utils.ui.inspect_format import (
+                                    drop_not_displayed,
+                                )
+
+                                shown = drop_not_displayed(details)
+                                if shown:
+                                    with ui.element("details").classes(
+                                        "status-details text-xs text-grey-5 "
+                                        "cursor-pointer w-full"
                                     ):
-                                        ui.label("View details")
-                                    ui.code(
-                                        json.dumps(details, indent=2), language="json"
-                                    ).classes("text-xs")
+                                        with ui.element("summary").classes(
+                                            "text-xs w-full"
+                                        ):
+                                            ui.label("View details")
+                                        ui.code(
+                                            json.dumps(shown, indent=2),
+                                            language="json",
+                                        ).classes("text-xs")
 
         _status_pane()
         ctx.refresh_status_pane = _status_pane.refresh

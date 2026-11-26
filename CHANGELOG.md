@@ -27,8 +27,11 @@
 - Streamed events now carry node/run identity, a per-node LLM-call count and a 0-based tool-call retry count (add one for an attempt number), so an evaluation harness can attribute and trace them.
 - Path-check modes and a non-interactive permission stance for file access.
 - An on/off toggle for human-in-the-loop (HITL) approvals.
-- New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands.
+- New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands, offered in both the terminal and web clients.
 - New `klea-serve` flags for path checking and HITL.
+- A new `klea headless` subcommand for non-interactive runs.
+- The streamed `usage` event now also carries per-invocation token usage (`llm_usage`) beside the unchanged node totals, so each LLM call's spend can be attributed on its own.
+- Evaluator step retries now report their detail on the `inspect` event (`kind`, `plan_step`, `attempt`, `max_attempts`), so a retried step can be traced.
 
 
 ### Changed
@@ -80,6 +83,7 @@
 - TUI: the turn spinner now stops whenever a run ends, including a stream that closes with no terminal event, so an idle spinner no longer keeps ticking after the reply is done.
 - TUI: the status panel now skips re-rendering unchanged sections, so a streamed state event for one section no longer repaints the whole pane on every tick.
 - Path-approval prompts now keep the detected path visible in the command snippet by centring the preview window on a recovered fragment of the token, so a normalised token is no longer hidden by truncation.
+- Internal evaluation-only stream fields are no longer shown in the terminal or web status panes.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 

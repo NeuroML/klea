@@ -11,7 +11,65 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 import json
 
 import pytest
-from klea_utils.ui.inspect_format import format_details
+from klea_utils.ui.inspect_format import (
+    NOT_DISPLAYED_DETAIL_KEYS,
+    drop_not_displayed,
+    format_details,
+)
+
+
+def test_format_details_drops_not_displayed_keys() -> None:
+    """Drop not-displayed keys everywhere while keeping the rest of the payload.
+
+    The retry-budget keys are harness bookkeeping: they must never reach
+    user-facing text, at the top level or nested inside a mapping or a list,
+    while their sibling keys survive untouched.
+    """
+    details = {
+        "retry_count": 1,
+        "max_retries": 3,
+        "route": "task",
+        "nested": {"retry_count": 2, "step": 1},
+        "items": [{"max_retries": 1, "tool_names": ["a"]}],
+    }
+
+    formatted = format_details(details)
+
+    assert "retry_count" not in formatted
+    assert "max_retries" not in formatted
+    assert '"route": "task"' in formatted
+    assert '"step": 1' in formatted
+    assert "tool_names" in formatted
+    # A key added to the not-displayed set later must fail this test, so the
+    # frontends' filtering stays in step with the harness bookkeeping.
+    assert NOT_DISPLAYED_DETAIL_KEYS == frozenset({"retry_count", "max_retries"})
+
+
+def test_rendering_hides_not_displayed_detail_keys() -> None:
+    """The details render path never shows the retry-budget bookkeeping.
+
+    Mirrors what the status panes do: filter a section's ``details`` through
+    :func:`drop_not_displayed`, then render it as indented JSON.  The
+    eval-only keys must be absent at the top level and nested inside a
+    mapping and a list, while ordinary keys survive, so a producer that adds
+    ``retry_count``/``max_retries`` to an ``inspect``/``state``/``tool``
+    payload cannot leak them into user-facing output.
+    """
+    details = {
+        "retry_count": 1,
+        "max_retries": 3,
+        "route": "task",
+        "nested": {"retry_count": 2, "step": 1},
+        "items": [{"max_retries": 1, "tool_names": ["a"]}],
+    }
+
+    rendered = json.dumps(drop_not_displayed(details), indent=2)
+
+    assert '"route": "task"' in rendered
+    assert '"step": 1' in rendered
+    assert "tool_names" in rendered
+    assert "retry_count" not in rendered
+    assert "max_retries" not in rendered
 
 
 def test_empty_containers():

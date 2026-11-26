@@ -782,13 +782,3 @@ phases are listed below.
   today.  (The TUI's :kbd:`Ctrl+I` / :kbd:`Tab` toggle now works: a terminal
   sends Ctrl+I as Tab, which `Screen`'s default `focus_next` binding had been
   swallowing, so the toggle is bound at the screen level instead.)
-
-## Deferred
-
-- `klea headless` subcommand.
-- UI exposure of the HITL and path-check toggles in both UIs (agent and RAG).
-  Both items are deferred until all backend changes land.
-
-## Headless session database
-
-Headless runs persist chats to the same SQLite store as your interactive sessions. To keep them apart, give the backend its own storage root before it starts: `KLEA_AGENT_HOME=~/.local/share/klea-agent-headless klea headless "<query>"`. It is read once at backend start and relocates `sessions.db`, `checkpoints.db`, the lockfile and logs together, so an eval backend can run alongside your normal one - pair it with a distinct port.
