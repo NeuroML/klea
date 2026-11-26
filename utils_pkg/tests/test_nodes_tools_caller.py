@@ -926,7 +926,12 @@ def test_get_status_none_when_all_names_empty():
 def test_get_running_tools_lists_tools_with_titles():
     """The pre-dispatch section marks each tool ``running`` (status pane)."""
     node = _make_node(tool_infos={"a": ToolInfo(title="Alpha tool")})
-    state = MiniState(tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")])
+    state = MiniState(
+        tool_calls=[
+            ToolCallSchema(tool="a", args={"command": "sleep 40"}),
+            ToolCallSchema(tool="b"),
+        ]
+    )
 
     status = node._get_running_tools(state)
 
@@ -934,6 +939,11 @@ def test_get_running_tools_lists_tools_with_titles():
     assert status.heading == "Tool Execution"
     assert status.summary == "Running 2 tool(s)"
     assert status.display == "- **Alpha tool**: running\n- **b**: running"
+    # Each call is listed too, so a stopped run can say what was left running.
+    assert status.details["running_calls"] == [
+        {"tool": "a", "title": "Alpha tool", "call": 'a(command="sleep 40")'},
+        {"tool": "b", "title": "b", "call": "b()"},
+    ]
 
 
 def test_get_running_tools_none_without_tool_calls():

@@ -601,12 +601,7 @@ class ToolsCallerNode(
         name = getattr(tc, "tool", "") or ""
         if not name:
             return None
-        args = getattr(tc, "args", None) or {}
-        rendered = ", ".join(
-            f"{key}={ToolsCallerNode._summarise_arg(value)}"
-            for key, value in args.items()
-        )
-        call = f"{name}({rendered})" if args else f"{name}()"
+        call = ToolsCallerNode._call_line(tc)
         text = (
             ""
             if ToolsCallerNode._has_binary_payload(result)
@@ -661,6 +656,21 @@ class ToolsCallerNode(
                 return True
         structured = result.structured_content
         return isinstance(structured, dict) and bool(structured.get("binary"))
+
+    @staticmethod
+    def _call_line(tc: Any) -> str:
+        """Return the one-line ``tool(arg=...)`` rendering of a call.
+
+        Each argument value is shortened with :meth:`_summarise_arg`, so a
+        long argument does not flood the chat.
+        """
+        name = getattr(tc, "tool", "") or ""
+        args = getattr(tc, "args", None) or {}
+        rendered = ", ".join(
+            f"{key}={ToolsCallerNode._summarise_arg(value)}"
+            for key, value in args.items()
+        )
+        return f"{name}({rendered})"
 
     @staticmethod
     def _summarise_arg(value: Any, limit: int = 80) -> str:
@@ -860,16 +870,25 @@ class ToolsCallerNode(
         round ends.  Calls with no usable name are skipped, matching
         :meth:`_get_status`.
 
+        ``details["running_calls"]`` lists each call (tool, title and the
+        ``tool(arg=...)`` call line), so a run stopped mid-round can still show
+        which calls were in flight (see
+        :func:`klea_utils.ui.stream_events.stopped_tool_entries`).
+
         :returns: A status section, or ``None`` when there is nothing to run.
         """
         tool_calls = getattr(state, "tool_calls", []) or []
         lines: list[str] = []
+        running_calls: list[dict[str, str]] = []
         for tc in tool_calls:
             if not tc.tool.strip():
                 continue
             info = self._tool_infos.get(tc.tool) if self._tool_infos else None
             title = info.title if info and info.title else tc.tool
             lines.append(f"- **{title}**: running")
+            running_calls.append(
+                {"tool": tc.tool, "title": title, "call": self._call_line(tc)}
+            )
         if not lines:
             return None
         return NodeStreamData(
@@ -877,7 +896,10 @@ class ToolsCallerNode(
             key=self.label,
             summary=f"Running {len(tool_calls)} tool(s)",
             display="\n".join(lines),
-            details={"retry_count": _retry_count(state)},
+            details={
+                "retry_count": _retry_count(state),
+                "running_calls": running_calls,
+            },
         )
 
     def _get_status(
