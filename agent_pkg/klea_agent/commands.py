@@ -32,6 +32,7 @@ from klea_utils.commands.common import (
 )
 from klea_utils.commands.graph import GraphCommandHandler, GraphCommandResult
 from klea_utils.commands.state_edit import StateField, edit_state_fields
+from klea_utils.commands.toggles import TOGGLE_COMMANDS, TOGGLE_HANDLERS
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
 from klea_utils.mcp.path_approval import (
     find_covering_dir,
@@ -701,4 +702,7 @@ def build_agent_commands(
     if registry.get("compact") is not None:
         handlers["compact"] = _handle_compact
     logger.debug(f"agent command catalogue: {len(registry.all())} command(s)")
+    for _toggle_command in TOGGLE_COMMANDS:
+        registry.register(_toggle_command)
+    handlers.update(TOGGLE_HANDLERS)
     return registry, handlers

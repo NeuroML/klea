@@ -11,7 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 import logging
-from typing import Any, ClassVar, Literal, override
+from typing import Any, ClassVar, Literal, cast, override
 
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
 from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, filter_tools_info
@@ -693,6 +693,21 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                 self.max_automated_plan_revisions,
                 reason,
             )
+            if not getattr(result, "hitl_enabled", True):
+                # The budget-exhaustion guidance step carries no replan reason,
+                # so ``is_replan`` is False and the retry counter resets, which
+                # would loop forever when HITL is off (nobody can approve a
+                # replan).
+                return cast(
+                    dict[str, Any],
+                    self._preserved_plan(
+                        prior,
+                        "unplannable",
+                        version,
+                        review_rounds,
+                        prior.automated_plan_revisions,
+                    ),
+                )
             guidance = self._guidance_step(prior, reason)
             plan = self._preserved_plan(
                 prior,
