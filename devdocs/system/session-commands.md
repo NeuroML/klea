@@ -138,7 +138,7 @@ and the menu (`CommandRegistry.available`).
 | `/access [read_only\|full]` | session-state | checkpoint | block | show or set the tool access level |
 | `/cwd [path]` | session-state | checkpoint | block | show or set the session project root |
 | `/paths [list\|add <dir>\|remove <path>]` | session-state | checkpoint | block | show or manage session path approvals |
-| `/mcp [list]` | session-state | checkpoint | block | list configured MCP servers and their tools |
+| `/mcp [list\|enable <server>\|disable <server>]` | session-state | checkpoint | block | list configured MCP servers and their tools, or switch a server on/off for this chat |
 | `/compact` | workflow | checkpoint | block | summarise and shorten the conversation memory |
 | `/init` | workflow | message | block | generate project guidance (`AGENTS.md`) |
 
@@ -156,10 +156,16 @@ exact directory or sensitive-file approval (the project root changes with
 controls for directories and remove-only sensitive files.  The pure helpers
 live in ``klea_utils.mcp.path_approval``.
 `/mcp` (and `/mcp list`) reports the MCP servers configured for this backend
-and the tools each exposed at graph setup (issue 226).  It does not change
-membership yet; per-chat enable/disable and runtime add/remove are later
-slices.  Access modes (`/access`) stay separate: the listing shows what is
-configured, and `/access` still filters read_only vs full at plan/dispatch time.
+and the tools each exposed at graph setup (issue 226), marking the servers
+disabled for this chat.  `/mcp disable <server>` and `/mcp enable <server>`
+switch a whole configured server off or on for the chat: they write the
+thread-scoped `BaseGraphSchema.disabled_mcp_servers` (the name is matched
+case-insensitively, stored as configured).  A disabled server's tools are
+hidden from the Planner and the picker and refused at dispatch (see
+`mcp-permissions.md`); its process keeps running in the chat's MCP client.
+Single tools are not toggled (use the config tags), and runtime add/remove of
+servers is a later slice.  Access modes (`/access`) stay separate: both filters
+apply, so `/access` still filters read_only vs full over the enabled servers.
 `/compact` is registered only when conversation memory is enabled (it
 hands off to the compaction node); it forces a summarisation past the automatic
 threshold and reports the outcome in the inspection pane.  `/init` is a
