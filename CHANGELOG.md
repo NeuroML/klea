@@ -12,8 +12,9 @@
 - Streamed events now carry node/run identity, a per-node LLM-call count and a 0-based tool-call retry count (add one for an attempt number), so an evaluation harness can attribute and trace them.
 - Path-check modes and a non-interactive permission stance for file access.
 - An on/off toggle for human-in-the-loop (HITL) approvals.
-- New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands.
+- New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands, offered in both the terminal and web clients.
 - New `klea-serve` flags for path checking and HITL.
+- A new `klea headless` subcommand for non-interactive runs.
 
 
 ### Changed

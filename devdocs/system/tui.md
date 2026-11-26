@@ -148,6 +148,13 @@ The three shared modules are extracted in Phase 1 so the web and TUI share one
 source of truth for the event contract; NiceGUI-only drivers (`run_stream`,
 `stop_stream`) stay in the web package.
 
+Commands are the one place the TUI forwards rather than handles: it merges the
+server catalogue (`GET /commands`) into its `/` menu and sends a server command
+to the graph, which runs it.  The path-check and HITL toggles arrive this way --
+`/pathcheck` (`strict|declared|off`), `/pathcheck-stance` (`deny|allow`) and
+`/hitl` (`on|off`) -- so the TUI only dispatches them, with no local state of
+its own.
+
 ## Event consumption
 
 The event catalogue and payload shapes are fixed by `system/streams.md`; the
