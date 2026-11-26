@@ -115,6 +115,28 @@ def _make_picker(**kwargs) -> ToolsPicker:
     )
 
 
+def test_disclosed_tools_drop_a_disabled_server():
+    """A server disabled with ``/mcp disable`` is hidden from the picker (#226)."""
+
+    class DisabledState(AgentLikeState):
+        disabled_mcp_servers: list[str] = Field(default_factory=lambda: ["nml"])
+
+    picker = _make_picker(
+        tools_info={
+            "code": {
+                "bundled_read": ToolInfo(description="read", server="bundled"),
+                "nml_list": ToolInfo(description="list", server="nml"),
+            }
+        }
+    )
+
+    assert set(picker._disclosed_tools(DisabledState())) == {"bundled_read"}
+    assert set(picker._disclosed_tools(AgentLikeState())) == {
+        "bundled_read",
+        "nml_list",
+    }
+
+
 def test_get_tool_descriptions_filters_by_domain():
     picker = _make_picker()
     descriptions = picker._get_tool_descriptions(

@@ -1262,6 +1262,48 @@ class TestPlannerValidation(unittest.TestCase):
         self.assertIn("does not permit", error)
         self.assertIn("read_only", error)
 
+    def test_rejects_tool_of_a_disabled_server(self):
+        """A step naming a disabled server's tool is rejected (issue 226)."""
+        planner = self._planner(
+            tools_info={
+                "code": {
+                    "bundled_read": ToolInfo(server="bundled"),
+                    "nml_list": ToolInfo(server="nml"),
+                }
+            }
+        )
+        output = PlannerOutput(
+            plan=PlannerPlanSchema(
+                step_list=[StepSchema(summary="list", suggested_tools=["nml_list"])]
+            )
+        )
+        error = planner._validate_result(
+            output,
+            KleaAgentState(disabled_mcp_servers=["nml"]),
+            LLMNodeContext(),
+        )
+        self.assertIsNotNone(error)
+        assert error is not None
+        self.assertIn("'nml' is disabled in this chat", error)
+
+    def test_disabled_server_tools_are_not_disclosed(self):
+        planner = self._planner(
+            tools_info={
+                "code": {
+                    "bundled_read": ToolInfo(
+                        short_description="read files", server="bundled"
+                    ),
+                    "nml_list": ToolInfo(short_description="list models", server="nml"),
+                }
+            }
+        )
+        state = KleaAgentState(disabled_mcp_servers=["nml"])
+
+        description = planner._get_tool_descriptions(state)
+
+        self.assertIn("read files", description)
+        self.assertNotIn("list models", description)
+
     def test_rejects_unknown_tool(self):
         output = PlannerOutput(
             plan=PlannerPlanSchema(

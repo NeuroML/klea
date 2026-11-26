@@ -11,6 +11,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail dot com>
 """
 
 import logging
+from collections.abc import Mapping
 from typing import Any, ClassVar, Literal, cast, override
 
 from klea_utils.llm import extract_llm_output_content, prompt_value_to_messages
@@ -105,14 +106,21 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
     def _disclosed_tools(self, state: KleaAgentState) -> dict[str, dict[str, ToolInfo]]:
         """Return the tool catalogue filtered by the run's access level.
 
-        Access-level filtering (ADR-0037) is the single source for both the
-        prompt descriptions and the validation of a step's suggested tools.
+        Access-level filtering (ADR-0037), minus the tools of any MCP server
+        disabled for the session (``/mcp disable``), is the single source for
+        both the prompt descriptions and the validation of a step's suggested
+        tools.
 
-        :param state: Current graph state (supplies the access level).
+        :param state: Current graph state (supplies the access level and the
+            disabled MCP servers).
         :returns: Per-domain ``{name: ToolInfo}`` map of disclosed tools.
         """
         access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
-        tools_info = filter_tools_info(self._tools_info, access_level)
+        tools_info = filter_tools_info(
+            self._tools_info,
+            access_level,
+            getattr(state, "disabled_mcp_servers", []) or [],
+        )
         self.logger.debug(
             f"{access_level = }\n"
             f"disclosed_tools = "
@@ -291,6 +299,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         available: set[str],
         configured: set[str],
         access_level: str,
+        disabled_tools: Mapping[str, str] | None = None,
     ) -> list[str]:
         """Return errors for a tool step that names unavailable tools.
 
@@ -303,6 +312,8 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         :param available: Names disclosed at the run's access level.
         :param configured: All configured tool names (before filtering).
         :param access_level: The active access level (for the message).
+        :param disabled_tools: ``{tool: server}`` for configured tools whose
+            MCP server is disabled for the session (for the message).
         :returns: Human-readable errors; empty when every tool is available.
         """
         if not self._tools_info:
@@ -319,7 +330,12 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
         for tool in step.suggested_tools:
             if tool in available:
                 continue
-            if tool in configured:
+            if disabled_tools and tool in disabled_tools:
+                errors.append(
+                    f"step {step.step_number} names tool '{tool}', whose MCP "
+                    f"server '{disabled_tools[tool]}' is disabled in this chat"
+                )
+            elif tool in configured:
                 errors.append(
                     f"step {step.step_number} names tool '{tool}', which "
                     f"access level '{access_level}' does not permit"
@@ -402,6 +418,13 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
             configured = {
                 name for domain in self._tools_info.values() for name in domain
             }
+            disabled = set(getattr(state, "disabled_mcp_servers", []) or [])
+            disabled_tools = {
+                name: info.server
+                for domain in self._tools_info.values()
+                for name, info in domain.items()
+                if info.server is not None and info.server in disabled
+            }
             errors.extend(plan.validate_plan())
             for step in plan.step_list:
                 if step.needs_input:
@@ -446,7 +469,7 @@ class Planner(BaseLLMNode[KleaAgentState, PlannerOutput]):
                         )
                     errors.extend(
                         self._tool_availability_errors(
-                            step, available, configured, access_level
+                            step, available, configured, access_level, disabled_tools
                         )
                     )
                 if step.kind == "reasoning" and step.suggested_tools:

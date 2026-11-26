@@ -164,6 +164,45 @@ class TestBuildToolsInfoAnnotations:
         assert info["plain"].read_only is None
         assert info["plain"].destructive is None
 
+    def test_single_server_tools_carry_the_server(self):
+        """With one server every tool belongs to it (issue 226)."""
+        graph = ToyGraph()
+        graph.mcp_tools = [self._tool("search"), self._tool("plain")]
+        graph.domain_mcp_configs = {
+            "code": MCPConfig(mcpServers={"srv": {"url": "http://example.invalid/mcp"}})
+        }
+
+        graph._build_tools_info()
+
+        info = graph.tools_info["code"]
+        assert info["search"].server == "srv"
+        assert info["plain"].server == "srv"
+
+    def test_multi_server_tools_carry_their_prefix_server(self):
+        """With several servers the name prefix gives the server."""
+        graph = ToyGraph()
+        graph.mcp_tools = [
+            self._tool("bundled_read_file"),
+            self._tool("nml_list_models"),
+            self._tool("orphan"),
+        ]
+        graph.domain_mcp_configs = {
+            "code": MCPConfig(
+                mcpServers={
+                    "bundled": {"url": "http://example.invalid/a"},
+                    "nml": {"url": "http://example.invalid/b"},
+                }
+            )
+        }
+
+        graph._build_tools_info()
+
+        info = graph.tools_info["code"]
+        assert info["bundled_read_file"].server == "bundled"
+        assert info["nml_list_models"].server == "nml"
+        # A tool matching no server prefix is still skipped.
+        assert "orphan" not in info
+
     def test_input_schema_propagation(self):
         """The tool's inputSchema is carried onto ToolInfo for the picker."""
         graph = ToyGraph()

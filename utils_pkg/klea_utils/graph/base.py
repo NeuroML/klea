@@ -529,11 +529,16 @@ class BaseLangGraph(ABC):
             domain_tools_info: dict[str, ToolInfo] = {}
             for t in self.mcp_tools:
                 # tools will be prefixed with server names
-                if num_servers > 1 and not any(
-                    t.name.startswith(s + "_") for s in server_names
-                ):
-                    continue
-                # otherwise, there's only one server
+                if num_servers > 1:
+                    server = next(
+                        (s for s in server_names if t.name.startswith(s + "_")),
+                        None,
+                    )
+                    if server is None:
+                        continue
+                else:
+                    # otherwise, there's only one server
+                    server = server_names[0]
                 # Klea expects MCP tools to follow the docstring-first
                 # convention (summary + Use when / Do not use for bullets +
                 # one example; params via Args:), see build_tool_description
@@ -557,6 +562,7 @@ class BaseLangGraph(ABC):
                     meta=clean_tool_meta(t.meta),
                     read_only=read_only,
                     destructive=destructive,
+                    server=server,
                 )
             self.tools_info[domain] = domain_tools_info
         self.logger.debug(f"{self.tools_info = }")

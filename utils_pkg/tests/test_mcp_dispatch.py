@@ -463,6 +463,37 @@ async def test_dispatch_read_only_denies_unannotated():
     assert client.calls == []
 
 
+async def test_dispatch_refuses_tools_of_a_disabled_server():
+    """A call to a disabled server's tool is refused before dispatch (#226)."""
+    client = FakeMCPClient()
+    results = await dispatch_tool_calls(
+        client,
+        [("bundled_read", {}), ("nml_list", {})],
+        {
+            "bundled_read": ToolInfo(server="bundled"),
+            "nml_list": ToolInfo(server="nml"),
+        },
+        disabled_servers=["nml"],
+    )
+    assert [r.is_error for r in results] == [False, True]
+    assert client.calls == [("bundled_read", {})]
+    assert "/mcp enable nml" in str(results[1].content)
+
+
+async def test_dispatch_disabled_server_gate_runs_with_path_check_off():
+    """Path check ``off`` skips the access gate, not the disabled-server gate."""
+    client = FakeMCPClient()
+    results = await dispatch_tool_calls(
+        client,
+        [("nml_list", {})],
+        {"nml_list": ToolInfo(server="nml")},
+        disabled_servers=["nml"],
+        path_check_mode="off",
+    )
+    assert results[0].is_error
+    assert client.calls == []
+
+
 async def test_dispatch_without_tool_infos_skips_gates():
     """With no tool-info map neither gate runs, even under read_only (compat)."""
     client = FakeMCPClient()
