@@ -7,7 +7,8 @@ Builds the agent's **server-side** command catalogue (served to frontends via
 Client-side commands (``/model``, ``/help``, ...) belong to the frontends, not
 here: the backend cannot know them without a circular dependency, so a
 client-side command reaching the graph is simply unknown.  ``/mode``,
-``/access``, and ``/mcp`` (list configured servers/tools) are implemented
+``/access``, and ``/mcp`` (list configured servers/tools, enable or disable a
+server for the chat) are implemented
 graph commands; ``/compact`` (memory-gated) hands off to the compaction
 node, and ``/init`` hands off back into the normal path with a synthesised
 query.  The rest are documented stubs that reply "not implemented yet"
@@ -115,11 +116,12 @@ _PATHS_COMMAND = Command(
 )
 
 #: ``/mcp``: list the MCP servers configured for this backend and the tools
-#: each exposed at setup (issue 226).  A bare ``/mcp`` lists; ``list`` is the
-#: explicit verb.  Enable/disable and runtime add/remove come later.
+#: each exposed at setup, and switch a whole server off or on for this chat
+#: (issue 226).  A bare ``/mcp`` lists; ``list`` is the explicit verb.  Runtime
+#: add/remove of servers comes later.
 _MCP_COMMAND = Command(
     name="mcp",
-    summary="List configured MCP servers and their tools",
+    summary="List MCP servers and enable or disable them for this chat",
     side="server",
     klass="session-state",
     persists="checkpoint",
@@ -128,6 +130,16 @@ _MCP_COMMAND = Command(
         Subcommand(
             name="list",
             summary="List configured MCP servers and their tools",
+        ),
+        Subcommand(
+            name="enable",
+            summary="Use a disabled MCP server's tools again in this chat",
+            arg_hint="<server>",
+        ),
+        Subcommand(
+            name="disable",
+            summary="Stop using an MCP server's tools in this chat",
+            arg_hint="<server>",
         ),
     ),
 )
@@ -592,16 +604,23 @@ def group_tools_by_server(
 
 
 def format_mcp_servers(
-    server_names: Iterable[str], tools_by_server: Mapping[str, Iterable[str]]
+    server_names: Iterable[str],
+    tools_by_server: Mapping[str, Iterable[str]],
+    disabled: Iterable[str] = (),
 ) -> str:
-    """Return the user-facing MCP server listing for ``/mcp``."""
+    """Return the user-facing MCP server listing for ``/mcp``.
+
+    Servers disabled for the chat are marked ``(disabled)``.
+    """
     names = list(server_names)
     if not names:
         return "No MCP servers configured."
+    disabled_names = set(disabled)
     lines = [f"MCP servers ({len(names)}):"]
     for name in names:
         tools = list(tools_by_server.get(name, ()))
-        lines.append(f"  {name}:")
+        marker = " (disabled)" if name in disabled_names else ""
+        lines.append(f"  {name}{marker}:")
         if tools:
             lines.extend(f"  - {tool}" for tool in tools)
         else:
@@ -613,29 +632,87 @@ def _handle_mcp(
     server_names: tuple[str, ...],
     tools_by_server: Mapping[str, list[str]],
 ) -> GraphCommandHandler:
-    """Return the ``/mcp`` graph handler (issue 226, list slice).
+    """Return the ``/mcp`` graph handler (issue 226).
 
-    Bare ``/mcp`` and ``/mcp list`` both report the servers and tools known
-    at graph setup.  Enable/disable and add/remove are not implemented yet.
+    Bare ``/mcp`` and ``/mcp list`` report the servers and tools known at
+    graph setup, marking the ones disabled for this chat.  ``enable`` and
+    ``disable`` take a configured server name and update the session's
+    ``disabled_mcp_servers``: a disabled server's tools are hidden from the
+    planner and picker and refused at dispatch.  The server process itself
+    keeps running.  Runtime add/remove is not implemented yet.
     """
 
     def handler(state: BaseModel, parsed: ParsedCommand) -> GraphCommandResult:
         verb = parsed.verb
-        logger.debug(f"command /mcp: {verb = } servers={list(server_names)}")
-        if verb not in ("", "list"):
+        disabled = list(getattr(state, "disabled_mcp_servers", []) or [])
+        logger.debug(
+            f"command /mcp: {verb = } {parsed.args = } "
+            f"servers={list(server_names)} {disabled = }"
+        )
+        if verb in ("", "list"):
+            message = format_mcp_servers(server_names, tools_by_server, disabled)
+            return GraphCommandResult(
+                message=message,
+                summary="MCP servers",
+                details={
+                    "action": "list",
+                    "servers": list(server_names),
+                    "disabled": disabled,
+                    "tools": {
+                        name: list(tools_by_server.get(name, ()))
+                        for name in server_names
+                    },
+                },
+            )
+        if verb not in ("enable", "disable"):
             # ``resolve_subcommand`` rejects unknown verbs before dispatch;
             # keep a fail-closed branch for safety.
             return GraphCommandResult(message=f"Unknown /mcp subcommand: {verb}")
-        message = format_mcp_servers(server_names, tools_by_server)
+        requested = " ".join(parsed.args).strip()
+        if not requested:
+            return GraphCommandResult(message=f"Usage: /mcp {verb} <server>")
+        # Server ids are matched case-insensitively and stored as configured.
+        by_lower = {name.lower(): name for name in server_names}
+        server = by_lower.get(requested.lower())
+        if server is None:
+            configured = ", ".join(server_names) or "none"
+            logger.warning(f"command /mcp {verb}: unknown server {requested!r}")
+            return GraphCommandResult(
+                message=(
+                    f"Unknown MCP server: {requested}. Configured servers: "
+                    f"{configured}."
+                )
+            )
+        if verb == "disable":
+            if server in disabled:
+                return GraphCommandResult(
+                    message=f"MCP server '{server}' is already disabled in this chat."
+                )
+            new_disabled = [
+                name for name in server_names if name in disabled or name == server
+            ]
+            message = (
+                f"MCP server '{server}' disabled for this chat; its tools will "
+                "not be used."
+            )
+            if len(new_disabled) == len(server_names):
+                message += " No MCP servers are enabled in this chat now."
+        else:
+            if server not in disabled:
+                return GraphCommandResult(
+                    message=f"MCP server '{server}' is already enabled in this chat."
+                )
+            new_disabled = [name for name in disabled if name != server]
+            message = f"MCP server '{server}' enabled for this chat."
+        logger.debug(f"command /mcp {verb}: disabled_mcp_servers={new_disabled}")
         return GraphCommandResult(
+            updates={"disabled_mcp_servers": new_disabled},
             message=message,
-            summary="MCP servers",
+            summary=message,
             details={
-                "action": "list",
-                "servers": list(server_names),
-                "tools": {
-                    name: list(tools_by_server.get(name, ())) for name in server_names
-                },
+                "action": verb,
+                "server": server,
+                "disabled": new_disabled,
             },
         )
 
