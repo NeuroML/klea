@@ -28,6 +28,12 @@ from langchain_core.runnables import Runnable, RunnableConfig
 from pydantic import BaseModel
 
 from klea_utils.graph.schemas import TokenUsage
+from klea_utils.mcp.access import (
+    DEFAULT_PATH_CHECK_MODE,
+    DEFAULT_PATH_CHECK_STANCE,
+    PathCheckMode,
+    PathCheckStance,
+)
 
 TOutput = TypeVar("TOutput")
 
@@ -87,3 +93,9 @@ class ToolCallerContext(NodeContext):
     #: Sensitive files approved for the session (``allow for session`` on a
     #: sensitive request); persisted to ``state.allowed_files``.
     allowed_session_files: list[str] = field(default_factory=list)
+    # Per-run scratch copied from state; not persisted.
+    hitl_enabled: bool = True
+    # Per-run scratch copied from state; not persisted.
+    path_check_mode: PathCheckMode = DEFAULT_PATH_CHECK_MODE
+    # Per-run scratch copied from state; not persisted.
+    path_check_stance: PathCheckStance = DEFAULT_PATH_CHECK_STANCE

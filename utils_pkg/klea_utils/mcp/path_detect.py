@@ -34,6 +34,7 @@ from urllib.parse import unquote, urlparse
 
 from pydantic import BaseModel, Field
 
+from klea_utils.mcp.access import DEFAULT_PATH_CHECK_MODE, PathCheckMode
 from klea_utils.mcp.schemas import ToolInfo
 from klea_utils.mcp.sensitive import is_sensitive
 from klea_utils.mcp.tool_impls.permission import path_is_allowed, permitted_roots
@@ -624,6 +625,7 @@ def detect_path_requests(
     allowed_files: Sequence[str] | None = None,
     picker_paths: Sequence[str] | None = None,
     include_sensitive: bool = False,
+    path_check_mode: PathCheckMode = DEFAULT_PATH_CHECK_MODE,
 ) -> list[PathRequest]:
     """Return the paths a tool call would touch that need approval.
 
@@ -646,6 +648,9 @@ def detect_path_requests(
         (the permission second round).
     :returns: Approval requests, sorted by approval key.
     """
+    logger.debug(f"{path_check_mode = }")
+    if path_check_mode == "off":
+        return []
     logger.debug(
         f"Detecting path requests\n{tool = }\n{arguments = }\n"
         f"{project_root = }\n{allowed_dirs = }\n{allowed_files = }\n"
@@ -744,6 +749,9 @@ def detect_path_requests(
                 "picker",
                 argument_value=raw,
             )
+
+    if path_check_mode == "declared":
+        return list(requests.values())
 
     # 3. Argument names that look path-ish.
     for name, value in arguments.items():

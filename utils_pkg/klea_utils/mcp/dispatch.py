@@ -19,7 +19,13 @@ from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
 
 from klea_utils.client_context import ClientContext
-from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL, AccessLevel, check_tool_access
+from klea_utils.mcp.access import (
+    DEFAULT_ACCESS_LEVEL,
+    DEFAULT_PATH_CHECK_MODE,
+    AccessLevel,
+    PathCheckMode,
+    check_tool_access,
+)
 from klea_utils.mcp.path_detect import (
     PathRequest,
     StepRef,
@@ -316,6 +322,7 @@ async def dispatch_tool_calls(
     client_context: ClientContext | None = None,
     meta: Mapping[str, Any] | None = None,
     step_summaries: Mapping[int, str] | None = None,
+    path_check_mode: PathCheckMode = DEFAULT_PATH_CHECK_MODE,
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
@@ -423,7 +430,7 @@ async def dispatch_tool_calls(
             )
             results[i] = _unknown_tool_error(call.tool)
             continue
-        if tool_infos is not None:
+        if tool_infos is not None and path_check_mode != "off":
             info = tool_infos.get(call.tool)
             denial = check_tool_access(
                 call.tool,
@@ -468,6 +475,7 @@ async def dispatch_tool_calls(
                 allowed_files=base_allowed_files,
                 picker_paths=call.paths,
                 include_sensitive=permission_resolver is not None,
+                path_check_mode=path_check_mode,
             )
             # Label each request with the plan step the dispatching call serves,
             # so one ask can say why each path is wanted (display only).
