@@ -158,7 +158,11 @@ its own.
 ## Event consumption
 
 The event catalogue and payload shapes are fixed by `system/streams.md`; the
-TUI must not reinterpret them.  Per event:
+TUI must not reinterpret them.  The transcript renders named message-dict keys
+only and must never render not-displayed stream fields (`retry_count`,
+`max_retries`); `drop_not_displayed` implements the filtering rule documented
+in `devdocs/system/streams.md`.  Per
+event:
 
 | Event | TUI behaviour | Web counterpart |
 |-------|---------------|-----------------|

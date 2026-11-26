@@ -430,6 +430,39 @@ async def test_status_pane_caps_each_section_body_with_an_inline_budget(
     await utils_user.should_not_see("Memory")
 
 
+async def test_status_pane_hides_not_displayed_detail_keys(fake_backend, utils_user):
+    """The status pane never stringifies detail keys that are not displayed.
+
+    Only the whitelisted detail keys are rendered: internal bookkeeping such
+    as ``retry_count``/``max_retries`` must stay out of the rendered text, at
+    the top level and nested, while a displayed key still shows.
+    """
+    from typing import cast
+
+    from klea_utils.ui.state import StateSection, ensure_chat
+
+    chat = ensure_chat("u", "")
+    section = {
+        "heading": "Details",
+        "display": "",
+        "summary": "",
+        "details": {
+            "retry_count": 1,
+            "max_retries": 3,
+            "route": "task",
+            "nested": {"retry_count": 2, "step": 1},
+        },
+        "preformatted": False,
+    }
+    chat["state_sections"]["details"] = cast(StateSection, section)
+
+    await utils_user.open("/")
+    await utils_user.should_see("route")
+    await utils_user.should_see("step")
+    await utils_user.should_not_see("retry_count")
+    await utils_user.should_not_see("max_retries")
+
+
 async def test_status_pane_renders_the_role_markers(fake_backend, utils_user):
     """Each role renders its Unicode marker; unknown roles use the plain one."""
     from typing import cast
