@@ -16,7 +16,13 @@ from pydantic import BaseModel, Field
 
 from klea_utils.graph.reducers import add_token_usage
 from klea_utils.graph.schemas import TokenUsage
-from klea_utils.mcp.access import AccessLevel
+from klea_utils.mcp.access import (
+    DEFAULT_PATH_CHECK_MODE,
+    DEFAULT_PATH_CHECK_STANCE,
+    AccessLevel,
+    PathCheckMode,
+    PathCheckStance,
+)
 from klea_utils.mcp.schemas import ToolCallSchema
 
 
@@ -61,6 +67,12 @@ class BaseGraphSchema(BaseModel):
     #: kept in the thread checkpoint across turns, so app init nodes must not
     #: reset it (see ``InitGraphState`` / ``InitRAGState``).
     allowed_dirs: list[str] = Field(default_factory=list)
+    # Session-scoped; seeded by the app init node.
+    path_check_mode: PathCheckMode = DEFAULT_PATH_CHECK_MODE
+    # Session-scoped; seeded by the app init node.
+    path_check_stance: PathCheckStance = DEFAULT_PATH_CHECK_STANCE
+    # Session-scoped; seeded by the app init node.
+    hitl_enabled: bool = True
     #: Sensitive files (inside the permitted roots) the user approved for this
     #: session.  File-granularity companion to ``allowed_dirs``.
     allowed_files: list[str] = Field(default_factory=list)

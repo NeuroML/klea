@@ -1009,3 +1009,61 @@ Before accepting a graph or node-contract change, verify that:
 ## 10. Claim boundary
 
 This document records contracts visible in the cited source, tests, and architecture documents. It does not claim that an LLM always follows a prompt, that a tool always succeeds, that a graph run always reaches a particular route, or that an interface always renders a stream event. Those are runtime outcomes and must not be encoded as node-contract guarantees.
+
+## Path-check and HITL state
+
+### New `BaseGraphSchema` fields
+
+- `path_check_mode`: `strict` | `declared` | `off`, default `strict`.
+- `path_check_stance`: `deny` | `allow`, default `deny`.
+- `hitl_enabled`: bool, default `True`.
+
+All three default to the fail-closed value.
+
+### Seeding (`InitGraphState`)
+
+`InitGraphState` seeds the three fields once per run.  Precedence is: the
+process-level ceiling (environment variable or serve flag), then the
+checkpointed session value, then the default.  The ceiling is re-asserted
+every turn, so a checkpointed value can never loosen it; a carried value
+above the ceiling is clamped back to it.
+
+### `AwaitHuman` when HITL is off
+
+The node exposes two hooks.  `_hitl_enabled(state)` returns
+`getattr(state, "hitl_enabled", True)`.  `_on_hitl_off(state, payload)`
+returns `None` when HITL is on; when it is off the node auto-replies instead
+of interrupting.
+
+- `kind="review"`: the review is auto-approved.  The plan is deep-copied, the
+  `review_frontier()` steps are marked `done`, `status` becomes
+  `in_progress`, `human_feedback_rounds` is incremented and
+  `automated_plan_revisions` is reset to 0 -- mirroring `_apply_review`.
+  `human_feedback`, `review_progress` and `replan_reason` stay empty, and the
+  transcript gains the message
+  `Auto-approved (no human available; HITL disabled).`  That text never enters
+  `human_feedback`, which the Planner renders.
+- `kind="input"`: every blocked step is answered with the verbatim template
+  answer:
+
+```
+No human is available to answer questions (HITL is disabled). Do not ask further questions: proceed with your best judgement using the available tools, state your assumptions explicitly, and if the step is genuinely impossible mark it failed with the reason and finish with the best partial answer.
+```
+
+  The answers are mapped onto the blocked steps with the node's existing
+  answer-mapping helper, `replan_reason` and `failure_reason` are cleared, and
+  the rendered answers are appended to the transcript as a `HumanMessage`.
+
+### Permission resolution per stance
+
+Resolution fails closed.  With HITL off, the `deny` stance refuses a call
+whose detected path is not permitted, while `allow` lets it proceed.  With
+HITL on the stance is not consulted: an out-of-root path raises an approval
+ask and the human decides.
+
+### Budget exhaustion
+
+When the plan-revision budget is exhausted and HITL is off, nobody can
+approve a replan, so the Planner terminates instead of looping: the guard
+returns the `unplannable` outcome rather than the `needs_input` guidance
+step.

@@ -25,6 +25,11 @@
 - Eval cases can declare their own `command` and a per-case `command_timeout`; the harness runs it once in the run workspace and grades it on its exit status only, recording the command and the exit code.
 - The harness now ships a hello-world sample suite whose case-authored command grades on exit status, exercising execution-based verification end to end.
 - Streamed events now carry node/run identity, a per-node LLM-call count and a 0-based tool-call retry count (add one for an attempt number), so an evaluation harness can attribute and trace them.
+- Path-check modes and a non-interactive permission stance for file access.
+- An on/off toggle for human-in-the-loop (HITL) approvals.
+- New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands.
+- New `klea-serve` flags for path checking and HITL.
+
 
 ### Changed
 

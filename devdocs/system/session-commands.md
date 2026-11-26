@@ -235,3 +235,23 @@ are canonical (lower-case, without the leading slash).
 * Stream events: `system/streams.md` (ADR-0040).
 * Path gate and workspace boundary: `system/mcp-permissions.md`,
   `system/file-tools.md`.
+
+## Session commands: path checking and HITL
+
+- `/pathcheck [strict|declared|off]` sets the session field `path_check_mode`.
+  Accepted values: `strict`, `declared`, `off`. Default: `strict`.
+  With no argument it reports the current value.
+
+- `/pathcheck-stance [deny|allow]` sets the session field `path_check_stance`.
+  Accepted values: `deny`, `allow`. Default: `deny`.
+  With no argument it reports the current value.
+
+- `/hitl [on|off]` sets the session field `hitl_enabled`.
+  Accepted values: `on`, `off`. Default: `on` (HITL enabled).
+  With no argument it reports the current value.
+
+### Ceiling conflict
+
+If a process-level environment variable or a serve flag has already fixed a
+value (a ceiling), the command refuses to loosen it: the request is rejected
+and the command reports the conflict rather than overriding the ceiling.

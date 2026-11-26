@@ -27,7 +27,11 @@ from mcp.types import (
 from pydantic import BaseModel
 
 from klea_utils.client_context import ClientContext, client_context_from_context
-from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
+from klea_utils.mcp.access import (
+    DEFAULT_ACCESS_LEVEL,
+    DEFAULT_PATH_CHECK_MODE,
+    DEFAULT_PATH_CHECK_STANCE,
+)
 from klea_utils.mcp.dispatch import dispatch_tool_calls
 from klea_utils.mcp.path_detect import PathRequest
 from klea_utils.mcp.permission_hitl import (
@@ -229,7 +233,13 @@ class ToolsCallerNode(
         :returns: ``{"tool_results": [...]}`` plus any callback extras.
         """
         # Per-run context (values local to the run, not on the shared node).
-        ctx = ToolCallerContext()
+        ctx = ToolCallerContext(
+            hitl_enabled=getattr(state, "hitl_enabled", True),
+            path_check_mode=getattr(state, "path_check_mode", DEFAULT_PATH_CHECK_MODE),
+            path_check_stance=getattr(
+                state, "path_check_stance", DEFAULT_PATH_CHECK_STANCE
+            ),
+        )
 
         if not self._pre_exec(state, ctx):
             self.logger.debug("No tool calls to dispatch; skipping")
@@ -319,6 +329,7 @@ class ToolsCallerNode(
             mcp_session_pool=self._mcp_session_pool,
             client_context=client_context,
             step_summaries=step_summaries,
+            path_check_mode=ctx.path_check_mode,
             **meta_kwargs,
         )
         self.logger.debug(f"{results =}")
@@ -385,6 +396,17 @@ class ToolsCallerNode(
 
         def resolver(requests: list[PathRequest]) -> PermissionResolution:
             self.logger.info(f"Requesting path permission\n{len(requests) = }")
+            if not ctx.hitl_enabled:
+                if ctx.path_check_stance == "allow":
+                    resolution = PermissionResolution(
+                        allowed_now=[request.approval_key for request in requests]
+                    )
+                else:
+                    resolution = PermissionResolution(
+                        denied=[request.approval_key for request in requests]
+                    )
+                self._emit_permission_inspect(requests, resolution)
+                return resolution
             response = interrupt(
                 build_permission_payload(requests),
                 response_schema=PermissionResponse,
