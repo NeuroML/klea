@@ -27,9 +27,15 @@ from klea_utils.api.sse import (
     stream_events_sync,
 )
 from klea_utils.ui.state import chats, ensure_chat, interrupt_display
-from klea_utils.ui.stream_events import apply_stream_event, replay_chat_events
+from klea_utils.ui.stream_events import (
+    STOPPED_TOOL_NOTE,
+    apply_stopped_tool_round,
+    apply_stream_event,
+    replay_chat_events,
+    stopped_tool_entries,
+)
 from klea_utils.ui.web.nicegui.components.context import PageContext
-from klea_utils.ui.web.nicegui.components.stream import stop_stream
+from klea_utils.ui.web.nicegui.components.stream import run_stream, stop_stream
 
 
 @pytest.fixture
@@ -705,6 +711,95 @@ class TestStopStream:
         ctx = PageContext(server_url="http://backend", user_id="")
         stop_stream(ctx, "")
         assert calls == []
+
+
+def _tool_round_state(running_calls: list[dict] | None) -> dict:
+    """A tool-round ``state`` event: running (with calls) or finished."""
+    details: dict = {"retry_count": 0}
+    if running_calls is not None:
+        details["running_calls"] = running_calls
+    return {
+        "type": "state",
+        "node": "Running tools",
+        "data": {
+            "heading": "Tool Execution",
+            "key": "Running tools",
+            "display": "- **Run command**: running",
+            "details": details,
+        },
+    }
+
+
+_SLEEP_CALL = {
+    "tool": "run_command",
+    "title": "Run command",
+    "call": 'run_command(command="sleep 40")',
+}
+
+
+class TestStoppedToolRound:
+    """Stop during a tool round shows the calls left running (#250)."""
+
+    def test_entries_for_each_running_call(self):
+        """Each running call becomes an error block with the note."""
+        entries = stopped_tool_entries(_tool_round_state([_SLEEP_CALL])["data"])
+
+        assert len(entries) == 1
+        entry = entries[0]
+        assert entry["header"] == "Run command"
+        assert entry["mime"] == "text/x-shell"
+        assert entry["data"] == 'run_command(command="sleep 40")\n' + STOPPED_TOOL_NOTE
+        assert entry["display"] == f"```shell\n{entry['data']}\n```"
+        assert entry["is_error"] is True
+
+    def test_no_entries_without_running_calls(self):
+        """No section, or a finished round, has nothing left running."""
+        assert stopped_tool_entries(None) == []
+        assert stopped_tool_entries(_tool_round_state(None)["data"]) == []
+
+    def test_apply_appends_a_block_per_running_call(self, chat):
+        """The frontends add the same blocks the server stores."""
+        apply_stream_event(chat, _tool_round_state([_SLEEP_CALL]))
+
+        assert apply_stopped_tool_round(chat) == 1
+        block = chat["messages"][-1]
+        assert block["role"] == "tool"
+        assert block["header"] == "Run command"
+        assert block["is_error"] is True
+        assert STOPPED_TOOL_NOTE in block["data"]
+
+    def test_apply_is_a_noop_after_the_round_finished(self, chat):
+        apply_stream_event(chat, _tool_round_state([_SLEEP_CALL]))
+        apply_stream_event(chat, _tool_round_state(None))
+
+        assert apply_stopped_tool_round(chat) == 0
+        assert chat["messages"] == []
+
+    async def test_run_stream_stop_mid_round_shows_running_calls(self, monkeypatch):
+        """Stop in the web UI shows the running call right away."""
+        import klea_utils.ui.web.nicegui.components.stream as stream_mod
+
+        chats.clear()
+        started = asyncio.Event()
+
+        async def _events(query, chat_id, server_url, **kwargs):
+            yield _tool_round_state([_SLEEP_CALL])
+            started.set()
+            await asyncio.sleep(10)
+
+        monkeypatch.setattr(stream_mod, "stream_events", _events)
+        ctx = PageContext(server_url="http://x", user_id="u", chat_id="c")
+        task = asyncio.create_task(run_stream(ctx, "go", "c"))
+        await started.wait()
+        await asyncio.sleep(0)
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        chat = chats["u:c"]
+        assert chat["turn_status"]["kind"] == "stopped"
+        assert [m["role"] for m in chat["messages"]] == ["tool"]
+        assert STOPPED_TOOL_NOTE in chat["messages"][0]["data"]
 
 
 class TestNodeStreamDataContent:

@@ -26,7 +26,11 @@ from nicegui import background_tasks
 
 from klea_utils.api.sse import request_cancel, stream_events
 from klea_utils.ui.state import InspectorMarker, ensure_chat
-from klea_utils.ui.stream_events import TOOL_ROUND_SECTION_KEY, apply_stream_event
+from klea_utils.ui.stream_events import (
+    TOOL_ROUND_SECTION_KEY,
+    apply_stopped_tool_round,
+    apply_stream_event,
+)
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
 logger = logging.getLogger(__name__)
@@ -252,7 +256,12 @@ async def run_stream(
         # (NiceGUI's exception handler ignores it).
         logger.debug("chat=%s stream cancelled by user", chat_id)
         current_chat["turn_status"] = {"kind": "stopped"}
+        # Tools still running on the server are not stopped: show a block for
+        # each, matching the rows the server stores for this run.
+        stopped_tools = apply_stopped_tool_round(current_chat)
         if _active():
+            if stopped_tools:
+                ctx.render_chat_area()
             ctx.refresh_turn_status()
         _reset_streaming_state()
         raise
