@@ -79,6 +79,8 @@ class LLMNodeContext(NodeContext, Generic[TOutput]):
     #: Number of LLM invocations folded into ``token_usage`` (validation
     #: retries included); ``0`` when no usage was recorded.
     llm_calls: int = 0
+    #: Per-invocation usage, in call order (validation retries included).
+    usage_attempts: list[TokenUsage] = field(default_factory=list)
 
 
 @dataclass

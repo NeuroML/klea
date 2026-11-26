@@ -325,6 +325,8 @@ def test_llm_post_exec_stream_emits_usage_event():
     assert events[0]["data"]["details"]["input_tokens"] == 10
     # A context whose ``llm_calls`` was never set reports zero invocations.
     assert events[0]["data"]["details"]["llm_calls"] == 0
+    # No attempt was recorded, so the per-invocation list is empty.
+    assert events[0]["data"]["details"]["llm_usage"] == []
 
 
 def test_llm_post_exec_stream_passes_llm_calls_through():
@@ -338,12 +340,26 @@ def test_llm_post_exec_stream_passes_llm_calls_through():
         LLMNodeContext(
             token_usage=TokenUsage(input_tokens=10, output_tokens=5, total_tokens=15),
             llm_calls=2,
+            usage_attempts=[
+                TokenUsage(input_tokens=6, output_tokens=3, total_tokens=9),
+                TokenUsage(input_tokens=4, output_tokens=2, total_tokens=6),
+            ],
         ),
     )
 
     details = events[0]["data"]["details"]
     assert details["llm_calls"] == 2
     assert isinstance(details["llm_calls"], int)
+    # One dict per LLM invocation, in call order.
+    assert isinstance(details["llm_usage"], list)
+    assert all(isinstance(entry, dict) for entry in details["llm_usage"])
+    assert len(details["llm_usage"]) == details["llm_calls"]
+    # The per-invocation entries sum to the reported top-level totals.
+    for field_name in ("input_tokens", "output_tokens", "total_tokens"):
+        assert (
+            sum(entry[field_name] for entry in details["llm_usage"])
+            == details[field_name]
+        )
     assert details["input_tokens"] == 10
     assert details["output_tokens"] == 5
     assert details["total_tokens"] == 15
