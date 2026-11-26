@@ -57,18 +57,29 @@ Chosen option: **C. General mode MAY ground; Scientific mode MUST ground.**
 * **Scientific mode** must ground correctness-critical work in an approved
   curated source, with evidence inspection, plan approval for consequential
   execution, independent verification against success criteria, and a closed
-  provenance chain (ADR-0029 inv. 1-11).  Its evaluator is **epistemic**
-  (groundedness, coverage, confidence; ADR-0009).  Only results satisfying the
-  invariants are labelled **verified**.  The epistemic evaluator is not designed
-  and the implemented assurance literal is ``unverified``: nothing currently
-  sets ``verified`` (``devdocs/system/scientific-mode.md``).
+  provenance chain (ADR-0029 inv. 1-11).  Its verification runs as two nodes: a
+  ``Verifying claims`` node (groundedness, coverage, confidence; ADR-0009)
+  followed by the existing ``Evaluating`` (``OperationalEvaluator``), routed on
+  ``state.mode.resolved``.  Only results satisfying the invariants are labelled
+  **verified**.  Neither node sets ``verified``: the implemented assurance
+  literal stays ``unverified``
+  (``devdocs/system/scientific-mode.md``).
 
 The distinction is one of **enforcement**, not capability.  The scientific path
 is assumed to be the general base plus an additive correctness layer; the
 general path contains no mandatory
-retrieval/evidence/gating/verification/provenance stages.  Whether the scientific
-path is an additive layer or a separate graph is an open question
-(``devdocs/system/scientific-mode.md``).
+retrieval/evidence/gating/verification/provenance stages.  The scientific layer
+adds stages to that same single graph rather than a parallel one: traversal is
+gated on ``state.mode.resolved``, with a pre-planning ``Retrieving evidence``
+node between ``Resetting state`` and ``Planning`` (``Planner``) in scientific
+mode only, and a mid-plan ``Retrieving evidence`` node between ``Planning`` and
+the execution-loop entry for steps that require evidence.
+
+Scientific retrieval begins with a compulsory pre-planning corpus-coverage
+check: it reads only the user-authored per-domain description
+(``PerDomainConfig.description``) and the ``render_catalogue`` descriptors,
+which is O(domains) and bounded with a visible truncation flag.  It performs
+no metadata-map read and no full store-summary load at runtime.
 
 Assurance status is structured state and must be surfaced (ADR-0030 inv. 4,
 ADR-0032).  Because general mode may retrieve from the same curated stores, the
@@ -89,9 +100,8 @@ This ADR refines, and does not weaken, ADR-0029 and ADR-0030.
 * Good, because capability (retrieval) is implemented once and shared.
 * Bad, because similar-looking answers can come from either mode, so the
   frontend must carry the assurance label clearly.
-* Bad, because the evaluator may need two distinct contracts (operational vs
-  epistemic; open: one mode-conditional node versus a separate node),
-  increasing the testing surface.
+* Bad, because two evaluator contracts (operational vs epistemic) must be
+  maintained, increasing the testing surface.
 
 ### Confirmation
 
@@ -131,9 +141,17 @@ This ADR refines, and does not weaken, ADR-0029 and ADR-0030.
 * Refines: ADR-0029 (correctness invariants), ADR-0030 (operating modes and
   assurance).
 * Status: this ADR stays **proposed**, like ADR-0035, until the scientific design
-  exists (``devdocs/system/scientific-mode.md``).
+  is ratified; sections 9.1-9.3 of ``devdocs/system/scientific-mode.md`` are
+  settled but not ratified.
 * Related: ADR-0035 (general topology), ADR-0032 (context events), ADR-0013
   (inspection), ADR-0008/0011/0022/0024 (RAG pipeline used as a general-mode
   tool).
 * Code loci to align: ``klea_agent/schemas.py`` (``Mode``),
   ``KleaAgent.context_snapshot``, frontend mode/assurance display.
+* Settled but unratified constraints: ``requires_claim: bool = Field(default=False)``
+  with no ``Field(description=...)``, its semantics carried by the mode-gated
+  ``## Scientific mode: claims and evidence`` prompt section
+  (``devdocs/system/prompt-conventions.md:104-136``, Rule 6); two added
+  scientific-mode node labels (``Retrieving evidence``, ``Verifying claims``);
+  and a fail-closed ``unplannable`` path with assurance ``unverified``.  Any
+  future scientific-mode ADR must take the number **ADR-0056**.

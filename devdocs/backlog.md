@@ -119,19 +119,47 @@ Last updated: 2026-11-03.
 
 - Scientific-mode correctness layer (ADR-0029): grounding, evidence,
   provenance and independent verification are not enforced; `assurance` is
-  always `unverified` (ADR-0030/0036).
+  always `unverified` (ADR-0030/0036).  The claim-verification design is settled
+  in `devdocs/system/scientific-mode.md` 9.1-9.3 and ADR-0056; this bullet now
+  reads as implementation status.
 - Independent inline-answer verifier for `chat`-route answers (ADR-0029
   phase).
 - `eval_pkg` harness (see `devdocs/system/agent-evaluation-harness.md`).
-- Scientific-mode design track: settle before any scientific-mode ADR -- graph
-  topology (additive layer vs separate graph), the epistemic-verifier choice
-  (mode-conditional behaviour in the existing node vs a separate node with its
-  own output schema), the compulsory retrieval node and how scientific mode
-  uses RAG, provenance/no-bypass enforcement, assurance semantics (only
-  `unverified` is implemented), the approved-source definition and the
-  cannot-ground ask-the-user behaviour, mode classification/resolution, one-way
-  downgrade enforcement in `/mode`, citation-carrying answers, and scientific
-  HITL approval mapping (`devdocs/system/scientific-mode.md`).
+- Scientific-mode design track: the graph topology is decided -- one compiled
+  graph whose traversal is gated on the resolved mode, with the
+  scientific-only stages inserted as additional nodes reached through
+  mode-gated routers (ADR-0035, ADR-0036;
+  `devdocs/system/scientific-mode.md` sections 5 and 9).  Still open: how
+  scientific mode uses the stores-retrieval
+  implementations shared in `klea_utils` (the ones `klea_rag` wraps, with no
+  RAG instance or orchestrator contacted), the approved-source definition and
+  the cannot-ground ask-the-user behaviour, mode classification/resolution,
+  one-way downgrade enforcement in `/mode`, and scientific HITL approval
+  mapping (`devdocs/system/scientific-mode.md`).
+- Claim record (settled; `devdocs/system/scientific-mode.md` 9.1-9.3,
+  ADR-0056): one `ClaimVerification` per claim -- `step_number`, `claim`, a
+  nested `ClaimSource` (`domain`, `file_name`, `headings`), `quote`, `verdict`
+  and `reason` -- stored under the `claim_verification:
+  dict[int, list[ClaimVerification]]` state key, with both models registered in
+  `get_allowed_msgpack_modules`.
+- Unverified claims (settled; 9.1-9.3, ADR-0056): a bounded re-query loop capped
+  at 2 re-retrievals, then an explicit `unverified` verdict -- never a silent
+  success.
+- Claim identity (settled; 9.1-9.3, ADR-0056): no `claim_id` and no step-side
+  claim list; identity is positional and `step_number` is the back-reference.
+- Verdict writer (settled; 9.1-9.3, ADR-0056): only the planned `Verifying
+  claims` node writes the verdict, with domain-correctness and claim-validity
+  duties; `EvaluationSchema` gains neither `claim_coverage` nor `claim_reason`,
+  and nothing sets `verified` in code today (only `unverified` is implemented).
+- Later design work: claim and citation authorship, the citation schema and its
+  rendering.
+- Later design work: evidence-to-execution provenance and no-bypass
+  enforcement.
+- Evidence marking (settled; 9.1-9.3, ADR-0056): routing guarantees every
+  executable step passes `Retrieving evidence`, which decides necessity, domain
+  and query with the domain constrained to the runtime catalogue; there is no
+  plan-side marker and `requires_claim` is dropped.  A repeat or unsuccessful
+  lookup follows the capped re-query loop above.
 
 ## Infrastructure / correctness
 

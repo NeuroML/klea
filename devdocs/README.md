@@ -64,7 +64,7 @@ the updated images alongside the source change.
 | `system/agent-topology-literature-review.md` | Literature review: agent loop topology, cost-aware inference, planning/verification and small-model agency |
 | `system/agent-evaluation-harness.md` | Planning note: task-level evaluation harness for comparing agent topologies on correctness and cost |
 | `system/agent-general-path-control-flow.md` | General-path control flow: nodes, failure triage, evaluator routing and escalation (ADR-0035 mechanics; companion to the C4 Agent component diagram) |
-| `system/scientific-mode.md` | Scientific mode: draft design/status note -- corrected ADR map, premise corrections, ranked open design questions and documentation hygiene (scientific mode not designed) |
+| `system/scientific-mode.md` | Scientific mode: design/status note -- settled agreements in section 9 (single-graph topology; routing-guaranteed evidence decision inside `Retrieving evidence`; `ClaimVerification`/`ClaimSource` records with the `claim_verification` state key and their msgpack registration; bounded re-query loop capped at 2 re-retrievals; `Verifying claims` as the sole verdict writer with domain-correctness and claim-validity duties); ADR-0056 records the mechanism; the mode itself remains unimplemented; remaining questions stay ranked in section 5 |
 | `system/web-theming.md` | Web UI theming: design tokens, the `@layer overrides` cascade-layer contract, and semantic classes |
 | `system/streams.md` | Streaming event catalogue: channels, event shapes, consumers (web/TUI), and known limitations |
 | `system/api-sse-sequence.md` | API/SSE interaction sequences (C4 dynamic): bootstrap, `POST /query/stream`, and the RAG vs agent lifecycles with HITL/resume/cancel |
@@ -125,6 +125,7 @@ the updated images alongside the source change.
 | `adr/0048-web-search-providers.md` | ADR-0048: Web search tool: keyless-first provider pool with sequential fallback |
 | `adr/0049-paper-search-tool.md` | ADR-0049: Paper search tool: peer-reviewed-first scholarly source pool with preprint gating |
 | `adr/0050-textual-tui.md` | ADR-0050: Terminal UI: a Textual client with a single active session |
+| `adr/0056-scientific-evidence-and-claim-verification.md` | ADR-0056: Scientific mode: retrieval-side evidence decision and claim verification |
 | `system/c4-component-rag.md` | C4 model Level 3: RAG component diagram (auto-generated Mermaid core + elk augmentation) |
 | `system/c4-component-agent.md` | C4 model Level 3: Agent component diagram (graph nodes + supporting components, auto-generated Mermaid core + elk augmentation) |
 | `system/c4-deployment.md` | C4 model Deployment: build-time vs local vs container platform (Docker with HuggingFace Spaces node) |

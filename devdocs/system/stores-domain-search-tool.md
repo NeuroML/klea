@@ -561,8 +561,9 @@ Both call the shared retrieval layer of section 5; only the delivery differs.
 - **Deterministic graph step** (unconditional edge, `system/graph-routing.md`,
   ADR-0036 grounding enforcement): the capability is a node that always runs
   and writes evidence into state.  Scientific mode's compulsory retrieval node is
-  exactly this shape; RAG is the concrete retrieval implementation it uses, not
-  the mode itself, and the ``search_stores`` tool call stays optional and
+  exactly this shape; the shared ``klea_utils`` retrieval implementations that
+  ``klea_rag`` wraps are what the node uses, not the mode itself, and the
+  ``search_stores`` tool call stays optional and
   LLM-chosen (section 11.4).
 - **State-held configuration** (the `chat_sessions` JSON-blob precedent used by
   model overrides): configuration is carried in state rather than forwarded
@@ -581,7 +582,7 @@ for mandatory scientific-mode retrieval, sharing one resolver.
 - **General mode: the MCP tool** `search_stores` stays the discretionary,
   prompt-visible, access-filtered retrieval surface; its contract in sections
   4-10 stands unchanged.
-- **Scientific / RAG mode: an in-process graph node** that holds a
+- **Scientific mode: an in-process graph node** that holds a
   `RetrieverConfig` in graph state and calls the same shared retrieval layer
   directly, on an unconditional edge, so mandatory retrieval is a structural
   guarantee rather than a hopeful tool call.  Implementation remains gated on

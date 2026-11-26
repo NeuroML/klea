@@ -189,10 +189,15 @@ Act.
   plan.  A different model may be used for the evaluator role, but that is a
   role assignment, not a second agent.
 
-Scientific mode is assumed to be the general base plus the ADR-0029 correctness
-layer, inserted additively; the general path contains no
-retrieval/evidence/gating/verification/provenance stages (ADR-0036).  Whether the
-scientific path is an additive layer or a separate graph is an open question
+Scientific mode is the general base plus the ADR-0029 correctness layer,
+inserted additively into the same single graph; the general path contains no
+retrieval/evidence/gating/verification/provenance stages (ADR-0036).  The
+scientific stages are additional nodes on one compiled graph, reached only
+through routers keyed on ``state.mode.resolved``; no second or parallel graph
+is built.  ``Retrieving evidence`` attaches at two points: between ``Resetting state``
+and ``Planning`` (``Planner``), scientific mode only, where general mode keeps
+the direct edge; and, mid-plan, between ``Planning`` and the execution-loop
+entry, for steps that require evidence
 (``devdocs/system/scientific-mode.md``).
 
 ### Consequences
