@@ -316,6 +316,52 @@ def test_nested_token_usage_is_extracted(tmp_path: Path) -> None:
     assert summary.turns[0].model == "model-x"
 
 
+def test_per_call_usage_is_retained_and_the_run_takes_the_peak(
+    tmp_path: Path,
+) -> None:
+    """Per-call usage is kept per turn; the run reports the highest peak."""
+    first = _turn(
+        1,
+        llm_calls=2,
+        per_call_usage=[
+            {"input_tokens": 10, "output_tokens": 5},
+            {"input_tokens": 2, "output_tokens": 3},
+        ],
+        peak_context_tokens=15,
+    )
+    second = _turn(
+        2,
+        llm_calls=1,
+        per_call_usage=[{"input_tokens": 100, "output_tokens": 40}],
+        peak_context_tokens=140,
+    )
+    path = _write_records(tmp_path / "metrics.jsonl", first, second)
+
+    summary = load_run(path)
+
+    assert summary.turns[0].llm_calls == 2
+    assert len(summary.turns[0].per_call_usage) == 2
+    assert summary.turns[0].peak_context_tokens == 15
+    assert summary.llm_calls == 3
+    inputs = [entry["input_tokens"] for entry in summary.per_call_usage]
+    assert inputs == [10, 2, 100]
+    assert summary.peak_context_tokens == 140
+
+
+def test_absent_per_call_usage_leaves_the_peak_unset(tmp_path: Path) -> None:
+    """A record without the per-call fields yields zero calls and no peak."""
+    path = _write_records(tmp_path / "metrics.jsonl", _turn(1))
+
+    summary = load_run(path)
+
+    assert summary.turns[0].llm_calls == 0
+    assert summary.turns[0].per_call_usage == ()
+    assert summary.turns[0].peak_context_tokens is None
+    assert summary.llm_calls == 0
+    assert summary.per_call_usage == ()
+    assert summary.peak_context_tokens is None
+
+
 def test_all_passing_scores_mark_the_run_successful(tmp_path: Path) -> None:
     path = _write_records(
         tmp_path / "metrics.jsonl",

@@ -194,6 +194,9 @@ class TurnMetrics:
     passed: bool | None = None
     score: dict[str, Any] | None = None
     tool_calls: tuple[ToolCallRecord, ...] = ()
+    llm_calls: int = 0
+    per_call_usage: tuple[dict[str, Any], ...] = ()
+    peak_context_tokens: int | None = None
 
     @property
     def normalised_units(self) -> float:
@@ -226,6 +229,9 @@ class RunMetrics:
     envelope_present: bool = False
     resolved_models: dict[str, str] = field(default_factory=dict)
     expectation_checks: tuple[ExpectationCheckRecord, ...] = ()
+    llm_calls: int = 0
+    per_call_usage: tuple[dict[str, Any], ...] = ()
+    peak_context_tokens: int | None = None
 
 
 def read_records(path: str | Path) -> tuple[dict[str, Any], ...]:
@@ -376,6 +382,14 @@ def aggregate(
     latencies = [turn.latency_ms for turn in turns if turn.latency_ms is not None]
     total_latency = float(sum(latencies)) if latencies else None
     tool_errors = sum(_tool_error_count(row) for _, _, row in turn_rows)
+    llm_calls = sum(turn.llm_calls for turn in turns)
+    per_call_usage = tuple(entry for turn in turns for entry in turn.per_call_usage)
+    peaks = [
+        turn.peak_context_tokens
+        for turn in turns
+        if turn.peak_context_tokens is not None
+    ]
+    peak_context_tokens = max(peaks) if peaks else None
 
     envelope_metrics = _envelope_metrics(envelope)
     declared = _declared_totals(envelope_metrics)
@@ -433,6 +447,9 @@ def aggregate(
         envelope_present=envelope is not None,
         resolved_models=resolved_models,
         expectation_checks=expectation_checks,
+        llm_calls=llm_calls,
+        per_call_usage=per_call_usage,
+        peak_context_tokens=peak_context_tokens,
     )
     logger.debug(
         f"{summary.run_id = }, {summary.turn_count = }, "
@@ -643,6 +660,9 @@ def _turn_metrics(record: Mapping[str, Any]) -> TurnMetrics:
         passed=_pass_flag(record, score),
         score=score,
         tool_calls=_tool_call_records(record),
+        llm_calls=_as_int_or(record.get("llm_calls"), 0),
+        per_call_usage=_per_call_usage(record),
+        peak_context_tokens=_as_int(record.get("peak_context_tokens"), None),
     )
 
 
@@ -658,6 +678,18 @@ def _pass_flag(
             if isinstance(value, bool):
                 return value
     return None
+
+
+def _per_call_usage(record: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
+    """Return the per-call LLM usage entries retained on a turn record.
+
+    A missing or malformed value yields an empty tuple rather than raising, so
+    an older record still aggregates; non-mapping entries are skipped.
+    """
+    raw = record.get("per_call_usage")
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    return tuple(dict(entry) for entry in raw if isinstance(entry, Mapping))
 
 
 def _tool_call_records(record: Mapping[str, Any]) -> tuple[ToolCallRecord, ...]:

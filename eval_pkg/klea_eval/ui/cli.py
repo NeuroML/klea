@@ -487,6 +487,15 @@ def summary(
         if ratio is not None
         else "input_output_ratio: n/a"
     )
+    # The peak spans every call a turn made, retried calls included, so it is a
+    # retry-merged upper bound rather than the context size of one attempt.
+    peak = aggregate.peak_context_tokens
+    typer.echo(f"llm_calls: {aggregate.llm_calls}")
+    typer.echo(
+        f"peak_context_tokens: {peak}"
+        if peak is not None
+        else "peak_context_tokens: n/a"
+    )
 
 
 if __name__ == "__main__":

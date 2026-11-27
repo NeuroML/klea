@@ -96,6 +96,9 @@ class TurnOutcome:
     latency_ms: float = 0.0
     status: str = "completed"
     error: str | None = None
+    llm_calls: int = 0
+    per_call_usage: tuple[dict[str, Any], ...] = ()
+    peak_context_tokens: int | None = None
 
 
 class HttpRunner:
@@ -234,6 +237,9 @@ def outcome_to_record(outcome: TurnOutcome) -> dict[str, Any]:
             1 for call in outcome.tool_calls if _is_error_tool(call)
         ),
         "event_count": len(outcome.events),
+        "llm_calls": outcome.llm_calls,
+        "per_call_usage": [dict(entry) for entry in outcome.per_call_usage],
+        "peak_context_tokens": outcome.peak_context_tokens,
     }
     record.update(outcome.usage)
     if outcome.error is not None:
@@ -247,6 +253,8 @@ async def _consume_stream(response: httpx.Response) -> TurnOutcome:
     text = ""
     usage: dict[str, int] = {}
     tool_calls: list[dict[str, Any]] = []
+    llm_calls = 0
+    per_call_usage: list[dict[str, Any]] = []
     terminal = False
 
     async for event in iter_sse_events(response):
@@ -261,6 +269,9 @@ async def _consume_stream(response: httpx.Response) -> TurnOutcome:
             text = _message_for_user(event)
         elif kind == "usage":
             _accumulate_usage(usage, event)
+            llm_calls += _usage_llm_calls(event)
+            per_call_usage.extend(_usage_llm_entries(event))
+            logger.debug(f"{llm_calls = }, {len(per_call_usage) = }, {usage = }")
         elif kind == "tool":
             tool_calls.extend(_tool_entries(event))
         elif kind == "error":
@@ -274,13 +285,24 @@ async def _consume_stream(response: httpx.Response) -> TurnOutcome:
         raise RunnerStreamError("stream ended without a complete event")
 
     _derive_total(usage)
-    logger.debug(f"{len(events) = }, {len(tool_calls) = }, {usage = }, {terminal = }")
+    peak_context_tokens: int | None = None
+    if per_call_usage:
+        peak_context_tokens = max(
+            _entry_context_tokens(entry) for entry in per_call_usage
+        )
+    logger.debug(
+        f"{len(events) = }, {len(tool_calls) = }, {usage = }, {terminal = }, "
+        f"{llm_calls = }, {len(per_call_usage) = }, {peak_context_tokens = }"
+    )
     return TurnOutcome(
         text=text,
         events=tuple(events),
         usage=usage,
         tool_calls=tuple(tool_calls),
         status="completed",
+        llm_calls=llm_calls,
+        per_call_usage=tuple(per_call_usage),
+        peak_context_tokens=peak_context_tokens,
     )
 
 
@@ -364,6 +386,40 @@ def _derive_total(usage: dict[str, int]) -> None:
     total = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
     if total:
         usage["total_tokens"] = total
+
+
+def _usage_details(event: SSEEvent) -> Mapping[str, Any]:
+    """Return the ``data.details`` mapping of one ``usage`` event, or ``{}``."""
+    data = _event_payload(event).get("data")
+    details = data.get("details") if isinstance(data, Mapping) else None
+    return details if isinstance(details, Mapping) else {}
+
+
+def _usage_llm_calls(event: SSEEvent) -> int:
+    """Return the ``llm_calls`` counter a ``usage`` event reports, or ``0``."""
+    value = _usage_details(event).get("llm_calls")
+    if isinstance(value, bool) or not isinstance(value, int):
+        return 0
+    return value
+
+
+def _usage_llm_entries(event: SSEEvent) -> list[dict[str, Any]]:
+    """Return the per-call ``llm_usage`` entries a ``usage`` event reports."""
+    raw = _usage_details(event).get("llm_usage")
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [dict(entry) for entry in raw if isinstance(entry, Mapping)]
+
+
+def _entry_context_tokens(entry: Mapping[str, Any]) -> int:
+    """Return one per-call entry's input plus output token count."""
+    total = 0
+    for key in ("input_tokens", "output_tokens"):
+        value = entry.get(key)
+        if isinstance(value, bool) or not isinstance(value, int):
+            continue
+        total += value
+    return total
 
 
 def _tool_entries(event: SSEEvent) -> list[dict[str, Any]]:

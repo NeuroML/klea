@@ -93,6 +93,9 @@ class CaseScore:
     error: str | None = None
     failed_check: str | None = None
     resolved_models: dict[str, str] = field(default_factory=dict)
+    llm_calls: int = 0
+    per_call_usage: tuple[dict[str, Any], ...] = ()
+    peak_context_tokens: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return the case score as a plain, JSON-ready mapping."""
@@ -110,6 +113,9 @@ class CaseScore:
             "resolved_models": dict(self.resolved_models),
             "error": self.error,
             "failed_check": self.failed_check,
+            "llm_calls": self.llm_calls,
+            "per_call_usage": [dict(entry) for entry in self.per_call_usage],
+            "peak_context_tokens": self.peak_context_tokens,
         }
 
 
@@ -135,6 +141,12 @@ class SuiteAggregate:
     #: Output tokens per input token over the aggregate totals; ``None`` when no
     #: input tokens were recorded, so a missing denominator stays explicit.
     input_output_ratio: float | None = None
+    #: Sum of the per-case LLM call counts.
+    llm_calls: int = 0
+    #: Highest per-call context size over the cases; ``None`` when no case
+    #: reported one.  Retried calls are included, so this is a retry-merged
+    #: upper bound and not the context size of a single attempt.
+    peak_context_tokens: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return the suite aggregate as a plain, JSON-ready mapping."""
@@ -155,6 +167,8 @@ class SuiteAggregate:
             "cost_estimate": self.cost_estimate,
             "missing_runs": list(self.missing_runs),
             "input_output_ratio": self.input_output_ratio,
+            "llm_calls": self.llm_calls,
+            "peak_context_tokens": self.peak_context_tokens,
         }
 
 
@@ -216,6 +230,9 @@ def score_run(run: metrics.RunMetrics) -> CaseScore:
         resolved_models=dict(run.resolved_models),
         error=run.error,
         failed_check=failed_check,
+        llm_calls=run.llm_calls,
+        per_call_usage=tuple(run.per_call_usage),
+        peak_context_tokens=run.peak_context_tokens,
     )
 
 
@@ -370,6 +387,13 @@ def aggregate_suite(
     input_output_ratio = (
         total_output_tokens / total_input_tokens if total_input_tokens else None
     )
+    llm_calls = sum(case.llm_calls for case in cases)
+    peaks = [
+        case.peak_context_tokens
+        for case in cases
+        if case.peak_context_tokens is not None
+    ]
+    peak_context_tokens = max(peaks) if peaks else None
 
     aggregate = SuiteAggregate(
         root=str(root_path) if root_path is not None else None,
@@ -388,6 +412,8 @@ def aggregate_suite(
         cost_estimate=float(sum(costs)) if costs else 0.0,
         missing_runs=tuple(missing),
         input_output_ratio=input_output_ratio,
+        llm_calls=llm_calls,
+        peak_context_tokens=peak_context_tokens,
     )
     logger.debug(
         f"{aggregate.case_count = }, {aggregate.pass_count = }, "

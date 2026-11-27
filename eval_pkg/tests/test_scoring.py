@@ -617,6 +617,77 @@ def test_score_run_copies_resolved_models() -> None:
     assert case.to_dict()["resolved_models"] == models
 
 
+def test_score_run_copies_per_call_usage() -> None:
+    """The per-call usage of a run is carried onto its case score."""
+    run = metrics.RunMetrics(
+        run_id="run-calls",
+        case_id="case-calls",
+        task_success=True,
+        llm_calls=3,
+        per_call_usage=(
+            {"input_tokens": 10, "output_tokens": 5},
+            {"input_tokens": 2, "output_tokens": 3},
+        ),
+        peak_context_tokens=15,
+    )
+
+    case = scoring.score_run(run)
+
+    assert case.llm_calls == 3
+    assert case.per_call_usage == run.per_call_usage
+    assert case.peak_context_tokens == 15
+    payload = case.to_dict()
+    assert payload["llm_calls"] == 3
+    assert payload["per_call_usage"] == [
+        {"input_tokens": 10, "output_tokens": 5},
+        {"input_tokens": 2, "output_tokens": 3},
+    ]
+    assert payload["peak_context_tokens"] == 15
+
+
+def test_aggregate_suite_sums_llm_calls_and_keeps_the_peak(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The suite sums the per-case call counts and keeps the highest peak."""
+    summaries = {
+        "run-a": metrics.RunMetrics(
+            run_id="run-a",
+            case_id="case-a",
+            task_success=True,
+            llm_calls=2,
+            peak_context_tokens=15,
+        ),
+        "run-b": metrics.RunMetrics(
+            run_id="run-b",
+            case_id="case-b",
+            task_success=True,
+            llm_calls=3,
+            peak_context_tokens=140,
+        ),
+    }
+    for run_id, case_id in (("run-a", "case-a"), ("run-b", "case-b")):
+        _append_index(tmp_path, run_id, case_id)
+        run_dir = tmp_path / "runs" / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "metrics.jsonl").write_text("", encoding="utf-8")
+
+    def fake_load(run_dir: Path) -> metrics.RunMetrics:
+        for run_id, summary in summaries.items():
+            if run_id in str(run_dir):
+                return summary
+        raise AssertionError(f"unexpected run directory: {run_dir}")
+
+    monkeypatch.setattr(metrics, "load_run", fake_load)
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.llm_calls == 5
+    assert aggregate.peak_context_tokens == 140
+    payload = aggregate.to_dict()
+    assert payload["llm_calls"] == 5
+    assert payload["peak_context_tokens"] == 140
+
+
 def test_aggregate_suite_carries_resolved_models_per_case(tmp_path: Path) -> None:
     models = {"chat": "model-a"}
     _write_metrics(
@@ -679,3 +750,43 @@ def test_suite_normalised_units_ignore_a_cost_estimate(tmp_path: Path) -> None:
 
     assert aggregate.cost_estimate == 12.5
     assert aggregate.total_normalised_units == 200.0
+
+
+def test_summary_command_prints_per_call_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The summary command echoes the per-call usage and peak context lines."""
+    from klea_eval import api
+    from klea_eval.ui import cli
+    from typer.testing import CliRunner
+
+    aggregate = scoring.SuiteAggregate(
+        root=None,
+        llm_calls=5,
+        peak_context_tokens=140,
+    )
+    monkeypatch.setattr(api, "suite_summary", lambda *args, **kwargs: aggregate)
+
+    result = CliRunner().invoke(cli.app, ["summary"])
+
+    assert result.exit_code == 0
+    assert "llm_calls: 5" in result.output
+    assert "peak_context_tokens: 140" in result.output
+
+
+def test_summary_command_prints_na_without_a_peak(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An aggregate without a peak reports the fallback instead of a number."""
+    from klea_eval import api
+    from klea_eval.ui import cli
+    from typer.testing import CliRunner
+
+    aggregate = scoring.SuiteAggregate(root=None)
+    monkeypatch.setattr(api, "suite_summary", lambda *args, **kwargs: aggregate)
+
+    result = CliRunner().invoke(cli.app, ["summary"])
+
+    assert result.exit_code == 0
+    assert "llm_calls: 0" in result.output
+    assert "peak_context_tokens: n/a" in result.output

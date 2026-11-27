@@ -249,7 +249,17 @@ def test_http_runner_sums_usage_details(tmp_path: Path) -> None:
             "usage",
             {
                 "type": "usage",
-                "data": {"details": {"input_tokens": 2, "output_tokens": 3}},
+                "data": {
+                    "details": {
+                        "input_tokens": 2,
+                        "output_tokens": 3,
+                        "llm_calls": 2,
+                        "llm_usage": [
+                            {"input_tokens": 10, "output_tokens": 5},
+                            {"input_tokens": 2, "output_tokens": 3},
+                        ],
+                    }
+                },
             },
         )
         + _frame("complete", {"type": "complete", "message_for_user": "ok"})
@@ -261,6 +271,35 @@ def test_http_runner_sums_usage_details(tmp_path: Path) -> None:
         "output_tokens": 8,
         "total_tokens": 20,
     }
+    assert outcome.llm_calls == 2
+    assert outcome.per_call_usage == (
+        {"input_tokens": 10, "output_tokens": 5},
+        {"input_tokens": 2, "output_tokens": 3},
+    )
+    assert outcome.peak_context_tokens == 15
+
+
+def test_http_runner_leaves_the_peak_unset_without_llm_usage(tmp_path: Path) -> None:
+    """A usage event without ``llm_usage`` retains nothing and reports no peak."""
+    stream = (
+        _frame(
+            "usage",
+            {"type": "usage", "data": {"details": {"input_tokens": 4}}},
+        )
+        + _frame(
+            "usage",
+            {
+                "type": "usage",
+                "data": {"details": {"input_tokens": 1, "llm_usage": []}},
+            },
+        )
+        + _frame("complete", {"type": "complete", "message_for_user": "ok"})
+    )
+    runner, _ = _make_runner(_stream_handler(stream))
+    outcome = _run_turn(runner, _context(tmp_path), FakeTurn())
+    assert outcome.llm_calls == 0
+    assert outcome.per_call_usage == ()
+    assert outcome.peak_context_tokens is None
 
 
 def test_http_runner_ignores_ping(tmp_path: Path) -> None:
@@ -352,6 +391,12 @@ def test_outcome_to_record_flattens_usage_and_counts_tool_errors() -> None:
             {"tool": "b"},
         ),
         latency_ms=12.5,
+        llm_calls=2,
+        per_call_usage=(
+            {"input_tokens": 10, "output_tokens": 5},
+            {"input_tokens": 2, "output_tokens": 3},
+        ),
+        peak_context_tokens=15,
     )
     record = outcome_to_record(outcome)
     assert record["output"] == "done"
@@ -365,6 +410,20 @@ def test_outcome_to_record_flattens_usage_and_counts_tool_errors() -> None:
         "total_tokens": 5,
     }
     assert record["latency_ms"] == 12.5
+    assert record["llm_calls"] == 2
+    assert record["per_call_usage"] == [
+        {"input_tokens": 10, "output_tokens": 5},
+        {"input_tokens": 2, "output_tokens": 3},
+    ]
+    assert record["peak_context_tokens"] == 15
+
+
+def test_outcome_to_record_defaults_absent_llm_usage() -> None:
+    """A bare outcome maps the absent per-call fields onto empty values."""
+    record = outcome_to_record(TurnOutcome(text="done"))
+    assert record["llm_calls"] == 0
+    assert record["per_call_usage"] == []
+    assert record["peak_context_tokens"] is None
 
 
 def test_as_turn_executor_returns_a_metric_record(tmp_path: Path) -> None:
