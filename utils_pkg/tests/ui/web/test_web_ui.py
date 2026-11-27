@@ -463,12 +463,99 @@ async def test_status_pane_hides_not_displayed_detail_keys(fake_backend, utils_u
     await utils_user.should_not_see("max_retries")
 
 
+async def test_status_pane_renders_no_empty_details_container(fake_backend, utils_user):
+    """A filtered details block never leaves a bare ``{}`` in the pane.
+
+    The not-displayed keys are dropped and the empty containers they leave
+    behind are pruned, so a bookkeeping-only plan section renders its plan text
+    with no ``{}`` block while a tool-call section with an empty value key
+    renders only its legitimate key.
+    """
+
+    from klea_utils.ui.state import ensure_chat
+
+    chat = ensure_chat("u", "")
+    chat["state_sections"]["plan"] = {
+        "heading": "Plan",
+        "display": "Step 1: do the thing",
+        "summary": "",
+        "details": {"retry_count": 1, "max_retries": 3, "details": {}},
+        "preformatted": True,
+    }
+    chat["state_sections"]["tool"] = {
+        "heading": "Tool",
+        "display": "",
+        "summary": "",
+        "details": {"arguments": {}, "route": "task"},
+        "preformatted": False,
+    }
+
+    await utils_user.open("/")
+
+    from nicegui import ui
+
+    rendered = "\n".join(
+        str(element.content) for element in utils_user.find(ui.code).elements
+    )
+    await utils_user.should_see("Step 1: do the thing")
+    assert '"route": "task"' in rendered
+    assert "{}" not in rendered
+    assert "arguments" not in rendered
+
+
+async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
+    """The pane shows the thread total plus one row per model."""
+    from klea_utils.ui.state import (
+        TokenUsage,
+        TokenUsageByModel,
+        ensure_chat,
+        format_token_usage,
+    )
+
+    chat = ensure_chat("u", "")
+    total: TokenUsage = {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "total_tokens": 14,
+        "cached_tokens": 2,
+    }
+    by_model: TokenUsageByModel = {
+        "anthropic:model-a": TokenUsage(
+            input_tokens=6, output_tokens=3, total_tokens=9, cached_tokens=0
+        ),
+        "openai:model-b": TokenUsage(
+            input_tokens=4, output_tokens=1, total_tokens=5, cached_tokens=0
+        ),
+    }
+    chat["token_usage"] = total
+    chat["token_usage_by_model"] = by_model
+
+    await utils_user.open("/")
+
+    from nicegui import ui
+
+    # The breakdown lives in a collapsible group; open every expansion so
+    # no row is withheld by a collapsed body.
+    groups = list(utils_user.find(ui.expansion).elements)
+    assert groups, "a usage expansion must render"
+    for group in groups:
+        group.value = True
+
+    labels = {
+        getattr(label, "text", "") for label in utils_user.find(ui.label).elements
+    }
+    assert format_token_usage(total) in labels
+    for model, usage in by_model.items():
+        assert f"{model}: {format_token_usage(usage)}" in labels
+    assert not any("{}" in text for text in labels)
+
+
 async def test_status_pane_renders_the_role_markers(fake_backend, utils_user):
     """Each role renders its Unicode marker; unknown roles use the plain one."""
     from typing import cast
 
     from klea_utils.ui.glyphs import UNICODE_GLYPHS
-    from klea_utils.ui.state import StateSection, ensure_chat
+    from klea_utils.ui.state import ContentBlock, StateSection, ensure_chat
 
     chat = ensure_chat("u", "")
     section = {
@@ -493,24 +580,24 @@ async def test_status_pane_renders_the_role_markers(fake_backend, utils_user):
     chat["state_sections"]["markers"] = cast(StateSection, section)
     # A two-item section pins the inter-item spacing: every item but the last
     # carries the spacing margin, and the last item carries none.
-    chat["state_sections"]["spacing"] = cast(
-        StateSection,
+    spacing_content: list[ContentBlock] = [  # ty: ignore[invalid-assignment]
         {
-            "heading": "Spacing",
-            "display": "",
-            "summary": "",
-            "details": {},
-            "content": [
-                {
-                    "type": "items",
-                    "items": [
-                        {"text": "first spaced item", "role": "ok"},
-                        {"text": "second spaced item", "role": "ok"},
-                    ],
-                }
+            "kind": "items",
+            "items": [
+                {"text": "first spaced item", "role": "ok"},
+                {"text": "second spaced item", "role": "ok"},
             ],
-        },
-    )
+        }
+    ]
+    spacing_section: StateSection = {
+        "preformatted": False,
+        "heading": "Spacing",
+        "display": "",
+        "summary": "",
+        "details": {},
+        "content": spacing_content,
+    }
+    chat["state_sections"]["spacing"] = spacing_section
 
     await utils_user.open("/")
     await utils_user.should_see("ok item", retries=50)

@@ -418,13 +418,6 @@ phases are listed below.
   call so retries/truncations count (today only the final call per node is
   measured).  `TokenUsage` now carries `reasoning_tokens`/`cached_tokens`/
   `role`; a stable node key is still needed.
-- Per-model token breakdown in the status panes (deferred, out of scope for
-  the ledger change): graph state keeps `token_usage_ledger`, a
-  `TokenUsageLedger` of cumulative `TokenUsage` per model merged by
-  `add_usage_ledger`, and the context endpoint surfaces it, but the web/TUI
-  status panes still render only the single thread total seeded from it.
-  Showing the per-model split there is a follow-up; it needs no state-schema
-  or reducer change.
 - Prompt-cache A/B on volatile system-prompt content (deferred, unmeasured):
   `_get_system_prompt` (`utils_pkg/klea_utils/nodes/base.py:1228-1253`) keeps
   `context_summary` and the `Model in use:` line inside the one

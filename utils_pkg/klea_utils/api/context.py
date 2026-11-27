@@ -76,7 +76,12 @@ def create_context_router() -> APIRouter:
                 user_id,
                 chat_id,
             )
-            return {"context": None, "pending_interrupt": None, "usage": None}
+            return {
+                "context": None,
+                "pending_interrupt": None,
+                "usage": None,
+                "usage_by_model": None,
+            }
 
         config: RunnableConfig = {"configurable": {"thread_id": thread_id}}
         # ``aget_tuple`` returns None for a thread that never ran.  That is
@@ -87,7 +92,12 @@ def create_context_router() -> APIRouter:
             logger.debug(
                 "get_chat_context(%s, %s): no checkpoint yet", user_id, chat_id
             )
-            return {"context": None, "pending_interrupt": None, "usage": None}
+            return {
+                "context": None,
+                "pending_interrupt": None,
+                "usage": None,
+                "usage_by_model": None,
+            }
 
         snapshot = await graph.graph.aget_state(config)
         # ``_normalise_state_snapshot`` keeps this identical to the stream
@@ -101,12 +111,20 @@ def create_context_router() -> APIRouter:
         ledger = values.get("token_usage_ledger")
         if ledger is None:
             usage = None
+            usage_by_model = None
         else:
             from klea_utils.graph.schemas import TokenUsageLedger
 
             if not isinstance(ledger, TokenUsageLedger):
                 ledger = TokenUsageLedger.model_validate(ledger)
             usage = ledger.total().model_dump()
+            # Per-model totals ride the same ledger.  The live ``usage``
+            # events carry no model identity, so this projection is the only
+            # per-model source a reloaded frontend can restore from.
+            usage_by_model = {
+                model: totals.model_dump()
+                for model, totals in ledger.total_by_model().items()
+            }
         # The same snapshot carries any pending HITL interrupt (ADR-0046), so
         # a reloaded frontend can re-present the ask without a second read.
         interrupts = _snapshot_interrupts(snapshot)
@@ -119,6 +137,11 @@ def create_context_router() -> APIRouter:
             bool(interrupts),
             usage,
         )
-        return {"context": context, "pending_interrupt": interrupt, "usage": usage}
+        return {
+            "context": context,
+            "pending_interrupt": interrupt,
+            "usage": usage,
+            "usage_by_model": usage_by_model,
+        }
 
     return router

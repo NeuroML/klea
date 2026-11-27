@@ -94,7 +94,8 @@ line (change them with ``/mode`` or ``/access``; there are no in-panel
 selectors) plus a read-only **project root**.  Below that are the chat's
 selected **models** -- a collapsible group (collapsed by default) listing one
 role per line with its provider, and a warning when a required model or API key
-is still missing -- the running token totals (thousands-separated), and the
+is still missing -- the running token totals (thousands-separated) -- the thread
+total followed by one row per model with that model's own usage line -- and the
 per-step state sections that stream while the graph runs.  Everything down to
 the token totals stays fixed while only the state sections scroll.  The groups
 are spaced apart, and the state sections sit on the pane's own background.

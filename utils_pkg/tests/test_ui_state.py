@@ -232,3 +232,39 @@ def test_format_token_usage_shows_cached_subset():
         format_token_usage({"input_tokens": 10, "output_tokens": 5, "cached_tokens": 0})
         == "10 in / 5 out"
     )
+
+
+def test_format_token_usage_by_model_sorted_rows():
+    """A two-model mapping renders sorted ``(model, line)`` rows."""
+    from klea_utils.ui.state import format_token_usage, format_token_usage_by_model
+
+    by_model = {
+        "zeta-model": {
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "cached_tokens": 0,
+        },
+        "alpha-model": {
+            "input_tokens": 123456,
+            "output_tokens": 7890,
+            "cached_tokens": 1000,
+        },
+    }
+
+    rows = format_token_usage_by_model(by_model)
+    # Deterministic ordering: sorted by model name, exact rendered lines.
+    assert rows == [
+        ("alpha-model", "123,456 in (1,000 cached) / 7,890 out"),
+        ("zeta-model", "10 in / 5 out"),
+    ]
+    # Parity: every row is exactly the shared single-usage format.
+    for model, line in rows:
+        assert line == format_token_usage(by_model[model])
+
+
+def test_format_token_usage_by_model_empty_and_absent():
+    """An empty (or absent) mapping yields no rows."""
+    from klea_utils.ui.state import format_token_usage_by_model
+
+    assert format_token_usage_by_model({}) == []
+    assert format_token_usage_by_model(None) == []

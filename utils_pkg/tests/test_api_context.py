@@ -153,6 +153,7 @@ class TestContextProjection:
             },
             "pending_interrupt": None,
             "usage": None,
+            "usage_by_model": None,
         }
         # The hook received the raw values dict, untouched by normalization.
         assert fake.snapshot_states == [values]
@@ -181,6 +182,43 @@ class TestContextProjection:
         resp = await client.get("/chat/alice/chat-1/context")
         assert resp.status_code == 200
         assert resp.json()["usage"] == ledger.total().model_dump()
+
+    async def test_projects_per_model_usage_breakdown(self, app, client):
+        """The ledger projects an exact per-model breakdown beside the total."""
+        from klea_utils.graph.schemas import TokenUsage, TokenUsageLedger
+
+        ledger = TokenUsageLedger(
+            by_model={
+                "test-model": TokenUsage(
+                    input_tokens=5,
+                    output_tokens=3,
+                    total_tokens=8,
+                    cached_tokens=2,
+                ),
+                "other-model": TokenUsage(
+                    input_tokens=10,
+                    output_tokens=4,
+                    total_tokens=14,
+                    cached_tokens=0,
+                ),
+            }
+        )
+        values = {
+            "mode": {"requested": "general", "resolved": "general", "note": ""},
+            "token_usage_ledger": ledger,
+        }
+        app.state.graph = self._fake(values=values)
+
+        resp = await client.get("/chat/alice/chat-1/context")
+        self.logger.debug("status=%d body=%s", resp.status_code, resp.text)
+        assert resp.status_code == 200
+        body = resp.json()
+        # The flat total keeps its exact behaviour.
+        assert body["usage"] == ledger.total().model_dump()
+        # The per-model projection is keyed by model name with exact numbers.
+        assert body["usage_by_model"] == {
+            model: usage.model_dump() for model, usage in ledger.by_model.items()
+        }
 
     async def test_pydantic_values_normalised_before_hook(self, app, client):
         """Pydantic-backed values are model_dump'd so the hook sees a dict."""
@@ -218,6 +256,7 @@ class TestContextProjection:
             "context": None,
             "pending_interrupt": None,
             "usage": None,
+            "usage_by_model": None,
         }
         # The compiled graph is never read for an untouched thread.
         assert fake.graph.aget_state_calls == 0
@@ -233,6 +272,7 @@ class TestContextProjection:
             "context": None,
             "pending_interrupt": None,
             "usage": None,
+            "usage_by_model": None,
         }
 
     async def test_pending_interrupt_is_exposed(self, app, client):

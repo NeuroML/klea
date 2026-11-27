@@ -165,3 +165,38 @@ def test_ascii_markers_are_rendered_when_the_ascii_table_is_selected(monkeypatch
         " ",
         f"{_escaped(ASCII_GLYPHS.marker_plain)} plain item",
     ]
+
+
+def test_section_body_prints_no_empty_details_container() -> None:
+    """A plan whose details are all bookkeeping renders its text, not ``{}``."""
+    body = status_panel._section_body(
+        {
+            "heading": "Plan",
+            "display": "Step 1: do the thing",
+            "summary": "",
+            "details": {"retry_count": 1, "max_retries": 3, "details": {}},
+            "preformatted": True,
+        }
+    )
+
+    rendered = [str(widget.render()) for widget in body]
+    assert any("Step 1: do the thing" in text for text in rendered)
+    assert all("{}" not in text for text in rendered)
+
+
+def test_section_body_prunes_nested_empty_details_values() -> None:
+    """A surviving key's empty value is pruned; the real key still renders."""
+    body = status_panel._section_body(
+        {
+            "heading": "Tool",
+            "display": "",
+            "summary": "",
+            "details": {"arguments": {}, "route": "task"},
+            "preformatted": False,
+        }
+    )
+
+    rendered = "\n".join(str(widget.render()) for widget in body)
+    assert '"route": "task"' in rendered
+    assert "{}" not in rendered
+    assert "arguments" not in rendered

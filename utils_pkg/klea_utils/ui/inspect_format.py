@@ -120,6 +120,70 @@ def drop_not_displayed(details: Any) -> Any:
     return _drop_not_displayed(details)
 
 
+def _prune_empty_containers(value: Any) -> Any:
+    """Recursively drop empty mappings and lists from *value*.
+
+    An empty container renders as a literal ``{}``/``[]`` in the JSON view.
+    When filtering leaves nothing else behind -- a section whose ``details``
+    are all bookkeeping, or a nested mapping/list emptied by the filter --
+    that literal is noise rather than information, so it is pruned here.
+
+    Scalars, including empty strings and zero, are kept: they are data, not an
+    absent container.
+
+    :param value: The details payload (or a nested value).
+    :returns: An equivalent structure without empty mappings or lists.
+    """
+    if isinstance(value, dict):
+        pruned: dict[str, Any] = {}
+        for key, item in value.items():
+            cleaned = _prune_empty_containers(item)
+            if isinstance(cleaned, (dict, list)) and not cleaned:
+                continue
+            pruned[key] = cleaned
+        return pruned
+    if isinstance(value, list):
+        kept: list[Any] = []
+        for item in value:
+            cleaned = _prune_empty_containers(item)
+            if isinstance(cleaned, (dict, list)) and not cleaned:
+                continue
+            kept.append(cleaned)
+        return kept
+    return value
+
+
+def visible_details(details: Any) -> Any:
+    """Return *details* as a frontend should display it.
+
+    Applies the not-displayed filter and then prunes empty containers, so a
+    mapping whose keys were all filtered out, or a surviving key whose value
+    became empty, disappears instead of rendering as ``{}``.
+
+    Public so the web status pane can keep its JSON-highlighted code block
+    while sharing this one filter/prune implementation with the other
+    frontends (the TUI status panel) instead of each re-deriving it.
+
+    :param details: The section's ``details`` payload (or any nested value).
+    :returns: The displayable structure; empty when nothing is left to show.
+    """
+    return _prune_empty_containers(_drop_not_displayed(details))
+
+
+def format_details_block(details: Any) -> str:
+    """Render a status section's ``details`` as text, or ``""`` when empty.
+
+    Thin wrapper over :func:`visible_details` and :func:`format_details` for
+    the text frontends: an empty string means there is nothing to display, so
+    the caller omits the block entirely and no bare ``{}`` line is printed.
+
+    :param details: The section's ``details`` payload (or any nested value).
+    :returns: The formatted details, or ``""`` when nothing is displayable.
+    """
+    shown = visible_details(details)
+    return format_details(shown) if shown else ""
+
+
 def format_details(details: Any) -> str:
     """Render structured inspect ``details`` as readable indented JSON.
 
