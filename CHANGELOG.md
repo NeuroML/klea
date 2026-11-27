@@ -4,6 +4,10 @@
 
 ## Unreleased  ---  `klea_utils` / `klea_rag`
 
+### Breaking changes
+
+- The graph state's cumulative `usage_metrics` token totals are replaced by `token_usage_ledger`, which reports the thread total (`total()`) and a per-model breakdown (`total_by_model()`); the context endpoint still returns the flat `usage` total, and a thread checkpointed before the change reports no token totals.
+
 ### Added
 
 - The plan pane now marks the steps dispatched in the current parallel round, so a fan-out round no longer looks idle.
@@ -84,6 +88,7 @@
 - TUI: the status panel now skips re-rendering unchanged sections, so a streamed state event for one section no longer repaints the whole pane on every tick.
 - Path-approval prompts now keep the detected path visible in the command snippet by centring the preview window on a recovered fragment of the token, so a normalised token is no longer hidden by truncation.
 - Internal evaluation-only stream fields are no longer shown in the terminal or web status panes.
+- An empty JSON block no longer appears in the plan and tool-execution inspection entries.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
@@ -321,6 +326,7 @@
 
 ### Fixed
 
+- `/mcp list` now renders as a proper list in the web UI and the TUI: tool names with `_` (like `read_file`) no longer turn into italics, and the lines are no longer joined into one paragraph.
 - The Planner no longer accepts an invalid plan after the validation-retry budget is exhausted: it now fails closed as `unplannable`, with the validation error in the failure reason, instead of writing and executing the last invalid plan.
 - Plan steps may name only tools disclosed at the run's access level: an unknown or `read_only`-filtered tool, or any tool step when no tools are available, is now rejected and retried, then fails closed as `unplannable` instead of reaching the picker.
 - `/cwd` now reconciles session discovery against the new project root, so the previous root's `AGENTS.md`/`CLAUDE.md` no longer persists (a root with no instruction file clears it, and a root with a different instruction file replaces it).

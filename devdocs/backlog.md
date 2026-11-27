@@ -418,6 +418,13 @@ phases are listed below.
   call so retries/truncations count (today only the final call per node is
   measured).  `TokenUsage` now carries `reasoning_tokens`/`cached_tokens`/
   `role`; a stable node key is still needed.
+- Per-model token breakdown in the status panes (deferred, out of scope for
+  the ledger change): graph state keeps `token_usage_ledger`, a
+  `TokenUsageLedger` of cumulative `TokenUsage` per model merged by
+  `add_usage_ledger`, and the context endpoint surfaces it, but the web/TUI
+  status panes still render only the single thread total seeded from it.
+  Showing the per-model split there is a follow-up; it needs no state-schema
+  or reducer change.
 - Prompt-cache A/B on volatile system-prompt content (deferred, unmeasured):
   `_get_system_prompt` (`utils_pkg/klea_utils/nodes/base.py:1228-1253`) keeps
   `context_summary` and the `Model in use:` line inside the one
@@ -429,8 +436,9 @@ phases are listed below.
   `output_tokens`/`cached_tokens` already logged at
   `nodes/abstract.py:545-561` (DEBUG per call, INFO on hit); `cached_tokens`
   is cache-read only and writes fold into `input_tokens`
-  (`graph/schemas.py:31-33`); do not attribute from the thread-summed
-  `usage_metrics` (`graph/reducers.py:32`).  Matrix: Anthropic Sonnet + Haiku
+  (`graph/schemas.py:31-33`); do not attribute from the aggregated
+  `token_usage_ledger` (`graph/reducers.py:add_usage_ledger`).  Matrix:
+  Anthropic Sonnet + Haiku
   tier, `openai:gpt-4o`, native `deepseek:`, a Gemini route and
   `ollama:qwen3:0.6b` as a zero-hit control; turn shapes short 2-node, long
   5+ node with tools, compaction, TTL replay; 5 runs per cell over 5 threads,

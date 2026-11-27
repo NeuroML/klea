@@ -42,7 +42,22 @@ def test_format_details_drops_not_displayed_keys() -> None:
     assert "tool_names" in formatted
     # A key added to the not-displayed set later must fail this test, so the
     # frontends' filtering stays in step with the harness bookkeeping.
-    assert NOT_DISPLAYED_DETAIL_KEYS == frozenset({"retry_count", "max_retries"})
+    assert NOT_DISPLAYED_DETAIL_KEYS == frozenset(
+        {"retry_count", "max_retries", "details"}
+    )
+
+
+def test_format_details_drops_nested_details_container() -> None:
+    """The inspect payload's own empty ``details`` container is not displayed.
+
+    An inspect entry's ``details`` carries ``NodeStreamData``'s own
+    ``details: {}`` field, which is harness bookkeeping echoing the container
+    rather than user data, so it must be dropped while its siblings survive.
+    """
+    formatted = format_details({"details": {}, "route": "task"})
+
+    assert "details" not in formatted
+    assert '"route": "task"' in formatted
 
 
 def test_rendering_hides_not_displayed_detail_keys() -> None:

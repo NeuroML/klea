@@ -159,26 +159,28 @@ class TestContextProjection:
         assert fake.graph.aget_state_calls == 1
 
     async def test_projects_checkpointed_usage(self, app, client):
-        """The checkpointed cumulative token totals are projected."""
+        """The checkpointed per-model ledger is projected as the thread total."""
+        from klea_utils.graph.schemas import TokenUsage, TokenUsageLedger
+
+        ledger = TokenUsageLedger(
+            by_model={
+                "test-model": TokenUsage(
+                    input_tokens=5,
+                    output_tokens=3,
+                    total_tokens=8,
+                    cached_tokens=2,
+                )
+            }
+        )
         values = {
             "mode": {"requested": "general", "resolved": "general", "note": ""},
-            "usage_metrics": {
-                "input_tokens": 5,
-                "output_tokens": 3,
-                "total_tokens": 8,
-                "cached_tokens": 2,
-            },
+            "token_usage_ledger": ledger,
         }
         app.state.graph = self._fake(values=values)
 
         resp = await client.get("/chat/alice/chat-1/context")
         assert resp.status_code == 200
-        assert resp.json()["usage"] == {
-            "input_tokens": 5,
-            "output_tokens": 3,
-            "total_tokens": 8,
-            "cached_tokens": 2,
-        }
+        assert resp.json()["usage"] == ledger.total().model_dump()
 
     async def test_pydantic_values_normalised_before_hook(self, app, client):
         """Pydantic-backed values are model_dump'd so the hook sees a dict."""
