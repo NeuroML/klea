@@ -96,8 +96,57 @@ def test_headless_help_lists_toggle_options():
         "--path-check-stance",
         "--hitl",
         "--no-hitl",
+        "--unattended",
     ):
         assert option in result.stdout
+
+
+def test_headless_unattended_exports_all_three_toggles(monkeypatch):
+    """``--unattended`` exports the three safety values a batch run needs."""
+    from contextlib import nullcontext
+
+    import klea_utils.api.server as server_module
+    import klea_utils.api.sse as sse_module
+
+    captured = {}
+
+    def fake_spawn(app_module, **kwargs):
+        captured["env"] = dict(os.environ)
+        return nullcontext()
+
+    async def fake_stream(query, chat_id, server_url, **kwargs):
+        yield {"type": "complete", "message_for_user": ANSWER}
+
+    monkeypatch.setattr(server_module, "spawn_server", fake_spawn)
+    monkeypatch.setattr(sse_module, "stream_events", fake_stream)
+
+    result = runner.invoke(agent_app, ["headless", "hello", "--unattended"])
+
+    assert result.exit_code == 0, _text(result)
+    env = captured["env"]
+    assert env["KLEA_AGENT_PATH_CHECK"] == "off"
+    assert env["KLEA_AGENT_PATH_CHECK_STANCE"] == "allow"
+    assert env["KLEA_AGENT_HITL"] == "off"
+
+
+@pytest.mark.parametrize(
+    ("extra_args", "flag"),
+    [
+        (["--hitl"], "--hitl"),
+        (["--path-check", "strict"], "--path-check"),
+        (["--path-check-stance", "deny"], "--path-check-stance"),
+    ],
+)
+def test_headless_unattended_rejects_contradicting_flags(extra_args, flag):
+    """A flag that contradicts ``--unattended`` is rejected as a usage error."""
+    result = runner.invoke(
+        agent_app, ["headless", "hello", "--unattended", *extra_args]
+    )
+
+    assert result.exit_code == 2
+    text = _text(result)
+    assert "--unattended" in text
+    assert flag in text
 
 
 def test_headless_rejects_invalid_path_check():

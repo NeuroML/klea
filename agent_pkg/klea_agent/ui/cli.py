@@ -132,6 +132,13 @@ def headless(
         "stops at the first ask and exits 1; use --no-hitl for unattended "
         "runs (unset keeps the server's default).",
     ),
+    unattended: bool = typer.Option(
+        False,
+        "--unattended",
+        help="Unattended mode for a spawned server: implies --path-check off, "
+        "--path-check-stance allow and --no-hitl. A contradicting flag is "
+        "rejected.",
+    ),
     debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
 ):
     """Run one query non-interactively and print the final answer.
@@ -143,8 +150,11 @@ def headless(
     (``KLEA_AGENT_PATH_CHECK``, ``KLEA_AGENT_PATH_CHECK_STANCE``,
     ``KLEA_AGENT_HITL``) before the spawn attempt, so a server this command
     starts inherits them; an already-running or remote server keeps its own
-    configuration.  The answer is printed on stdout; diagnostics, an error or
-    an interrupt payload go to stderr.
+    configuration.  ``--unattended`` is shorthand for the three safety values
+    an unattended run needs (``--path-check off``, ``--path-check-stance
+    allow`` and ``--no-hitl``); a contradicting flag is rejected.  The answer
+    is printed on stdout; diagnostics, an error or an interrupt payload go to
+    stderr.
     """
     # Lazy: the validators live in the MCP access layer; importing them here
     # keeps ``headless --help`` light (AGENTS.md CLI conventions).
@@ -155,6 +165,30 @@ def headless(
     )
     from klea_utils.plogging import resolve_log_level, setup_root_logger
 
+    if unattended:
+        if hitl:
+            raise typer.BadParameter(
+                "--unattended implies --no-hitl; drop --hitl or --unattended",
+                param_hint="--hitl",
+            )
+        if path_check and path_check != "off":
+            raise typer.BadParameter(
+                "--unattended implies --path-check off; drop --path-check "
+                f"{path_check} or --unattended",
+                param_hint="--path-check",
+            )
+        if path_check_stance and path_check_stance != "allow":
+            raise typer.BadParameter(
+                "--unattended implies --path-check-stance allow; drop "
+                f"--path-check-stance {path_check_stance} or --unattended",
+                param_hint="--path-check-stance",
+            )
+        _parse_toggle(parse_path_check_mode, "off", "--unattended")
+        _parse_toggle(parse_path_check_stance, "allow", "--unattended")
+        _parse_toggle(parse_hitl_enabled, "off", "--unattended")
+        os.environ["KLEA_AGENT_PATH_CHECK"] = "off"
+        os.environ["KLEA_AGENT_PATH_CHECK_STANCE"] = "allow"
+        os.environ["KLEA_AGENT_HITL"] = "off"
     if path_check:
         _parse_toggle(parse_path_check_mode, path_check, "--path-check")
         os.environ["KLEA_AGENT_PATH_CHECK"] = path_check

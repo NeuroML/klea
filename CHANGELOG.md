@@ -19,6 +19,7 @@
 - New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands, offered in both the terminal and web clients.
 - New `klea-serve` flags for path checking and HITL.
 - A new `klea headless` subcommand for non-interactive runs.
+- A new `--unattended` switch for `klea headless`, which sets the safety options a prompt-free run needs.
 - The streamed `usage` event now also carries per-invocation token usage (`llm_usage`) beside the unchanged node totals, so each LLM call's spend can be attributed on its own.
 - Evaluator step retries now report their detail on the `inspect` event (`kind`, `plan_step`, `attempt`, `max_attempts`), so a retried step can be traced.
 - The status panes in the web and terminal clients now show the token usage broken down per model beneath the thread total, taken from the breakdown the context endpoint returns.
@@ -40,6 +41,7 @@
 
 ### Fixed
 
+- TUI status pane: no longer draws two horizontal separators above the plan section.
 - Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname; secondary LAN NICs are found via `ifaddr` (same approach as NiceGUI's welcome URLs) so multi-homed hosts no longer fall back to a cookie for one of their own IPs.
 - Web UI: re-rendering the chat transcript no longer jumps the viewport to the newest message, so expanding an older message keeps its position.
 - Web UI: expanding a message in the chat transcript no longer moves the pane, so the message opens in place.

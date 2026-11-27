@@ -64,3 +64,13 @@ server keeps its own settings:
     the first ask, prints it and exits 1 with the thread left paused, so it can
     be answered from another client (for example ``klea tui``); use
     ``--no-hitl`` for unattended runs.
+
+``--unattended``
+    Shorthand for a run that never prompts: sets ``--path-check off``,
+    ``--path-check-stance allow`` and ``--no-hitl``.  It is a convenience for
+    external or third-party evaluation harnesses that drive ``klea headless``
+    and cannot answer a prompt.  Like the other safety flags it only
+    configures a server ``klea headless`` spawns itself; an already-running or
+    remote server keeps its own settings, so it does not by itself guarantee a
+    prompt-free run there.  A contradicting individual flag (for example
+    ``--hitl`` or ``--path-check strict``) is rejected.
