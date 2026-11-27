@@ -1454,7 +1454,63 @@ async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
         statics = [str(static.render()) for static in panel.query(Static)]
         assert "Plan" in titles
         assert "context" not in titles
-        assert any("3 in (2 cached) / 1 out" in text for text in statics)
+        assert any("3 in/1 out/2 cached" in text for text in statics)
+
+
+async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
+    """The usage group heads with the thread total and lists each model."""
+    from klea_utils.ui.state import (
+        format_token_usage,
+        format_token_usage_compact,
+    )
+
+    totals = {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 2}
+    by_model = {
+        "anthropic:model-a": {
+            "input_tokens": 6,
+            "output_tokens": 3,
+            "cached_tokens": 1,
+        },
+        "openai:model-b": {
+            "input_tokens": 4,
+            "output_tokens": 1,
+            "cached_tokens": 1,
+        },
+    }
+    # The breakdown is hydration-sourced (the live usage event has no model
+    # identity), so it arrives through the context body.
+    fake_backend.chat_context = {"usage": totals, "usage_by_model": by_model}
+    app = make_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await _settle(pilot, app)
+        usage = app.screen.query_one("#status-usage", Collapsible)
+        # The total line is the heading and the group starts collapsed.
+        assert usage.collapsed is True
+        assert str(usage.title) == format_token_usage_compact(totals)
+        assert str(usage.title) == "10 in/4 out/2 cached"
+        # Expanding reveals one provider heading per provider, with each
+        # model and its usage row indented beneath it.
+        usage.collapsed = False
+        await pilot.pause()
+        from klea_utils.ui.tui.components.status_panel import _section_id
+
+        for model, model_usage in by_model.items():
+            provider, _, model_name = model.partition(":")
+            heading = usage.query_one(
+                f"#{_section_id(f'usage-provider-{provider}')}", SelectableStatic
+            )
+            assert str(heading.render()) == f"- {provider}"
+            model_widget = usage.query_one(
+                f"#{_section_id(f'usage-{provider}-{model_name}')}", SelectableStatic
+            )
+            assert str(model_widget.render()) == f"    {model_name}"
+            line_widget = usage.query_one(
+                f"#{_section_id(f'usage-line-{provider}-{model_name}')}",
+                SelectableStatic,
+            )
+            assert str(line_widget.render()) == (
+                f"        {format_token_usage(model_usage)}"
+            )
 
 
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):

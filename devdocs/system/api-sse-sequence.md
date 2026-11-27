@@ -105,6 +105,12 @@ Notes:
   event arrives for `HEARTBEAT_INTERVAL_SECONDS` (15 s), so a long-running node
   (e.g. `run_command`) does not let the client's idle read timeout (300 s) or a
   proxy drop the SSE stream.  Clients ignore `ping`; see `streams.md`.
+* Every graph event also carries the additive identity fields `node_id`,
+  `run_id` and - when the envelope supplies it - `step`, stamped by
+  `run_graph_astream_events` on the node-scoped events, while `context` and
+  `complete` carry `run_id` only.  They are optional for consumers, which may
+  ignore them, and never replace the display `node` label; see `streams.md`
+  ("Event identity and attempt metadata").
 * `client_context` is optional.  The TUI sends it; the web UI omits it, so web
   chats use the backend's cwd/environment/interpreter for bundled tools
   (ADR-0055).  `/cwd` remains a per-chat path root for both frontends.

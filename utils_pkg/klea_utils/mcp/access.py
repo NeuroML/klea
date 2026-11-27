@@ -169,3 +169,94 @@ def resolve_access_level(value: Any) -> AccessLevel:
             f"Unknown access level {value!r}; defaulting to {DEFAULT_ACCESS_LEVEL}"
         )
     return DEFAULT_ACCESS_LEVEL
+
+
+#: Path-check modes: how tool-call path detection is applied.  ``strict``
+#: gates every detected path, ``declared`` gates only declared
+#: ``checkpaths``/picker paths, and ``off`` disables path checking.
+PathCheckMode = Literal["strict", "declared", "off"]
+
+#: Path-check stance: how an unapproved detected path is treated.  ``deny``
+#: refuses the call; ``allow`` lets it proceed without an approval prompt.
+PathCheckStance = Literal["deny", "allow"]
+
+#: Default path-check mode: gate every detected path.
+DEFAULT_PATH_CHECK_MODE: PathCheckMode = "strict"
+
+#: Default path-check stance: refuse an unapproved path.
+DEFAULT_PATH_CHECK_STANCE: PathCheckStance = "deny"
+
+#: Environment variable selecting the :data:`PathCheckMode`.
+PATH_CHECK_ENV_VAR = "KLEA_AGENT_PATH_CHECK"
+
+#: Environment variable selecting the :data:`PathCheckStance`.
+PATH_CHECK_STANCE_ENV_VAR = "KLEA_AGENT_PATH_CHECK_STANCE"
+
+#: Environment variable toggling human-in-the-loop approvals.
+HITL_ENV_VAR = "KLEA_AGENT_HITL"
+
+
+def parse_path_check_mode(value: Any) -> PathCheckMode:
+    """Parse a path-check mode from an environment-style value.
+
+    Accepts ``strict``, ``declared`` or ``off`` case-insensitively.  ``None``
+    or an empty string yields :data:`DEFAULT_PATH_CHECK_MODE`; any other value
+    raises :class:`ValueError` naming the variable and its allowed values.
+
+    :param value: Candidate value (e.g. from ``KLEA_AGENT_PATH_CHECK``).
+    :returns: The parsed path-check mode.
+    """
+    allowed = ("strict", "declared", "off")
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return DEFAULT_PATH_CHECK_MODE
+    candidate = str(value).strip().lower()
+    if candidate in allowed:
+        return candidate
+    raise ValueError(
+        f"Invalid {PATH_CHECK_ENV_VAR}={value!r}; expected one of {', '.join(allowed)}"
+    )
+
+
+def parse_path_check_stance(value: Any) -> PathCheckStance:
+    """Parse a path-check stance from an environment-style value.
+
+    Accepts ``deny`` or ``allow`` case-insensitively.  ``None`` or an empty
+    string yields :data:`DEFAULT_PATH_CHECK_STANCE`; any other value raises
+    :class:`ValueError` naming the variable and its allowed values.
+
+    :param value: Candidate value (e.g. from ``KLEA_AGENT_PATH_CHECK_STANCE``).
+    :returns: The parsed path-check stance.
+    """
+    allowed = ("deny", "allow")
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return DEFAULT_PATH_CHECK_STANCE
+    candidate = str(value).strip().lower()
+    if candidate in allowed:
+        return candidate
+    raise ValueError(
+        f"Invalid {PATH_CHECK_STANCE_ENV_VAR}={value!r}; expected one of "
+        f"{', '.join(allowed)}"
+    )
+
+
+def parse_hitl_enabled(value: Any) -> bool:
+    """Parse the HITL toggle from an environment-style value.
+
+    Accepts ``on``/``off``, ``true``/``false`` and ``1``/``0``
+    case-insensitively.  ``None`` or an empty string yields ``True`` (HITL is
+    on by default); any other value raises :class:`ValueError` naming the
+    variable and its allowed values.
+
+    :param value: Candidate value (e.g. from ``KLEA_AGENT_HITL``).
+    :returns: Whether HITL approvals are enabled.
+    """
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return True
+    candidate = str(value).strip().lower()
+    if candidate in ("on", "true", "1"):
+        return True
+    if candidate in ("off", "false", "0"):
+        return False
+    raise ValueError(
+        f"Invalid {HITL_ENV_VAR}={value!r}; expected one of on, off, true, false, 1, 0"
+    )

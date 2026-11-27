@@ -145,6 +145,24 @@ def make_serve_app(
             "directory or the config dir. Use 'template' to scaffold a "
             "new config and exit.",
         ),
+        path_check: str | None = typer.Option(
+            None,
+            "--path-check",
+            help="Process-wide path-check mode (strict|declared|off). "
+            "Belongs on a dedicated eval backend.",
+        ),
+        path_check_stance: str | None = typer.Option(
+            None,
+            "--path-check-stance",
+            help="Process-wide stance for undeclared paths (deny|allow). "
+            "Belongs on a dedicated eval backend.",
+        ),
+        hitl: bool | None = typer.Option(
+            None,
+            "--hitl/--no-hitl",
+            help="Process-wide human-in-the-loop gate. "
+            "Belongs on a dedicated eval backend.",
+        ),
     ):
         """Run the API server."""
         configure_profile(profile, config_env_var, config_dir, template_writer)
@@ -162,6 +180,42 @@ def make_serve_app(
             from klea_utils.plogging import enable_debug_logging
 
             enable_debug_logging()
+
+        # Process-wide path-check / HITL toggles: validate the requested
+        # values and export them before the app module is imported,
+        # mirroring the --profile env-write precedent above.  These flags
+        # are process-wide, so set them on a dedicated eval backend.
+        from klea_utils.mcp.access import (
+            parse_hitl_enabled,
+            parse_path_check_mode,
+            parse_path_check_stance,
+        )
+
+        def _toggle(value, parser, label):
+            """Return a parsed toggle value or fail fast."""
+            try:
+                parsed = parser(value)
+            except (TypeError, ValueError) as exc:
+                raise typer.BadParameter(f"Invalid {label} {value!r}: {exc}") from exc
+            if parsed is None:
+                raise typer.BadParameter(f"Invalid {label} {value!r}.")
+            return parsed
+
+        if path_check is not None:
+            os.environ["KLEA_AGENT_PATH_CHECK"] = str(
+                _toggle(path_check, parse_path_check_mode, "path-check mode")
+            )
+        if path_check_stance is not None:
+            os.environ["KLEA_AGENT_PATH_CHECK_STANCE"] = str(
+                _toggle(
+                    path_check_stance,
+                    parse_path_check_stance,
+                    "path-check stance",
+                )
+            )
+        if hitl is not None:
+            _toggle("on" if hitl else "off", parse_hitl_enabled, "hitl value")
+            os.environ["KLEA_AGENT_HITL"] = "on" if hitl else "off"
 
         # Lazy: uvicorn pulls in starlette/httptools/websockets etc.
         import uvicorn

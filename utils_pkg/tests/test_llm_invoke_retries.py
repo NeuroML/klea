@@ -1313,3 +1313,112 @@ class TestValidationRetryLoop:
         assert updates["accepted"] == node.calls
         # The error survives into ``_update_state`` so the node can fail closed.
         assert node.update_feedback == "still bad"
+
+
+class _UsageCountingNode(_MinimalLLMNode):
+    """Node that rejects the first result so execute() makes two LLM calls.
+
+    It deliberately keeps the real ``_pre_exec_stream``/``_post_exec_stream``
+    so the inherited post-stream emits the ``usage`` event under test.
+    """
+
+    model_role = "chat"
+    max_validation_retries = 2
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.calls = 0
+
+    def _get_prompt_variables(self, state, ctx):
+        return {"x": "y"}
+
+    def _get_system_prompt(self, state, ctx):
+        return "system"
+
+    def _get_human_prompt(self, state, ctx):
+        return "human"
+
+    async def _invoke_llm(self, ctx):
+        self.calls += 1
+        if self.calls == 1:
+            usage = {"input_tokens": 100, "output_tokens": 20, "total_tokens": 120}
+        else:
+            usage = {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15}
+        return AIMessage(content=f"raw-{self.calls}", usage_metadata=usage)
+
+    def _process_output(self, ctx):
+        return self.calls
+
+    def _validate_result(self, result, state, ctx):
+        return "bad plan" if result == 1 else None
+
+    def _update_state(self, result, state, ctx):
+        return {"accepted": result}
+
+    def _get_default_error_result(self, ctx):
+        return 0
+
+
+class TestUsageEmissionOnRetry:
+    """A validation retry emits one usage event with per-call entries."""
+
+    def setup_method(self):
+        self._catalog_patcher = mock.patch(
+            "klea_utils.llm.get_catalog_model_limits", return_value=None
+        )
+        self._catalog_patcher.start()
+
+    def teardown_method(self):
+        self._catalog_patcher.stop()
+
+    async def test_retry_emits_two_usage_entries(self):
+        node = _UsageCountingNode(
+            logger=logger,
+            label="test",
+            llm_models={
+                "chat": LLMModel(instance=mock.Mock(), model_name="openai:gpt-4o")
+            },
+            output_schema=None,
+        )
+        events = []
+        node.write_custom_stream = lambda event=None, **kw: events.append(event)
+        with (
+            _runtime_context(),
+            mock.patch("klea_utils.nodes.base._current_session_id", return_value=None),
+            mock.patch.object(
+                node, "_configure_llm", return_value=(mock.Mock(), make_config())
+            ),
+        ):
+            updates = await node.execute(_OutputSchema(answer="x"))
+
+        assert updates["accepted"] == 2
+
+        def _event_kind(event):
+            # Custom stream events carry their kind on the 'event' field (the
+            # sibling emits-usage test reads the payload from event["data"]).
+            return event.get("event") or event.get("type")
+
+        usage_events = [event for event in events if _event_kind(event) == "usage"]
+        assert len(usage_events) == 1
+
+        details = usage_events[0]["data"]["details"]
+        assert details["llm_calls"] == 2
+
+        entries = details["llm_usage"]
+        assert len(entries) == 2
+
+        first, second = entries
+        assert (
+            first["input_tokens"],
+            first["output_tokens"],
+            first["total_tokens"],
+        ) == (100, 20, 120)
+        assert (
+            second["input_tokens"],
+            second["output_tokens"],
+            second["total_tokens"],
+        ) == (10, 5, 15)
+
+        assert details["input_tokens"] == 110
+        assert details["output_tokens"] == 25
+        assert details["total_tokens"] == 135

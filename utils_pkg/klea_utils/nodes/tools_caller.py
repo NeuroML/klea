@@ -27,7 +27,11 @@ from mcp.types import (
 from pydantic import BaseModel
 
 from klea_utils.client_context import ClientContext, client_context_from_context
-from klea_utils.mcp.access import DEFAULT_ACCESS_LEVEL
+from klea_utils.mcp.access import (
+    DEFAULT_ACCESS_LEVEL,
+    DEFAULT_PATH_CHECK_MODE,
+    DEFAULT_PATH_CHECK_STANCE,
+)
 from klea_utils.mcp.dispatch import dispatch_tool_calls
 from klea_utils.mcp.path_detect import PathRequest
 from klea_utils.mcp.permission_hitl import (
@@ -62,6 +66,50 @@ def _plan_goal_line(goal_state: Any) -> str:
     if callable(label):
         return label()
     return ""
+
+
+def _current_step(state: Any) -> int:
+    """Return the 1-based plan step whose attempts ``retry_count`` counts.
+
+    Mirrors the router's notion of the current step by duck typing only
+    (this package must not import ``klea_agent``): the plan's
+    ``current_step()`` number when it is a positive int, else the first
+    positive ``step`` stamped on the batch's tool calls, else ``1``.
+
+    :param state: Current graph state.
+    :returns: The 1-based plan step number.
+    """
+    plan = getattr(state, "plan", None)
+    if plan is not None:
+        current = getattr(plan, "current_step", None)
+        if callable(current):
+            number = getattr(current(), "step_number", 0)
+            if isinstance(number, int) and number > 0:
+                return number
+    for call in getattr(state, "tool_calls", None) or []:
+        number = getattr(call, "step", None)
+        if isinstance(number, int) and number > 0:
+            return number
+    return 1
+
+
+def _retry_count(state: Any) -> int:
+    """Return the 0-based retry count for the current plan step.
+
+    ``tool_retry_counts`` holds a step's **previous consecutive failed**
+    attempts (ADaPT; the counter is cleared as soon as the step makes
+    progress), so the count is emitted as-is and a consumer that wants a
+    1-based attempt number adds one.  A state without ``tool_retry_counts``
+    has count ``0``.  HTTP/LLM transport retries never affect this number.
+
+    :param state: Current graph state.
+    :returns: The 0-based retry count for the current step.
+    """
+    counts = getattr(state, "tool_retry_counts", None) or {}
+    try:
+        return int(counts.get(_current_step(state), 0))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _grouped_tool_lines(records: list[str]) -> list[str]:
@@ -185,7 +233,13 @@ class ToolsCallerNode(
         :returns: ``{"tool_results": [...]}`` plus any callback extras.
         """
         # Per-run context (values local to the run, not on the shared node).
-        ctx = ToolCallerContext()
+        ctx = ToolCallerContext(
+            hitl_enabled=getattr(state, "hitl_enabled", True),
+            path_check_mode=getattr(state, "path_check_mode", DEFAULT_PATH_CHECK_MODE),
+            path_check_stance=getattr(
+                state, "path_check_stance", DEFAULT_PATH_CHECK_STANCE
+            ),
+        )
 
         if not self._pre_exec(state, ctx):
             self.logger.debug("No tool calls to dispatch; skipping")
@@ -275,6 +329,7 @@ class ToolsCallerNode(
             mcp_session_pool=self._mcp_session_pool,
             client_context=client_context,
             step_summaries=step_summaries,
+            path_check_mode=ctx.path_check_mode,
             **meta_kwargs,
         )
         self.logger.debug(f"{results =}")
@@ -341,6 +396,17 @@ class ToolsCallerNode(
 
         def resolver(requests: list[PathRequest]) -> PermissionResolution:
             self.logger.info(f"Requesting path permission\n{len(requests) = }")
+            if not ctx.hitl_enabled:
+                if ctx.path_check_stance == "allow":
+                    resolution = PermissionResolution(
+                        allowed_now=[request.approval_key for request in requests]
+                    )
+                else:
+                    resolution = PermissionResolution(
+                        denied=[request.approval_key for request in requests]
+                    )
+                self._emit_permission_inspect(requests, resolution)
+                return resolution
             response = interrupt(
                 build_permission_payload(requests),
                 response_schema=PermissionResponse,
@@ -432,11 +498,15 @@ class ToolsCallerNode(
         The entries are the chat-renderable payloads (one per result at most).
         """
         tool_calls = getattr(state, "tool_calls", [])
-        per_result = [
-            self._display_entry_for(tc, result)
-            for tc, result in zip(tool_calls, ctx.tool_results, strict=False)
-        ]
-        return [entry for entry in per_result if entry is not None]
+        retry_count = _retry_count(state)
+        entries: list[dict[str, Any]] = []
+        for tc, result in zip(tool_calls, ctx.tool_results, strict=False):
+            entry = self._display_entry_for(tc, result)
+            if entry is None:
+                continue
+            entry["retry_count"] = retry_count
+            entries.append(entry)
+        return entries
 
     def _tool_display_entries(
         self, tool_calls: list[Any], results: list[CallToolResult]
@@ -716,6 +786,7 @@ class ToolsCallerNode(
             heading="Tool Execution",
             summary=f"Called {len(tool_names)} tool(s), {success_count} succeeded",
             details={
+                "retry_count": _retry_count(state),
                 "tool_names": tool_names,
                 "total_calls": len(tool_names),
                 "successful_calls": success_count,
@@ -775,6 +846,7 @@ class ToolsCallerNode(
             display=display,
             key="plan",
             preformatted=True,
+            details={"retry_count": _retry_count(state)},
         )
 
     def _get_running_tools(self, state: BaseModel) -> NodeStreamData | None:
@@ -805,6 +877,7 @@ class ToolsCallerNode(
             key=self.label,
             summary=f"Running {len(tool_calls)} tool(s)",
             display="\n".join(lines),
+            details={"retry_count": _retry_count(state)},
         )
 
     def _get_status(
@@ -844,4 +917,5 @@ class ToolsCallerNode(
             key=self.label,
             summary=f"Called {len(tool_calls)} tool(s)",
             display="\n".join(lines),
+            details={"retry_count": _retry_count(state)},
         )

@@ -26,6 +26,7 @@ from klea_agent.schemas import (
 from klea_utils.content_blocks import ItemsBlock
 from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.nodes.context import LLMNodeContext
+from langchain_core.messages import AIMessage
 from langchain_core.prompts import ChatPromptTemplate
 from mcp.types import TextContent
 
@@ -422,6 +423,62 @@ class TestOperationalEvaluator(unittest.TestCase):
         )
         text = template.format_messages(**variables)[0].content
         self.assertNotIn("Recent tool failures", text)
+
+    def _inspect_context(
+        self,
+        result: EvaluationSchema,
+        counts: dict[int, int],
+    ) -> LLMNodeContext:
+        """Build a context carrying *result* and the retry attempt counts."""
+        prompt = ChatPromptTemplate([("human", "Evaluate the step")]).format_prompt()
+        return LLMNodeContext(
+            prompt=prompt,
+            output={"raw": AIMessage(content="{}")},
+            result=result,
+            state_updates={"step_attempt_counts": counts},
+        )
+
+    def test_inspect_flags_first_retry(self):
+        """A step-incomplete retry exposes its provenance in the inspect data."""
+        evaluator = self._evaluator()
+        ctx = self._inspect_context(
+            _verdict(1, "step_incomplete", "still going"), {1: 1}
+        )
+        details = evaluator._get_inspect(self._state(), ctx).details
+
+        self.assertEqual(details["kind"], "evaluator_retry")
+        self.assertEqual(details["plan_step"], 1)
+        self.assertEqual(details["attempt"], 1)
+        self.assertEqual(details["max_attempts"], evaluator.max_step_attempts)
+        # The pre-existing inspect keys are still present.
+        self.assertIn("evaluations", details)
+        self.assertIn("overall", details)
+        self.assertIn("reason", details)
+
+    def test_inspect_reports_escalated_attempt(self):
+        """The retry details report the attempt that escalated to a replan."""
+        evaluator = self._evaluator()
+        ctx = self._inspect_context(
+            _verdict(1, "step_incomplete", "still going"), {1: 6}
+        )
+        details = evaluator._get_inspect(self._state(), ctx).details
+
+        self.assertEqual(details["kind"], "evaluator_retry")
+        self.assertEqual(details["plan_step"], 1)
+        self.assertEqual(details["attempt"], 6)
+        self.assertEqual(details["max_attempts"], evaluator.max_step_attempts)
+
+    def test_inspect_omits_retry_details_on_pass(self):
+        """A passing verdict carries no retry provenance."""
+        evaluator = self._evaluator()
+        ctx = self._inspect_context(_verdict(1, "step_done", "done"), {})
+        details = evaluator._get_inspect(self._state(), ctx).details
+
+        for key in ("kind", "plan_step", "attempt", "max_attempts"):
+            self.assertNotIn(key, details)
+        self.assertIn("evaluations", details)
+        self.assertIn("overall", details)
+        self.assertIn("reason", details)
 
     def test_review_readiness_not_ready_replans(self):
         """A missing evidence step before a gate sends the plan back."""

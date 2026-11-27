@@ -103,6 +103,40 @@ The TUI stores it on the chat and rebuilds the status-panel app slots on a
 `context` change (`StatusPanel.set_state(refresh_extras=True)`), and its
 mode/access selectors read the resolved value from the chat's context.
 
+### Event identity and attempt metadata
+
+Every node-scoped event (`progress`, `inspect`, `state`, `usage`, `tool`,
+`notice`, `token`, `interrupt`) also carries identity fields stamped by the
+graph runner in `run_graph_astream_events`
+(`utils_pkg/klea_utils/graph/base.py::_stream_identity`), never by a node;
+timing and dedup still key on the display `node` label.
+
+* `node_id` - the envelope's `metadata["langgraph_node"]`, falling back to the
+  display label when the envelope carries no metadata.
+* `run_id` - the yielding invocation's run id when present; per-invocation, so
+  repeated executions of one node can be told apart.
+* `step` - the integer `metadata["langgraph_step"]`, present only when
+  supplied.
+
+`context` and `complete` are graph-level and carry `run_id` only.  All three
+fields are additive: consumers that do not need them may ignore them, and a
+persisted `inspect`/`state` event replays unchanged.
+
+Two attempt counters ride the same payloads:
+
+* `usage.data.details.llm_calls` - integer, the LLM invocations folded into
+  this node execution's token totals (validation retries included), present
+  only with a usage event, so it is >= 1 whenever present.  Usage is
+  attributed per node execution; the turn-level totals in `api/context.py` and
+  `ui/stream_events.py` stay aggregates, not per-call attribution.
+* `retry_count` - the 0-based count of the plan step's previous consecutive
+  failures from ADaPT (`tool_retry_counts[step]`), cleared when the step makes
+  progress, and stamped on every `tool` entry and on the tools caller's and
+  triage router's `inspect`/`state` payloads.  Consumers add one for a 1-based
+  attempt number.  It is `0` on a plan-less run such as Klea RAG, escalation
+  tests it against `max_retries`, and HTTP/LLM transport retries never affect
+  it.
+
 ## Persistence and hydration (ADR-0032 update)
 
 A reloaded chat must match the live session, so the UI-visible outputs are
@@ -125,8 +159,20 @@ persisted server-side and rehydrated on load:
   inspector section (the live marker), the rest reduce exactly as live.
 * **Session context and token totals** - checkpointed state, projected by
   `GET /chat/{user_id}/{chat_id}/context`: the app `context_snapshot` hook
-  plus the cumulative `usage_metrics` (the frontends seed `token_usage` from
-  it).  `cached_tokens` is the cache-read subset of `input_tokens`, not an
+  plus the cumulative `token_usage_ledger`.  The ledger is authoritative: it
+  maps the effective model string a node reports (`unknown` when no model is
+  configured) to that model's `TokenUsage`, and is reduced by
+  `add_usage_ledger`, so nodes writing different models coexist and per-model
+  totals stay additive.  The endpoint projects the flat thread total via
+  `ledger.total()` (which the frontends seed `token_usage` from) and the
+  per-model breakdown via `usage_by_model`: per-model `TokenUsage` dumps keyed
+  by model name, `None` when the ledger is absent; `usage` remains the thread
+  total.  The frontends render the usage group as a collapsible whose heading shows
+  the thread total as a compact abbreviated figure (for example `3 in/1 out/2 cached`),
+  while the exact counts stay in the expanded rows, whose body lists one entry per model grouped under its provider (a key carrying no provider namespace falls back to a provider-less group, so no model entry is dropped).  The live
+  `usage` stream event carries no model identity, so the breakdown is
+  hydration-sourced only.
+  `cached_tokens` is the cache-read subset of `input_tokens`, not an
   additional quantity; the status lines show it as `(<n> cached)` only when
   non-zero.  `usage` events are therefore **not** stored: they are a projection
   of checkpointed state (same reasoning as `context`; see ADR-0032).
@@ -173,6 +219,27 @@ superset and both were emitted unconditionally - so they were collapsed.
 LLM invoke retries also emit an `inspect` entry mid-run (`heading="Retry"`,
 `details` = `{attempt, max, reason, action?, max_tokens?}`) so the retry
 history is visible alongside the node's own inspection entry.
+
+On a step-incomplete retry the Evaluator emits its normal `inspect` entry with
+additive retry keys and no new event type: `kind: "evaluator_retry"`,
+`plan_step` (the step being retried), `attempt` (1-based, from
+`step_attempt_counts`) and `max_attempts` (the evaluator's cap).  The reason
+still rides `evaluations[step]["reason"]`.  These keys are additive, so no
+web/TUI change is needed: the shared reducer (`ui/stream_events.py:88-107`)
+sums only its fixed numeric key set, and `format_details`
+(`ui/inspect_format.py:118-142`) renders arbitrary keys except
+`retry_count`/`max_retries`.
+
+Some `details` keys are evaluation/harness-only: `retry_count` and
+`max_retries` ride the `inspect`, `state` and `tool` payloads for the harness
+and are not user-facing, and `details` itself is excluded because it is the
+`NodeStreamData` container echoing itself, never user data.  No frontend may
+render them.  The enforcement point
+is `klea_utils/ui/inspect_format.py`: `NOT_DISPLAYED_DETAIL_KEYS` lists the
+keys, `drop_not_displayed` strips them from a `details` mapping at any depth, and
+`format_details`
+(the `details` renderer) applies it, so a frontend that formats through
+`format_details` never shows them.
 
 ### `state`
 
@@ -228,6 +295,22 @@ tool, `- **<title>**: ok xN, failed xM`, grouped by the raw tool name, in
 first-seen call order, with a zero count omitted (a tool with no failures shows
 only `ok xN`); per-call detail stays in the section's `details` payload behind
 the collapsible.
+
+### `usage`
+
+Token accounting for one node execution.  `details` carries the top-level
+totals (`input_tokens`, `output_tokens`, `total_tokens`, `cached_tokens`,
+`reasoning_tokens`, `role`), the `llm_calls` counter (above), and the additive
+`llm_usage` list: one dict per LLM invocation in the node execution, in call
+order and with validation retries included, each carrying that invocation's
+`input_tokens`, `output_tokens`, `total_tokens`, `cached_tokens` and
+`reasoning_tokens`.  The top-level totals and `llm_calls` are unchanged, so a
+consumer that ignores `llm_usage` sees the event it always saw; the peak
+context of the step is derivable as `max(input_tokens + output_tokens)` over
+the list.  The list is empty when no usage was recorded.  `llm_usage` is
+live-stream only: `usage` events are not persisted (`chat_core` stores only
+`inspect`/`state`), so a reloaded chat sees only the checkpointed cumulative
+totals, never the per-call list.
 
 ### `notice` (chat progress note)
 

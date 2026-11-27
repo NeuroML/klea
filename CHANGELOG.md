@@ -4,11 +4,26 @@
 
 ## Unreleased  ---  `klea_utils` / `klea_rag`
 
+### Breaking changes
+
+- The graph state's cumulative `usage_metrics` token totals are replaced by `token_usage_ledger`, which reports the thread total (`total()`) and a per-model breakdown (`total_by_model()`); the context endpoint still returns the flat `usage` total, and a thread checkpointed before the change reports no token totals.
+
 ### Added
 
 - The plan pane now marks the steps dispatched in the current parallel round, so a fan-out round no longer looks idle.
 - Chat-renderable tool results and status sections can now carry structured content blocks (plain text, ordered item lists, labelled field lists) whose items are tagged with a status role (`ok`, `error`, `current`, `pending`, `plain`), so the frontends mark the step that is currently in progress instead of re-parsing free text; a reader that does not know a block's contract version falls back to the plain display text.
 - The plan status now opens with a truncated `Goal: ...` line followed by a blank line, so concurrent sessions can be told apart at a glance.
+- Streamed events now carry node/run identity, a per-node LLM-call count and a 0-based tool-call retry count (add one for an attempt number), so an evaluation harness can attribute and trace them.
+- Path-check modes and a non-interactive permission stance for file access.
+- An on/off toggle for human-in-the-loop (HITL) approvals.
+- New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands, offered in both the terminal and web clients.
+- New `klea-serve` flags for path checking and HITL.
+- A new `klea headless` subcommand for non-interactive runs.
+- The streamed `usage` event now also carries per-invocation token usage (`llm_usage`) beside the unchanged node totals, so each LLM call's spend can be attributed on its own.
+- Evaluator step retries now report their detail on the `inspect` event (`kind`, `plan_step`, `attempt`, `max_attempts`), so a retried step can be traced.
+- The status panes in the web and terminal clients now show the token usage broken down per model beneath the thread total, taken from the breakdown the context endpoint returns.
+- The status panes now present the token usage as a collapsible: the thread total stays visible in the heading as a compact abbreviated figure while the exact counts are kept in the expanded rows, which list the models grouped under their provider with one indented usage line per model, so spend across providers can be compared at a glance.
+
 
 ### Changed
 
@@ -41,6 +56,8 @@
 - TUI: the turn spinner now stops whenever a run ends, including a stream that closes with no terminal event, so an idle spinner no longer keeps ticking after the reply is done.
 - TUI: the status panel now skips re-rendering unchanged sections, so a streamed state event for one section no longer repaints the whole pane on every tick.
 - Path-approval prompts now keep the detected path visible in the command snippet by centring the preview window on a recovered fragment of the token, so a normalised token is no longer hidden by truncation.
+- Internal evaluation-only stream fields are no longer shown in the terminal or web status panes.
+- An empty JSON block no longer appears in the plan and tool-execution inspection entries.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 
@@ -276,6 +293,7 @@
 
 ### Fixed
 
+- `/mcp list` now renders as a proper list in the web UI and the TUI: tool names with `_` (like `read_file`) no longer turn into italics, and the lines are no longer joined into one paragraph.
 - The Planner no longer accepts an invalid plan after the validation-retry budget is exhausted: it now fails closed as `unplannable`, with the validation error in the failure reason, instead of writing and executing the last invalid plan.
 - Plan steps may name only tools disclosed at the run's access level: an unknown or `read_only`-filtered tool, or any tool step when no tools are available, is now rejected and retried, then fails closed as `unplannable` instead of reaching the picker.
 - `/cwd` now reconciles session discovery against the new project root, so the previous root's `AGENTS.md`/`CLAUDE.md` no longer persists (a root with no instruction file clears it, and a root with a different instruction file replaces it).

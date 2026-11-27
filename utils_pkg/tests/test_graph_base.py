@@ -654,8 +654,8 @@ class TestContextEventForwarding:
         assert context_events, "expected the context event to be forwarded"
         # Exactly the state projection, change-deduped; the node-authored
         # "hacked" custom event is structurally dropped.
-        assert context_events == [
-            {"type": "context", "data": {"mode": "general", "assurance": "unverified"}}
+        assert [e["data"] for e in context_events] == [
+            {"mode": "general", "assurance": "unverified"}
         ]
         assert all("hacked" not in e.get("data", {}) for e in context_events)
         notices = [e for e in events if e.get("type") == "notice"]
@@ -770,9 +770,11 @@ class TestProgressStreaming:
         graph = self._events(
             [{"type": "progress", "node": "Planner", "data": {"heading": "Planner"}}]
         )
-        assert await self._progress(graph) == [
-            {"type": "progress", "node": "Planner", "data": {"heading": "Planner"}}
-        ]
+        progress = await self._progress(graph)
+        assert len(progress) == 1
+        assert progress[0]["type"] == "progress"
+        assert progress[0]["node"] == "Planner"
+        assert progress[0]["data"] == {"heading": "Planner"}
 
     async def test_same_node_heading_change_is_forwarded(self):
         graph = self._events(
@@ -809,6 +811,90 @@ class TestProgressStreaming:
             "Planner",
             "Answer",
         ]
+
+
+class TestStreamIdentity:
+    """The runner stamps additive identity keys on node-scoped events.
+
+    ``node_id``/``step``/``run_id`` ride alongside the display ``node`` label
+    (which is never replaced): ``node_id`` comes from the envelope's
+    ``metadata["langgraph_node"]`` and falls back to the display label when
+    the envelope carries no metadata; ``step`` is present only for an integer
+    ``metadata["langgraph_step"]``; ``run_id`` only when the envelope has one.
+    """
+
+    async def _events(self, envelopes: list[dict]) -> list[dict]:
+        graph = _ContextCaptureGraph(cast(Any, _ProgressEventCompiled(envelopes)))
+        return [e async for e in graph.run_graph_astream_events("hello")]
+
+    async def test_progress_carries_node_id_step_and_run_id(self):
+        events = await self._events(
+            [
+                {
+                    "method": "custom",
+                    "params": {
+                        "data": {
+                            "type": "progress",
+                            "node": "Planner",
+                            "data": {"heading": "Planning"},
+                        }
+                    },
+                    "run_id": "run-1",
+                    "metadata": {
+                        "langgraph_node": "planner",
+                        "langgraph_step": 3,
+                    },
+                }
+            ]
+        )
+
+        progress = [e for e in events if e.get("type") == "progress"]
+        assert len(progress) == 1
+        event = progress[0]
+        # The display label is preserved; identity rides alongside it.
+        assert event["node"] == "Planner"
+        assert event["node_id"] == "planner"
+        assert event["run_id"] == "run-1"
+        assert event["step"] == 3
+        assert event["data"] == {"heading": "Planning"}
+
+    async def test_usage_without_metadata_falls_back_to_the_node_label(self):
+        events = await self._events(
+            [
+                {
+                    "method": "custom",
+                    "params": {
+                        "data": {
+                            "type": "usage",
+                            "node": "Evaluator",
+                            "data": {"input_tokens": 1},
+                        }
+                    },
+                    "run_id": "run-2",
+                },
+                {
+                    "method": "values",
+                    "params": {"data": {"message_for_user": "done"}},
+                    "run_id": "run-2",
+                },
+            ]
+        )
+
+        usage = [e for e in events if e.get("type") == "usage"]
+        assert len(usage) == 1
+        # No metadata: ``node_id`` falls back to the emitting node's label,
+        # and no ``step`` is invented.
+        assert usage[0]["node"] == "Evaluator"
+        assert usage[0]["node_id"] == "Evaluator"
+        assert usage[0]["run_id"] == "run-2"
+        assert "step" not in usage[0]
+
+        completes = [e for e in events if e.get("type") == "complete"]
+        assert len(completes) == 1
+        assert completes[0]["message_for_user"] == "done"
+        assert completes[0]["run_id"] == "run-2"
+        # ``complete`` is not node-scoped, so it carries no identity label.
+        assert "node_id" not in completes[0]
 
 
 class TestInterruptStreaming:
@@ -897,7 +983,9 @@ class TestInterruptStreaming:
         events = await self._stream(graph)
 
         completes = [e for e in events if e.get("type") == "complete"]
-        assert completes == [{"type": "complete", "message_for_user": "done"}]
+        assert len(completes) == 1
+        assert completes[0]["type"] == "complete"
+        assert completes[0]["message_for_user"] == "done"
 
     async def test_run_graph_invoke_accepts_command(self):
         from langgraph.types import Command

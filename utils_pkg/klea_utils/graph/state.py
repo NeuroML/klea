@@ -14,9 +14,15 @@ from fastmcp.client.client import CallToolResult
 from langchain_core.messages import AnyMessage
 from pydantic import BaseModel, Field
 
-from klea_utils.graph.reducers import add_token_usage
-from klea_utils.graph.schemas import TokenUsage
-from klea_utils.mcp.access import AccessLevel
+from klea_utils.graph.reducers import add_usage_ledger
+from klea_utils.graph.schemas import TokenUsageLedger
+from klea_utils.mcp.access import (
+    DEFAULT_PATH_CHECK_MODE,
+    DEFAULT_PATH_CHECK_STANCE,
+    AccessLevel,
+    PathCheckMode,
+    PathCheckStance,
+)
 from klea_utils.mcp.schemas import ToolCallSchema
 
 
@@ -31,9 +37,11 @@ class BaseGraphSchema(BaseModel):
     access level, ADR-0037) is available to every app without duplication
     (ADR-0032).
 
-    ``usage_metrics`` uses the :func:`add_token_usage` reducer so parallel
-    nodes can update it safely.  LangGraph resolves inherited ``Annotated``
-    channels because it reads annotations with
+    ``token_usage_ledger`` is the authoritative per-model token ledger:
+    nodes key it by their effective model string (an ``unknown`` fallback)
+    and it uses the :func:`add_usage_ledger` reducer so parallel nodes can
+    update it safely.  LangGraph resolves inherited ``Annotated`` channels
+    because it reads annotations with
     ``get_type_hints(..., include_extras=True)`` across the MRO.
     """
 
@@ -51,8 +59,8 @@ class BaseGraphSchema(BaseModel):
     command_route: str = ""
     tool_calls: list[ToolCallSchema] = Field(default_factory=list)
     tool_results: list[CallToolResult] = Field(default_factory=list)
-    usage_metrics: Annotated[TokenUsage, add_token_usage] = Field(
-        default_factory=TokenUsage
+    token_usage_ledger: Annotated[TokenUsageLedger, add_usage_ledger] = Field(
+        default_factory=TokenUsageLedger
     )
     #: Tool invocation access level (ADR-0037); apps may override the default.
     access_level: AccessLevel = "full"
@@ -61,6 +69,12 @@ class BaseGraphSchema(BaseModel):
     #: kept in the thread checkpoint across turns, so app init nodes must not
     #: reset it (see ``InitGraphState`` / ``InitRAGState``).
     allowed_dirs: list[str] = Field(default_factory=list)
+    # Session-scoped; seeded by the app init node.
+    path_check_mode: PathCheckMode = DEFAULT_PATH_CHECK_MODE
+    # Session-scoped; seeded by the app init node.
+    path_check_stance: PathCheckStance = DEFAULT_PATH_CHECK_STANCE
+    # Session-scoped; seeded by the app init node.
+    hitl_enabled: bool = True
     #: Sensitive files (inside the permitted roots) the user approved for this
     #: session.  File-granularity companion to ``allowed_dirs``.
     allowed_files: list[str] = Field(default_factory=list)

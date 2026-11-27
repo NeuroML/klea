@@ -273,6 +273,14 @@ async def hydrate_chats(server_url: str, user_id: str) -> None:
                                     "total_tokens": usage.get("total_tokens", 0),
                                     "cached_tokens": usage.get("cached_tokens", 0),
                                 }
+                        # The per-model breakdown is hydration-only (the live
+                        # ``usage`` events carry no model identity); a safe
+                        # empty default keeps the pane simple.
+                        current_chat = chats.get(key)
+                        if current_chat:
+                            current_chat["token_usage_by_model"] = (
+                                body.get("usage_by_model") or {}
+                            )
                         # A paused thread re-presents its HITL ask (ADR-0046),
                         # so a reload renders the form instead of a dead chat.
                         pending = body.get("pending_interrupt")

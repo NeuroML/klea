@@ -230,8 +230,9 @@ Last updated: 2026-11-03.
   `output_tokens`/`cached_tokens` already logged at
   `nodes/abstract.py:545-561` (DEBUG per call, INFO on hit); `cached_tokens`
   is cache-read only and writes fold into `input_tokens`
-  (`graph/schemas.py:31-33`); do not attribute from the thread-summed
-  `usage_metrics` (`graph/reducers.py:32`).  Matrix: Anthropic Sonnet + Haiku
+  (`graph/schemas.py:31-33`); do not attribute from the aggregated
+  `token_usage_ledger` (`graph/reducers.py:add_usage_ledger`).  Matrix:
+  Anthropic Sonnet + Haiku
   tier, `openai:gpt-4o`, native `deepseek:`, a Gemini route and
   `ollama:qwen3:0.6b` as a zero-hit control; turn shapes short 2-node, long
   5+ node with tools, compaction, TTL replay; 5 runs per cell over 5 threads,

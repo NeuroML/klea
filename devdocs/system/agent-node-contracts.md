@@ -48,6 +48,25 @@ A change to implementation without synchronized schemas, tests, diagrams, and do
 5. An inspection or progress event is not a graph-state update unless the node returns that field in its state update.
 6. A router may emit progress or inspection data but normally does not write graph state. Any callback-side update must be stated explicitly.
 
+Node-scoped stream events also carry additive identity and attempt metadata
+that no node authors.  `node_id`, `run_id` and `step` are stamped by the graph
+runner (`_stream_identity` in `utils_pkg/klea_utils/graph/base.py`), and
+`llm_calls` (on `usage`) and the 0-based `retry_count` (on `tool` and the tools
+caller's and triage router's `inspect`/`state` payloads; consumers add one for
+a 1-based attempt number) ride the payloads.  They are
+observability data, not graph-state updates, and are not part of any node's
+write contract.  They are harness-only and are never rendered by a frontend;
+see `devdocs/system/streams.md` for the not-displayed filtering rule.
+
+The `usage` event additionally carries an additive `llm_usage` list beside the
+top-level totals and `llm_calls`: one dict per LLM invocation in the node
+execution (`input_tokens`, `output_tokens`, `total_tokens`, `cached_tokens`,
+`reasoning_tokens`), in call order and with validation retries included.  The
+top-level totals and `llm_calls` remain authoritative, so a consumer that
+ignores the list sees the event it always saw.  `llm_usage` is live-stream only:
+`usage` events are not persisted, so a reloaded chat sees only the checkpointed
+cumulative totals, never the per-call list.
+
 ## 3. Requiredness notation and field conventions
 
 ### 3.1 Requiredness
@@ -504,6 +523,16 @@ Klea Agent runs `AgentToolsCaller` (`agent_pkg/klea_agent/nodes/agent_tools_call
 | Evaluation is usable and the plan is aborted | `abort` | Writes aborted status and a failure explanation where required. | `operational_evaluator.py`; `klea_agent.py` |
 | A replan reason is present | `need_replan` | Preserves the reason for Planner re-entry. | `operational_evaluator.py`; `klea_agent.py` |
 | Evaluation is empty or inconsistent | Retry with feedback, then fail closed | No pending work is silently discarded and no inconsistent plan completion is accepted. | `operational_evaluator.py`; control-flow note |
+
+**Step-incomplete retry details.**  A step-incomplete retry emits the
+Evaluator's own `inspect` entry with additive retry keys rather than a new event
+type: `kind: "evaluator_retry"`, `plan_step` (the step being retried),
+`attempt` (1-based, read from `state_updates["step_attempt_counts"]`, which
+`_update_state` writes before `_post_exec_stream`) and `max_attempts`
+(`self.max_step_attempts`).  The failure reason still rides
+`evaluations[step]["reason"]`.  The keys are additive observability data, not a
+graph-state update, so the shared reducer and `format_details` render them
+without a frontend change.
 
 ### 5.14 `Preparing review`
 
@@ -1000,3 +1029,61 @@ Before accepting a graph or node-contract change, verify that:
 ## 10. Claim boundary
 
 This document records contracts visible in the cited source, tests, and architecture documents. It does not claim that an LLM always follows a prompt, that a tool always succeeds, that a graph run always reaches a particular route, or that an interface always renders a stream event. Those are runtime outcomes and must not be encoded as node-contract guarantees.
+
+## Path-check and HITL state
+
+### New `BaseGraphSchema` fields
+
+- `path_check_mode`: `strict` | `declared` | `off`, default `strict`.
+- `path_check_stance`: `deny` | `allow`, default `deny`.
+- `hitl_enabled`: bool, default `True`.
+
+All three default to the fail-closed value.
+
+### Seeding (`InitGraphState`)
+
+`InitGraphState` seeds the three fields once per run.  Precedence is: the
+process-level ceiling (environment variable or serve flag), then the
+checkpointed session value, then the default.  The ceiling is re-asserted
+every turn, so a checkpointed value can never loosen it; a carried value
+above the ceiling is clamped back to it.
+
+### `AwaitHuman` when HITL is off
+
+The node exposes two hooks.  `_hitl_enabled(state)` returns
+`getattr(state, "hitl_enabled", True)`.  `_on_hitl_off(state, payload)`
+returns `None` when HITL is on; when it is off the node auto-replies instead
+of interrupting.
+
+- `kind="review"`: the review is auto-approved.  The plan is deep-copied, the
+  `review_frontier()` steps are marked `done`, `status` becomes
+  `in_progress`, `human_feedback_rounds` is incremented and
+  `automated_plan_revisions` is reset to 0 -- mirroring `_apply_review`.
+  `human_feedback`, `review_progress` and `replan_reason` stay empty, and the
+  transcript gains the message
+  `Auto-approved (no human available; HITL disabled).`  That text never enters
+  `human_feedback`, which the Planner renders.
+- `kind="input"`: every blocked step is answered with the verbatim template
+  answer:
+
+```
+No human is available to answer questions (HITL is disabled). Do not ask further questions: proceed with your best judgement using the available tools, state your assumptions explicitly, and if the step is genuinely impossible mark it failed with the reason and finish with the best partial answer.
+```
+
+  The answers are mapped onto the blocked steps with the node's existing
+  answer-mapping helper, `replan_reason` and `failure_reason` are cleared, and
+  the rendered answers are appended to the transcript as a `HumanMessage`.
+
+### Permission resolution per stance
+
+Resolution fails closed.  With HITL off, the `deny` stance refuses a call
+whose detected path is not permitted, while `allow` lets it proceed.  With
+HITL on the stance is not consulted: an out-of-root path raises an approval
+ask and the human decides.
+
+### Budget exhaustion
+
+When the plan-revision budget is exhausted and HITL is off, nobody can
+approve a replan, so the Planner terminates instead of looping: the guard
+returns the `unplannable` outcome rather than the `needs_input` guidance
+step.

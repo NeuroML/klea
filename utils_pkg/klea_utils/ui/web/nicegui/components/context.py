@@ -94,6 +94,7 @@ class PageContext:
     #: Whether the status pane's Models group is expanded; kept here so the
     #: state survives the pane's refreshes (which rebuild the element).
     status_models_expanded: bool = False
+    status_usage_expanded: bool = False
 
     # Extra request fields merged into the ``/query/stream`` POST body
     # (e.g. an app-specific operating ``mode`` request, ADR-0030).  The

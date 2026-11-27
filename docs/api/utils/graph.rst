@@ -20,7 +20,9 @@ All application graph states subclass
 which holds the fields the shared nodes and the streaming layer rely on:
 ``query``, ``messages``, ``guard_decision``, ``context_summary``,
 ``summarised_till``, ``message_for_user``, ``tool_calls``, ``tool_results``
-and the reduced ``usage_metrics``.  Applications add their own fields (the
+and the reduced ``token_usage_ledger`` -- a ``TokenUsageLedger`` holding the
+thread's cumulative ``TokenUsage`` per model, merged by ``add_usage_ledger``.
+Applications add their own fields (the
 agent's ``mode``/``plan``/...; the RAG's ``query_domains`` and reference
 material).
 

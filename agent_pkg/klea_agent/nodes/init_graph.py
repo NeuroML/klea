@@ -11,9 +11,18 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+import os
 from typing import Any, override
 
 from klea_utils.client_context import client_context_from_context
+from klea_utils.mcp.access import (
+    HITL_ENV_VAR,
+    PATH_CHECK_ENV_VAR,
+    PATH_CHECK_STANCE_ENV_VAR,
+    parse_hitl_enabled,
+    parse_path_check_mode,
+    parse_path_check_stance,
+)
 from klea_utils.nodes.abstract import AbstractLangGraphNode
 from klea_utils.nodes.context import NodeContext
 from langchain_core.messages import HumanMessage
@@ -35,7 +44,8 @@ class InitGraphState(
     choose ``task`` (full reset via ``ResetState``) or ``continue`` (re-plan
     using prior evidence).  ``messages``,
     ``context_summary``/``summarised_till``, ``discovery_persistent``,
-    session ``artefacts``, ``mode`` and ``usage_metrics`` are preserved.
+    session ``artefacts``, ``mode`` and the per-model ``token_usage_ledger``
+    are preserved.
     """
 
     def __init__(self, logger: logging.Logger, label: str):
@@ -83,8 +93,57 @@ class InitGraphState(
         )
         self.logger.debug("InitGraphState.execute: before %s", f"{state.route=}")
         self.logger.debug("InitGraphState.execute: before %s", f"{state.code=}")
+        _toggle_client_context = None
+        try:
+            _toggle_runtime = get_runtime()
+        except RuntimeError:
+            _toggle_runtime = None
+        else:
+            try:
+                _toggle_client_context = client_context_from_context(
+                    _toggle_runtime.context
+                )
+            except (AttributeError, TypeError, ValueError):
+                # A runtime context that carries no ClientContext is not
+                # fatal: fall back to the env/state tiers below.
+                _toggle_client_context = None
+
+        def _toggle_first(*values):
+            for value in values:
+                if value is not None and value != "":
+                    return value
+            return None
+
+        path_check_mode = parse_path_check_mode(
+            _toggle_first(
+                getattr(_toggle_client_context, "path_check_mode", None),
+                os.environ.get(PATH_CHECK_ENV_VAR),
+                getattr(state, "path_check_mode", None),
+            )
+        )
+        path_check_stance = parse_path_check_stance(
+            _toggle_first(
+                getattr(_toggle_client_context, "path_check_stance", None),
+                os.environ.get(PATH_CHECK_STANCE_ENV_VAR),
+                getattr(state, "path_check_stance", None),
+            )
+        )
+        hitl_enabled = parse_hitl_enabled(
+            _toggle_first(
+                getattr(_toggle_client_context, "hitl_enabled", None),
+                os.environ.get(HITL_ENV_VAR),
+                getattr(state, "hitl_enabled", None),
+            )
+        )
+        self.logger.info(
+            f"{path_check_mode = } {path_check_stance = } {hitl_enabled = }"
+        )
+
         return {
             "guard_decision": "safe",
+            "path_check_mode": path_check_mode,
+            "path_check_stance": path_check_stance,
+            "hitl_enabled": hitl_enabled,
             "message_for_user": "",
             "command_route": "",
             "route": RouteSchema(),

@@ -104,6 +104,30 @@ class AwaitHumanNode[TState: BaseModel](
         """Return state updates for a cancellation."""
         return {}
 
+    def _hitl_enabled(self, state: Any) -> bool:
+        """Return whether the human-in-the-loop gate is enabled.
+
+        :param state: Current graph state.
+        :returns: ``True`` by default; a subclass overrides this to
+            honour a run-level toggle and skip the interrupt.
+        """
+        return True
+
+    def _on_hitl_off(self, state: Any, payload: Any) -> dict[str, Any] | None:
+        """Return the state update to emit instead of interrupting.
+
+        Called by :meth:`execute` when :meth:`_hitl_enabled` is
+        ``False``.  A mapping skips the interrupt and is returned as
+        the node's update; ``None`` (the default) keeps today's
+        interrupt path.
+
+        :param state: Current graph state.
+        :param payload: The ask payload that would have been
+            interrupted.
+        :returns: ``None`` by default.
+        """
+        return None
+
     # --- Mechanism ----------------------------------------------------
     @staticmethod
     def _parse_response(response: Any) -> tuple[str, dict[str, Any]]:
@@ -152,6 +176,10 @@ class AwaitHumanNode[TState: BaseModel](
         """
         self._emit_progress()
         payload = self._ask(state)
+        if not self._hitl_enabled(state):
+            _hitl_off_update = self._on_hitl_off(state, payload)
+            if _hitl_off_update is not None:
+                return _hitl_off_update
         self.logger.debug(f"{self.kind = }\n{payload = }")
 
         schema = self._hitl_response_schema(state, payload)

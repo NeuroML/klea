@@ -527,6 +527,34 @@ class OperationalEvaluator(BaseLLMNode[KleaAgentState, EvaluationSchema]):
                 "overall": result.overall,
                 "reason": result.reason,
             }
+            # Additive retry provenance.  ``_update_state`` keeps a count in
+            # ``step_attempt_counts`` only for a step judged
+            # ``step_incomplete`` (any other verdict pops it), so a non-zero
+            # count marks a step-incomplete retry on the current batch.
+            retry_attempts = (ctx.state_updates or {}).get("step_attempt_counts") or {}
+            retry_step = next(
+                (
+                    v.step_number
+                    for v in result.evaluations
+                    if retry_attempts.get(v.step_number, 0) > 0
+                ),
+                None,
+            )
+            if retry_step is not None:
+                self.logger.debug(
+                    "OperationalEvaluator._get_inspect: retry step=%d attempt=%d/%d",
+                    retry_step,
+                    retry_attempts[retry_step],
+                    self.max_step_attempts,
+                )
+                details.update(
+                    {
+                        "kind": "evaluator_retry",
+                        "plan_step": retry_step,
+                        "attempt": retry_attempts[retry_step],
+                        "max_attempts": self.max_step_attempts,
+                    }
+                )
         else:
             summary = "Evaluation"
             details = {}

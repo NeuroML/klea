@@ -254,3 +254,60 @@ class AwaitHuman(AwaitHumanNode[KleaAgentState]):
             "plan": state.plan.model_copy(update={"status": "user_cancelled"}),
             "messages": [*state.messages, AIMessage(content=note)],
         }
+
+    @override
+    def _hitl_enabled(self, state: KleaAgentState) -> bool:
+        """Return whether HITL is enabled for this run."""
+        return getattr(state, "hitl_enabled", True)
+
+    @override
+    def _on_hitl_off(
+        self, state: KleaAgentState, payload: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """Auto-reply instead of interrupting when HITL is off.
+
+        :param state: The current agent state.
+        :param payload: The interrupt payload the ask would have shown.
+        :returns: The state update to apply, or ``None`` when HITL is on.
+        """
+        if self._hitl_enabled(state):
+            return None
+        if self.kind == "review":
+            plan = state.plan.model_copy(deep=True)
+            for step in plan.review_frontier():
+                step.status = "done"
+            plan.status = "in_progress"
+            plan.human_feedback_rounds = state.plan.human_feedback_rounds + 1
+            plan.automated_plan_revisions = 0
+            return {
+                "plan": plan,
+                "human_feedback": "",
+                "review_progress": "",
+                "replan_reason": "",
+                "messages": [
+                    *state.messages,
+                    AIMessage(
+                        content="Auto-approved (no human available; HITL disabled)."
+                    ),
+                ],
+            }
+        answer = (
+            "No human is available to answer questions (HITL is disabled). Do "
+            "not ask further questions: proceed with your best judgement using "
+            "the available tools, state your assumptions explicitly, and if the "
+            "step is genuinely impossible mark it failed with the reason and "
+            "finish with the best partial answer."
+        )
+        count = sum(
+            len(step.needs_input) for step in state.plan.step_list if step.needs_input
+        )
+        human_input = self._map_answers(state, [answer] * count)
+        return {
+            "human_input": human_input,
+            "replan_reason": "",
+            "failure_reason": "",
+            "messages": [
+                *state.messages,
+                HumanMessage(content=self._render_answers(state, human_input)),
+            ],
+        }

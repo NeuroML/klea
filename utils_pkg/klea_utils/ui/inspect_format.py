@@ -75,6 +75,115 @@ def _prepare(value: Any) -> Any:
     return value
 
 
+#: ``details`` keys a frontend must never render as user-facing text: the
+#: eval/harness-only bookkeeping (the ADaPT retry budgets), which rides the
+#: ``inspect``/``state``/``tool`` payloads so the eval harness can read them
+#: (``devdocs/system/streams.md``), and the literal ``details`` key, which only
+#: occurs when an entry's own ``details`` container field is folded into the
+#: mapping being formatted.  That nested ``details`` is the ``NodeStreamData``
+#: container echoing itself, never user data, so it is dropped like the rest.
+NOT_DISPLAYED_DETAIL_KEYS: frozenset[str] = frozenset(
+    {"retry_count", "max_retries", "details"}
+)
+
+
+def _drop_not_displayed(value: Any) -> Any:
+    """Recursively drop :data:`NOT_DISPLAYED_DETAIL_KEYS` from mapping keys.
+
+    Only keys are removed; list items and scalars are kept, so a nested
+    mapping inside a list is still filtered.
+
+    :param value: The details payload (or a nested value).
+    :returns: An equivalent structure without the not-displayed keys.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _drop_not_displayed(item)
+            for key, item in value.items()
+            if key not in NOT_DISPLAYED_DETAIL_KEYS
+        }
+    if isinstance(value, list):
+        return [_drop_not_displayed(item) for item in value]
+    return value
+
+
+def drop_not_displayed(details: Any) -> Any:
+    """Return *details* with :data:`NOT_DISPLAYED_DETAIL_KEYS` dropped everywhere.
+
+    Public wrapper around :func:`_drop_not_displayed` so frontends (the NiceGUI
+    status pane, the TUI) share one recursive filter instead of each
+    duplicating the not-displayed key list.
+
+    :param details: The ``details`` payload (or any nested value).
+    :returns: An equivalent structure without the not-displayed keys.
+    """
+    return _drop_not_displayed(details)
+
+
+def _prune_empty_containers(value: Any) -> Any:
+    """Recursively drop empty mappings and lists from *value*.
+
+    An empty container renders as a literal ``{}``/``[]`` in the JSON view.
+    When filtering leaves nothing else behind -- a section whose ``details``
+    are all bookkeeping, or a nested mapping/list emptied by the filter --
+    that literal is noise rather than information, so it is pruned here.
+
+    Scalars, including empty strings and zero, are kept: they are data, not an
+    absent container.
+
+    :param value: The details payload (or a nested value).
+    :returns: An equivalent structure without empty mappings or lists.
+    """
+    if isinstance(value, dict):
+        pruned: dict[str, Any] = {}
+        for key, item in value.items():
+            cleaned = _prune_empty_containers(item)
+            if isinstance(cleaned, (dict, list)) and not cleaned:
+                continue
+            pruned[key] = cleaned
+        return pruned
+    if isinstance(value, list):
+        kept: list[Any] = []
+        for item in value:
+            cleaned = _prune_empty_containers(item)
+            if isinstance(cleaned, (dict, list)) and not cleaned:
+                continue
+            kept.append(cleaned)
+        return kept
+    return value
+
+
+def visible_details(details: Any) -> Any:
+    """Return *details* as a frontend should display it.
+
+    Applies the not-displayed filter and then prunes empty containers, so a
+    mapping whose keys were all filtered out, or a surviving key whose value
+    became empty, disappears instead of rendering as ``{}``.
+
+    Public so the web status pane can keep its JSON-highlighted code block
+    while sharing this one filter/prune implementation with the other
+    frontends (the TUI status panel) instead of each re-deriving it.
+
+    :param details: The section's ``details`` payload (or any nested value).
+    :returns: The displayable structure; empty when nothing is left to show.
+    """
+    return _prune_empty_containers(_drop_not_displayed(details))
+
+
+def format_details_block(details: Any) -> str:
+    """Render a status section's ``details`` as text, or ``""`` when empty.
+
+    Thin wrapper over :func:`visible_details` and :func:`format_details` for
+    the text frontends: an empty string means there is nothing to display, so
+    the caller omits the block entirely and no bare ``{}`` line is printed.
+
+    :param details: The section's ``details`` payload (or any nested value).
+    :returns: The formatted details, or ``""`` when nothing is displayable.
+    """
+    shown = visible_details(details)
+    return format_details(shown) if shown else ""
+
+
 def format_details(details: Any) -> str:
     """Render structured inspect ``details`` as readable indented JSON.
 
@@ -86,6 +195,10 @@ def format_details(details: Any) -> str:
       text;
     * a value that is itself a JSON object/array string is parsed and inlined
       as nested, pretty-printed JSON;
+    * keys listed in :data:`NOT_DISPLAYED_DETAIL_KEYS` (internal retry-budget
+      bookkeeping that only the eval harness reads, plus the nested
+      ``details`` container echoing itself) are dropped, at any nesting
+      depth, so they never reach user-facing text;
     * all other values (numbers, booleans, ``null``, single-line strings
       such as a Pydantic ``repr``) are rendered as normal JSON.
 
@@ -93,6 +206,7 @@ def format_details(details: Any) -> str:
     :returns: A human-readable, indented multi-line string.
     """
     logger.debug(f"{type(details) = }")
-    return json.dumps(_prepare(details), indent=2, ensure_ascii=False).replace(
+    filtered = _drop_not_displayed(details)
+    return json.dumps(_prepare(filtered), indent=2, ensure_ascii=False).replace(
         _NEWLINE_SENTINEL, "\n"
     )

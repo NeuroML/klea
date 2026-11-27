@@ -97,6 +97,10 @@ def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
                 "cached_tokens": 0,
             },
         )
+        # Total-only by design: the live ``usage`` event carries no model
+        # identity, so no per-model accumulation is attempted here.  The
+        # per-model breakdown is hydration-sourced from the context endpoint's
+        # ``usage_by_model`` key (see ``format_token_usage_by_model``).
         for key in (
             "input_tokens",
             "output_tokens",

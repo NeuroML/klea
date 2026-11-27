@@ -430,12 +430,167 @@ async def test_status_pane_caps_each_section_body_with_an_inline_budget(
     await utils_user.should_not_see("Memory")
 
 
+async def test_status_pane_hides_not_displayed_detail_keys(fake_backend, utils_user):
+    """The status pane never stringifies detail keys that are not displayed.
+
+    Only the whitelisted detail keys are rendered: internal bookkeeping such
+    as ``retry_count``/``max_retries`` must stay out of the rendered text, at
+    the top level and nested, while a displayed key still shows.
+    """
+    from typing import cast
+
+    from klea_utils.ui.state import StateSection, ensure_chat
+
+    chat = ensure_chat("u", "")
+    section = {
+        "heading": "Details",
+        "display": "",
+        "summary": "",
+        "details": {
+            "retry_count": 1,
+            "max_retries": 3,
+            "route": "task",
+            "nested": {"retry_count": 2, "step": 1},
+        },
+        "preformatted": False,
+    }
+    chat["state_sections"]["details"] = cast(StateSection, section)
+
+    await utils_user.open("/")
+    await utils_user.should_see("route")
+    await utils_user.should_see("step")
+    await utils_user.should_not_see("retry_count")
+    await utils_user.should_not_see("max_retries")
+
+
+async def test_status_pane_renders_no_empty_details_container(fake_backend, utils_user):
+    """A filtered details block never leaves a bare ``{}`` in the pane.
+
+    The not-displayed keys are dropped and the empty containers they leave
+    behind are pruned, so a bookkeeping-only plan section renders its plan text
+    with no ``{}`` block while a tool-call section with an empty value key
+    renders only its legitimate key.
+    """
+
+    from klea_utils.ui.state import ensure_chat
+
+    chat = ensure_chat("u", "")
+    chat["state_sections"]["plan"] = {
+        "heading": "Plan",
+        "display": "Step 1: do the thing",
+        "summary": "",
+        "details": {"retry_count": 1, "max_retries": 3, "details": {}},
+        "preformatted": True,
+    }
+    chat["state_sections"]["tool"] = {
+        "heading": "Tool",
+        "display": "",
+        "summary": "",
+        "details": {"arguments": {}, "route": "task"},
+        "preformatted": False,
+    }
+
+    await utils_user.open("/")
+
+    from nicegui import ui
+
+    rendered = "\n".join(
+        str(element.content) for element in utils_user.find(ui.code).elements
+    )
+    await utils_user.should_see("Step 1: do the thing")
+    assert '"route": "task"' in rendered
+    assert "{}" not in rendered
+    assert "arguments" not in rendered
+
+
+async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
+    """The pane shows the thread total plus one row per model."""
+    from klea_utils.ui.state import (
+        TokenUsage,
+        TokenUsageByModel,
+        ensure_chat,
+        format_token_usage,
+        format_token_usage_compact,
+    )
+
+    chat = ensure_chat("u", "")
+    total: TokenUsage = {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "total_tokens": 14,
+        "cached_tokens": 2,
+    }
+    by_model: TokenUsageByModel = {
+        "anthropic:model-a": TokenUsage(
+            input_tokens=6, output_tokens=3, total_tokens=9, cached_tokens=0
+        ),
+        "openai:model-b": TokenUsage(
+            input_tokens=4, output_tokens=1, total_tokens=5, cached_tokens=0
+        ),
+    }
+    chat["token_usage"] = total
+    chat["token_usage_by_model"] = by_model
+
+    await utils_user.open("/")
+
+    from nicegui import ui
+
+    # The breakdown lives in the usage collapsible, distinct from the Models
+    # group: the total line is its heading and it starts collapsed.
+    groups = [
+        group
+        for group in utils_user.find(ui.expansion).elements
+        if "usage-group" in group.classes
+    ]
+    assert len(groups) == 1, "exactly one usage expansion must render"
+    usage_group = groups[0]
+    assert usage_group.value is False
+
+    compact_heading = format_token_usage_compact(total)
+    assert compact_heading == "10 in/4 out/2 cached"
+    labels = {
+        getattr(label, "text", "") for label in utils_user.find(ui.label).elements
+    }
+    assert compact_heading in labels
+
+    # Expanding reveals one provider group per provider, with each model's
+    # usage entry nested beneath its provider heading and rendered like the
+    # total line.
+    usage_group.value = True
+    labels = {
+        getattr(label, "text", ""): label
+        for label in utils_user.find(ui.label).elements
+    }
+
+    def _css_classes(label) -> str:
+        """Return a rendered label's CSS classes (version tolerant)."""
+        classes = getattr(label, "_classes", None)
+        if classes is None:
+            attr = getattr(label, "classes", "")
+            classes = attr() if callable(attr) else attr
+        if isinstance(classes, (list, tuple, set)):
+            return " ".join(str(name) for name in classes)
+        return str(classes)
+
+    for model, usage in by_model.items():
+        provider, _, model_name = model.partition(":")
+        assert provider in labels
+        assert model_name in labels
+        assert format_token_usage(usage) in labels
+        # The provider heads its own list item; the model and its usage entry
+        # are nested list items, indented by the shared ``pl-4`` class.
+        assert "pl-4" not in _css_classes(labels[provider])
+        assert "pl-4" in _css_classes(labels[model_name])
+        assert "pl-4" in _css_classes(labels[format_token_usage(usage)])
+    assert not any("{}" in text for text in labels)
+
+
 async def test_status_pane_renders_the_role_markers(fake_backend, utils_user):
     """Each role renders its Unicode marker; unknown roles use the plain one."""
     from typing import cast
 
     from klea_utils.ui.glyphs import UNICODE_GLYPHS
-    from klea_utils.ui.state import StateSection, ensure_chat
+    from klea_utils.ui.state import ContentBlock, StateSection, ensure_chat
 
     chat = ensure_chat("u", "")
     section = {
@@ -460,24 +615,24 @@ async def test_status_pane_renders_the_role_markers(fake_backend, utils_user):
     chat["state_sections"]["markers"] = cast(StateSection, section)
     # A two-item section pins the inter-item spacing: every item but the last
     # carries the spacing margin, and the last item carries none.
-    chat["state_sections"]["spacing"] = cast(
-        StateSection,
+    spacing_content: list[ContentBlock] = [  # ty: ignore[invalid-assignment]
         {
-            "heading": "Spacing",
-            "display": "",
-            "summary": "",
-            "details": {},
-            "content": [
-                {
-                    "type": "items",
-                    "items": [
-                        {"text": "first spaced item", "role": "ok"},
-                        {"text": "second spaced item", "role": "ok"},
-                    ],
-                }
+            "kind": "items",
+            "items": [
+                {"text": "first spaced item", "role": "ok"},
+                {"text": "second spaced item", "role": "ok"},
             ],
-        },
-    )
+        }
+    ]
+    spacing_section: StateSection = {
+        "preformatted": False,
+        "heading": "Spacing",
+        "display": "",
+        "summary": "",
+        "details": {},
+        "content": spacing_content,
+    }
+    chat["state_sections"]["spacing"] = spacing_section
 
     await utils_user.open("/")
     await utils_user.should_see("ok item", retries=50)
