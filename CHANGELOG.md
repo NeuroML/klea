@@ -37,10 +37,11 @@
 - New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands, offered in both the terminal and web clients.
 - New `klea-serve` flags for path checking and HITL.
 - A new `klea headless` subcommand for non-interactive runs.
+- A new `--unattended` switch for `klea headless`, which sets the safety options a prompt-free run needs.
 - The streamed `usage` event now also carries per-invocation token usage (`llm_usage`) beside the unchanged node totals, so each LLM call's spend can be attributed on its own.
 - Evaluator step retries now report their detail on the `inspect` event (`kind`, `plan_step`, `attempt`, `max_attempts`), so a retried step can be traced.
 - The status panes in the web and terminal clients now show the token usage broken down per model beneath the thread total, taken from the breakdown the context endpoint returns.
-- The status panes now present the token usage as a collapsible: the thread total stays visible in the heading as a compact abbreviated figure while the exact counts are kept in the expanded rows, which list the models grouped under their provider with each model's input and output totals on separate indented lines beneath it, so spend across providers can be compared at a glance, and a divider closes the group as part of the fixed usage area, so the scrolling state sections follow with no extra blank line between them. The models group now sits directly above the usage group, so the two follow one another as one fixed block.
+- The status panes now present the token usage as a collapsible: the thread total stays visible in the heading as a compact abbreviated figure while the exact counts are kept in the expanded rows, which list the models grouped under their provider with each model's input and output totals on separate indented lines beneath it, so spend across providers can be compared at a glance, and a single divider still closes the group as part of the static usage area, so the scrolling state sections follow with no extra blank line between them. The models group now sits directly above the usage group and the two follow one another as one border-free fixed block: no separator, no blank spacer row and no drawn top border between them.
 
 
 ### Changed
@@ -48,6 +49,7 @@
 - Eval case files now reject an undefined `validation_rule` and the reserved `binary` output format, and may declare `expected_content` as the text a produced file is compared against.
 - An unknown model-override role now aborts `klea-eval run` before any case runs with exit code 2, instead of failing each case.
 - `klea-eval prune` now archives runs that fall outside the retention window instead of deleting them: an older run keeps its `run.json`, `metrics.jsonl` and index line, and only its workspace tree is removed; pass `--purge` to delete the whole run directory and drop its index line as before.
+- `klea headless` is now a client of the backend like `klea tui` and `klea web`: it accepts `-s/--server` to use an existing server, spawning a local one when nothing is listening and stopping it again on exit, so a headless run sees the same sessions, configuration and safety settings as the interactive clients.
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
 - `klea-eval run` now exits 4 when a completed case declared rubrics but recorded no grade, distinct from exit 1 for a failed case.
 - The hello-world sample suite's case fixtures now live under the run's `workspace/`, so the sample runs out of the box.
@@ -65,6 +67,7 @@
 
 ### Fixed
 
+- TUI status pane: no longer draws two horizontal separators above the plan section.
 - Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname; secondary LAN NICs are found via `ifaddr` (same approach as NiceGUI's welcome URLs) so multi-homed hosts no longer fall back to a cookie for one of their own IPs.
 - Web UI: re-rendering the chat transcript no longer jumps the viewport to the newest message, so expanding an older message keeps its position.
 - Web UI: expanding a message in the chat transcript no longer moves the pane, so the message opens in place.

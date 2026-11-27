@@ -27,7 +27,10 @@ It connects to a running `klea-agent-serve` / `klea-rag-serve` over HTTP/SSE
 and renders **one active session at a time**, with a summonable picker to
 switch or resume.  It is a thin client (ADR-0026): the server owns sessions,
 checkpoints and graph state; the TUI holds a hydrated projection (`ChatData`)
-that it may discard and reload at any time.
+that it may discard and reload at any time.  The `headless` subcommand is a
+third client of the same server: it posts one query to `/query/stream` and
+prints the answer, with no UI and no local projection, attaching to a running
+server or spawning a local one (`docs/cli/klea.rst`).
 
 Data flow:
 
@@ -74,13 +77,21 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   turn leaves them empty, and when there is no breakdown the group shows only
   the plain total line.  Whether the group was left expanded persists as the
   `status_usage_expanded` key, alongside `status_models_expanded`.  The models
-  group and the usage group follow one another with no separator between them,
-  so the two read as a single block.  Everything
+  group and the usage group follow one another as a single border-free block:
+  no separator widget is mounted between them, neither group leaves a blank
+  spacer row (`#status-models` and `#status-usage` both carry `margin-bottom:
+  0; padding-bottom: 0`), and neither paints a drawn top border (`border-top:
+  none` on both ids, clearing the `border-top: hkey $background` that Textual's
+  `Collapsible` default would draw at the models/usage boundary; the scrolling
+  state-section collapsibles keep their own keyline, except the first scrolling section whose top keyline is cleared so it never doubles the closing rule above it; a keyline is therefore drawn only between multiple state sections (N sections draw N-1 separators).  Everything
   up to (and including) the token usage is fixed, so it is always visible, and
-  a divider closes that static usage area: it sits directly below the usage
-  group, with no blank line between the last usage row and it, so it belongs to
-  the fixed block and never scrolls with the state sections, which begin
-  directly with the plan (the plan etc.).
+  the single end-of-usage `status-divider` closes that static usage area: it is
+  the last child of `#status-fixed`, sitting directly below the usage group,
+  with no blank line between the last usage row and it, so it belongs to the
+  fixed block and never scrolls with the state sections, which begin directly
+  with the plan (the plan etc.).  A TUI session started before this change
+  keeps the stylesheet it loaded at startup (`klea_utils` is installed
+  editable), so restart the client to see the border-free block.
   State sections persist across turns rather than being cleared: starting a
   turn drops only the transient tool-round section, so the plan and other
   state stay visible until the streamed `state` events replace them.  Each

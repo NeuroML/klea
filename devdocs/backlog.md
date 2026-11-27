@@ -483,6 +483,11 @@ phases are listed below.
   only, absent on headless servers); `{env:VAR}` references in place of stored
   secrets; and encryption at rest with a key from the deployment's auth
   provider (Keycloak) once deployments authenticate.
+- Per-run safety toggles for an attached server: the `klea headless` flags
+  (`--path-check`, `--path-check-stance`, `--hitl/--no-hitl`, `--unattended`)
+  only configure a server the command spawns itself.  True per-run toggles for
+  an already-running or remote server need new fields on `ChatPayload`
+  (`agent_pkg/klea_agent/api/chat.py`) plumbed through the streaming path.
 - Model variants (design/ADR first): `ParsedModelName.variant` is unused.  The
   de-facto standard is opencode's `provider/model#variant`, a named request
   overlay deep-merged into provider/model settings.  opencode sources variant
