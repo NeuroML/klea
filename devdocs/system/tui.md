@@ -83,7 +83,7 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   0; padding-bottom: 0`), and neither paints a drawn top border (`border-top:
   none` on both ids, clearing the `border-top: hkey $background` that Textual's
   `Collapsible` default would draw at the models/usage boundary; the scrolling
-  state-section collapsibles keep their own keyline).  Everything
+  state-section collapsibles keep their own keyline, except the first scrolling section whose top keyline is cleared so it never doubles the closing rule above it; a keyline is therefore drawn only between multiple state sections (N sections draw N-1 separators).  Everything
   up to (and including) the token usage is fixed, so it is always visible, and
   the single end-of-usage `status-divider` closes that static usage area: it is
   the last child of `#status-fixed`, sitting directly below the usage group,

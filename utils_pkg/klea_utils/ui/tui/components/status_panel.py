@@ -585,11 +585,21 @@ class StatusPanel(Vertical):
     /* Textual's Collapsible default paints a keyline on its top edge
      * (`border-top: hkey $background`, textual/widgets/_collapsible.py:111),
      * which drew the line at the models/usage boundary.  Clear it for the two
-     * fixed-block groups only; the plan sections keep their keyline. */
+     * fixed-block groups, so the models and usage groups read as one block. */
     StatusPanel #status-models,
     StatusPanel #status-usage,
     StatusPanel #status-models > CollapsibleTitle,
     StatusPanel #status-usage > CollapsibleTitle {
+        border-top: none;
+    }
+    /* Separator contract: exactly one line closes the fixed block (the
+     * `status-divider` Rule appended last in `#status-fixed`), so the first
+     * dynamic section must not also paint its default keyline right under it.
+     * Suppress the top border on the first state section only (and its
+     * header): the remaining sections keep theirs, so keylines appear only
+     * between multiple dynamic sections (N sections give N-1 separators). */
+    StatusPanel #status-scroll > .status-section:first-of-type,
+    StatusPanel #status-scroll > .status-section:first-of-type > CollapsibleTitle {
         border-top: none;
     }
     StatusPanel .status-divider {
