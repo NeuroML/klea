@@ -37,7 +37,7 @@ from klea_utils.ui.tui.components.sessions import (
 )
 from klea_utils.ui.tui.components.state_edit import StateEditPanel
 from klea_utils.ui.tui.components.transcript import MessageBlock, Transcript
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.selection import Selection
 from textual.widgets import (
     Button,
@@ -305,6 +305,47 @@ async def test_ctrl_c_without_selection_does_not_stop(
         await _settle(pilot, app)
 
     assert cancelled
+
+
+async def test_send_during_a_run_preserves_input_and_warns(
+    fake_backend, make_app, monkeypatch
+):
+    """Enter during a run keeps the typed text, warns, and sends nothing."""
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "Working hard"}}
+        await asyncio.Event().wait()  # never completes until cancelled
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+
+    app = make_app()
+    notes: list[str] = []
+
+    def _capture(message, **kwargs):
+        notes.append(str(message))
+
+    monkeypatch.setattr(app, "notify", _capture)
+
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        assert app._streaming
+
+        calls_before = len(fake_backend.calls)
+        field = app.screen.query_one("#query-input", TextArea)
+        field.focus()
+        field.text = "second query"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # The refused send keeps the composed text, warns, and dispatches no
+        # second stream while the first run is still in progress.
+        assert field.text == "second query"
+        assert any("A run is already in progress" in note for note in notes)
+        assert len(fake_backend.calls) == calls_before
+
+        app._worker.cancel()
+        await pilot.pause()
 
 
 async def test_retry_resumes_without_duplicating_the_turn(fake_backend, make_app):
@@ -1520,6 +1561,82 @@ async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
                 SelectableStatic,
             )
             assert str(out_widget.render()) == f"        {out_line}"
+
+
+async def test_status_panel_divider_closes_the_static_usage_area(
+    fake_backend, make_app
+):
+    """The divider ends the static usage area and is not part of the plan scroll."""
+    from klea_utils.ui.tui.components.status_panel import _section_id
+
+    totals = {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 2}
+    by_model = {
+        "anthropic:model-a": {
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "cached_tokens": 2,
+        }
+    }
+    fake_backend.chat_context = {"usage": totals, "usage_by_model": by_model}
+    app = make_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await _settle(pilot, app)
+        # A plan section pins what the scrolling region holds: it must start
+        # directly with the section, never with a separator.
+        chat = _chat()
+        chat["model_info"] = {
+            "chat": {"model": "openai:gpt-4o", "required": True, "credential": {}},
+            "plan": {"model": "openai:gpt-4o", "required": True, "credential": {}},
+        }
+        chat["state_sections"]["plan"] = {
+            "heading": "Plan",
+            "display": "step 1",
+            "summary": "",
+            "details": {},
+            "preformatted": False,
+        }
+        await app.screen.refresh_status(chat)
+        await pilot.pause()
+
+        usage = app.screen.query_one("#status-usage", Collapsible)
+        usage.collapsed = False
+        await pilot.pause()
+
+        fixed = app.screen.query_one("#status-fixed", Vertical)
+        scroll = app.screen.query_one("#status-scroll", VerticalScroll)
+
+        dividers = list(app.screen.query(".status-divider"))
+        assert len(dividers) == 1
+        divider = dividers[0]
+        # The divider belongs to the static usage block: it is that block's
+        # last child, so it closes the usage rows and never scrolls.
+        assert divider.parent is fixed
+        assert list(fixed.children)[-1] is divider
+        assert usage.parent is fixed
+
+        # The scrolling region starts directly with the plan: no leading
+        # separator is mounted above it.
+        assert list(scroll.query(".status-divider")) == []
+        assert next(iter(scroll.children)).id == _section_id("plan")
+
+        # No blank text element is left after the last usage row.
+        last_usage = usage.query_one(
+            f"#{_section_id('usage-out-anthropic-model-a')}", SelectableStatic
+        )
+        usage_widgets = list(usage.query(SelectableStatic))
+        assert usage_widgets[-1] is last_usage
+        assert str(last_usage.render()).strip()
+        assert all(str(widget.render()).strip() for widget in usage_widgets)
+
+        # The Models group abuts the usage group: no separator sits between
+        # the two expansions, so the usage rows follow the model list directly.
+        children = list(fixed.children)
+        models = list(app.screen.query("#status-models"))
+        if models:
+            assert models[0].region.y < usage.region.y
+            assert usage.region.y < divider.region.y
+        # The single end-of-usage divider remains the last child.
+        assert children[-1] is divider
 
 
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):

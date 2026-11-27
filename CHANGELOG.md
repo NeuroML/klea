@@ -39,7 +39,7 @@
 - The streamed `usage` event now also carries per-invocation token usage (`llm_usage`) beside the unchanged node totals, so each LLM call's spend can be attributed on its own.
 - Evaluator step retries now report their detail on the `inspect` event (`kind`, `plan_step`, `attempt`, `max_attempts`), so a retried step can be traced.
 - The status panes in the web and terminal clients now show the token usage broken down per model beneath the thread total, taken from the breakdown the context endpoint returns.
-- The status panes now present the token usage as a collapsible: the thread total stays visible in the heading as a compact abbreviated figure while the exact counts are kept in the expanded rows, which list the models grouped under their provider with each model's input and output totals on separate indented lines beneath it, so spend across providers can be compared at a glance.
+- The status panes now present the token usage as a collapsible: the thread total stays visible in the heading as a compact abbreviated figure while the exact counts are kept in the expanded rows, which list the models grouped under their provider with each model's input and output totals on separate indented lines beneath it, so spend across providers can be compared at a glance, and a divider closes the group as part of the fixed usage area, so the scrolling state sections follow with no extra blank line between them. The models group now sits directly above the usage group, so the two follow one another as one fixed block.
 
 
 ### Changed
@@ -93,6 +93,7 @@
 - Path-approval prompts now keep the detected path visible in the command snippet by centring the preview window on a recovered fragment of the token, so a normalised token is no longer hidden by truncation.
 - Internal evaluation-only stream fields are no longer shown in the terminal or web status panes.
 - An empty JSON block no longer appears in the plan and tool-execution inspection entries.
+- TUI: a plain message composed while a run is streaming is no longer lost: the composer refuses the submit before clearing the field, keeps the composed text and warns, while a real slash command still dispatches mid-run.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 

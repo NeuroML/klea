@@ -202,6 +202,10 @@ def attach_status_pane(ctx: PageContext) -> None:
                     ).classes("text-sm text-grey-5 mt-2")
                     return
 
+                # The usage group follows the Models expansion directly: no
+                # separator is mounted between them.  The single separator in
+                # this column closes the usage area (see the end of the block),
+                # keeping the state sections' divider under the sticky header.
                 token_usage = current_chat.get("token_usage", {})
                 if any(token_usage.values()):
                     total_line = format_token_usage_compact(token_usage)
@@ -250,7 +254,10 @@ def attach_status_pane(ctx: PageContext) -> None:
                         ui.label(total_line).classes("text-xs mb-0")
                 ui.separator().classes("my-0.5")
 
-            # The state sections scroll under the sticky header.
+            # The state sections scroll under the sticky header: the divider
+            # (``ui.separator()`` above, the last element of the sticky column)
+            # closes the static usage area, so this column starts directly with
+            # the plan content and the usage rows emit no trailing blank.
             _role_classes = {
                 "ok": "text-green",
                 "error": "text-red",
