@@ -74,13 +74,21 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   turn leaves them empty, and when there is no breakdown the group shows only
   the plain total line.  Whether the group was left expanded persists as the
   `status_usage_expanded` key, alongside `status_models_expanded`.  The models
-  group and the usage group follow one another with no separator between them,
-  so the two read as a single block.  Everything
+  group and the usage group follow one another as a single border-free block:
+  no separator widget is mounted between them, neither group leaves a blank
+  spacer row (`#status-models` and `#status-usage` both carry `margin-bottom:
+  0; padding-bottom: 0`), and neither paints a drawn top border (`border-top:
+  none` on both ids, clearing the `border-top: hkey $background` that Textual's
+  `Collapsible` default would draw at the models/usage boundary; the scrolling
+  state-section collapsibles keep their own keyline).  Everything
   up to (and including) the token usage is fixed, so it is always visible, and
-  a divider closes that static usage area: it sits directly below the usage
-  group, with no blank line between the last usage row and it, so it belongs to
-  the fixed block and never scrolls with the state sections, which begin
-  directly with the plan (the plan etc.).
+  the single end-of-usage `status-divider` closes that static usage area: it is
+  the last child of `#status-fixed`, sitting directly below the usage group,
+  with no blank line between the last usage row and it, so it belongs to the
+  fixed block and never scrolls with the state sections, which begin directly
+  with the plan (the plan etc.).  A TUI session started before this change
+  keeps the stylesheet it loaded at startup (`klea_utils` is installed
+  editable), so restart the client to see the border-free block.
   State sections persist across turns rather than being cleared: starting a
   turn drops only the transient tool-round section, so the plan and other
   state stay visible until the streamed `state` events replace them.  Each

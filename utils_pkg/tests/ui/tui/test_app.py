@@ -1633,10 +1633,32 @@ async def test_status_panel_divider_closes_the_static_usage_area(
         children = list(fixed.children)
         models = list(app.screen.query("#status-models"))
         if models:
-            assert models[0].region.y < usage.region.y
-            assert usage.region.y < divider.region.y
-        # The single end-of-usage divider remains the last child.
+            models_group = models[0]
+            assert models_group.parent is fixed
+            assert usage.parent is fixed
+            # Identity/order: in the fixed block the usage group is the very
+            # next sibling after the models group.  Any rule, border or spacer
+            # inserted between them would break this identity check.
+            models_index = children.index(models_group)
+            assert children[models_index + 1] is usage
+            # No blank-row gap: the usage group starts exactly where the
+            # models group ends, so a spacer reintroduced via margin/padding
+            # cannot slip in between the two groups.
+            assert usage.region.y == models_group.region.y + models_group.region.height
+        # A border is drawn on top of the group box, so the region checks
+        # above cannot see it: assert the computed top border directly.
+        # Textual 8.2.8's Collapsible default is ``border-top: hkey
+        # $background``, which is what drew the line at the models/usage
+        # boundary; ``border-top: none`` normalises to the empty border type
+        # (``''``, not the string ``"none"``), so either group bringing the
+        # default keyline back fails here.
+        assert usage.styles.border_top[0] == ""
+        if models:
+            assert models_group.styles.border_top[0] == ""
+        # The single end-of-usage divider remains the last child and is the
+        # only divider in the fixed block.
         assert children[-1] is divider
+        assert list(fixed.query(".status-divider")) == [divider]
 
 
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):
