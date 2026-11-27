@@ -362,6 +362,57 @@ def test_absent_per_call_usage_leaves_the_peak_unset(tmp_path: Path) -> None:
     assert summary.peak_context_tokens is None
 
 
+def test_evaluator_retry_fields_feed_the_run_first_try_rate(tmp_path: Path) -> None:
+    """A clean turn and a retried turn yield the retry counts and the rate."""
+    clean = _turn(
+        1,
+        scores=[{"name": "check", "passed": True}],
+        passed=True,
+        evaluator_retry_count=0,
+        max_attempt_seen=0,
+        first_try=True,
+    )
+    retried = _turn(
+        2,
+        scores=[{"name": "check", "passed": True}],
+        passed=True,
+        evaluator_retry_count=2,
+        max_attempt_seen=3,
+        first_try=False,
+    )
+    unknown = _turn(3)
+    path = _write_records(tmp_path / "metrics.jsonl", clean, retried, unknown)
+
+    summary = load_run(path)
+
+    assert summary.turns[0].evaluator_retry_count == 0
+    assert summary.turns[0].max_attempt_seen == 0
+    assert summary.turns[0].first_try is True
+    assert summary.turns[1].evaluator_retry_count == 2
+    assert summary.turns[1].max_attempt_seen == 3
+    assert summary.turns[1].first_try is False
+    assert summary.turns[2].evaluator_retry_count == 0
+    assert summary.turns[2].first_try is None
+    assert summary.evaluator_retry_total == 2
+    assert summary.max_attempt_seen == 3
+    assert summary.first_try_passes == 1
+    assert summary.recovered_after_retry == 1
+    assert summary.first_try_pass_rate == 0.5
+
+
+def test_first_try_pass_rate_is_none_without_a_verdict(tmp_path: Path) -> None:
+    """A record without an evaluator verdict leaves the rate ``None``."""
+    path = _write_records(tmp_path / "metrics.jsonl", _turn(1))
+
+    summary = load_run(path)
+
+    assert summary.evaluator_retry_total == 0
+    assert summary.max_attempt_seen == 0
+    assert summary.first_try_passes == 0
+    assert summary.recovered_after_retry == 0
+    assert summary.first_try_pass_rate is None
+
+
 def test_all_passing_scores_mark_the_run_successful(tmp_path: Path) -> None:
     path = _write_records(
         tmp_path / "metrics.jsonl",

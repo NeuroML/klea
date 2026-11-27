@@ -99,6 +99,8 @@ class TurnOutcome:
     llm_calls: int = 0
     per_call_usage: tuple[dict[str, Any], ...] = ()
     peak_context_tokens: int | None = None
+    evaluator_retries: tuple[dict[str, Any], ...] = ()
+    first_try: bool | None = None
 
 
 class HttpRunner:
@@ -240,6 +242,10 @@ def outcome_to_record(outcome: TurnOutcome) -> dict[str, Any]:
         "llm_calls": outcome.llm_calls,
         "per_call_usage": [dict(entry) for entry in outcome.per_call_usage],
         "peak_context_tokens": outcome.peak_context_tokens,
+        "evaluator_retries": [dict(entry) for entry in outcome.evaluator_retries],
+        "evaluator_retry_count": len(outcome.evaluator_retries),
+        "max_attempt_seen": _max_attempt(outcome.evaluator_retries),
+        "first_try": outcome.first_try,
     }
     record.update(outcome.usage)
     if outcome.error is not None:
@@ -255,6 +261,8 @@ async def _consume_stream(response: httpx.Response) -> TurnOutcome:
     tool_calls: list[dict[str, Any]] = []
     llm_calls = 0
     per_call_usage: list[dict[str, Any]] = []
+    evaluator_retries: list[dict[str, Any]] = []
+    verdict_seen = False
     terminal = False
 
     async for event in iter_sse_events(response):
@@ -274,6 +282,14 @@ async def _consume_stream(response: httpx.Response) -> TurnOutcome:
             logger.debug(f"{llm_calls = }, {len(per_call_usage) = }, {usage = }")
         elif kind == "tool":
             tool_calls.extend(_tool_entries(event))
+        elif kind == "inspect":
+            details = _inspect_details(event)
+            if details.get("kind") == "evaluator_retry":
+                evaluator_retries.append(_retry_record(event, details))
+                logger.debug(f"{len(evaluator_retries) = }")
+            elif "verdict" in details:
+                verdict_seen = True
+                logger.debug(f"{verdict_seen = }")
         elif kind == "error":
             raise RunnerStreamError(_stream_error_message(event))
         elif kind == "interrupt":
@@ -294,6 +310,12 @@ async def _consume_stream(response: httpx.Response) -> TurnOutcome:
         f"{len(events) = }, {len(tool_calls) = }, {usage = }, {terminal = }, "
         f"{llm_calls = }, {len(per_call_usage) = }, {peak_context_tokens = }"
     )
+    # ``None`` means no evaluator verdict was observed at all; a retained retry
+    # means the first attempt was rejected, anything else is a clean first try.
+    first_try: bool | None = None
+    if evaluator_retries or verdict_seen:
+        first_try = not evaluator_retries
+    logger.debug(f"{evaluator_retries = }, {first_try = }")
     return TurnOutcome(
         text=text,
         events=tuple(events),
@@ -303,6 +325,8 @@ async def _consume_stream(response: httpx.Response) -> TurnOutcome:
         llm_calls=llm_calls,
         per_call_usage=tuple(per_call_usage),
         peak_context_tokens=peak_context_tokens,
+        evaluator_retries=tuple(evaluator_retries),
+        first_try=first_try,
     )
 
 
@@ -386,6 +410,33 @@ def _derive_total(usage: dict[str, int]) -> None:
     total = usage.get("input_tokens", 0) + usage.get("output_tokens", 0)
     if total:
         usage["total_tokens"] = total
+
+
+def _inspect_details(event: SSEEvent) -> Mapping[str, Any]:
+    """Return the ``data.details`` mapping of one ``inspect`` event, or ``{}``."""
+    data = _event_payload(event).get("data")
+    details = data.get("details") if isinstance(data, Mapping) else None
+    return details if isinstance(details, Mapping) else {}
+
+
+def _retry_record(event: SSEEvent, details: Mapping[str, Any]) -> dict[str, Any]:
+    """Return one retained retry payload plus its enclosing event identity."""
+    payload = _event_payload(event)
+    record = dict(details)
+    for key in ("node", "node_id", "step"):
+        if key in payload:
+            record[key] = payload[key]
+    return record
+
+
+def _max_attempt(retries: tuple[dict[str, Any], ...]) -> int:
+    """Return the highest ``attempt`` counter over the retained retries, or 0."""
+    attempts = [
+        value
+        for value in (entry.get("attempt") for entry in retries)
+        if isinstance(value, int) and not isinstance(value, bool)
+    ]
+    return max(attempts) if attempts else 0
 
 
 def _usage_details(event: SSEEvent) -> Mapping[str, Any]:

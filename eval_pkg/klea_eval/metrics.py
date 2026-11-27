@@ -197,6 +197,10 @@ class TurnMetrics:
     llm_calls: int = 0
     per_call_usage: tuple[dict[str, Any], ...] = ()
     peak_context_tokens: int | None = None
+    evaluator_retries: tuple[dict[str, Any], ...] = ()
+    evaluator_retry_count: int = 0
+    max_attempt_seen: int = 0
+    first_try: bool | None = None
 
     @property
     def normalised_units(self) -> float:
@@ -232,6 +236,11 @@ class RunMetrics:
     llm_calls: int = 0
     per_call_usage: tuple[dict[str, Any], ...] = ()
     peak_context_tokens: int | None = None
+    evaluator_retry_total: int = 0
+    first_try_passes: int = 0
+    recovered_after_retry: int = 0
+    first_try_pass_rate: float | None = None
+    max_attempt_seen: int = 0
 
 
 def read_records(path: str | Path) -> tuple[dict[str, Any], ...]:
@@ -390,6 +399,16 @@ def aggregate(
         if turn.peak_context_tokens is not None
     ]
     peak_context_tokens = max(peaks) if peaks else None
+    evaluator_retry_total = sum(turn.evaluator_retry_count for turn in turns)
+    max_attempt_seen = max((turn.max_attempt_seen for turn in turns), default=0)
+    first_try_passes = sum(
+        1 for turn in turns if turn.passed is True and turn.first_try is True
+    )
+    recovered_after_retry = sum(
+        1 for turn in turns if turn.passed is True and turn.first_try is False
+    )
+    graded_turns = [turn for turn in turns if turn.first_try is not None]
+    first_try_pass_rate = first_try_passes / len(graded_turns) if graded_turns else None
 
     envelope_metrics = _envelope_metrics(envelope)
     declared = _declared_totals(envelope_metrics)
@@ -450,6 +469,11 @@ def aggregate(
         llm_calls=llm_calls,
         per_call_usage=per_call_usage,
         peak_context_tokens=peak_context_tokens,
+        evaluator_retry_total=evaluator_retry_total,
+        first_try_passes=first_try_passes,
+        recovered_after_retry=recovered_after_retry,
+        first_try_pass_rate=first_try_pass_rate,
+        max_attempt_seen=max_attempt_seen,
     )
     logger.debug(
         f"{summary.run_id = }, {summary.turn_count = }, "
@@ -663,6 +687,10 @@ def _turn_metrics(record: Mapping[str, Any]) -> TurnMetrics:
         llm_calls=_as_int_or(record.get("llm_calls"), 0),
         per_call_usage=_per_call_usage(record),
         peak_context_tokens=_as_int(record.get("peak_context_tokens"), None),
+        evaluator_retries=_evaluator_retries(record),
+        evaluator_retry_count=_as_int_or(record.get("evaluator_retry_count"), 0),
+        max_attempt_seen=_as_int_or(record.get("max_attempt_seen"), 0),
+        first_try=_first_try_flag(record),
     )
 
 
@@ -677,6 +705,28 @@ def _pass_flag(
             value = source.get(key)
             if isinstance(value, bool):
                 return value
+    return None
+
+
+def _evaluator_retries(
+    record: Mapping[str, Any],
+) -> tuple[dict[str, Any], ...]:
+    """Return the evaluator retries retained on a turn record.
+
+    A missing or malformed value yields an empty tuple rather than raising, so
+    an older record still aggregates; non-mapping entries are skipped.
+    """
+    raw = record.get("evaluator_retries")
+    if not isinstance(raw, (list, tuple)):
+        return ()
+    return tuple(dict(entry) for entry in raw if isinstance(entry, Mapping))
+
+
+def _first_try_flag(record: Mapping[str, Any]) -> bool | None:
+    """Return the recorded ``first_try`` flag, or ``None`` when it is absent."""
+    value = record.get("first_try")
+    if isinstance(value, bool):
+        return value
     return None
 
 

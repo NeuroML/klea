@@ -302,6 +302,59 @@ def test_http_runner_leaves_the_peak_unset_without_llm_usage(tmp_path: Path) -> 
     assert outcome.peak_context_tokens is None
 
 
+def test_http_runner_retains_evaluator_retries(tmp_path: Path) -> None:
+    """An ``evaluator_retry`` inspect frame is retained with its counters."""
+    details = {
+        "kind": "evaluator_retry",
+        "plan_step": 1,
+        "attempt": 2,
+        "max_attempts": 3,
+    }
+    stream = _frame(
+        "inspect", {"type": "inspect", "data": {"details": details}}
+    ) + _frame("complete", {"type": "complete", "message_for_user": "ok"})
+    runner, _ = _make_runner(_stream_handler(stream))
+    outcome = _run_turn(runner, _context(tmp_path), FakeTurn())
+
+    assert outcome.evaluator_retries == (details,)
+    assert outcome.first_try is False
+
+    record = outcome_to_record(outcome)
+    assert record["evaluator_retries"] == [details]
+    assert record["evaluator_retry_count"] == 1
+    assert record["max_attempt_seen"] == 2
+    assert record["first_try"] is False
+
+
+def test_http_runner_ignores_a_non_retry_inspect_frame(tmp_path: Path) -> None:
+    """A verdict-carrying inspect frame leaves the retry counters untouched."""
+    stream = _frame(
+        "inspect",
+        {"type": "inspect", "data": {"details": {"verdict": "pass"}}},
+    ) + _frame("complete", {"type": "complete", "message_for_user": "ok"})
+    runner, _ = _make_runner(_stream_handler(stream))
+    outcome = _run_turn(runner, _context(tmp_path), FakeTurn())
+
+    assert outcome.evaluator_retries == ()
+    assert outcome.first_try is True
+
+    record = outcome_to_record(outcome)
+    assert record["evaluator_retries"] == []
+    assert record["evaluator_retry_count"] == 0
+    assert record["max_attempt_seen"] == 0
+    assert record["first_try"] is True
+
+
+def test_outcome_to_record_defaults_absent_evaluator_retries() -> None:
+    """A bare outcome keeps the retry counters empty and the verdict unknown."""
+    record = outcome_to_record(TurnOutcome(text="done"))
+
+    assert record["evaluator_retries"] == []
+    assert record["evaluator_retry_count"] == 0
+    assert record["max_attempt_seen"] == 0
+    assert record["first_try"] is None
+
+
 def test_http_runner_ignores_ping(tmp_path: Path) -> None:
     stream = _frame("ping", {"type": "ping"}) + _frame(
         "complete", {"type": "complete", "message_for_user": "ok"}

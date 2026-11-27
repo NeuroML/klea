@@ -764,6 +764,8 @@ def test_summary_command_prints_per_call_usage(
         root=None,
         llm_calls=5,
         peak_context_tokens=140,
+        evaluator_retry_total=4,
+        first_try_pass_rate=0.75,
     )
     monkeypatch.setattr(api, "suite_summary", lambda *args, **kwargs: aggregate)
 
@@ -772,6 +774,8 @@ def test_summary_command_prints_per_call_usage(
     assert result.exit_code == 0
     assert "llm_calls: 5" in result.output
     assert "peak_context_tokens: 140" in result.output
+    assert "evaluator_retry_total: 4" in result.output
+    assert "first_try_pass_rate: 0.7500" in result.output
 
 
 def test_summary_command_prints_na_without_a_peak(
@@ -790,3 +794,56 @@ def test_summary_command_prints_na_without_a_peak(
     assert result.exit_code == 0
     assert "llm_calls: 0" in result.output
     assert "peak_context_tokens: n/a" in result.output
+    assert "evaluator_retry_total: 0" in result.output
+    assert "first_try_pass_rate: n/a" in result.output
+
+
+def test_aggregate_suite_sums_evaluator_retries_and_averages_the_rate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The suite sums the retries and averages the per-case first-try rates."""
+    summaries = {
+        "run-a": metrics.RunMetrics(
+            run_id="run-a",
+            case_id="case-a",
+            task_success=True,
+            evaluator_retry_total=1,
+            first_try_passes=2,
+            recovered_after_retry=1,
+            first_try_pass_rate=0.5,
+        ),
+        "run-b": metrics.RunMetrics(
+            run_id="run-b",
+            case_id="case-b",
+            task_success=True,
+            evaluator_retry_total=3,
+            first_try_passes=1,
+            recovered_after_retry=0,
+            first_try_pass_rate=1.0,
+        ),
+    }
+    for run_id, case_id in (("run-a", "case-a"), ("run-b", "case-b")):
+        _append_index(tmp_path, run_id, case_id)
+        run_dir = tmp_path / "runs" / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        (run_dir / "metrics.jsonl").write_text("", encoding="utf-8")
+
+    def fake_load(run_dir: Path) -> metrics.RunMetrics:
+        for run_id, summary in summaries.items():
+            if run_id in str(run_dir):
+                return summary
+        raise AssertionError(f"unexpected run directory: {run_dir}")
+
+    monkeypatch.setattr(metrics, "load_run", fake_load)
+
+    aggregate = scoring.aggregate_suite(tmp_path)
+
+    assert aggregate.evaluator_retry_total == 4
+    assert aggregate.first_try_passes == 3
+    assert aggregate.recovered_after_retry == 1
+    assert aggregate.first_try_pass_rate == 0.75
+    payload = aggregate.to_dict()
+    assert payload["evaluator_retry_total"] == 4
+    assert payload["first_try_passes"] == 3
+    assert payload["recovered_after_retry"] == 1
+    assert payload["first_try_pass_rate"] == 0.75

@@ -496,6 +496,15 @@ def summary(
         if peak is not None
         else "peak_context_tokens: n/a"
     )
+    # The rate is the mean of the per-case first-try rates and stays ``n/a``
+    # when no case carried an evaluator verdict at all.
+    rate = aggregate.first_try_pass_rate
+    typer.echo(f"evaluator_retry_total: {aggregate.evaluator_retry_total}")
+    typer.echo(
+        f"first_try_pass_rate: {rate:.4f}"
+        if rate is not None
+        else "first_try_pass_rate: n/a"
+    )
 
 
 if __name__ == "__main__":

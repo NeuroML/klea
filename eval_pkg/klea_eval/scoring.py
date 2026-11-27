@@ -96,6 +96,10 @@ class CaseScore:
     llm_calls: int = 0
     per_call_usage: tuple[dict[str, Any], ...] = ()
     peak_context_tokens: int | None = None
+    evaluator_retry_count: int = 0
+    first_try_passes: int = 0
+    recovered_after_retry: int = 0
+    first_try_pass_rate: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return the case score as a plain, JSON-ready mapping."""
@@ -116,6 +120,10 @@ class CaseScore:
             "llm_calls": self.llm_calls,
             "per_call_usage": [dict(entry) for entry in self.per_call_usage],
             "peak_context_tokens": self.peak_context_tokens,
+            "evaluator_retry_count": self.evaluator_retry_count,
+            "first_try_passes": self.first_try_passes,
+            "recovered_after_retry": self.recovered_after_retry,
+            "first_try_pass_rate": self.first_try_pass_rate,
         }
 
 
@@ -147,6 +155,15 @@ class SuiteAggregate:
     #: reported one.  Retried calls are included, so this is a retry-merged
     #: upper bound and not the context size of a single attempt.
     peak_context_tokens: int | None = None
+    #: Sum of the evaluator retries recorded over the cases.
+    evaluator_retry_total: int = 0
+    #: Cases whose first attempt was accepted without an evaluator retry.
+    first_try_passes: int = 0
+    #: Cases that only passed after an evaluator retry.
+    recovered_after_retry: int = 0
+    #: Mean of the per-case first-try pass rates; ``None`` when no case carried
+    #: an evaluator verdict, so a zero denominator stays explicit.
+    first_try_pass_rate: float | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Return the suite aggregate as a plain, JSON-ready mapping."""
@@ -169,6 +186,10 @@ class SuiteAggregate:
             "input_output_ratio": self.input_output_ratio,
             "llm_calls": self.llm_calls,
             "peak_context_tokens": self.peak_context_tokens,
+            "evaluator_retry_total": self.evaluator_retry_total,
+            "first_try_passes": self.first_try_passes,
+            "recovered_after_retry": self.recovered_after_retry,
+            "first_try_pass_rate": self.first_try_pass_rate,
         }
 
 
@@ -233,6 +254,10 @@ def score_run(run: metrics.RunMetrics) -> CaseScore:
         llm_calls=run.llm_calls,
         per_call_usage=tuple(run.per_call_usage),
         peak_context_tokens=run.peak_context_tokens,
+        evaluator_retry_count=run.evaluator_retry_total,
+        first_try_passes=run.first_try_passes,
+        recovered_after_retry=run.recovered_after_retry,
+        first_try_pass_rate=run.first_try_pass_rate,
     )
 
 
@@ -394,6 +419,19 @@ def aggregate_suite(
         if case.peak_context_tokens is not None
     ]
     peak_context_tokens = max(peaks) if peaks else None
+    evaluator_retry_total = sum(case.evaluator_retry_count for case in cases)
+    first_try_passes = sum(case.first_try_passes for case in cases)
+    recovered_after_retry = sum(case.recovered_after_retry for case in cases)
+    # Averaging the per-case rates keeps a case with several graded turns from
+    # outweighing a case with one, and a zero denominator yields ``None``.
+    first_try_rates = [
+        case.first_try_pass_rate
+        for case in cases
+        if case.first_try_pass_rate is not None
+    ]
+    first_try_pass_rate = (
+        float(sum(first_try_rates)) / len(first_try_rates) if first_try_rates else None
+    )
 
     aggregate = SuiteAggregate(
         root=str(root_path) if root_path is not None else None,
@@ -414,6 +452,10 @@ def aggregate_suite(
         input_output_ratio=input_output_ratio,
         llm_calls=llm_calls,
         peak_context_tokens=peak_context_tokens,
+        evaluator_retry_total=evaluator_retry_total,
+        first_try_passes=first_try_passes,
+        recovered_after_retry=recovered_after_retry,
+        first_try_pass_rate=first_try_pass_rate,
     )
     logger.debug(
         f"{aggregate.case_count = }, {aggregate.pass_count = }, "
