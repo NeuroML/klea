@@ -31,7 +31,11 @@ from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.glyphs import get_glyphs, role_marker
 from klea_utils.ui.inspect_format import format_details_block
 from klea_utils.ui.model_config import role_label
-from klea_utils.ui.state import format_token_usage, missing_credentials
+from klea_utils.ui.state import (
+    format_token_usage,
+    format_token_usage_by_model,
+    missing_credentials,
+)
 from klea_utils.ui.status_layout import estimate_section_lines, section_budget_lines
 from klea_utils.ui.tui.components.scroll import KleaScroll
 from klea_utils.ui.tui.components.selectable import SelectableStatic
@@ -580,6 +584,20 @@ class StatusPanel(Vertical):
                 fixed_widgets.append(
                     SelectableStatic(_usage_line(usage), id="status-usage")
                 )
+                # One row per model beside the total line.  The id is built
+                # from the model name via ``_section_id`` so it is stable and
+                # unique: the fixed block is rebuilt on every refresh, so a
+                # positional id would churn.
+                for model, line in format_token_usage_by_model(
+                    chat.get("token_usage_by_model") or {}
+                ):
+                    fixed_widgets.append(
+                        SelectableStatic(
+                            f"{model}: {line}",
+                            id=_section_id(f"usage-{model}"),
+                            markup=False,
+                        )
+                    )
         if fixed_widgets:
             await fixed.mount_all(fixed_widgets)
         await _reconcile_sections(scroll, chat)

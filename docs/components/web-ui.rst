@@ -71,6 +71,8 @@ Status pane
 The right pane summarises the current chat: its name, the model used
 for each role (with a settings button to change them), running token
 totals, and the per-step state sections that stream while the graph runs.
+The token line shows the thread total and expands to one row per model,
+each carrying that model's own usage.
 Tool calls appear here as they run, marked ``running`` and replaced by
 ``ok``/``error`` when the round ends.  In the agent, the operating mode and
 tool access level selectors appear here as well.

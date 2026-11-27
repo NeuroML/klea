@@ -24,7 +24,13 @@ from nicegui import ui
 from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.glyphs import UNICODE_GLYPHS, role_marker
 from klea_utils.ui.linkify import linkify_md
-from klea_utils.ui.state import ChatData, chats, format_token_usage, missing_credentials
+from klea_utils.ui.state import (
+    ChatData,
+    chats,
+    format_token_usage,
+    format_token_usage_by_model,
+    missing_credentials,
+)
 from klea_utils.ui.status_layout import section_budget_lines
 from klea_utils.ui.web.nicegui.components.context import PageContext
 
@@ -197,7 +203,23 @@ def attach_status_pane(ctx: PageContext) -> None:
 
                 token_usage = current_chat.get("token_usage", {})
                 if any(token_usage.values()):
-                    ui.label(format_token_usage(token_usage)).classes("text-xs mb-0")
+                    total_line = format_token_usage(token_usage)
+                    usage_rows = format_token_usage_by_model(
+                        current_chat.get("token_usage_by_model") or {}
+                    )
+                    if usage_rows:
+                        with ui.expansion().classes(
+                            "w-full text-xs usage-group"
+                        ) as usage_expansion:
+                            with usage_expansion.add_slot("header"):
+                                ui.label(total_line).classes("text-xs mb-0")
+                            for model, line in usage_rows:
+                                ui.label(f"{model}: {line}").classes("text-xs")
+                        # A state key distinct from the models group, so the
+                        # two expansions toggle independently.
+                        usage_expansion.bind_value(ctx, "status_usage_expanded")
+                    else:
+                        ui.label(total_line).classes("text-xs mb-0")
                 ui.separator().classes("my-0.5")
 
             # The state sections scroll under the sticky header.

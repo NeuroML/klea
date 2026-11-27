@@ -72,8 +72,9 @@ A single authoritative usage channel, `token_usage_ledger`, replaces
   node's own calls.
 * `BaseGraphSchema.usage_metrics` is deleted and replaced by
   `token_usage_ledger: Annotated[TokenUsageLedger, add_usage_ledger]`.  The
-  context endpoint projects `total()` (and may expose `total_by_model()`)
-  so frontends keep restoring the session total on hydration.
+  context endpoint projects `total()` and exposes the per-model breakdown as
+  `usage_by_model`, so frontends restore the session total on hydration and
+  can render the per-model split.
 
 ### Why remove rather than deprecate
 
@@ -94,9 +95,11 @@ channel, one writer, one reducer.
   allowed module and the stale value is dropped, not decoded into a removed
   type.
 * Per-model totals are now available in checkpointed state, which is what a
-  benchmark or cost-attribution consumer needs.  Rendering them per model in
-  the web UI and the TUI is deferred to the backlog; the frontends keep
-  showing the thread total seeded from the context endpoint.
+  benchmark or cost-attribution consumer needs.  The context endpoint exposes
+  them under `usage_by_model`, and both status panes render them through the
+  shared `format_token_usage_by_model`: the web pane shows a collapsible
+  per-model breakdown and the TUI renders one row per model beside the thread
+  total.
 * Documentation and tests that name `usage_metrics` must be updated in the
   same change: `docs/api/utils/graph.rst`, `devdocs/system/streams.md`,
   `utils_pkg/tests/test_graph_state.py`, `agent_pkg/tests/test_schemas.py`,

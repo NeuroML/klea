@@ -164,7 +164,11 @@ persisted server-side and rehydrated on load:
   configured) to that model's `TokenUsage`, and is reduced by
   `add_usage_ledger`, so nodes writing different models coexist and per-model
   totals stay additive.  The endpoint projects the flat thread total via
-  `ledger.total()`, which the frontends seed `token_usage` from.
+  `ledger.total()` (which the frontends seed `token_usage` from) and the
+  per-model breakdown via `usage_by_model`: per-model `TokenUsage` dumps keyed
+  by model name, `None` when the ledger is absent; `usage` remains the thread
+  total.  The live `usage` stream event carries no model identity, so the
+  breakdown is hydration-sourced only.
   `cached_tokens` is the cache-read subset of `input_tokens`, not an
   additional quantity; the status lines show it as `(<n> cached)` only when
   non-zero.  `usage` events are therefore **not** stored: they are a projection

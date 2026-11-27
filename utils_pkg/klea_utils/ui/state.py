@@ -132,6 +132,11 @@ class TokenUsage(TypedDict):
     cached_tokens: int
 
 
+#: Per-model accumulated totals (model name -> :class:`TokenUsage`), hydrated
+#: from the context endpoint's ``usage_by_model`` projection.
+TokenUsageByModel = dict[str, TokenUsage]
+
+
 def format_token_usage(usage: Mapping[str, Any]) -> str:
     """Format accumulated token usage for the web/TUI status line.
 
@@ -147,6 +152,24 @@ def format_token_usage(usage: Mapping[str, Any]) -> str:
     cached_tokens = int(usage.get("cached_tokens", 0) or 0)
     cached = f" ({cached_tokens:,} cached)" if cached_tokens else ""
     return f"{input_tokens:,} in{cached} / {output_tokens:,} out"
+
+
+def format_token_usage_by_model(
+    by_model: Mapping[str, Any] | None,
+) -> list[tuple[str, str]]:
+    """Format the per-model token usage rows for the web/TUI status pane.
+
+    Each row is rendered with :func:`format_token_usage`, so a model's line
+    reads exactly like the session total line.
+
+    :param by_model: The chat's ``token_usage_by_model`` mapping
+        (model name -> totals mapping).
+    :returns: ``(model, line)`` pairs sorted by model name for a deterministic
+        pane ordering, or ``[]`` when the mapping is absent or empty.
+    """
+    if not by_model:
+        return []
+    return [(model, format_token_usage(by_model[model])) for model in sorted(by_model)]
 
 
 class TurnStatus(TypedDict):
@@ -216,6 +239,10 @@ class ChatData(TypedDict):
     model_info: dict[str, dict[str, Any]]
     #: Accumulated token totals for this chat.
     token_usage: TokenUsage
+    #: Hydrated per-model token totals (model name -> totals), sourced from the
+    #: context endpoint's ``usage_by_model`` projection.  The live ``usage``
+    #: events carry no model identity, so this is a reload-only breakdown.
+    token_usage_by_model: NotRequired[TokenUsageByModel]
     #: Hydrated graph session context (e.g. the agent operating mode).
     context: NotRequired[dict[str, Any]]
     #: Truncated first user query, from the server session list; used as a

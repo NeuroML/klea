@@ -1457,6 +1457,37 @@ async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
         assert any("3 in (2 cached) / 1 out" in text for text in statics)
 
 
+async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
+    """The status panel renders each model's usage beneath the thread total."""
+    from klea_utils.ui.state import format_token_usage
+
+    totals = {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 2}
+    by_model = {
+        "anthropic:model-a": {
+            "input_tokens": 6,
+            "output_tokens": 3,
+            "cached_tokens": 1,
+        },
+        "openai:model-b": {
+            "input_tokens": 4,
+            "output_tokens": 1,
+            "cached_tokens": 1,
+        },
+    }
+    # The breakdown is hydration-sourced (the live usage event has no model
+    # identity), so it arrives through the context body.
+    fake_backend.chat_context = {"usage": totals, "usage_by_model": by_model}
+    app = make_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await _settle(pilot, app)
+        panel = app.screen.query_one("#status")
+        rendered = "\n".join(str(static.render()) for static in panel.query(Static))
+        assert format_token_usage(totals) in rendered
+        for model, usage in by_model.items():
+            assert model in rendered
+            assert format_token_usage(usage) in rendered
+
+
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):
     """App chrome and dialog text use the shared selectable widget."""
     app = make_app()

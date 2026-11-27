@@ -61,8 +61,12 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
 * **Status panel** (right, full height): the app title and server line, the
   operating-mode / tool-access selectors, the resolved models, the streamed
   state sections, and token usage (input, output, and cached reads when
-  present).  Everything up to (and including) the token usage is fixed, so it
-  is always visible; only the state sections below (the plan etc.) scroll.
+  present).  The usage block shows the thread total followed by one row per
+  model -- the model name and its own `format_token_usage` line -- seeded from
+  `token_usage_by_model`; the per-model rows come only from a hydrated chat,
+  so a live turn leaves them empty.  Everything up to (and including) the
+  token usage is fixed, so it is always visible; only the state sections below
+  (the plan etc.) scroll.
   State sections persist across turns rather than being cleared: starting a
   turn drops only the transient tool-round section, so the plan and other
   state stay visible until the streamed `state` events replace them.  Each

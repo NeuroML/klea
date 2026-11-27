@@ -503,6 +503,53 @@ async def test_status_pane_renders_no_empty_details_container(fake_backend, util
     assert "arguments" not in rendered
 
 
+async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
+    """The pane shows the thread total plus one row per model."""
+    from klea_utils.ui.state import (
+        TokenUsage,
+        TokenUsageByModel,
+        ensure_chat,
+        format_token_usage,
+    )
+
+    chat = ensure_chat("u", "")
+    total: TokenUsage = {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "total_tokens": 14,
+        "cached_tokens": 2,
+    }
+    by_model: TokenUsageByModel = {
+        "anthropic:model-a": TokenUsage(
+            input_tokens=6, output_tokens=3, total_tokens=9, cached_tokens=0
+        ),
+        "openai:model-b": TokenUsage(
+            input_tokens=4, output_tokens=1, total_tokens=5, cached_tokens=0
+        ),
+    }
+    chat["token_usage"] = total
+    chat["token_usage_by_model"] = by_model
+
+    await utils_user.open("/")
+
+    from nicegui import ui
+
+    # The breakdown lives in a collapsible group; open every expansion so
+    # no row is withheld by a collapsed body.
+    groups = list(utils_user.find(ui.expansion).elements)
+    assert groups, "a usage expansion must render"
+    for group in groups:
+        group.value = True
+
+    labels = {
+        getattr(label, "text", "") for label in utils_user.find(ui.label).elements
+    }
+    assert format_token_usage(total) in labels
+    for model, usage in by_model.items():
+        assert f"{model}: {format_token_usage(usage)}" in labels
+    assert not any("{}" in text for text in labels)
+
+
 async def test_status_pane_renders_the_role_markers(fake_backend, utils_user):
     """Each role renders its Unicode marker; unknown roles use the plain one."""
     from typing import cast
