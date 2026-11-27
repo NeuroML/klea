@@ -91,6 +91,8 @@ For third-party agents (where source code cannot be modified), the harness colle
 
 #### Centralized RunMetricsCollector
 
+> The canonical, always-current field reference is the `eval-run-metrics` section of the run guide (`docs/guides/run-an-evaluation.rst`); the schema below is retained as historical context and is not kept in sync.
+
 Each run initializes a centralized `RunMetricsCollector` that aggregates metrics from endpoints and optional hooks into a per-run `metrics.jsonl` file and final `RunMetrics` summary at run completion:
 
 ```json

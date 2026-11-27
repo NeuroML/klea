@@ -28,6 +28,7 @@
 - Eval metrics now report the evaluator retries a run needed and whether a case passed on its first attempt, and `klea-eval summary` prints the retry total and the first-try pass rate, reported as `n/a` when no case carried an evaluator verdict.
 
 - The user-facing `klea-eval` quickstart and CLI reference are now documented.
+- The `klea-eval` run guide now carries a complete, canonical reference for every measurement the harness records, aggregates and prints.
 - Eval cases can declare their own `command` and a per-case `command_timeout`; the harness runs it once in the run workspace and grades it on its exit status only, recording the command and the exit code.
 - The harness now ships a hello-world sample suite whose case-authored command grades on exit status, exercising execution-based verification end to end.
 - Streamed events now carry node/run identity, a per-node LLM-call count and a 0-based tool-call retry count (add one for an attempt number), so an evaluation harness can attribute and trace them.

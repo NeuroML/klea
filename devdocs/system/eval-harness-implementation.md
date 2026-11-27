@@ -58,6 +58,8 @@ recorded here so later steps do not re-litigate them.
 | D11 | Retention policy | Keep the last 20 complete runs per case; older complete runs are archived (their `workspace/` tree removed while `run.json`, `metrics.jsonl`, the `COMPLETE` marker and the index line are kept, plus an `ARCHIVED` marker), unless `--purge` deletes them outright. |
 | D12 | Commit granularity for docs | A docs-only first commit, then per-atomic-change commits thereafter. |
 
+> The metric fields named throughout this implementation log are defined once, and canonically, in the `eval-run-metrics` section of the run guide (`docs/guides/run-an-evaluation.rst`); they are not restated here.
+
 ---
 
 ## 3. Phases

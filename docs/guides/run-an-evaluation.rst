@@ -181,7 +181,7 @@ accepts ``--case-id`` and ``--status`` filters.  ``show`` reads one run back
 through the API.  ``summary`` prints ``suite_score``, ``pass_at_k`` and the output-to-input
 ``input_output_ratio``
 for ``--k`` attempts per case (default ``1``), plus the usage and retry lines
-described in `Reading the run metrics`_ below.  ``report`` renders a report from
+described in :ref:`Reading the run metrics <eval-run-metrics>` below.  ``report`` renders a report from
 already collected results to ``--output`` / ``-o``, where ``-`` means standard
 output.
 
@@ -193,64 +193,242 @@ failed run leaves no stored record and appends no index line.
 ``show``, ``runs``, ``summary``, ``prune`` and ``check`` accept ``--workspace``
 / ``-w`` and fall back to ``$KLEA_EVAL_WORKSPACE``.
 
+.. _eval-run-metrics:
+
 Reading the run metrics
 -----------------------
 
-Each stored turn, run and suite aggregate also carries the usage and retry
-metrics the stream reports.  ``klea-eval summary`` prints the suite-level ones
-after ``input_output_ratio``, and a fetch of a single run exposes the same
-fields per turn and per case::
+This section is the canonical reference for every measurement the harness
+records, aggregates and prints.  A measurement keeps one name across the turn,
+run, case and suite levels; the level is marked by a prefix: ``t`` for one
+turn, ``r`` for a run, ``c`` for a case score and ``s`` for a suite aggregate.
+Other documents should refer to this section rather than restate a field, so a
+definition cannot drift.
 
-    llm_calls: 7
-    peak_context_tokens: 41231
-    evaluator_retry_total: 2
-    first_try_pass_rate: 0.6667
+Field reference
+~~~~~~~~~~~~~~~
 
-``llm_calls``
-    The LLM calls a turn made, summed over a run's turns and over a suite's
-    cases.
+Every field the harness derives, with the level it exists at, its definition,
+its unit and how an absent value is reported.  ``t`` = turn, ``r`` = run,
+``c`` = case, ``s`` = suite.
 
-``per_call_usage``
-    The per-invocation usage entries of those calls: kept per turn, and
-    concatenated in order on a run.  A record that carries none yields an
-    empty list rather than raising, so an older stored run still aggregates.
+.. list-table::
+   :header-rows: 1
+   :widths: 24 12 40 14 20
 
-``peak_context_tokens``
-    The largest input-plus-output token count of a single call, taken over a
-    run's turns and then over a suite's cases.  A turn without per-call usage
-    reports no peak, which the summary prints as
-    ``peak_context_tokens: n/a``.  The peak spans every call a turn made,
-    retried calls included, so it is a retry-merged upper bound and not the
-    context size of one attempt: do not read it as the size of a single
-    prompt.
+   * - Field
+     - Levels
+     - Definition
+     - Unit
+     - When absent
+   * - ``input_tokens`` (t) / ``total_input_tokens`` (r, c, s)
+     - t, r, c, s
+     - Input tokens recorded for a turn, summed over a run's turns and a
+       suite's cases.
+     - tokens
+     - ``0`` (never null)
+   * - ``output_tokens`` (t) / ``total_output_tokens`` (r, c, s)
+     - t, r, c, s
+     - Output tokens recorded for a turn, summed over a run's turns and a
+       suite's cases.
+     - tokens
+     - ``0`` (never null)
+   * - ``cached_tokens`` (t) / ``total_cached_tokens`` (r, c, s)
+     - t, r, c, s
+     - Cached tokens recorded for a turn, summed over a run's turns and a
+       suite's cases.
+     - tokens
+     - ``0`` (never null)
+   * - ``normalised_units`` (t) / ``total_normalised_units`` (r, c, s)
+     - t, r, c, s
+     - Token counts expressed as weighted token-equivalent units, summed the
+       same way as the raw totals.
+     - weighted units (float)
+     - ``0.0``
+   * - ``latency_ms`` (t) / ``total_latency_ms`` (r)
+     - t, r
+     - Per-turn request latency, summed over a run's turns.
+     - milliseconds
+     - ``None`` when no turn carried one
+   * - ``tool_error_count``
+     - r
+     - Tool calls that ended in an error over a run.
+     - count
+     - ``0``
+   * - ``llm_calls``
+     - t, r, c, s
+     - LLM calls a turn made, summed over a run's turns and a suite's cases.
+     - count
+     - ``0``
+   * - ``per_call_usage``
+     - t, r, c
+     - Per-invocation usage entries of those calls: kept per turn and
+       concatenated in order on a run and a case.  No suite-level field
+       exists, so the suite aggregate stays compact.
+     - sequence of mappings
+     - empty sequence; a non-mapping entry is skipped rather than raising
+   * - ``peak_context_tokens``
+     - t, r, c, s
+     - The largest input-plus-output token count of a single call, taken over
+       a run's turns and then over a suite's cases.
+     - tokens
+     - ``None`` when nothing was recorded, printed ``n/a``
+   * - ``evaluator_retry_count`` (t, c) / ``evaluator_retry_total`` (r, s)
+     - t, r, c, s
+     - Evaluator retries retained on a turn, summed over a run's turns and a
+       suite's cases.
+     - count
+     - ``0``
+   * - ``evaluator_retries``
+     - t
+     - The retained raw retry mappings behind ``evaluator_retry_count``.
+     - sequence of mappings
+     - empty sequence
+   * - ``max_attempt_seen``
+     - t, r
+     - The highest ``attempt`` counter among a turn's retained retries; a run
+       reports the highest across its turns.  Not carried at case or suite
+       level.
+     - attempt counter
+     - ``0`` when the stream sent none
+   * - ``first_try``
+     - t
+     - ``true`` when the turn's work was accepted on its first attempt,
+       ``false`` when an evaluator retry was recorded, and ``null`` when the
+       stream carried neither a retry nor a verdict.
+     - tri-state bool
+     - ``None``
+   * - ``first_try_passes``
+     - r, c, s
+     - Turns whose first attempt was accepted at run level; cases whose first
+       attempt was accepted at case and suite level.
+     - count
+     - ``0``
+   * - ``recovered_after_retry``
+     - r, c, s
+     - Turns that only passed after a retry at run level; cases that only
+       passed after a retry at case and suite level.
+     - count
+     - ``0``
+   * - ``first_try_pass_rate``
+     - r, c, s
+     - At run level, ``first_try_passes`` over graded turns; a case carries
+       that run value; the suite reports the unweighted mean of the per-case
+       rates.
+     - fraction 0-1
+     - ``None`` on a zero denominator, printed ``n/a``
+   * - ``task_success``
+     - r
+     - Whether the run's retained checks all passed.
+     - tri-state bool
+     - ``None`` when ungraded
+   * - ``cost_estimate``
+     - r, c, s
+     - Cost relayed from the run envelope, summed over a suite's cases.  No
+       price table exists, so it is never derived.
+     - currency as reported
+     - ``None`` at run and case; ``0.0`` (never null) at suite
+   * - ``score``
+     - c
+     - Unitless mean of the run's recorded grades.
+     - unitless
+     - n/a
+   * - ``passed``
+     - c
+     - Whether the case met its recorded expectation verdicts.
+     - bool
+     - n/a
+   * - ``suite_score``
+     - s
+     - Unitless mean of the per-case scores.
+     - unitless
+     - ``0.0`` on an empty aggregate
+   * - ``pass_at_k``
+     - s
+     - Passed cases over considered cases, ``k`` being how many of a case's
+       stored attempts are inspected.
+     - fraction 0-1
+     - ``0.0`` on an empty aggregate
+   * - ``case_count``, ``pass_count``
+     - s
+     - Cases in the aggregate and cases that passed.
+     - count
+     - ``0``
+   * - ``ungraded_count``, ``grade_missing_count``
+     - s
+     - Cases with no evaluator verdict, and cases that expected a grade but
+       recorded none.
+     - count
+     - ``0``
+   * - ``missing_runs``
+     - s
+     - Run identifiers whose metrics could not be read; they score ``0.0``
+       without aborting the aggregate.
+     - run-id list
+     - empty list
+   * - ``input_output_ratio``
+     - s
+     - Output tokens per input token over the aggregate totals.
+     - ratio
+     - ``None`` when the total input is ``0``, printed ``n/a``
 
-``evaluator_retry_count``
-    The evaluator retries retained on one turn; ``evaluator_retry_total`` is
-    their sum over a suite's cases.
+The serialised form (``to_dict()``) uses these field names one-for-one, so a
+JSON consumer reads the same key as the reference above.  The keys inside a
+``per_call_usage`` entry are owned by the backend stream contract
+(``devdocs/system/streams.md``) rather than the harness.
 
-``max_attempt_seen``
-    The highest ``attempt`` counter among a turn's retained retries, and ``0``
-    when the stream sent none.
+``klea-eval summary`` output
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``first_try``
-    ``true`` when the turn's work was accepted on its first attempt, ``false``
-    when an evaluator retry was recorded, and ``null`` when the stream carried
-    neither a retry nor a verdict.
+The command prints exactly seven lines, in this order.  It prints a subset of
+the fields above: the token, latency and cost totals, ``first_try_passes``,
+``recovered_after_retry``, ``max_attempt_seen`` and ``missing_runs`` are not
+printed.
 
-``first_try_passes`` and ``recovered_after_retry``
-    Cases whose first attempt was accepted, and cases that only passed after
-    a retry.
+.. list-table::
+   :header-rows: 1
+   :widths: 26 38 36
 
-``first_try_pass_rate``
-    The mean of the per-case first-try pass rates.  It is ``null`` -- printed
-    as ``first_try_pass_rate: n/a`` -- when no case carried an evaluator
-    verdict, so a missing denominator stays explicit instead of reading as
-    ``0.0``, and a turn without a verdict is left out of the rate rather than
-    counted as a clean pass.
+   * - Line
+     - Format
+     - Fallback
+   * - ``suite_score``
+     - ``suite_score: {:.4f}``
+     - always numeric
+   * - ``pass_at_k``
+     - ``pass_at_k: {:.4f}``
+     - always numeric
+   * - ``input_output_ratio``
+     - ``input_output_ratio: {:.4f}``
+     - ``n/a`` when the ratio is ``null``
+   * - ``llm_calls``
+     - ``llm_calls: {int}``
+     - always numeric
+   * - ``peak_context_tokens``
+     - ``peak_context_tokens: {int}``
+     - ``n/a`` when no peak was recorded
+   * - ``evaluator_retry_total``
+     - ``evaluator_retry_total: {int}``
+     - always numeric
+   * - ``first_try_pass_rate``
+     - ``first_try_pass_rate: {:.4f}``
+     - ``n/a`` when no case carried a verdict
 
-The retry detail is reported on the first retried step of a batch, so a batch
-that retried several steps is counted once: ``evaluator_retry_total`` is a
-lower bound on the retries actually performed, not an exact tally.
+Caveats and known limits
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+- ``peak_context_tokens`` is a retry-merged upper bound: it spans every call a
+  turn made, retried calls included, so it is not the context size of a single
+  attempt and must not be read as the size of one prompt.
+- ``evaluator_retry_total`` is a lower bound, not an exact tally: the retry
+  detail is reported on the first retried step of a batch, so a batch that
+  retried several steps is counted once.
+- An older stored run that carries no per-call usage yields an empty
+  ``per_call_usage`` rather than raising, so it still aggregates.
+- ``first_try_pass_rate`` is ``null`` -- printed ``n/a`` -- when no case carried
+  an evaluator verdict, so a missing denominator never reads as ``0.0``, and a
+  turn without a verdict is left out of the rate rather than counted as a
+  clean pass.
 
 Housekeeping
 ------------

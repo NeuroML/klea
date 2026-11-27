@@ -412,6 +412,8 @@ sequenceDiagram
 ### Result Aggregator
 - **Input**: Per-turn metrics and per-case pass/fail decisions for one run.
 - **Output**: The versioned per-run envelope `{run_id, case_id, schema_version, record_type, metrics{...}}` with `task_success`, token totals, `total_normalised_units` and a relayed cost estimate that stays derivable from the recorded token counts and never enters `task_success`.
+
+> The canonical field reference for these metrics is the `eval-run-metrics` section of the run guide (`docs/guides/run-an-evaluation.rst`); this summary is kept for orientation only.
 - **Responsibility**: Aggregate the run's own records only; `pass_at_k` is a suite-level aggregate computed later by the Aggregate stage from `runs/index.jsonl`, so it is never a per-run field.
 
 ### Persistence (Writer)
