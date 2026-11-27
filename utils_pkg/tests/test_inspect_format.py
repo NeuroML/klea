@@ -15,6 +15,8 @@ from klea_utils.ui.inspect_format import (
     NOT_DISPLAYED_DETAIL_KEYS,
     drop_not_displayed,
     format_details,
+    format_details_block,
+    visible_details,
 )
 
 
@@ -168,6 +170,43 @@ def test_route_decision_example():
     assert "\\n" not in out
     assert '"unprocessed_output": {' in out
     assert "\"processed_output\": \"route='task' answer=''\"" in out
+
+
+def test_visible_details_drops_bookkeeping_only_details() -> None:
+    """A details payload of only not-displayed keys leaves nothing to show.
+
+    Filtering the retry bookkeeping and the nested ``details`` container must
+    leave no empty mapping behind, so the pane never prints a bare ``{}``.
+    """
+    assert visible_details({"retry_count": 1, "max_retries": 3, "details": {}}) == {}
+
+
+def test_visible_details_prunes_nested_empty_values() -> None:
+    """Surviving keys whose value is an empty container are pruned."""
+    assert visible_details({"arguments": {}, "steps": [], "route": "task"}) == {
+        "route": "task"
+    }
+
+
+def test_visible_details_keeps_real_nested_keys() -> None:
+    """Sibling keys and scalars survive; only the bookkeeping is dropped."""
+    details = {"route": "task", "nested": {"retry_count": 2, "step": 1}}
+
+    assert visible_details(details) == {"route": "task", "nested": {"step": 1}}
+
+
+def test_format_details_block_is_empty_for_bookkeeping_only_details() -> None:
+    """Nothing displayable renders as an empty block, not ``\"{}\"``."""
+    assert format_details_block({"retry_count": 1, "details": {}}) == ""
+
+
+def test_format_details_block_omits_empty_values_but_keeps_real_keys() -> None:
+    """A tool-call block shows its real key and never a bare ``{}``."""
+    out = format_details_block({"arguments": {}, "route": "task"})
+
+    assert '"route": "task"' in out
+    assert "{}" not in out
+    assert "arguments" not in out
 
 
 def test_duplicate_query_example_renders_both():

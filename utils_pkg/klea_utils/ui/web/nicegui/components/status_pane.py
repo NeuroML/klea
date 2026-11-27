@@ -348,11 +348,14 @@ def attach_status_pane(ctx: PageContext) -> None:
                                 # ride the payload so the harness can read them,
                                 # but the pane must not show them
                                 # (``devdocs/system/streams.md``).
+                                # ``visible_details`` also prunes the empty
+                                # containers they leave behind, so a section
+                                # that is all bookkeeping prints no ``{}``.
                                 from klea_utils.ui.inspect_format import (
-                                    drop_not_displayed,
+                                    visible_details,
                                 )
 
-                                shown = drop_not_displayed(details)
+                                shown = visible_details(details)
                                 if shown:
                                     with ui.element("details").classes(
                                         "status-details text-xs text-grey-5 "

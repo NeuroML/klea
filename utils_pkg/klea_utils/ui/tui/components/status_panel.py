@@ -7,7 +7,7 @@ The full-height right panel: the chat's streamed state (``devdocs/system/tui.md`
 token usage.  Each state section renders like the web status pane: a
 collapsible heading with the node's ``display`` (Markdown, or a literal block
 when ``preformatted``), its ``summary`` and its ``details`` via
-:func:`klea_utils.ui.inspect_format.format_details`.
+:func:`klea_utils.ui.inspect_format.format_details_block`.
 
 File: klea_utils/ui/tui/components/status_panel.py
 
@@ -29,7 +29,7 @@ from textual.widgets import Collapsible
 
 from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.glyphs import get_glyphs, role_marker
-from klea_utils.ui.inspect_format import format_details
+from klea_utils.ui.inspect_format import format_details_block
 from klea_utils.ui.model_config import role_label
 from klea_utils.ui.state import format_token_usage, missing_credentials
 from klea_utils.ui.status_layout import estimate_section_lines, section_budget_lines
@@ -260,10 +260,11 @@ def _section_body(section: Mapping[str, Any]) -> list[SelectableStatic]:
             body.append(SelectableStatic(Markdown(display)))
     elif summary:
         body.append(SelectableStatic(summary, markup=False))
-    if details:
-        # ``format_details`` is arbitrary JSON (arrays/objects); disable markup
-        # so brackets are not parsed as Rich tags.
-        body.append(SelectableStatic(format_details(details), markup=False))
+    rendered_details = format_details_block(details)
+    if rendered_details:
+        # ``format_details_block`` is arbitrary JSON (arrays/objects); disable
+        # markup so brackets are not parsed as Rich tags.
+        body.append(SelectableStatic(rendered_details, markup=False))
     if not body:
         body.append(SelectableStatic("(no content)", markup=False))
     return body
