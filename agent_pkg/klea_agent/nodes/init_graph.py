@@ -44,7 +44,8 @@ class InitGraphState(
     choose ``task`` (full reset via ``ResetState``) or ``continue`` (re-plan
     using prior evidence).  ``messages``,
     ``context_summary``/``summarised_till``, ``discovery_persistent``,
-    session ``artefacts``, ``mode`` and ``usage_metrics`` are preserved.
+    session ``artefacts``, ``mode`` and the per-model ``token_usage_ledger``
+    are preserved.
     """
 
     def __init__(self, logger: logging.Logger, label: str):

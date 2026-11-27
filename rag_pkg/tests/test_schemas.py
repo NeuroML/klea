@@ -12,7 +12,7 @@ import pytest
 from klea_rag.nodes.answer_from_context import AnswerSchema
 from klea_rag.rag import RAG
 from klea_rag.schemas import EvaluateAnswerSchema, RAGState, RetrievalQueryOutput
-from klea_utils.graph.schemas import TokenUsage
+from klea_utils.graph.schemas import TokenUsage, TokenUsageLedger
 from klea_utils.graph.state import BaseGraphSchema
 from klea_utils.mcp.schemas import ToolCallSchema
 from klea_utils.stores.filters import translate_metadata_filter
@@ -144,7 +144,7 @@ def test_rag_state_shared_defaults():
     assert state.message_for_user == ""
     assert state.tool_calls == []
     assert state.tool_results == []
-    assert state.usage_metrics == TokenUsage()
+    assert state.token_usage_ledger == TokenUsageLedger()
 
 
 def test_rag_state_is_read_only():
@@ -158,7 +158,7 @@ def test_rag_state_channels_present():
         channels
     )
     assert {"query_domains", "retrieval_query"} <= set(channels)
-    assert isinstance(channels["usage_metrics"], BinaryOperatorAggregate)
+    assert isinstance(channels["token_usage_ledger"], BinaryOperatorAggregate)
 
 
 def test_rag_state_models_roundtrip():
@@ -169,7 +169,13 @@ def test_rag_state_models_roundtrip():
         "text_response_eval": EvaluateAnswerSchema(coverage=0.5),
         "retrieval_query": RetrievalQueryOutput(search_query="neurons"),
         "tool_calls": [ToolCallSchema(tool="read_file", args={"path": "x.md"})],
-        "usage_metrics": TokenUsage(input_tokens=4, output_tokens=5, total_tokens=9),
+        "token_usage_ledger": TokenUsageLedger(
+            by_model={
+                "test-model": TokenUsage(
+                    input_tokens=4, output_tokens=5, total_tokens=9
+                )
+            }
+        ),
         "retrieval_attempts": 2,
         "rewrite_attempts": 1,
     }

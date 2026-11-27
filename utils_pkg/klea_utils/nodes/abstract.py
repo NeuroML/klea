@@ -25,7 +25,7 @@ from langchain_core.runnables import Runnable, RunnableConfig
 from pydantic import BaseModel, Field
 
 from klea_utils.content_blocks import ContentBlock
-from klea_utils.graph.schemas import TokenUsage
+from klea_utils.graph.schemas import TokenUsage, TokenUsageLedger
 from klea_utils.llm import extract_llm_output_content
 from klea_utils.nodes.context import LLMNodeContext, NodeContext
 
@@ -400,6 +400,15 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         """
         return self._output_schema
 
+    def _effective_model_name(self) -> str:
+        """Return the model string this node invokes (``""`` if unknown).
+
+        Base declaration so :meth:`_update_usage_ledger` can key the
+        ledger by model; :class:`BaseLLMNode` overrides it with the
+        model-selection mirror used for the system prompt.
+        """
+        return ""
+
     @final
     async def execute(self, state: TState) -> dict[str, Any]:
         """Template method defining standard execution flow.
@@ -516,7 +525,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         # included) is counted here, so the usage event can report how many
         # calls the token totals cover.
         ctx.llm_calls = usage_calls
-        final_state = self._update_usage_metrics(ctx.token_usage, ctx.state_updates)
+        final_state = self._update_usage_ledger(ctx.token_usage, ctx.state_updates)
         ctx.final_state = final_state
 
         self._post_exec_stream(state, ctx)
@@ -676,7 +685,7 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
             return NodeStreamData(summary="", details=details)
         return None
 
-    def _update_usage_metrics(
+    def _update_usage_ledger(
         self,
         token_usage: TokenUsage | None = None,
         current_state_updates: dict[str, Any] | None = None,
@@ -686,15 +695,14 @@ class AbstractLLMNode[TState: BaseModel, TOutput: BaseModel](
         :param token_usage: Usage for this node (returned by
             :meth:`_extract_usage`)
         :param current_state_updates: The dict returned by :meth:`_update_state`
-        :returns: ``current_state_updates`` with ``usage_metrics`` injected,
+        :returns: ``current_state_updates`` with ``token_usage_ledger`` injected,
             or an empty dict if both arguments are falsy
         """
         result = current_state_updates or {}
         if token_usage:
-            result["usage_metrics"] = token_usage
-            self.logger.debug(
-                "Injected token usage into state updates: %s", token_usage
-            )
+            key = self._effective_model_name().strip() or "unknown"
+            result["token_usage_ledger"] = TokenUsageLedger(by_model={key: token_usage})
+            self.logger.debug(f"{key = }\n{token_usage = }")
         return result
 
     def _get_inspect(

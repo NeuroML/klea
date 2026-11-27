@@ -35,7 +35,7 @@ from klea_agent.schemas import (
     format_call_signature,
     trim_plan_history,
 )
-from klea_utils.graph.schemas import TokenUsage
+from klea_utils.graph.schemas import TokenUsage, TokenUsageLedger
 from klea_utils.graph.state import BaseGraphSchema
 from klea_utils.mcp.schemas import ToolCallSchema
 from langgraph.channels.binop import BinaryOperatorAggregate
@@ -291,7 +291,7 @@ class TestSharedStateInheritance:
         assert state.message_for_user == ""
         assert state.tool_calls == []
         assert state.tool_results == []
-        assert state.usage_metrics == TokenUsage()
+        assert state.token_usage_ledger == TokenUsageLedger()
         assert state.access_level == "full"
 
     def test_shared_and_app_channels_present(self):
@@ -300,7 +300,7 @@ class TestSharedStateInheritance:
             channels
         )
         assert {"mode", "plan", "route"} <= set(channels)
-        assert isinstance(channels["usage_metrics"], BinaryOperatorAggregate)
+        assert isinstance(channels["token_usage_ledger"], BinaryOperatorAggregate)
 
 
 class TestStepOutputRender:
@@ -888,8 +888,12 @@ class TestCheckpointMsgpack:
                     StepOutput(result="H1: X causes Y", tool=""),
                 ]
             },
-            "usage_metrics": TokenUsage(
-                input_tokens=1, output_tokens=2, total_tokens=3
+            "token_usage_ledger": TokenUsageLedger(
+                by_model={
+                    "test-model": TokenUsage(
+                        input_tokens=1, output_tokens=2, total_tokens=3
+                    )
+                }
             ),
             "step_attempt_counts": {0: 2},
             "failure_reason": "x",

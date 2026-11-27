@@ -4,6 +4,10 @@
 
 ## Unreleased  ---  `klea_utils` / `klea_rag`
 
+### Breaking changes
+
+- The graph state's cumulative `usage_metrics` token totals are replaced by `token_usage_ledger`, which reports the thread total (`total()`) and a per-model breakdown (`total_by_model()`); the context endpoint still returns the flat `usage` total, and a thread checkpointed before the change reports no token totals.
+
 ### Added
 
 - The plan pane now marks the steps dispatched in the current parallel round, so a fan-out round no longer looks idle.

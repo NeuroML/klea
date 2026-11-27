@@ -159,8 +159,13 @@ persisted server-side and rehydrated on load:
   inspector section (the live marker), the rest reduce exactly as live.
 * **Session context and token totals** - checkpointed state, projected by
   `GET /chat/{user_id}/{chat_id}/context`: the app `context_snapshot` hook
-  plus the cumulative `usage_metrics` (the frontends seed `token_usage` from
-  it).  `cached_tokens` is the cache-read subset of `input_tokens`, not an
+  plus the cumulative `token_usage_ledger`.  The ledger is authoritative: it
+  maps the effective model string a node reports (`unknown` when no model is
+  configured) to that model's `TokenUsage`, and is reduced by
+  `add_usage_ledger`, so nodes writing different models coexist and per-model
+  totals stay additive.  The endpoint projects the flat thread total via
+  `ledger.total()`, which the frontends seed `token_usage` from.
+  `cached_tokens` is the cache-read subset of `input_tokens`, not an
   additional quantity; the status lines show it as `(<n> cached)` only when
   non-zero.  `usage` events are therefore **not** stored: they are a projection
   of checkpointed state (same reasoning as `context`; see ADR-0032).
