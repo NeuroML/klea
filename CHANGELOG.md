@@ -19,14 +19,16 @@
 - New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands, offered in both the terminal and web clients.
 - New `klea-serve` flags for path checking and HITL.
 - A new `klea headless` subcommand for non-interactive runs.
+- A new `--unattended` switch for `klea headless`, which sets the safety options a prompt-free run needs.
 - The streamed `usage` event now also carries per-invocation token usage (`llm_usage`) beside the unchanged node totals, so each LLM call's spend can be attributed on its own.
 - Evaluator step retries now report their detail on the `inspect` event (`kind`, `plan_step`, `attempt`, `max_attempts`), so a retried step can be traced.
 - The status panes in the web and terminal clients now show the token usage broken down per model beneath the thread total, taken from the breakdown the context endpoint returns.
-- The status panes now present the token usage as a collapsible: the thread total stays visible in the heading as a compact abbreviated figure while the exact counts are kept in the expanded rows, which list the models grouped under their provider with each model's input and output totals on separate indented lines beneath it, so spend across providers can be compared at a glance.
+- The status panes now present the token usage as a collapsible: the thread total stays visible in the heading as a compact abbreviated figure while the exact counts are kept in the expanded rows, which list the models grouped under their provider with each model's input and output totals on separate indented lines beneath it, so spend across providers can be compared at a glance, and a single divider still closes the group as part of the static usage area, so the scrolling state sections follow with no extra blank line between them. The models group now sits directly above the usage group and the two follow one another as one border-free fixed block: no separator, no blank spacer row and no drawn top border between them.
 
 
 ### Changed
 
+- `klea headless` is now a client of the backend like `klea tui` and `klea web`: it accepts `-s/--server` to use an existing server, spawning a local one when nothing is listening and stopping it again on exit, so a headless run sees the same sessions, configuration and safety settings as the interactive clients.
 - Status panes: every status-section item is prefixed with its role marker wrapped in brackets (the Unicode glyph in `[...]`, and the already-bracketed ASCII fallback) so the marker is not mistaken for the item's own text, and consecutive items are separated by one blank line in the TUI and a spacing margin in the web pane, so each step stands apart.
 - Permission dialogs now group the requested paths under the plan step they belong to, with the plan-step heading set apart and emphasised so the prompt is easier to read, a long step summary capped at two lines with `...`, one muted coverage line per step group (`N paths: X outside the project, Y sensitive`), a request's further steps shown once as `Also serves step N` beneath its heading, and a divider between adjacent step groups in the web form.
 - Status panes in both the terminal and web clients now cap each long state section, such as the plan, at a content-derived height and scroll it inside the pane, so the rest of the overview stays visible.
@@ -39,6 +41,7 @@
 
 ### Fixed
 
+- TUI status pane: no longer draws two horizontal separators above the plan section.
 - Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname; secondary LAN NICs are found via `ifaddr` (same approach as NiceGUI's welcome URLs) so multi-homed hosts no longer fall back to a cookie for one of their own IPs.
 - Web UI: re-rendering the chat transcript no longer jumps the viewport to the newest message, so expanding an older message keeps its position.
 - Web UI: expanding a message in the chat transcript no longer moves the pane, so the message opens in place.
@@ -58,6 +61,7 @@
 - Path-approval prompts now keep the detected path visible in the command snippet by centring the preview window on a recovered fragment of the token, so a normalised token is no longer hidden by truncation.
 - Internal evaluation-only stream fields are no longer shown in the terminal or web status panes.
 - An empty JSON block no longer appears in the plan and tool-execution inspection entries.
+- TUI: a plain message composed while a run is streaming is no longer lost: the composer refuses the submit before clearing the field, keeps the composed text and warns, while a real slash command still dispatches mid-run.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 

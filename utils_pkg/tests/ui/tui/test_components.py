@@ -233,17 +233,15 @@ class TestStatusPanelHelpers:
         assert _section_scroll(section, collapsed=False).can_focus is True
 
     def test_usage_line(self):
-        assert _usage_line({"input_tokens": 10, "output_tokens": 5}) == (
-            "10 in / 5 out"
-        )
-        # Thousands separators keep large totals readable.
+        assert _usage_line({"input_tokens": 10, "output_tokens": 5}) == ("10 in/5 out")
+        # Large totals are abbreviated in the compact heading.
         assert _usage_line({"input_tokens": 123456, "output_tokens": 7890}) == (
-            "123,456 in / 7,890 out"
+            "123.5k in/7.9k out"
         )
         # Cached reads are a subset of input and shown only when present.
         assert (
             _usage_line({"input_tokens": 10, "output_tokens": 5, "cached_tokens": 4})
-            == "10 in (4 cached) / 5 out"
+            == "10 in/5 out/4 cached"
         )
 
     def test_section_widget_uses_heading(self):

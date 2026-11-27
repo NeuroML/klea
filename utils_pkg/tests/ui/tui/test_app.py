@@ -37,7 +37,7 @@ from klea_utils.ui.tui.components.sessions import (
 )
 from klea_utils.ui.tui.components.state_edit import StateEditPanel
 from klea_utils.ui.tui.components.transcript import MessageBlock, Transcript
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.selection import Selection
 from textual.widgets import (
     Button,
@@ -305,6 +305,47 @@ async def test_ctrl_c_without_selection_does_not_stop(
         await _settle(pilot, app)
 
     assert cancelled
+
+
+async def test_send_during_a_run_preserves_input_and_warns(
+    fake_backend, make_app, monkeypatch
+):
+    """Enter during a run keeps the typed text, warns, and sends nothing."""
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "Working hard"}}
+        await asyncio.Event().wait()  # never completes until cancelled
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+
+    app = make_app()
+    notes: list[str] = []
+
+    def _capture(message, **kwargs):
+        notes.append(str(message))
+
+    monkeypatch.setattr(app, "notify", _capture)
+
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        assert app._streaming
+
+        calls_before = len(fake_backend.calls)
+        field = app.screen.query_one("#query-input", TextArea)
+        field.focus()
+        field.text = "second query"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # The refused send keeps the composed text, warns, and dispatches no
+        # second stream while the first run is still in progress.
+        assert field.text == "second query"
+        assert any("A run is already in progress" in note for note in notes)
+        assert len(fake_backend.calls) == calls_before
+
+        app._worker.cancel()
+        await pilot.pause()
 
 
 async def test_retry_resumes_without_duplicating_the_turn(fake_backend, make_app):
@@ -1520,6 +1561,169 @@ async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
                 SelectableStatic,
             )
             assert str(out_widget.render()) == f"        {out_line}"
+
+
+async def test_status_panel_divider_closes_the_static_usage_area(
+    fake_backend, make_app
+):
+    """The divider ends the static usage area and is not part of the plan scroll."""
+    from klea_utils.ui.tui.components.status_panel import _section_id
+
+    totals = {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 2}
+    by_model = {
+        "anthropic:model-a": {
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "cached_tokens": 2,
+        }
+    }
+    fake_backend.chat_context = {"usage": totals, "usage_by_model": by_model}
+    app = make_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await _settle(pilot, app)
+        # A plan section pins what the scrolling region holds: it must start
+        # directly with the section, never with a separator.
+        chat = _chat()
+        chat["model_info"] = {
+            "chat": {"model": "openai:gpt-4o", "required": True, "credential": {}},
+            "plan": {"model": "openai:gpt-4o", "required": True, "credential": {}},
+        }
+        chat["state_sections"]["plan"] = {
+            "heading": "Plan",
+            "display": "step 1",
+            "summary": "",
+            "details": {},
+            "preformatted": False,
+        }
+        await app.screen.refresh_status(chat)
+        await pilot.pause()
+
+        usage = app.screen.query_one("#status-usage", Collapsible)
+        usage.collapsed = False
+        await pilot.pause()
+
+        fixed = app.screen.query_one("#status-fixed", Vertical)
+        scroll = app.screen.query_one("#status-scroll", VerticalScroll)
+
+        dividers = list(app.screen.query(".status-divider"))
+        assert len(dividers) == 1
+        divider = dividers[0]
+        # The divider belongs to the static usage block: it is that block's
+        # last child, so it closes the usage rows and never scrolls.
+        assert divider.parent is fixed
+        assert list(fixed.children)[-1] is divider
+        assert usage.parent is fixed
+
+        # The scrolling region starts directly with the plan: no leading
+        # separator is mounted above it.
+        assert list(scroll.query(".status-divider")) == []
+        assert next(iter(scroll.children)).id == _section_id("plan")
+
+        # No blank text element is left after the last usage row.
+        last_usage = usage.query_one(
+            f"#{_section_id('usage-out-anthropic-model-a')}", SelectableStatic
+        )
+        usage_widgets = list(usage.query(SelectableStatic))
+        assert usage_widgets[-1] is last_usage
+        assert str(last_usage.render()).strip()
+        assert all(str(widget.render()).strip() for widget in usage_widgets)
+
+        # The Models group abuts the usage group: no separator sits between
+        # the two expansions, so the usage rows follow the model list directly.
+        children = list(fixed.children)
+        models = list(app.screen.query("#status-models"))
+        if models:
+            models_group = models[0]
+            assert models_group.parent is fixed
+            assert usage.parent is fixed
+            # Identity/order: in the fixed block the usage group is the very
+            # next sibling after the models group.  Any rule, border or spacer
+            # inserted between them would break this identity check.
+            models_index = children.index(models_group)
+            assert children[models_index + 1] is usage
+            # No blank-row gap: the usage group starts exactly where the
+            # models group ends, so a spacer reintroduced via margin/padding
+            # cannot slip in between the two groups.
+            assert usage.region.y == models_group.region.y + models_group.region.height
+        # A border is drawn on top of the group box, so the region checks
+        # above cannot see it: assert the computed top border directly.
+        # Textual 8.2.8's Collapsible default is ``border-top: hkey
+        # $background``, which is what drew the line at the models/usage
+        # boundary; ``border-top: none`` normalises to the empty border type
+        # (``''``, not the string ``"none"``), so either group bringing the
+        # default keyline back fails here.
+        assert usage.styles.border_top[0] == ""
+        if models:
+            assert models_group.styles.border_top[0] == ""
+        # The single end-of-usage divider remains the last child and is the
+        # only divider in the fixed block.
+        assert children[-1] is divider
+        assert list(fixed.query(".status-divider")) == [divider]
+
+
+async def test_status_panel_single_separator_above_first_section(
+    fake_backend, make_app
+):
+    """N state sections draw N-1 separators: the first section has no keyline."""
+    from klea_utils.ui.tui.components.status_panel import _section_id
+
+    # The fixed block must carry content: the closing rule is only mounted
+    # when it does, and the duplicate separator needs that rule present.
+    totals = {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 2}
+    by_model = {
+        "anthropic:model-a": {
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "cached_tokens": 2,
+        }
+    }
+    fake_backend.chat_context = {"usage": totals, "usage_by_model": by_model}
+    app = make_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await _settle(pilot, app)
+        chat = _chat()
+        chat["model_info"] = {
+            "chat": {"model": "openai:gpt-4o", "required": True, "credential": {}},
+            "plan": {"model": "openai:gpt-4o", "required": True, "credential": {}},
+        }
+        chat["state_sections"] = {
+            "plan": {
+                "heading": "Plan",
+                "display": "step 1",
+                "summary": "",
+                "details": {},
+                "preformatted": False,
+            },
+            "tasks": {
+                "heading": "Tasks",
+                "display": "task 1",
+                "summary": "",
+                "details": {},
+                "preformatted": False,
+            },
+        }
+        await app.screen.refresh_status(chat)
+        await pilot.pause()
+
+        fixed = app.screen.query_one("#status-fixed", Vertical)
+        scroll = app.screen.query_one("#status-scroll", VerticalScroll)
+
+        # The static block still ends with exactly one closing rule.
+        assert len(list(fixed.query(".status-divider"))) == 1
+
+        # The scrolling region starts directly with the first section and
+        # carries no separator of its own.
+        assert list(scroll.query(".status-divider")) == []
+        first_section = next(iter(scroll.children))
+        assert first_section.id == _section_id("plan")
+        # The first section's top keyline is suppressed, so the closing rule
+        # above the scrolling region is not doubled.
+        assert first_section.styles.border_top[0] == ""
+
+        # A later section still draws its keyline: N sections, N-1 separators.
+        later_section = scroll.query_one(f"#{_section_id('tasks')}")
+        assert later_section is not first_section
+        assert later_section.styles.border_top[0] != ""
 
 
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):

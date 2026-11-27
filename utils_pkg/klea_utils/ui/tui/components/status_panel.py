@@ -25,7 +25,7 @@ from rich.markdown import Markdown
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import Collapsible
+from textual.widgets import Collapsible, Rule
 
 from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.glyphs import get_glyphs, role_marker
@@ -542,7 +542,12 @@ class StatusPanel(Vertical):
     }
     StatusPanel #status-models {
         height: auto;
-        margin-bottom: 1;
+        /* The usage group follows this collapsible directly, so no spacer is
+         * left between them: the models group's own bottom margin and the
+         * generic Collapsible bottom padding are both cancelled here, exactly
+         * as done for #status-usage below. */
+        margin-bottom: 0;
+        padding-bottom: 0;
         /* Left-align with the row above (the Collapsible default indents). */
         padding-left: 0;
     }
@@ -570,7 +575,35 @@ class StatusPanel(Vertical):
         overflow-y: auto;
     }
     StatusPanel #status-usage {
-        margin-bottom: 1;
+        /* The usage group closes the static header: the divider below it
+         * separates the usage rows from the scrolling state sections, so no
+         * trailing blank row is left between them (the general Collapsible
+         * bottom padding is cancelled for this group only). */
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+    /* Textual's Collapsible default paints a keyline on its top edge
+     * (`border-top: hkey $background`, textual/widgets/_collapsible.py:111),
+     * which drew the line at the models/usage boundary.  Clear it for the two
+     * fixed-block groups, so the models and usage groups read as one block. */
+    StatusPanel #status-models,
+    StatusPanel #status-usage,
+    StatusPanel #status-models > CollapsibleTitle,
+    StatusPanel #status-usage > CollapsibleTitle {
+        border-top: none;
+    }
+    /* Separator contract: exactly one line closes the fixed block (the
+     * `status-divider` Rule appended last in `#status-fixed`), so the first
+     * dynamic section must not also paint its default keyline right under it.
+     * Suppress the top border on the first state section only (and its
+     * header): the remaining sections keep theirs, so keylines appear only
+     * between multiple dynamic sections (N sections give N-1 separators). */
+    StatusPanel #status-scroll > .status-section:first-of-type,
+    StatusPanel #status-scroll > .status-section:first-of-type > CollapsibleTitle {
+        border-top: none;
+    }
+    StatusPanel .status-divider {
+        margin: 0;
     }
     StatusPanel .status-missing {
         color: $error;
@@ -664,6 +697,10 @@ class StatusPanel(Vertical):
             # per-model ids are built via ``_section_id`` so they are stable
             # and unique: the fixed block is rebuilt on every refresh, so a
             # positional id would churn.
+            # The usage group follows the Models collapsible directly: no
+            # divider is mounted between them, so the two read as one block.
+            # The only rule in the fixed block is the end-of-usage
+            # ``status-divider`` appended below.
             usage = chat.get("token_usage") or {}
             if any(usage.values()):
                 fixed_widgets.extend(
@@ -674,6 +711,10 @@ class StatusPanel(Vertical):
                     )
                 )
         if fixed_widgets:
+            # The divider is the last child of the static block, so it closes
+            # the usage area and never scrolls: the state sections below start
+            # directly with the plan in #status-scroll.
+            fixed_widgets.append(Rule(classes="status-divider"))
             await fixed.mount_all(fixed_widgets)
         await _reconcile_sections(scroll, chat)
         if follow_tail:
