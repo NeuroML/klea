@@ -219,8 +219,12 @@ not parsed as markdown.
 
 The tool round's `running` section (`_get_running_tools`, key
 `TOOL_ROUND_SECTION_KEY`) also lists each dispatched call in
-`details.running_calls` (`tool`, `title` and the `tool(arg=...)` call line);
-the end-of-round `ok`/`failed` section replaces it and has none.  When a run
+`details.running_calls` (`tool`, `title` and the `tool(arg=...)` call line).
+The section emitted before the gates has an empty list; `dispatch_tool_calls`
+calls `on_dispatch` with the calls that passed every gate just before sending
+them, and the node re-emits the section with only those, so a call denied by
+a gate or waiting on a permission ask is never reported as still running.
+The end-of-round `ok`/`failed` section replaces it and has none.  When a run
 is stopped mid-round, `ui/stream_events.py:stopped_tool_entries` turns those
 calls into error `tool` entries with `STOPPED_TOOL_NOTE` ("Run cancelled but
 this tool may still be running. Please terminate it manually."), because
