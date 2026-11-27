@@ -154,6 +154,49 @@ def format_token_usage(usage: Mapping[str, Any]) -> str:
     return f"{input_tokens:,} in{cached} / {output_tokens:,} out"
 
 
+def _abbreviate_count(count: int) -> str:
+    """Abbreviate a token count for the compact usage heading.
+
+    :param count: The raw token count.
+    :returns: The plain count below 1000, else a ``k`` / ``M`` abbreviation
+        with one decimal (a trailing ``.0`` is dropped).
+    """
+    if count < 1_000:
+        return str(count)
+    if count >= 1_000_000:
+        text, suffix = f"{count / 1_000_000:.1f}", "M"
+    else:
+        text, suffix = f"{count / 1_000:.1f}", "k"
+    text = text.removesuffix(".0")
+    return f"{text}{suffix}"
+
+
+def format_token_usage_compact(usage: Mapping[str, Any]) -> str:
+    """Format accumulated token usage for the status-pane heading.
+
+    The heading sits in a narrow status pane, so the counts are abbreviated
+    and the separators carry no surrounding spaces.  The exact counts stay
+    available in the expanded per-model rows, which keep the verbose format
+    of :func:`format_token_usage`.
+
+    ``cached_tokens`` is a subset of ``input_tokens`` (cache reads), so it is
+    appended only when non-zero rather than added to the totals.
+
+    :param usage: The chat's ``token_usage`` mapping.
+    :returns: ``"<in> in/<out> out"``, or
+        ``"<in> in/<out> out/<cached> cached"`` when tokens were cached.
+    """
+    input_tokens = int(usage.get("input_tokens", 0) or 0)
+    output_tokens = int(usage.get("output_tokens", 0) or 0)
+    cached_tokens = int(usage.get("cached_tokens", 0) or 0)
+    line = (
+        f"{_abbreviate_count(input_tokens)} in/{_abbreviate_count(output_tokens)} out"
+    )
+    if cached_tokens:
+        return f"{line}/{_abbreviate_count(cached_tokens)} cached"
+    return line
+
+
 def format_token_usage_by_model(
     by_model: Mapping[str, Any] | None,
 ) -> list[tuple[str, str]]:

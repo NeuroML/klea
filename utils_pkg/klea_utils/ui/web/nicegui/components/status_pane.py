@@ -27,8 +27,8 @@ from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.state import (
     ChatData,
     chats,
-    format_token_usage,
     format_token_usage_by_model,
+    format_token_usage_compact,
     missing_credentials,
 )
 from klea_utils.ui.status_layout import section_budget_lines
@@ -203,18 +203,40 @@ def attach_status_pane(ctx: PageContext) -> None:
 
                 token_usage = current_chat.get("token_usage", {})
                 if any(token_usage.values()):
-                    total_line = format_token_usage(token_usage)
+                    total_line = format_token_usage_compact(token_usage)
                     usage_rows = format_token_usage_by_model(
                         current_chat.get("token_usage_by_model") or {}
                     )
                     if usage_rows:
+                        # The usage group mirrors the Models collapsible: the
+                        # total line is the header and, in the body, one item
+                        # per provider holds the per-model usage entries nested
+                        # beneath it, using the shared list styling.  A model
+                        # string with no provider prefix groups under its own
+                        # name, so a bare (or ``unknown``) key still renders.
+                        grouped: dict[str, list[tuple[str, str]]] = {}
+                        for model, line in usage_rows:
+                            parsed = parse_model_name(model)
+                            provider = parsed.provider or model
+                            grouped.setdefault(provider, []).append(
+                                (parsed.model_name or model, line)
+                            )
                         with ui.expansion().classes(
                             "w-full text-xs usage-group"
                         ) as usage_expansion:
                             with usage_expansion.add_slot("header"):
                                 ui.label(total_line).classes("text-xs mb-0")
-                            for model, line in usage_rows:
-                                ui.label(f"{model}: {line}").classes("text-xs")
+                            with ui.element("ul").classes("models-list"):
+                                for provider, entries in grouped.items():
+                                    with ui.element("li"):
+                                        ui.label(provider).classes("text-xs")
+                                        with ui.element("ul"):
+                                            for model, line in entries:
+                                                with ui.element("li"):
+                                                    ui.label(model).classes(
+                                                        "text-xs pl-4"
+                                                    )
+                                                    ui.label(line).classes("pl-4")
                         # A state key distinct from the models group, so the
                         # two expansions toggle independently.
                         usage_expansion.bind_value(ctx, "status_usage_expanded")
