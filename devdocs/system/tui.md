@@ -27,7 +27,10 @@ It connects to a running `klea-agent-serve` / `klea-rag-serve` over HTTP/SSE
 and renders **one active session at a time**, with a summonable picker to
 switch or resume.  It is a thin client (ADR-0026): the server owns sessions,
 checkpoints and graph state; the TUI holds a hydrated projection (`ChatData`)
-that it may discard and reload at any time.
+that it may discard and reload at any time.  The `headless` subcommand is a
+third client of the same server: it posts one query to `/query/stream` and
+prints the answer, with no UI and no local projection, attaching to a running
+server or spawning a local one (`docs/cli/klea.rst`).
 
 Data flow:
 

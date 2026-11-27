@@ -263,7 +263,14 @@ frontend is forwarded to the graph and runs there, exactly like ``/mode`` and
 
 A non-interactive run can fix the same values up front instead of typing the
 commands: ``klea headless`` accepts ``--path-check``, ``--path-check-stance``
-and ``--hitl`` / ``--no-hitl``.
+and ``--hitl`` / ``--no-hitl``.  Like the other frontends, ``headless`` is a
+client: the flags are validated and exported before the spawn attempt, so they
+configure only a server it spawns itself -- an already-running or remote server
+keeps its own configuration (a process-level ceiling always wins over session
+state).  With HITL on the run stops at the first ask, prints the payload and
+exits 1 with the checkpoint left paused for another client; ``--no-hitl`` is
+the setting that lets an unattended run complete, paired with
+``--path-check-stance`` for how an unapproved detected path is treated.
 
 ### Ceiling conflict
 
