@@ -25,7 +25,7 @@ from rich.markdown import Markdown
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
-from textual.widgets import Collapsible
+from textual.widgets import Collapsible, Rule
 
 from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.glyphs import get_glyphs, role_marker
@@ -570,7 +570,15 @@ class StatusPanel(Vertical):
         overflow-y: auto;
     }
     StatusPanel #status-usage {
-        margin-bottom: 1;
+        /* The usage group closes the static header: the divider below it
+         * separates the usage rows from the scrolling state sections, so no
+         * trailing blank row is left between them (the general Collapsible
+         * bottom padding is cancelled for this group only). */
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+    StatusPanel .status-divider {
+        margin: 0;
     }
     StatusPanel .status-missing {
         color: $error;
@@ -674,6 +682,10 @@ class StatusPanel(Vertical):
                     )
                 )
         if fixed_widgets:
+            # The divider is the last child of the static block, so it closes
+            # the usage area and never scrolls: the state sections below start
+            # directly with the plan in #status-scroll.
+            fixed_widgets.append(Rule(classes="status-divider"))
             await fixed.mount_all(fixed_widgets)
         await _reconcile_sections(scroll, chat)
         if follow_tail:

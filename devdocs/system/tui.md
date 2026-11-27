@@ -74,9 +74,11 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   turn leaves them empty, and when there is no breakdown the group shows only
   the plain total line.  Whether the group was left expanded persists as the
   `status_usage_expanded` key, alongside `status_models_expanded`.  Everything
-  up to (and including) the
-  token usage is fixed, so it is always visible; only the state sections below
-  (the plan etc.) scroll.
+  up to (and including) the token usage is fixed, so it is always visible, and
+  a divider closes that static usage area: it sits directly below the usage
+  group, with no blank line between the last usage row and it, so it belongs to
+  the fixed block and never scrolls with the state sections, which begin
+  directly with the plan (the plan etc.).
   State sections persist across turns rather than being cleared: starting a
   turn drops only the transient tool-round section, so the plan and other
   state stay visible until the streamed `state` events replace them.  Each

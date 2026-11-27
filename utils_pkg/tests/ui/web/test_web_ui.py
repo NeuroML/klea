@@ -593,6 +593,90 @@ async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
     assert not any("{}" in text for text in labels)
 
 
+async def test_status_pane_divider_closes_the_static_usage_area(
+    fake_backend, utils_user
+):
+    """The divider ends the sticky usage header, above the scrolling sections."""
+    from klea_utils.ui.state import TokenUsage, TokenUsageByModel, ensure_chat
+
+    chat = ensure_chat("u", "")
+    total: TokenUsage = {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "total_tokens": 14,
+        "cached_tokens": 2,
+    }
+    by_model: TokenUsageByModel = {
+        "anthropic:model-a": TokenUsage(
+            input_tokens=10, output_tokens=4, total_tokens=14, cached_tokens=2
+        )
+    }
+    chat["token_usage"] = total
+    chat["token_usage_by_model"] = by_model
+
+    await utils_user.open("/")
+    await utils_user.should_see("10 in/4 out/2 cached", retries=50)
+
+    def _classes(element) -> str:
+        """Return a rendered element's CSS classes (version tolerant)."""
+        classes = getattr(element, "_classes", None)
+        if classes is None:
+            attr = getattr(element, "classes", "")
+            classes = attr() if callable(attr) else attr
+        if isinstance(classes, (list, tuple, set)):
+            return " ".join(str(name) for name in classes)
+        return str(classes)
+
+    def _descendants(element) -> list:
+        """Return *element*'s descendants (version tolerant)."""
+        walker = getattr(element, "descendants", None)
+        if callable(walker):
+            return list(walker())
+        slot = getattr(element, "default_slot", None)
+        found = []
+        for child in list(getattr(slot, "children", []) or []):
+            found.append(child)
+            found.extend(_descendants(child))
+        return found
+
+    sticky = [
+        column
+        for column in utils_user.find(ui.column).elements
+        if "sticky" in _classes(column)
+    ]
+    assert sticky, "the usage header must be the pane's sticky column"
+    header = sticky[0]
+
+    dividers = [node for node in _descendants(header) if isinstance(node, ui.separator)]
+    assert len(dividers) == 1, "exactly one divider closes the usage header"
+    divider = dividers[0]
+
+    # The divider is the header's last child and directly follows the usage
+    # group, so no blank element is mounted between the usage rows and it.
+    slot = getattr(header, "default_slot", None)
+    children = list(getattr(slot, "children", []) or [])
+    usage_index = next(
+        index
+        for index, child in enumerate(children)
+        if "usage-group" in _classes(child)
+    )
+    assert children[usage_index + 1] is divider
+    assert children[-1] is divider
+
+    # The scrolling sections column never carries the divider.
+    sections = [
+        column
+        for column in utils_user.find(ui.column).elements
+        if "px-2" in _classes(column) and "pb-2" in _classes(column)
+    ]
+    assert sections
+    assert not any(
+        isinstance(node, ui.separator)
+        for column in sections
+        for node in _descendants(column)
+    )
+
+
 async def test_status_pane_renders_the_role_markers(fake_backend, utils_user):
     """Each role renders its Unicode marker; unknown roles use the plain one."""
     from typing import cast

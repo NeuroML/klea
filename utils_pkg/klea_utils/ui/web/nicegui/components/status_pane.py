@@ -250,7 +250,10 @@ def attach_status_pane(ctx: PageContext) -> None:
                         ui.label(total_line).classes("text-xs mb-0")
                 ui.separator().classes("my-0.5")
 
-            # The state sections scroll under the sticky header.
+            # The state sections scroll under the sticky header: the divider
+            # (``ui.separator()`` above, the last element of the sticky column)
+            # closes the static usage area, so this column starts directly with
+            # the plan content and the usage rows emit no trailing blank.
             _role_classes = {
                 "ok": "text-green",
                 "error": "text-red",

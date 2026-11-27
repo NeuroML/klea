@@ -37,7 +37,7 @@ from klea_utils.ui.tui.components.sessions import (
 )
 from klea_utils.ui.tui.components.state_edit import StateEditPanel
 from klea_utils.ui.tui.components.transcript import MessageBlock, Transcript
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.selection import Selection
 from textual.widgets import (
     Button,
@@ -1520,6 +1520,68 @@ async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
                 SelectableStatic,
             )
             assert str(out_widget.render()) == f"        {out_line}"
+
+
+async def test_status_panel_divider_closes_the_static_usage_area(
+    fake_backend, make_app
+):
+    """The divider ends the static usage area and is not part of the plan scroll."""
+    from klea_utils.ui.tui.components.status_panel import _section_id
+
+    totals = {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 2}
+    by_model = {
+        "anthropic:model-a": {
+            "input_tokens": 10,
+            "output_tokens": 4,
+            "cached_tokens": 2,
+        }
+    }
+    fake_backend.chat_context = {"usage": totals, "usage_by_model": by_model}
+    app = make_app()
+    async with app.run_test(size=(100, 30)) as pilot:
+        await _settle(pilot, app)
+        # A plan section pins what the scrolling region holds: it must start
+        # directly with the section, never with a separator.
+        chat = _chat()
+        chat["state_sections"]["plan"] = {
+            "heading": "Plan",
+            "display": "step 1",
+            "summary": "",
+            "details": {},
+            "preformatted": False,
+        }
+        await app.screen.refresh_status(chat)
+        await pilot.pause()
+
+        usage = app.screen.query_one("#status-usage", Collapsible)
+        usage.collapsed = False
+        await pilot.pause()
+
+        fixed = app.screen.query_one("#status-fixed", Vertical)
+        scroll = app.screen.query_one("#status-scroll", VerticalScroll)
+
+        dividers = list(app.screen.query(".status-divider"))
+        assert len(dividers) == 1
+        divider = dividers[0]
+        # The divider belongs to the static usage block: it is that block's
+        # last child, so it closes the usage rows and never scrolls.
+        assert divider.parent is fixed
+        assert list(fixed.children)[-1] is divider
+        assert usage.parent is fixed
+
+        # The scrolling region starts directly with the plan: no leading
+        # separator is mounted above it.
+        assert list(scroll.query(".status-divider")) == []
+        assert next(iter(scroll.children)).id == _section_id("plan")
+
+        # No blank text element is left after the last usage row.
+        last_usage = usage.query_one(
+            f"#{_section_id('usage-out-anthropic-model-a')}", SelectableStatic
+        )
+        usage_widgets = list(usage.query(SelectableStatic))
+        assert usage_widgets[-1] is last_usage
+        assert str(last_usage.render()).strip()
+        assert all(str(widget.render()).strip() for widget in usage_widgets)
 
 
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):
