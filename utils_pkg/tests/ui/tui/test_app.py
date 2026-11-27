@@ -1484,14 +1484,29 @@ async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
         # The total line is the heading and the group starts collapsed.
         assert usage.collapsed is True
         assert str(usage.title) == format_token_usage(totals)
-        # Expanding reveals one row per model, rendered like the total line.
+        # Expanding reveals one provider heading per provider, with each
+        # model and its usage row indented beneath it.
         usage.collapsed = False
         await pilot.pause()
-        rendered = "\n".join(
-            str(static.render()) for static in usage.query(SelectableStatic)
-        )
+        from klea_utils.ui.tui.components.status_panel import _section_id
+
         for model, model_usage in by_model.items():
-            assert f"{model}: {format_token_usage(model_usage)}" in rendered
+            provider, _, model_name = model.partition(":")
+            heading = usage.query_one(
+                f"#{_section_id(f'usage-provider-{provider}')}", SelectableStatic
+            )
+            assert str(heading.render()) == f"- {provider}"
+            model_widget = usage.query_one(
+                f"#{_section_id(f'usage-{provider}-{model_name}')}", SelectableStatic
+            )
+            assert str(model_widget.render()) == f"    {model_name}"
+            line_widget = usage.query_one(
+                f"#{_section_id(f'usage-line-{provider}-{model_name}')}",
+                SelectableStatic,
+            )
+            assert str(line_widget.render()) == (
+                f"        {format_token_usage(model_usage)}"
+            )
 
 
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):

@@ -168,7 +168,7 @@ persisted server-side and rehydrated on load:
   per-model breakdown via `usage_by_model`: per-model `TokenUsage` dumps keyed
   by model name, `None` when the ledger is absent; `usage` remains the thread
   total.  The frontends render the usage group as a collapsible headed by the
-  thread-total line, with one entry per model folded inside it.  The live
+  thread-total line, whose expanded body lists one entry per model grouped under its provider (a key carrying no provider namespace falls back to a provider-less group, so no model entry is dropped).  The live
   `usage` stream event carries no model identity, so the breakdown is
   hydration-sourced only.
   `cached_tokens` is the cache-read subset of `input_tokens`, not an

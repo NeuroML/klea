@@ -550,13 +550,35 @@ async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
     }
     assert format_token_usage(total) in labels
 
-    # Expanding reveals one entry per model, rendered like the total line.
+    # Expanding reveals one provider group per provider, with each model's
+    # usage entry nested beneath its provider heading and rendered like the
+    # total line.
     usage_group.value = True
     labels = {
-        getattr(label, "text", "") for label in utils_user.find(ui.label).elements
+        getattr(label, "text", ""): label
+        for label in utils_user.find(ui.label).elements
     }
+
+    def _css_classes(label) -> str:
+        """Return a rendered label's CSS classes (version tolerant)."""
+        classes = getattr(label, "_classes", None)
+        if classes is None:
+            attr = getattr(label, "classes", "")
+            classes = attr() if callable(attr) else attr
+        if isinstance(classes, (list, tuple, set)):
+            return " ".join(str(name) for name in classes)
+        return str(classes)
+
     for model, usage in by_model.items():
-        assert f"{model}: {format_token_usage(usage)}" in labels
+        provider, _, model_name = model.partition(":")
+        assert provider in labels
+        assert model_name in labels
+        assert format_token_usage(usage) in labels
+        # The provider heads its own list item; the model and its usage entry
+        # are nested list items, indented by the shared ``pl-4`` class.
+        assert "pl-4" not in _css_classes(labels[provider])
+        assert "pl-4" in _css_classes(labels[model_name])
+        assert "pl-4" in _css_classes(labels[format_token_usage(usage)])
     assert not any("{}" in text for text in labels)
 
 

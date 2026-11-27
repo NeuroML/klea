@@ -142,16 +142,45 @@ def _usage_widgets(
     rows = format_token_usage_by_model(by_model or {})
     if not rows:
         return [SelectableStatic(_usage_line(usage), id="status-usage")]
-    return [
-        Collapsible(
-            *(
+    # One heading per provider with the model and its usage row indented
+    # beneath it, mirroring the Models collapsible's plain-text indentation.
+    # A model string with no provider prefix groups under its own name, so a
+    # bare (or ``unknown``) key still renders.
+    grouped: dict[str, list[tuple[str, str]]] = {}
+    for model, line in rows:
+        parsed = parse_model_name(model)
+        provider = parsed.provider or model
+        grouped.setdefault(provider, []).append((parsed.model_name or model, line))
+    widgets: list[SelectableStatic] = []
+    for provider, entries in grouped.items():
+        widgets.append(
+            SelectableStatic(
+                f"- {provider}",
+                id=_section_id(f"usage-provider-{provider}"),
+                markup=False,
+            )
+        )
+        for model, line in entries:
+            # The ids carry the provider as well as the short model name: the
+            # ledger key is the full model string, so two providers may expose
+            # a model with the same short name and their ids must stay unique.
+            widgets.append(
                 SelectableStatic(
-                    f"{model}: {line}",
-                    id=_section_id(f"usage-{model}"),
+                    f"    {model}",
+                    id=_section_id(f"usage-{provider}-{model}"),
                     markup=False,
                 )
-                for model, line in rows
-            ),
+            )
+            widgets.append(
+                SelectableStatic(
+                    f"        {line}",
+                    id=_section_id(f"usage-line-{provider}-{model}"),
+                    markup=False,
+                )
+            )
+    return [
+        Collapsible(
+            *widgets,
             title=_usage_line(usage),
             collapsed=collapsed,
             id="status-usage",
