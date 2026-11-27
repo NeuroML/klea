@@ -37,7 +37,19 @@ Prerequisites
   ``opencode:deepseek-v4.1-flash``.  Override every role the run resolves
   (``chat``, ``plan`` and ``tool_picker``) so no role is left on a default the
   target server cannot serve; a role a case's own ``run_config`` pins still
-  wins for that role.
+  wins for that role::
+
+    klea-eval run suites/smoke.jsonl \
+        --base-url http://127.0.0.1:8006 \
+        -m chat=opencode:deepseek-v4.1-flash
+
+  ``-m`` is repeatable, once per role.  A role neither ``-m`` nor the case pins
+  is left on the target server's own model configuration, and the model that
+  served the turn is then recorded only in the run's results
+  (``resolved_models`` in ``run.json``), never in the suite.  Pin the models a
+  case needs in the case file, in ``run_config.model_overrides``
+  (`Per-case model selection`_), so the model choice is part of the case
+  definition and travels with it.
 
 * Credentials for the provider of any ``--model`` override you use, taken
   from the environment of the harness process using the ``<PROVIDER>_API_KEY``
@@ -54,6 +66,61 @@ Prerequisites
   the run artefacts do not pollute the working tree.  The agent works in the
   run's own ``workspace/`` directory, not the server's working directory, and
   a case's execution-check ``command`` runs there too.
+
+* A backend started with human-in-the-loop approvals turned off.  Without it a
+  path request outside the run workspace halts an unattended run; see
+  `Starting an evaluation backend`_ for the recipe.
+
+Starting an evaluation backend
+------------------------------
+
+``klea-eval`` drives a live server, so the server's own safety settings decide
+whether a case can finish unattended.  Under the default settings a tool call
+that touches a path outside the run's workspace pauses the run for human
+approval: the harness receives an ``interrupt`` event and the turn ends without
+an answer.  Start the backend with human-in-the-loop approvals turned off
+before running a suite::
+
+    klea-serve --no-hitl
+
+or export the toggle in the server's environment::
+
+    KLEA_AGENT_HITL=off klea-serve
+
+With HITL off, a path outside the permitted root becomes a non-halting tool
+error instead of an interrupt: the run continues, and the denial is counted in
+the run's ``tool_error_count``.
+
+.. note::
+
+   These settings belong to the server process.  The safety flags on ``klea
+   headless`` (``--hitl/--no-hitl``, ``--path-check``, ``--path-check-stance``)
+   only configure a server that command spawns itself, and ``--base-url`` may
+   name an already-running or remote server that keeps its own configuration.
+   Configure that server where it runs; the harness has no per-run override.
+
+The per-run workspace
+---------------------
+
+Every turn is posted with ``client_context.cwd`` pinned to the run's own
+workspace, ``<workspace>/<run_id>/workspace``, so that directory is the
+server's default permission root.  A case is assumed to work inside it, and a
+case's execution-check ``command`` runs there too.
+
+A case that needs files from outside the workspace cannot read them: with HITL
+off the attempt fails as a tool error rather than stalling, so the case is
+recorded as a failure and the missing access shows up in the run's tool-error
+count.
+
+To grant wider access deliberately, relax the path gate on the backend.
+``--path-check-stance allow`` lets a detected path proceed without a prompt
+(the stance is only read when HITL is off), and ``--path-check off`` disables
+client-side path checking entirely::
+
+    klea-serve --no-hitl --path-check-stance allow
+
+Prefer copying the inputs a case needs into its workspace, so the run stays
+self-contained and attributable.
 
 Writing a suite
 ---------------
@@ -78,6 +145,11 @@ loader relies on these fields:
     validation error.  The accepted roles are ``user``, ``plan``,
     ``execute``, ``eval`` and ``chat``.
 
+``run_config``
+    Optional.  Per-case overrides merged over the harness defaults: the run
+    seed (``harness_seed``) and, for model selection, ``model_overrides``
+    (`Per-case model selection`_).
+
 ``rubrics``
     Optional.  Per-case grading criteria layered on top of task success
     (ADR-0056, ADR-0061).
@@ -89,6 +161,44 @@ minimal case looks like this:
 .. code-block:: json
 
    {"case_id": "smoke-001", "schema_version": "1.0", "turns": [{"turn_number": 1, "role": "user", "content": "Summarise the NeuroML repository layout."}]}
+
+.. _eval-per-case-models:
+
+Per-case model selection
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+A case can pin the model used for each model-backed role, so the model choice
+is part of the case rather than of the command that runs it.  The map goes in
+the case's ``run_config.model_overrides`` and follows these rules:
+
+* The value is ``<provider>:<model>``, for example
+  ``opencode:deepseek-v4.1-flash``.  The provider decides the credential: an
+  ``opencode:`` model reads ``OPENCODE_API_KEY`` from the harness
+  environment; the key is pushed only to the run's own user scope and is
+  never printed, echoed in an error or recorded in the run's artefacts.
+
+* The roles are whatever the target app exposes in its ``models/active`` map
+  (``chat``, ``plan`` and ``tool_picker`` for the agent).  A role name is not
+  checked at load time, but the merged set is checked once before the first
+  case runs: an unknown role aborts the whole run with exit ``2`` and
+  ``unknown role '<role>' (the backend exposes: ...)``.
+
+* A case's value wins over the ``-m`` flag for the same role.  The merged set
+  is applied once, after the run directory is prepared and before the first
+  turn; a role that neither source pins keeps the target server's own model.
+
+* The requested map enters the derived ``run_id``, so changing a case's models
+  makes it a new run rather than an overwrite of the old one.
+
+.. code-block:: json
+
+   {"case_id": "hello-model", "schema_version": "1.0", "run_config": {"model_overrides": {"chat": "opencode:deepseek-v4.1-flash"}}, "turns": [{"turn_number": 1, "role": "user", "content": "Create a file named hello.txt containing the text hello."}]}
+
+Pin the models a case needs rather than relying on the server's defaults: the
+model choice is then documented in the case file beside the task it applies
+to.  A case left on the server's default records its model only in the run's
+results (``resolved_models`` in ``run.json``), so the suite no longer says
+which model it was evaluated with.
 
 Validate before running
 -----------------------
@@ -147,8 +257,11 @@ The options are:
     configuration fault and exits ``2``.  The roles are whatever the target
     app exposes in its ``models/active`` map; an unknown role aborts the whole
     run before the first case with exit ``2`` and
-    ``unknown role '<role>' (the backend exposes: ...)``.  A case's own
-    ``run_config.model_overrides`` still wins over the flag for the same role.
+    ``unknown role '<role>' (the backend exposes: ...)``.  The check covers the
+    flag's defaults together with every case's ``run_config.model_overrides``,
+    so a case-level typo aborts the run too.  A case's own
+    ``run_config.model_overrides`` still wins over the flag for the same role;
+    see `Per-case model selection`_.
 
 Every command also accepts ``--debug`` (verbose logging) and ``--log-level``
 (defaults to ``$KLEA_LOG_LEVEL``, otherwise ``INFO``).
@@ -499,6 +612,12 @@ Troubleshooting
 * **``unknown role '<role>' (the backend exposes: ...)``.**  A ``--model`` role
   the target app does not expose; the whole run aborted before the first case
   and nothing was stored.
+* **``No model configured for role '<role>'``.**  A model-backed turn ran with
+  no model for that role: no ``-m`` covered it and the case did not pin it in
+  ``run_config.model_overrides``, and the target server has no default for the
+  role (a fresh harness chat starts with an empty model map).  Pass ``-m
+  <role>=<provider>:<model>`` or pin the model in the case.  The turn fails
+  before an answer, so the case fails.
 * **A rerun reports ``skipped``.**  The deterministic ``run_id`` matched a
   complete stored run; pass ``--overwrite``, or change ``--harness-seed`` /
   ``--workspace`` to keep both runs.
