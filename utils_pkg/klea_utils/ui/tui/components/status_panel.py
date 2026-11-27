@@ -7,7 +7,7 @@ The full-height right panel: the chat's streamed state (``devdocs/system/tui.md`
 token usage.  Each state section renders like the web status pane: a
 collapsible heading with the node's ``display`` (Markdown, or a literal block
 when ``preformatted``), its ``summary`` and its ``details`` via
-:func:`klea_utils.ui.inspect_format.format_details`.
+:func:`klea_utils.ui.inspect_format.format_details_block`.
 
 File: klea_utils/ui/tui/components/status_panel.py
 
@@ -29,9 +29,14 @@ from textual.widgets import Collapsible
 
 from klea_utils.llm import missing_required_roles, parse_model_name
 from klea_utils.ui.glyphs import get_glyphs, role_marker
-from klea_utils.ui.inspect_format import format_details
+from klea_utils.ui.inspect_format import format_details_block
 from klea_utils.ui.model_config import role_label
-from klea_utils.ui.state import format_token_usage, missing_credentials
+from klea_utils.ui.state import (
+    format_token_usage_by_model,
+    format_token_usage_compact,
+    format_token_usage_lines,
+    missing_credentials,
+)
 from klea_utils.ui.status_layout import estimate_section_lines, section_budget_lines
 from klea_utils.ui.tui.components.scroll import KleaScroll
 from klea_utils.ui.tui.components.selectable import SelectableStatic
@@ -48,7 +53,7 @@ def _usage_line(usage: Mapping[str, Any]) -> str:
     :param usage: The chat's ``token_usage`` dict.
     :returns: The shared usage line, including cached reads when present.
     """
-    return format_token_usage(usage)
+    return format_token_usage_compact(usage)
 
 
 def _model_name(raw: str) -> str:
@@ -115,6 +120,85 @@ def _models_widgets(model_info: Mapping[str, Any], *, collapsed: bool) -> Collap
     return Collapsible(
         *widgets, title="Models", collapsed=collapsed, id="status-models"
     )
+
+
+def _usage_widgets(
+    usage: Mapping[str, Any],
+    by_model: Mapping[str, Any] | None,
+    *,
+    collapsed: bool,
+) -> list[Any]:
+    """Build the token-usage group: the total line heading and per-model rows.
+
+    Mirrors the Models collapsible (:func:`_models_widgets`): the accumulated
+    total is the heading and one row per model sits in the body, so the fixed
+    part of the pane stays compact.  When no per-model breakdown is available
+    the total is rendered as a plain static, matching the web status pane.
+
+    :param usage: The chat's ``token_usage`` dict.
+    :param by_model: The chat's ``token_usage_by_model`` mapping.
+    :param collapsed: Whether the group starts collapsed.
+    :returns: A one-item list: the usage collapsible, or the total static.
+    """
+    raw_by_model = by_model or {}
+    rows = format_token_usage_by_model(raw_by_model)
+    if not rows:
+        return [SelectableStatic(_usage_line(usage), id="status-usage")]
+    # One heading per provider with the model and its usage row indented
+    # beneath it, mirroring the Models collapsible's plain-text indentation.
+    # A model string with no provider prefix groups under its own name, so a
+    # bare (or ``unknown``) key still renders.
+    grouped: dict[str, list[tuple[str, tuple[str, str]]]] = {}
+    for model, _ in rows:
+        parsed = parse_model_name(model)
+        provider = parsed.provider or model
+        grouped.setdefault(provider, []).append(
+            (parsed.model_name or model, format_token_usage_lines(raw_by_model[model]))
+        )
+    widgets: list[SelectableStatic] = []
+    for provider, entries in grouped.items():
+        widgets.append(
+            SelectableStatic(
+                f"- {provider}",
+                id=_section_id(f"usage-provider-{provider}"),
+                markup=False,
+            )
+        )
+        for model, (in_line, out_line) in entries:
+            # The ids carry the provider as well as the short model name: the
+            # ledger key is the full model string, so two providers may expose
+            # a model with the same short name and their ids must stay unique.
+            widgets.append(
+                SelectableStatic(
+                    f"    {model}",
+                    id=_section_id(f"usage-{provider}-{model}"),
+                    markup=False,
+                )
+            )
+            # Input and output totals render on their own lines, one indent
+            # level deeper than the model label above them.
+            widgets.append(
+                SelectableStatic(
+                    f"        {in_line}",
+                    id=_section_id(f"usage-in-{provider}-{model}"),
+                    markup=False,
+                )
+            )
+            widgets.append(
+                SelectableStatic(
+                    f"        {out_line}",
+                    id=_section_id(f"usage-out-{provider}-{model}"),
+                    markup=False,
+                )
+            )
+    return [
+        Collapsible(
+            *widgets,
+            title=_usage_line(usage),
+            collapsed=collapsed,
+            id="status-usage",
+        )
+    ]
 
 
 def _section_id(key: str) -> str:
@@ -260,10 +344,11 @@ def _section_body(section: Mapping[str, Any]) -> list[SelectableStatic]:
             body.append(SelectableStatic(Markdown(display)))
     elif summary:
         body.append(SelectableStatic(summary, markup=False))
-    if details:
-        # ``format_details`` is arbitrary JSON (arrays/objects); disable markup
-        # so brackets are not parsed as Rich tags.
-        body.append(SelectableStatic(format_details(details), markup=False))
+    rendered_details = format_details_block(details)
+    if rendered_details:
+        # ``format_details_block`` is arbitrary JSON (arrays/objects); disable
+        # markup so brackets are not parsed as Rich tags.
+        body.append(SelectableStatic(rendered_details, markup=False))
     if not body:
         body.append(SelectableStatic("(no content)", markup=False))
     return body
@@ -574,10 +659,19 @@ class StatusPanel(Vertical):
                         collapsed=not bool(chat.get("status_models_expanded")),
                     )
                 )
+            # The usage group mirrors the Models collapsible: the total line
+            # is the heading and one row per model sits in the body.  The
+            # per-model ids are built via ``_section_id`` so they are stable
+            # and unique: the fixed block is rebuilt on every refresh, so a
+            # positional id would churn.
             usage = chat.get("token_usage") or {}
             if any(usage.values()):
-                fixed_widgets.append(
-                    SelectableStatic(_usage_line(usage), id="status-usage")
+                fixed_widgets.extend(
+                    _usage_widgets(
+                        usage,
+                        chat.get("token_usage_by_model"),
+                        collapsed=not bool(chat.get("status_usage_expanded")),
+                    )
                 )
         if fixed_widgets:
             await fixed.mount_all(fixed_widgets)
@@ -596,6 +690,10 @@ class StatusPanel(Vertical):
 
         :param event: The ``Collapsible.Toggled`` event.
         """
-        if event.collapsible.id != "status-models" or self._status_chat is None:
+        if self._status_chat is None:
             return
-        self._status_chat["status_models_expanded"] = not event.collapsible.collapsed
+        expanded = not event.collapsible.collapsed
+        if event.collapsible.id == "status-models":
+            self._status_chat["status_models_expanded"] = expanded
+        elif event.collapsible.id == "status-usage":
+            self._status_chat["status_usage_expanded"] = expanded

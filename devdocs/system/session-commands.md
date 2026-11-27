@@ -256,6 +256,21 @@ are canonical (lower-case, without the leading slash).
   Accepted values: `on`, `off`. Default: `on` (HITL enabled).
   With no argument it reports the current value.
 
+### Both frontends, one catalogue
+
+These three commands are published through the server's ``GET /commands``
+catalogue and offered identically by the web UI and the TUI: neither client
+registers them itself, so ``/pathcheck``, ``/pathcheck-stance`` and ``/hitl``
+appear in both ``/`` menus and behave the same way.  A command sent from either
+frontend is forwarded to the graph and runs there, exactly like ``/mode`` and
+``/access``.
+
+### Headless equivalents
+
+A non-interactive run can fix the same values up front instead of typing the
+commands: ``klea headless`` accepts ``--path-check``, ``--path-check-stance``
+and ``--hitl`` / ``--no-hitl``.
+
 ### Ceiling conflict
 
 If a process-level environment variable or a serve flag has already fixed a

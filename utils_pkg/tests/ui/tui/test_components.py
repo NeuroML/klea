@@ -641,3 +641,28 @@ class TestSessionLabel:
         )
         assert "\n" not in label.plain
         assert "what is X?" not in label.plain
+
+
+def test_inspector_entry_drops_blacklisted_details(monkeypatch) -> None:
+    """The TUI inspector entry body drops not-displayed details keys.
+
+    ``NodeStreamData.details`` rides inside the entry's ``details`` mapping as
+    an empty mapping; the renderer must filter it out so no stray ``{}`` prints.
+    """
+    from klea_utils.ui.tui.components import inspector as inspector_mod
+
+    captured: dict[str, object] = {}
+
+    def fake_format(details):
+        captured["details"] = details
+        return "formatted"
+
+    monkeypatch.setattr(inspector_mod, "format_details", fake_format)
+    inspector_mod._entry_widget(
+        {
+            "type": "inspect",
+            "heading": "a",
+            "details": {"details": {}, "route": "task"},
+        }
+    )
+    assert captured["details"] == {"route": "task"}

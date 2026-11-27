@@ -193,8 +193,9 @@ Last updated: 2026-11-03.
   `output_tokens`/`cached_tokens` already logged at
   `nodes/abstract.py:545-561` (DEBUG per call, INFO on hit); `cached_tokens`
   is cache-read only and writes fold into `input_tokens`
-  (`graph/schemas.py:31-33`); do not attribute from the thread-summed
-  `usage_metrics` (`graph/reducers.py:32`).  Matrix: Anthropic Sonnet + Haiku
+  (`graph/schemas.py:31-33`); do not attribute from the aggregated
+  `token_usage_ledger` (`graph/reducers.py:add_usage_ledger`).  Matrix:
+  Anthropic Sonnet + Haiku
   tier, `openai:gpt-4o`, native `deepseek:`, a Gemini route and
   `ollama:qwen3:0.6b` as a zero-hit control; turn shapes short 2-node, long
   5+ node with tools, compaction, TTL replay; 5 runs per cell over 5 threads,
@@ -546,13 +547,3 @@ Last updated: 2026-11-03.
   today.  (The TUI's :kbd:`Ctrl+I` / :kbd:`Tab` toggle now works: a terminal
   sends Ctrl+I as Tab, which `Screen`'s default `focus_next` binding had been
   swallowing, so the toggle is bound at the screen level instead.)
-
-## Deferred
-
-- `klea headless` subcommand.
-- UI exposure of the HITL and path-check toggles in both UIs (agent and RAG).
-  Both items are deferred until all backend changes land.
-
-## Headless session database
-
-Headless runs persist chats to the same SQLite store as your interactive sessions. To keep them apart, give the backend its own storage root before it starts: `KLEA_AGENT_HOME=~/.local/share/klea-agent-headless klea headless "<query>"`. It is read once at backend start and relocates `sessions.db`, `checkpoints.db`, the lockfile and logs together, so an eval backend can run alongside your normal one - pair it with a distinct port.

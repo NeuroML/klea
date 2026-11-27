@@ -132,6 +132,11 @@ class TokenUsage(TypedDict):
     cached_tokens: int
 
 
+#: Per-model accumulated totals (model name -> :class:`TokenUsage`), hydrated
+#: from the context endpoint's ``usage_by_model`` projection.
+TokenUsageByModel = dict[str, TokenUsage]
+
+
 def format_token_usage(usage: Mapping[str, Any]) -> str:
     """Format accumulated token usage for the web/TUI status line.
 
@@ -147,6 +152,84 @@ def format_token_usage(usage: Mapping[str, Any]) -> str:
     cached_tokens = int(usage.get("cached_tokens", 0) or 0)
     cached = f" ({cached_tokens:,} cached)" if cached_tokens else ""
     return f"{input_tokens:,} in{cached} / {output_tokens:,} out"
+
+
+def format_token_usage_lines(usage: Mapping[str, Any]) -> tuple[str, str]:
+    """Format accumulated token usage as separate in/out lines.
+
+    The per-model pane rows show the input and output totals on their own
+    lines, so the shared verbose line of :func:`format_token_usage` is split
+    at its ``" / "`` separator.  The count formatting is therefore identical,
+    including thousands separators and the cached-read note (a subset of
+    ``input_tokens``, appended only when non-zero).
+
+    :param usage: The chat's (or a model's) usage mapping.
+    :returns: ``("<in> in (<cached> cached)", "<out> out")``, or
+        ``("<in> in", "<out> out")`` when no tokens were cached.
+    """
+    input_line, _, output_line = format_token_usage(usage).partition(" / ")
+    return input_line, output_line
+
+
+def _abbreviate_count(count: int) -> str:
+    """Abbreviate a token count for the compact usage heading.
+
+    :param count: The raw token count.
+    :returns: The plain count below 1000, else a ``k`` / ``M`` abbreviation
+        with one decimal (a trailing ``.0`` is dropped).
+    """
+    if count < 1_000:
+        return str(count)
+    if count >= 1_000_000:
+        text, suffix = f"{count / 1_000_000:.1f}", "M"
+    else:
+        text, suffix = f"{count / 1_000:.1f}", "k"
+    text = text.removesuffix(".0")
+    return f"{text}{suffix}"
+
+
+def format_token_usage_compact(usage: Mapping[str, Any]) -> str:
+    """Format accumulated token usage for the status-pane heading.
+
+    The heading sits in a narrow status pane, so the counts are abbreviated
+    and the separators carry no surrounding spaces.  The exact counts stay
+    available in the expanded per-model rows, which keep the verbose format
+    of :func:`format_token_usage`.
+
+    ``cached_tokens`` is a subset of ``input_tokens`` (cache reads), so it is
+    appended only when non-zero rather than added to the totals.
+
+    :param usage: The chat's ``token_usage`` mapping.
+    :returns: ``"<in> in/<out> out"``, or
+        ``"<in> in/<out> out/<cached> cached"`` when tokens were cached.
+    """
+    input_tokens = int(usage.get("input_tokens", 0) or 0)
+    output_tokens = int(usage.get("output_tokens", 0) or 0)
+    cached_tokens = int(usage.get("cached_tokens", 0) or 0)
+    line = (
+        f"{_abbreviate_count(input_tokens)} in/{_abbreviate_count(output_tokens)} out"
+    )
+    if cached_tokens:
+        return f"{line}/{_abbreviate_count(cached_tokens)} cached"
+    return line
+
+
+def format_token_usage_by_model(
+    by_model: Mapping[str, Any] | None,
+) -> list[tuple[str, str]]:
+    """Format the per-model token usage rows for the web/TUI status pane.
+
+    Each row is rendered with :func:`format_token_usage`, so a model's line
+    reads exactly like the session total line.
+
+    :param by_model: The chat's ``token_usage_by_model`` mapping
+        (model name -> totals mapping).
+    :returns: ``(model, line)`` pairs sorted by model name for a deterministic
+        pane ordering, or ``[]`` when the mapping is absent or empty.
+    """
+    if not by_model:
+        return []
+    return [(model, format_token_usage(by_model[model])) for model in sorted(by_model)]
 
 
 class TurnStatus(TypedDict):
@@ -216,6 +299,10 @@ class ChatData(TypedDict):
     model_info: dict[str, dict[str, Any]]
     #: Accumulated token totals for this chat.
     token_usage: TokenUsage
+    #: Hydrated per-model token totals (model name -> totals), sourced from the
+    #: context endpoint's ``usage_by_model`` projection.  The live ``usage``
+    #: events carry no model identity, so this is a reload-only breakdown.
+    token_usage_by_model: NotRequired[TokenUsageByModel]
     #: Hydrated graph session context (e.g. the agent operating mode).
     context: NotRequired[dict[str, Any]]
     #: Truncated first user query, from the server session list; used as a

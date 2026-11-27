@@ -14,8 +14,8 @@ from fastmcp.client.client import CallToolResult
 from langchain_core.messages import AnyMessage
 from pydantic import BaseModel, Field
 
-from klea_utils.graph.reducers import add_token_usage
-from klea_utils.graph.schemas import TokenUsage
+from klea_utils.graph.reducers import add_usage_ledger
+from klea_utils.graph.schemas import TokenUsageLedger
 from klea_utils.mcp.access import (
     DEFAULT_PATH_CHECK_MODE,
     DEFAULT_PATH_CHECK_STANCE,
@@ -37,9 +37,11 @@ class BaseGraphSchema(BaseModel):
     access level, ADR-0037) is available to every app without duplication
     (ADR-0032).
 
-    ``usage_metrics`` uses the :func:`add_token_usage` reducer so parallel
-    nodes can update it safely.  LangGraph resolves inherited ``Annotated``
-    channels because it reads annotations with
+    ``token_usage_ledger`` is the authoritative per-model token ledger:
+    nodes key it by their effective model string (an ``unknown`` fallback)
+    and it uses the :func:`add_usage_ledger` reducer so parallel nodes can
+    update it safely.  LangGraph resolves inherited ``Annotated`` channels
+    because it reads annotations with
     ``get_type_hints(..., include_extras=True)`` across the MRO.
     """
 
@@ -57,8 +59,8 @@ class BaseGraphSchema(BaseModel):
     command_route: str = ""
     tool_calls: list[ToolCallSchema] = Field(default_factory=list)
     tool_results: list[CallToolResult] = Field(default_factory=list)
-    usage_metrics: Annotated[TokenUsage, add_token_usage] = Field(
-        default_factory=TokenUsage
+    token_usage_ledger: Annotated[TokenUsageLedger, add_usage_ledger] = Field(
+        default_factory=TokenUsageLedger
     )
     #: Tool invocation access level (ADR-0037); apps may override the default.
     access_level: AccessLevel = "full"

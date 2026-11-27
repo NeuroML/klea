@@ -620,6 +620,9 @@ class KleaTuiApp(App[None]):
                 "total_tokens": usage.get("total_tokens", 0),
                 "cached_tokens": usage.get("cached_tokens", 0),
             }
+        # The per-model breakdown is hydration-only (the live ``usage`` events
+        # carry no model identity); a safe empty default keeps the pane simple.
+        chat["token_usage_by_model"] = body.get("usage_by_model") or {}
         pending = body.get("pending_interrupt")
         if pending:
             chat["interrupt"] = pending

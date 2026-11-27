@@ -61,8 +61,22 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
 * **Status panel** (right, full height): the app title and server line, the
   operating-mode / tool-access selectors, the resolved models, the streamed
   state sections, and token usage (input, output, and cached reads when
-  present).  Everything up to (and including) the token usage is fixed, so it
-  is always visible; only the state sections below (the plan etc.) scroll.
+  present).  The usage group is the `#status-usage` Collapsible: its title is
+  the thread total in the compact abbreviated form (both that title and the
+  plain-total fallback route through `_usage_line`), and its expanded body
+  keeps the verbose format: it groups one entry per model under its provider
+  -- a provider heading, with the model name and, one indent level deeper,
+  its input figure (with the cached subset when non-zero) and then its
+  output figure on two separate indented lines.  The entries are seeded from
+  `token_usage_by_model`, keyed by the effective model string; a key carrying
+  no provider namespace falls back to a provider-less group, so no model entry
+  is dropped.  The per-model rows come only from a hydrated chat, so a live
+  turn leaves them empty, and when there is no breakdown the group shows only
+  the plain total line.  Whether the group was left expanded persists as the
+  `status_usage_expanded` key, alongside `status_models_expanded`.  Everything
+  up to (and including) the
+  token usage is fixed, so it is always visible; only the state sections below
+  (the plan etc.) scroll.
   State sections persist across turns rather than being cleared: starting a
   turn drops only the transient tool-round section, so the plan and other
   state stay visible until the streamed `state` events replace them.  Each
@@ -148,10 +162,23 @@ The three shared modules are extracted in Phase 1 so the web and TUI share one
 source of truth for the event contract; NiceGUI-only drivers (`run_stream`,
 `stop_stream`) stay in the web package.
 
+Commands are the one place the TUI forwards rather than handles: it merges the
+server catalogue (`GET /commands`) into its `/` menu and sends a server command
+to the graph, which runs it.  The path-check and HITL toggles arrive this way --
+`/pathcheck` (`strict|declared|off`), `/pathcheck-stance` (`deny|allow`) and
+`/hitl` (`on|off`) -- so the TUI only dispatches them, with no local state of
+its own.
+
 ## Event consumption
 
 The event catalogue and payload shapes are fixed by `system/streams.md`; the
-TUI must not reinterpret them.  Per event:
+TUI must not reinterpret them.  The transcript renders named message-dict keys
+only and must never render not-displayed stream fields (`retry_count`,
+`max_retries`, and the nested `details` container key, which is the
+`NodeStreamData` payload echoing itself rather than user data);
+`drop_not_displayed` implements the filtering rule documented
+in `devdocs/system/streams.md`.  Per
+event:
 
 | Event | TUI behaviour | Web counterpart |
 |-------|---------------|-----------------|

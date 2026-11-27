@@ -917,10 +917,11 @@ class BaseLangGraph(ABC):
         from fastmcp.client.client import CallToolResult as FastMCPCallToolResult
         from mcp.types import EmbeddedResource, ImageContent, TextContent
 
-        from klea_utils.graph.schemas import TokenUsage
+        from klea_utils.graph.schemas import TokenUsage, TokenUsageLedger
 
         modules: list[type | tuple[str, ...]] = [
             TokenUsage,
+            TokenUsageLedger,
             ToolCallSchema,
             FastMCPCallToolResult,
             TextContent,

@@ -610,7 +610,11 @@ def format_mcp_servers(
 ) -> str:
     """Return the user-facing MCP server listing for ``/mcp``.
 
-    Servers disabled for the chat are marked ``(disabled)``.
+    The reply is rendered as Markdown by both frontends, so server and tool
+    names are code spans (a ``_`` in ``read_file`` is not read as emphasis)
+    and each server's tools form a real list, set off by blank lines so the
+    lines are not joined into one paragraph.  Servers disabled for the chat
+    are marked ``(disabled)``.
     """
     names = list(server_names)
     if not names:
@@ -620,11 +624,11 @@ def format_mcp_servers(
     for name in names:
         tools = list(tools_by_server.get(name, ()))
         marker = " (disabled)" if name in disabled_names else ""
-        lines.append(f"  {name}{marker}:")
+        lines.extend(["", f"`{name}`{marker}:", ""])
         if tools:
-            lines.extend(f"  - {tool}" for tool in tools)
+            lines.extend(f"- `{tool}`" for tool in tools)
         else:
-            lines.append("  - (no tools)")
+            lines.append("- (no tools)")
     return "\n".join(lines)
 
 
