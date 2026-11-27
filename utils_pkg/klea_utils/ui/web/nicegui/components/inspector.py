@@ -19,7 +19,7 @@ from typing import Any
 
 from nicegui import ui
 
-from klea_utils.ui.inspect_format import format_details
+from klea_utils.ui.inspect_format import drop_not_displayed, format_details
 from klea_utils.ui.state import chats
 from klea_utils.ui.web.nicegui.components.context import PageContext
 from klea_utils.ui.web.nicegui.components.inspector_code import render_inspector_code
@@ -93,14 +93,14 @@ def attach_inspector_panel(ctx: PageContext) -> None:
                 ui.label(entry.get("summary", "")).classes(
                     "text-xs inspector-muted mb-1 w-full"
                 )
-                details = entry.get("details", {})
-                if details:
+                shown = drop_not_displayed(entry.get("details", {}))
+                if shown:
                     with ui.element("details").classes(
                         "inspector-details text-xs inspector-hint cursor-pointer w-full"
                     ):
                         with ui.element("summary").classes("text-xs w-full"):
                             ui.label("View details")
-                        render_inspector_code(format_details(details))
+                        render_inspector_code(format_details(shown))
 
     def _render_section(
         section_idx: int,

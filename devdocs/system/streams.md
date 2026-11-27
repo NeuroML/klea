@@ -225,9 +225,11 @@ sums only its fixed numeric key set, and `format_details`
 
 Some `details` keys are evaluation/harness-only: `retry_count` and
 `max_retries` ride the `inspect`, `state` and `tool` payloads for the harness
-and are not user-facing.  No frontend may render them.  The enforcement point
+and are not user-facing, and `details` itself is excluded because it is the
+`NodeStreamData` container echoing itself, never user data.  No frontend may
+render them.  The enforcement point
 is `klea_utils/ui/inspect_format.py`: `NOT_DISPLAYED_DETAIL_KEYS` lists the
-keys, `drop_not_displayed` strips them from a `details` mapping, and
+keys, `drop_not_displayed` strips them from a `details` mapping at any depth, and
 `format_details`
 (the `details` renderer) applies it, so a frontend that formats through
 `format_details` never shows them.

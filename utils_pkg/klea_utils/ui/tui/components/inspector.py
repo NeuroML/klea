@@ -25,7 +25,7 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Collapsible
 
-from klea_utils.ui.inspect_format import format_details
+from klea_utils.ui.inspect_format import drop_not_displayed, format_details
 from klea_utils.ui.tui.components.selectable import SelectableStatic
 
 logger = logging.getLogger(__name__)
@@ -102,11 +102,13 @@ def _entry_widget(entry: Mapping[str, Any]) -> Collapsible:
     summary = entry.get("summary", "")
     if summary:
         body.append(SelectableStatic(summary, markup=False))
-    details = entry.get("details", {})
-    if details:
+    shown = drop_not_displayed(entry.get("details", {}))
+    if shown:
         # ``format_details`` is arbitrary JSON (arrays/objects); disable markup
-        # so brackets are not parsed as Rich tags.
-        body.append(SelectableStatic(format_details(details), markup=False))
+        # so brackets are not parsed as Rich tags.  Blacklisted keys (an empty
+        # ``details`` mapping, eval-only fields) are dropped first so an empty
+        # disclosure never prints.
+        body.append(SelectableStatic(format_details(shown), markup=False))
     if not body:
         body.append(SelectableStatic("(no details)", markup=False))
     # Cap the body's height and scroll it internally (see ``DEFAULT_CSS``): an

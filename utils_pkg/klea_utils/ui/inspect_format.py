@@ -75,11 +75,16 @@ def _prepare(value: Any) -> Any:
     return value
 
 
-#: ``details`` keys that are eval/harness-only bookkeeping (the ADaPT retry
-#: budgets).  They ride the ``inspect``/``state``/``tool`` payloads so the eval
-#: harness can read them (``devdocs/system/streams.md``), but a frontend must
-#: never render them as user-facing text.
-NOT_DISPLAYED_DETAIL_KEYS: frozenset[str] = frozenset({"retry_count", "max_retries"})
+#: ``details`` keys a frontend must never render as user-facing text: the
+#: eval/harness-only bookkeeping (the ADaPT retry budgets), which rides the
+#: ``inspect``/``state``/``tool`` payloads so the eval harness can read them
+#: (``devdocs/system/streams.md``), and the literal ``details`` key, which only
+#: occurs when an entry's own ``details`` container field is folded into the
+#: mapping being formatted.  That nested ``details`` is the ``NodeStreamData``
+#: container echoing itself, never user data, so it is dropped like the rest.
+NOT_DISPLAYED_DETAIL_KEYS: frozenset[str] = frozenset(
+    {"retry_count", "max_retries", "details"}
+)
 
 
 def _drop_not_displayed(value: Any) -> Any:
@@ -127,8 +132,9 @@ def format_details(details: Any) -> str:
     * a value that is itself a JSON object/array string is parsed and inlined
       as nested, pretty-printed JSON;
     * keys listed in :data:`NOT_DISPLAYED_DETAIL_KEYS` (internal retry-budget
-      bookkeeping that only the eval harness reads) are dropped, at any
-      nesting depth, so they never reach user-facing text;
+      bookkeeping that only the eval harness reads, plus the nested
+      ``details`` container echoing itself) are dropped, at any nesting
+      depth, so they never reach user-facing text;
     * all other values (numbers, booleans, ``null``, single-line strings
       such as a Pydantic ``repr``) are rendered as normal JSON.
 
