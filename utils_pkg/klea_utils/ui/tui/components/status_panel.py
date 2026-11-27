@@ -32,8 +32,8 @@ from klea_utils.ui.glyphs import get_glyphs, role_marker
 from klea_utils.ui.inspect_format import format_details_block
 from klea_utils.ui.model_config import role_label
 from klea_utils.ui.state import (
-    format_token_usage,
     format_token_usage_by_model,
+    format_token_usage_compact,
     missing_credentials,
 )
 from klea_utils.ui.status_layout import estimate_section_lines, section_budget_lines
@@ -52,7 +52,7 @@ def _usage_line(usage: Mapping[str, Any]) -> str:
     :param usage: The chat's ``token_usage`` dict.
     :returns: The shared usage line, including cached reads when present.
     """
-    return format_token_usage(usage)
+    return format_token_usage_compact(usage)
 
 
 def _model_name(raw: str) -> str:

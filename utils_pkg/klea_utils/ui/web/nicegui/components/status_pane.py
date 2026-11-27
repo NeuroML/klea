@@ -27,8 +27,8 @@ from klea_utils.ui.linkify import linkify_md
 from klea_utils.ui.state import (
     ChatData,
     chats,
-    format_token_usage,
     format_token_usage_by_model,
+    format_token_usage_compact,
     missing_credentials,
 )
 from klea_utils.ui.status_layout import section_budget_lines
@@ -203,7 +203,7 @@ def attach_status_pane(ctx: PageContext) -> None:
 
                 token_usage = current_chat.get("token_usage", {})
                 if any(token_usage.values()):
-                    total_line = format_token_usage(token_usage)
+                    total_line = format_token_usage_compact(token_usage)
                     usage_rows = format_token_usage_by_model(
                         current_chat.get("token_usage_by_model") or {}
                     )

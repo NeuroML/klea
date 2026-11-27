@@ -1454,12 +1454,15 @@ async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
         statics = [str(static.render()) for static in panel.query(Static)]
         assert "Plan" in titles
         assert "context" not in titles
-        assert any("3 in (2 cached) / 1 out" in text for text in statics)
+        assert any("3 in/1 out/2 cached" in text for text in statics)
 
 
 async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
     """The usage group heads with the thread total and lists each model."""
-    from klea_utils.ui.state import format_token_usage
+    from klea_utils.ui.state import (
+        format_token_usage,
+        format_token_usage_compact,
+    )
 
     totals = {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 2}
     by_model = {
@@ -1483,7 +1486,8 @@ async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
         usage = app.screen.query_one("#status-usage", Collapsible)
         # The total line is the heading and the group starts collapsed.
         assert usage.collapsed is True
-        assert str(usage.title) == format_token_usage(totals)
+        assert str(usage.title) == format_token_usage_compact(totals)
+        assert str(usage.title) == "10 in/4 out/2 cached"
         # Expanding reveals one provider heading per provider, with each
         # model and its usage row indented beneath it.
         usage.collapsed = False

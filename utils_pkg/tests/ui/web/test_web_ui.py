@@ -510,6 +510,7 @@ async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
         TokenUsageByModel,
         ensure_chat,
         format_token_usage,
+        format_token_usage_compact,
     )
 
     chat = ensure_chat("u", "")
@@ -545,10 +546,12 @@ async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
     usage_group = groups[0]
     assert usage_group.value is False
 
+    compact_heading = format_token_usage_compact(total)
+    assert compact_heading == "10 in/4 out/2 cached"
     labels = {
         getattr(label, "text", "") for label in utils_user.find(ui.label).elements
     }
-    assert format_token_usage(total) in labels
+    assert compact_heading in labels
 
     # Expanding reveals one provider group per provider, with each model's
     # usage entry nested beneath its provider heading and rendered like the
