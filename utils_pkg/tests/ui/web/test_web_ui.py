@@ -511,6 +511,7 @@ async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
         ensure_chat,
         format_token_usage,
         format_token_usage_compact,
+        format_token_usage_lines,
     )
 
     chat = ensure_chat("u", "")
@@ -576,12 +577,19 @@ async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
         provider, _, model_name = model.partition(":")
         assert provider in labels
         assert model_name in labels
-        assert format_token_usage(usage) in labels
-        # The provider heads its own list item; the model and its usage entry
-        # are nested list items, indented by the shared ``pl-4`` class.
+        # The single verbose line is split into separate input and output
+        # lines, each rendered on its own and together matching the shared
+        # verbose format.
+        in_line, out_line = format_token_usage_lines(usage)
+        assert in_line in labels
+        assert out_line in labels
+        assert f"{in_line} / {out_line}" == format_token_usage(usage)
+        # The provider heads its own list item; the model is indented by the
+        # shared ``pl-4`` class and each usage line sits one level deeper.
         assert "pl-4" not in _css_classes(labels[provider])
         assert "pl-4" in _css_classes(labels[model_name])
-        assert "pl-4" in _css_classes(labels[format_token_usage(usage)])
+        assert "pl-8" in _css_classes(labels[in_line])
+        assert "pl-8" in _css_classes(labels[out_line])
     assert not any("{}" in text for text in labels)
 
 
