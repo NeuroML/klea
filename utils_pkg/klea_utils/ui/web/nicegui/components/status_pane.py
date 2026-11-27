@@ -202,6 +202,10 @@ def attach_status_pane(ctx: PageContext) -> None:
                     ).classes("text-sm text-grey-5 mt-2")
                     return
 
+                # The usage group follows the Models expansion directly: no
+                # separator is mounted between them.  The single separator in
+                # this column closes the usage area (see the end of the block),
+                # keeping the state sections' divider under the sticky header.
                 token_usage = current_chat.get("token_usage", {})
                 if any(token_usage.values()):
                     total_line = format_token_usage_compact(token_usage)

@@ -663,6 +663,19 @@ async def test_status_pane_divider_closes_the_static_usage_area(
     assert children[usage_index + 1] is divider
     assert children[-1] is divider
 
+    # The Models group abuts the usage group: no separator sits between the
+    # two expansions, so the usage rows follow the model list directly.
+    models_index = next(
+        index
+        for index, child in enumerate(children)
+        if "models-group" in _classes(child)
+    )
+    assert models_index < usage_index
+    assert not any(
+        isinstance(child, ui.separator)
+        for child in children[models_index + 1 : usage_index]
+    )
+
     # The scrolling sections column never carries the divider.
     sections = [
         column

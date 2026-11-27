@@ -307,6 +307,47 @@ async def test_ctrl_c_without_selection_does_not_stop(
     assert cancelled
 
 
+async def test_send_during_a_run_preserves_input_and_warns(
+    fake_backend, make_app, monkeypatch
+):
+    """Enter during a run keeps the typed text, warns, and sends nothing."""
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {"type": "progress", "node": "n", "data": {"heading": "Working hard"}}
+        await asyncio.Event().wait()  # never completes until cancelled
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+
+    app = make_app()
+    notes: list[str] = []
+
+    def _capture(message, **kwargs):
+        notes.append(str(message))
+
+    monkeypatch.setattr(app, "notify", _capture)
+
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        assert app._streaming
+
+        calls_before = len(fake_backend.calls)
+        field = app.screen.query_one("#query-input", TextArea)
+        field.focus()
+        field.text = "second query"
+        await pilot.press("enter")
+        await pilot.pause()
+
+        # The refused send keeps the composed text, warns, and dispatches no
+        # second stream while the first run is still in progress.
+        assert field.text == "second query"
+        assert any("A run is already in progress" in note for note in notes)
+        assert len(fake_backend.calls) == calls_before
+
+        app._worker.cancel()
+        await pilot.pause()
+
+
 async def test_retry_resumes_without_duplicating_the_turn(fake_backend, make_app):
     """Retry resumes the failed run and does not re-append the user turn."""
     fake_backend.scripts = [
@@ -1543,6 +1584,10 @@ async def test_status_panel_divider_closes_the_static_usage_area(
         # A plan section pins what the scrolling region holds: it must start
         # directly with the section, never with a separator.
         chat = _chat()
+        chat["model_info"] = {
+            "chat": {"model": "openai:gpt-4o", "required": True, "credential": {}},
+            "plan": {"model": "openai:gpt-4o", "required": True, "credential": {}},
+        }
         chat["state_sections"]["plan"] = {
             "heading": "Plan",
             "display": "step 1",
@@ -1582,6 +1627,16 @@ async def test_status_panel_divider_closes_the_static_usage_area(
         assert usage_widgets[-1] is last_usage
         assert str(last_usage.render()).strip()
         assert all(str(widget.render()).strip() for widget in usage_widgets)
+
+        # The Models group abuts the usage group: no separator sits between
+        # the two expansions, so the usage rows follow the model list directly.
+        children = list(fixed.children)
+        models = list(app.screen.query("#status-models"))
+        if models:
+            assert models[0].region.y < usage.region.y
+            assert usage.region.y < divider.region.y
+        # The single end-of-usage divider remains the last child.
+        assert children[-1] is divider
 
 
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):

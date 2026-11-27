@@ -243,8 +243,22 @@ class KleaTuiScreen(Screen):
         query = event.value.strip()
         if not query:
             return
+        app = cast("KleaTuiApp", self.app)
+        # A real slash command must still dispatch during a run (so ``/exit``,
+        # ``/stop`` or ``/sessions`` work while streaming); only plain message
+        # text (and a ``//``-escaped literal) is refused here, keeping its
+        # composed text (clearing and dispatching would lose it, as the run
+        # guard then refuses it).  Lazy import: ``parse_command`` is only
+        # needed to classify a submit.
+        from klea_utils.commands.common import parse_command
+
+        if app._streaming and parse_command(query) is None:
+            # A run is already active: keep the composed text.
+            logger.debug("Refusing submit: a run is already streaming")
+            app.notify("A run is already in progress.", severity="warning")
+            return
         self.query_one("#query-input", QueryTextArea).text = ""
-        await cast("KleaTuiApp", self.app).submit(query)
+        await app.submit(query)
 
     @on(TextArea.Changed)
     def on_query_changed(self, event: TextArea.Changed) -> None:

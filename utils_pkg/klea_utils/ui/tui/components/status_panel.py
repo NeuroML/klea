@@ -672,6 +672,10 @@ class StatusPanel(Vertical):
             # per-model ids are built via ``_section_id`` so they are stable
             # and unique: the fixed block is rebuilt on every refresh, so a
             # positional id would churn.
+            # The usage group follows the Models collapsible directly: no
+            # divider is mounted between them, so the two read as one block.
+            # The only rule in the fixed block is the end-of-usage
+            # ``status-divider`` appended below.
             usage = chat.get("token_usage") or {}
             if any(usage.values()):
                 fixed_widgets.extend(

@@ -73,7 +73,9 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   is dropped.  The per-model rows come only from a hydrated chat, so a live
   turn leaves them empty, and when there is no breakdown the group shows only
   the plain total line.  Whether the group was left expanded persists as the
-  `status_usage_expanded` key, alongside `status_models_expanded`.  Everything
+  `status_usage_expanded` key, alongside `status_models_expanded`.  The models
+  group and the usage group follow one another with no separator between them,
+  so the two read as a single block.  Everything
   up to (and including) the token usage is fixed, so it is always visible, and
   a divider closes that static usage area: it sits directly below the usage
   group, with no blank line between the last usage row and it, so it belongs to
@@ -205,7 +207,11 @@ One run is in flight at a time and is always attached to the active session
 widgets refresh on the app loop.  Stop cancels the worker and best-effort
 `POST /query/cancel`.  A failure `resume` re-runs with `resume=True`; a HITL
 answer/cancel re-runs with `interrupt_response` / `interrupt_cancel` (I6).
-Switching sessions is refused while a run is streaming.
+Switching sessions is refused while a run is streaming.  A plain message
+submitted from the composer during a run is likewise refused: the submit is
+caught before the field is cleared, so the composed text stays in place and a
+warning notification says a run is already in progress, while a real slash
+command (for example `/exit` or `/sessions`) still dispatches mid-run.
 
 A query is also blocked (with a warning pointing at `Ctrl+M`) while a
 **required** model or provider API key is unresolved
