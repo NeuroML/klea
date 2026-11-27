@@ -1,0 +1,10 @@
+: SSE fixture: a turn that streams an error instead of completing.
+
+event: progress
+data: {"type": "progress", "node": "tools", "data": {"heading": "Running tools"}}
+
+event: tool
+data: {"type": "tool", "node": "tools", "data": {"tools": [{"tool": "run_command", "title": "Run command", "header": "pytest", "mime": "text/plain", "data": "exit 1", "meta": {"is_error": true}, "display": "pytest failed"}]}}
+
+event: error
+data: {"type": "error", "message": "run_command failed", "error_type": "RuntimeError", "node": "tools"}

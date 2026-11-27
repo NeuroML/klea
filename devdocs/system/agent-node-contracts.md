@@ -113,7 +113,7 @@ The canonical definitions are in [`schemas.py`](../../agent_pkg/klea_agent/schem
 | `tool_results` | `list` | Batch or run | Tool caller | Triage, evaluator, and answer composer | Replaced by the current dispatch result. | `tools_caller.py`; `test_nodes_tools_caller.py` |
 | `step_outputs` | `dict` | Plan step | Binder, tools, reasoning, and evaluator as applicable | Evaluator, review preparation, and answer composer | Entries are scoped to plan steps and replaced when their producer writes the step. | `tool_call_binder.py`; `tools_caller.py`; `reasoning.py` |
 | `step_errors` | `dict` | Plan step | Binder and tool caller | Triage, evaluator, and answer composer | Replaced by the current error outcome; cleared when the owning operation produces a usable result. | `tool_call_binder.py`; `tools_caller.py`; `triage_router.py` |
-| `retry_counts` | `dict` | Plan step or batch | Triage callback | Binder, triage, and evaluator | Counts advance through the callback path and are reset by the applicable run or plan lifecycle. | `triage_router.py`; `test_general_path_graph.py` |
+| `tool_retry_counts` / `step_attempt_counts` | `dict` | Plan step or batch | Triage callback | Binder, triage, and evaluator | Counts advance through the callback path and are reset by the applicable run or plan lifecycle. | `triage_router.py`; `test_general_path_graph.py` |
 | `evaluation` | `EvaluationResult` or equivalent composite | Run | Operational evaluator | Evaluation router and answer composer | Replaced by the latest consistent evaluation. | `operational_evaluator.py`; `test_operational_evaluator.py` |
 | `review_progress` | `str` | Turn or review | Review-progress node | Review and human-review nodes | Written only when pending work exists; absent for a skipped or empty digest. | `review_progress.py`; `test_review_progress.py` |
 | `command_route` | `str` | Command turn | Command node | Command-route router | Replaced by each command result; an empty value represents the terminal command route. | `commands.py`; `commands/graph.py`; `test_commands.py` |
@@ -415,7 +415,7 @@ for old checkpointed plans; new plans serialize `summary`.
 | `plan` | `Plan` or plan collection | `R` | Supplies the frontier step or grouped steps to bind. | Only planned tool steps are eligible. | `tool_call_binder.py`; `test_tool_call_binder.py` |
 | Available tool context | Tool descriptions and permitted implementations | `R` | Restricts the binder to tools planned and disclosed for the step. | The binder must not substitute an unplanned tool. | `tools_picker.py`; ADR-0020; ADR-0034 |
 | Prior binder feedback | Plan, tool, and retry context | `C` | Supports a retry of the same planned tool group. | A retry does not broaden tool access. | `tools_picker.py`; `test_nodes_tools_picker.py` |
-| `retry_counts` | `dict` | `O` | Indicates whether the empty-selection retry budget remains. | Count updates occur in the caller callback, not in the router path function. | `triage_router.py`; `klea_agent.py` |
+| `tool_retry_counts` | `dict` | `O` | Indicates whether the empty-selection retry budget remains. | Count updates occur in the caller callback, not in the router path function. | `triage_router.py`; `klea_agent.py` |
 
 #### Outputs
 
@@ -503,7 +503,7 @@ Klea Agent runs `AgentToolsCaller` (`agent_pkg/klea_agent/nodes/agent_tools_call
 | `tool_results` | `list` | `O` | Supplies dispatch outcomes for evaluation. | Absent tool results are interpreted through the plan and step channels, not fabricated. | `operational_evaluator.py` |
 | `step_outputs` | `dict` | `O` | Supplies tool and reasoning outputs. | Outputs are evaluated as step-scoped evidence. | `operational_evaluator.py` |
 | `step_errors` | `dict` | `O` | Supplies failures for per-step triage. | Errors remain distinguishable from successful outputs. | `triage_router.py`; `operational_evaluator.py` |
-| `retry_counts` | `dict` | `O` | Supplies retry state for per-step failure decisions. | Count updates occur in the caller callback rather than the path function. | `triage_router.py`; `klea_agent.py` |
+| `step_attempt_counts` | `dict` | `O` | Supplies retry state for per-step failure decisions. | Count updates occur in the caller callback rather than the path function. | `triage_router.py`; `klea_agent.py` |
 
 #### Outputs
 
@@ -511,7 +511,7 @@ Klea Agent runs `AgentToolsCaller` (`agent_pkg/klea_agent/nodes/agent_tools_call
 |---|---|---|---|---|---|
 | `plan_status` | Planner status | `R` | Written after a consistent evaluation. | May reflect completed, aborted, or an intermediate plan state. | `operational_evaluator.py`; `test_operational_evaluator.py` |
 | `evaluation` | Evaluation result | `R` | Written with the per-step verdict and optional overall outcome. | Empty or inconsistent evaluation is not accepted silently. | `operational_evaluator.py`; `test_operational_evaluator.py` |
-| `retry_counts` | `dict` | `C` | Updated for a per-step failure when the caller callback advances the count. | The evaluator does not claim that a router path function updates counts. | `triage_router.py`; `operational_evaluator.py` |
+| `step_attempt_counts` | `dict` | `C` | Updated for a per-step failure when the caller callback advances the count. | The evaluator does not claim that a router path function updates counts. | `triage_router.py`; `operational_evaluator.py` |
 | `failure_reason` | `str` | `C` | Written when evaluation fails closed or aborts. | Explains the failure to the answer composer. | `operational_evaluator.py` |
 | `replan_reason` | `str` | `C` | Written when the evaluator requests a new plan. | A newer reason replaces an older one. | `operational_evaluator.py`; `klea_agent.py` |
 

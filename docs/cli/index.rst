@@ -26,6 +26,14 @@ MCP
 
    nml-mcp
 
+Evaluation
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   klea-eval
+
 Agent  (WIP: coming soon)
 -------------------------
 

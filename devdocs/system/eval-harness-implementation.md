@@ -1,0 +1,506 @@
+# Eval harness implementation plan
+
+This note is the implementation tracker for the Klea-specific evaluation harness in `eval_pkg/`.
+It sits beside `devdocs/system/agent-evaluation-harness.md`, which holds the
+architecture (stage graph, run lifecycle sequence, report shape). This note holds
+the delivery plan: the decisions taken before coding, the ordered phases, and the
+commit log. Design intent lives in the ADRs; this file records how the work is
+being sequenced and how far it has got.
+
+Relevant ADRs:
+
+- ADR-0056: JSONL case definition format and loader (`klea_eval.cases`).
+- ADR-0057: run manager and run isolation.
+- ADR-0058: metrics collector and runner interfaces.
+- ADR-0059: result storage and reporting format.
+- ADR-0060: harness pipeline, CLI, scheduler and exit codes.
+- ADR-0061: deterministic-only scoring.
+- ADR-0062: Klea-only evaluation harness scope exclusions.
+
+If this note and an ADR disagree, the ADR wins and this note is corrected.
+
+---
+
+## 1. Ground rules
+
+- One commit per atomic change, **not** one commit per phase. A phase that adds a
+  loader, a CLI command and a test file is normally two or three commits.
+- Each commit is verified before it is made: `ruff check`, `ruff format --check`,
+  `ty check`, and the relevant `pytest` selection. A commit that does not pass
+  verification is not made; the change is fixed first.
+- Never stage unrelated files. `git status --porcelain` must show only the files
+  belonging to the change before `git add`.
+- Conventional commit subjects (`feat:`, `fix:`, `test:`, `docs:`, `refactor:`,
+  `chore:`), scoped to the package where it helps, e.g.
+  `feat(eval): add CLI case validation command`.
+- Do not push. The branch is left for the user to review and push.
+- ASCII only in code, docs and fixtures: no unicode dashes or arrows.
+
+---
+
+## 2. Decisions
+
+The twelve decisions below were agreed before implementation started. They are
+recorded here so later steps do not re-litigate them.
+
+| Id | Decision | Agreed default |
+| --- | --- | --- |
+| D1 | HTTP transport for the harness client | Async `httpx` against the `/query/stream` endpoint; SSE parsed incrementally, no polling of a blocking endpoint. |
+| D2 | How the harness gets SSE responses in tests | Hand-written SSE fixtures checked into the repo; the `localonly` marker gates the checks that need a live server. |
+| D3 | Where run workspaces live | `KLEA_EVAL_WORKSPACE` environment variable; default outside the source tree at `~/.local/share/klea-eval`. |
+| D4 | Case file layout and fixture resolution | Multi-case JSONL files; a case's fixture base directory is the directory of the JSONL file that owns the case. |
+| D5 | Case schema version | Migrate roles in place, keep schema `1.0`. No version bump for the role vocabulary work. |
+| D6 | Run identity | Deterministic `run_id` derived from `case_id` plus `harness_seed`; the same inputs give the same id, so reruns are comparable and resumable. |
+| D7 | Sample suites | Ship two or three minimal sample suites; enough to exercise the loader and the pipeline, not a benchmark corpus. |
+| D8 | Test marking and CI | `eval` marker introduced in P1; CI wiring for the marked tests lands in P9. |
+| D9 | LLM judge scoring | Rejected (ADR-0061): a judged verdict would feed `task_success` and therefore the exit codes and derived metrics, so deterministic checks are the only grading path. |
+| D10 | Suite-level pass metric | `pass_at_k` read from the run index, `k=1` by default. |
+| D11 | Retention policy | Keep the last 20 complete runs per case; older complete runs are archived (their `workspace/` tree removed while `run.json`, `metrics.jsonl`, the `COMPLETE` marker and the index line are kept, plus an `ARCHIVED` marker), unless `--purge` deletes them outright. |
+| D12 | Commit granularity for docs | A docs-only first commit, then per-atomic-change commits thereafter. |
+
+> The metric fields named throughout this implementation log are defined once, and canonically, in the `eval-run-metrics` section of the run guide (`docs/guides/run-an-evaluation.rst`); they are not restated here.
+
+---
+
+## 3. Phases
+
+The phases are ordered; each depends on the ones before it. Every phase names
+its exit criterion and the verification command that must pass before its commits
+are made.
+
+P1 `done`, P2 `done`, P3 `done`, P4 `done`, P5 `done`, P6 `done`, P7 `done`, P8 `done`, P9 `done`.
+
+| Phase | Objective | Files under `eval_pkg/` | ADR / design note | Depends on | Exit criterion | Verification | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| P1 | CLI case validation command: expose the JSONL loader through `klea-eval`, render `CaseValidationError`, map to exit code 2. | `klea_eval/ui/cli.py`, `klea_eval/errors.py`, `tests/test_cli_validate.py` | ADR-0056, ADR-0060, `agent-evaluation-harness.md` | P0 scaffold (`4c1df875`) | `klea-eval validate <suite>` exits 0 on a valid suite and 2 on an invalid one with a located message; `eval` marker registered. | `pytest eval_pkg -m eval`, `ruff check eval_pkg`, `ty check eval_pkg` | done |
+| P2 | Run manager and run isolation: per-case run directory, isolated environment, cleanup. | `klea_eval/run_manager.py`, `klea_eval/workspace.py`, `tests/test_run_manager.py` | ADR-0057, D3 | P1 | Each case runs in its own directory under `KLEA_EVAL_WORKSPACE`; directory removed on success and on failure. | `pytest eval_pkg -m eval -k runmanager` | done |
+| P3 | Metrics collector: per-case metrics collected through the runner interfaces. | `klea_eval/metrics.py`, `tests/test_metrics.py` | ADR-0058 | P2 | Runner interface yields metrics for a fixture case; collector aggregates them per case. | `pytest eval_pkg -m eval -k metrics` | done |
+| P4 | Result storage: persist run results in the ADR-0059 reporting format. | `klea_eval/results.py`, `tests/test_results.py` | ADR-0059, D6, D10 | P3 | A completed run is written to the store and read back unchanged, `run_id` stable across reruns. | `pytest eval_pkg -m eval -k results` | done |
+| P5 | Runner adapters: async `httpx` client and SSE parsing against `/query/stream`, backed by hand-written fixtures. | `klea_eval/runners/http.py`, `klea_eval/runners/sse.py`, `tests/test_http_runner.py`, `tests/fixtures/sse/` | D1, D2, ADR-0058 | P4 | Fixture SSE streams parse into ordered events; `localonly` live check passes when a server is present and skips otherwise. | `pytest eval_pkg -m eval -k runner` | done |
+| P6 | Harness pipeline: wire loader, runners and storage behind the `klea-eval` command. | `klea_eval/pipeline.py`, `klea_eval/ui/cli.py`, `tests/test_pipeline.py` | ADR-0060, D1, D4 | P5 | `klea-eval run <suite>` executes a multi-case JSONL suite end to end and stores results. | `pytest eval_pkg -m eval -k pipeline` | done |
+| P7 | Scoring and aggregation: aggregate case scores, suite-level `pass_at_k` from the run index. | `klea_eval/scoring.py`, `tests/test_scoring.py` | ADR-0060, D9, D10 | P6 | Suite score is the mean of case scores; `pass_at_k` matches a hand-computed value on a sample suite. | `pytest eval_pkg -m eval -k scoring` | done |
+| P8 | API and SSE integration: expose runs through the API and the SSE stream. | `klea_eval/api.py`, `klea_eval/ui/cli.py`, `tests/test_api.py` | ADR-0060, D10, D11, `agent-evaluation-harness.md` | P7 | A run is retrievable through the API; retention keeps the last 20 complete runs. | `pytest eval_pkg -m eval -k api` | done |
+| P9 | In-process scheduler, sample suites and CI wiring. | `klea_eval/scheduler.py`, `samples/`, `tests/test_scheduler.py`, `.github/workflows/` | ADR-0060, D7, D8 | P8 | Scheduler runs the sample suites unattended; CI runs the `eval` marked tests. | `pytest eval_pkg -m eval`, CI run | done |
+
+---
+
+## 4. Commit log
+
+| Phase | Short hash | Subject |
+| --- | --- | --- |
+| docs | `8f29ba1e` | `docs(devdocs): add eval harness implementation note` |
+| P1 | `550cdf73` | `feat(eval): migrate case roles and resolve fixtures per owning suite file` |
+| P1 | `b74871cb` | `feat(eval): add suite validate command` |
+| P2 | `535b09d3` | `feat(eval): deterministic run, user and chat identity` |
+| P2 | `06530ad7` | `feat(eval): add run workspace layout, creation and atomic publication` |
+| P2 | `28167be8` | `feat(eval): add run manager to prepare, execute and publish evaluation runs` |
+| P3 | `c2118f27` | `feat(eval): add run metrics collector` |
+| P4 | `08a19ec7` | `feat(eval): add result storage writer and reader` |
+| P5 | `577fff20` | `feat(eval): add runner adapters for the eval harness` |
+| P6 | `95a2d1c5` | `feat(eval): run suites end to end through the pipeline and CLI` |
+| P7 | `067b82e4` | `feat(eval): score and aggregate eval runs` |
+| P8 | `e137b24a` | `feat(eval): expose stored eval runs through the API with retention` |
+| P9 | `97aef208` | `feat(eval): schedule unattended eval suite runs` |
+| P9 | `c2b9cf03` | `feat(eval): add sample suites and run eval tests in CI` |
+| P3 | `8e4f5a71` | `feat(eval): report provider-independent normalised token units` |
+| P3 | `4adee8bf` | `test(eval): cover normalised token units and cached weighting` |
+| docs | `93dc9c9a` | `docs(eval): record the normalised token unit decision` |
+
+Rows are appended as commits land. The phase column is the phase the commit
+belongs to, or `docs` for planning-only commits.
+
+---
+
+## 5. Notes/decisions changed while implementing
+
+Points discovered while delivering P1-P7; later phases must respect them.
+
+- `ty check` must be scoped to `eval_pkg` (`ty check eval_pkg`). Running it over
+  the whole repository reports pre-existing errors in other packages, so only
+  the eval package is checked before a phase commit.
+- The role migration to the ADR-0056 vocabulary required rewriting the existing
+  `assistant` turn in `tests/test_cases.py` to an allowed role (`chat`), because
+  the loader rejects `assistant`.
+- Phase 2 scope caveats: the run manager publishes a run directory without
+  `run.json`, index append or retention; those are deferred to later phases.
+  Turn execution and scoring are injected callables, so the module stays
+  offline and testable without a live server. `start_run` takes `fixture_base`
+  explicitly because `TestCase` does not carry its owning suite file. Retries
+  use `DEFAULT_MAX_ATTEMPTS = 3` with `RETRY_BACKOFF_SECONDS = 0.5`. An
+  already-complete run returns `STATUS_SKIPPED` unless `overwrite=True`. The
+  workspace functions take `run_id` first with an optional `root`.
+- Phase 3 scope caveats: the metrics collector is a read-only consumer of
+  `metrics.jsonl`. The run manager's per-turn lines do not yet carry
+  `schema_version` or `record_type`, so the collector infers the record type
+  from the payload and defaults the schema version to `1.0`; the final
+  `record_type` "run" envelope is still not written, so the run-level values
+  are recomputed from the turn lines and `envelope_present` stays false until
+  the ADR-0059 writer lands in P4. Provider pricing is deliberately out of
+  scope (it varies per inference provider and over time), so `cost_estimate`
+  is only relayed from an envelope when present and stays `None` otherwise; a
+  cost remains derivable from the recorded token counts, which are also
+  reported as normalised units. Normalised-unit derivation belongs to P7. `MetricsError` and `MetricsSchemaError` live in
+  `klea_eval/metrics.py`, following the `WorkspaceError` and
+  `RunManagerError` precedent, rather than in `klea_eval/errors.py`. The
+  failure line a failed run appends is discarded together with the run
+  directory, so the collector parses that shape for `.tmp` inspection only,
+  and `pass_at_k` is never produced there: it is a suite-level aggregate of
+  the ADR-0060 stage.
+- Phase 4 scope caveats: result storage (`klea_eval/results.py`) owns only
+  `run.json` and the `runs/index.jsonl` line; directory creation, the
+  `COMPLETE` marker and the atomic rename stay in `klea_eval/workspace.py`, and
+  the per-turn `metrics.jsonl` lines stay in `klea_eval/run_manager.py`. The run
+  manager is not wired to it yet, so `run_case` still publishes a run without
+  `run.json` or an index line: P6 does that wiring. Retention (the last 20
+  complete runs, D11) is deferred to P8, which owns the exit criterion.
+   Provider pricing stays out of scope (it varies per inference provider and
+   over time, and a cost remains derivable from the recorded token counts),
+   belonging to P7; model resolution is implemented instead. A case's
+   `run_config.model_overrides` is validated for its shape only at load time (an
+   object mapping non-empty role names to non-empty model strings; a role name
+   need not be a real one), but before the first case runs the pipeline performs
+   one read-only pre-flight over the union of the caller defaults and every
+   case's roles (via `check_override_roles`, injectable as `check_models`,
+   lazily imported), and an unknown role raises `PipelineConfigError`, mapped to
+   exit 2; `--model ROLE=MODEL` on `klea-eval run` supplies
+   suite-wide defaults whose value the case's own key wins over, and
+   `klea_eval.run_config.apply_run_models` applies the merged map once per run,
+   after the run directory is prepared and before the first turn executes: it
+   reads the chat's active model map, rejects a requested role the backend does
+   not expose, PUTs one credential per provider that has an environment secret,
+   POSTs each override with `promote_default` false, and re-reads the active map
+   so a role left keyless-credential fails the run; the per-case
+   `ModelOverrideError` path is retained as a backend-side fallback. The
+   resolved map is recorded
+   as `resolved_models` in `run.json` (`RunMetadata`), in the run's own envelope
+   record (`RunMetrics`), in the per-case `CaseScore` and in the `compare_runs`
+   row; an override fault records the case as failed, runs no turn and
+   publishes nothing. No startup consistency check or rebuild-index command
+   exists although ADR-0059 flags the index/directory drift risk.
+  `attempts` remains the only per-turn extra; the run manager's turn lines still
+  carry no `schema_version` or `record_type`, so only `run.json` and the index
+  line are stamped. `ResultsError` and `ResultsSchemaError` live in
+  `klea_eval/results.py`, following the `WorkspaceError`, `RunManagerError` and
+  `MetricsError` precedent.
+- Phase 5 scope caveats: the runner adapters (`klea_eval/runners/sse.py`,
+  `klea_eval/runners/http.py`) own SSE framing and the Execute stage's network
+  surface only. SSE parsing stays tolerant: comments are skipped, only `data`
+  is accumulated, multi-line data is joined and the frame a stream ends
+  without a blank line for is still dispatched, while a frame cut before its
+  `data` line is dropped; `event`/`id`/`retry` are recognised as framing only.
+  `SSEParseError` lives in `klea_eval/runners/sse.py` and `RunnerError`,
+  `RunnerHTTPError`, `RunnerStreamError` and `RunnerTimeoutError` live in
+  `klea_eval/runners/http.py`, following the `WorkspaceError`,
+  `RunManagerError`, `MetricsError` and `ResultsError` precedent rather than
+  `klea_eval/errors.py`. Retry and backoff stay in the run manager; the
+  adapter only raises typed errors (4xx/5xx to `RunnerHTTPError`, timeout to
+  `RunnerTimeoutError`, an `error`/`interrupt` event or a stream without
+  `complete` to `RunnerStreamError`). The runner closes only the client it
+  created: an injected client or transport belongs to its owner, so tests
+  drive an `httpx` stub transport offline and the `localonly` live check gates
+  on `KLEA_EVAL_BASE_URL`. `as_turn_executor` bridges to the run manager's
+  synchronous `TurnExecutor` through `asyncio.run` and raises when a loop is
+  already running; the record it returns carries the usage counters both flat
+  and under `usage`, plus `latency_ms`, `tool_calls` and `tool_error_count`.
+  HITL `interrupt` resume, provider pricing (deliberately out of scope because
+   it varies per inference provider and over time, while a cost stays derivable
+   from the recorded token counts) and the
+   pipeline wiring are still absent (P6 and P7); ``transcript.jsonl`` writing landed in ``caa71c05`` as a reduced per-turn record.
+- Phase 6 scope caveats: `klea_eval/pipeline.py` is orchestration only. It
+  validates the whole suite through `klea_eval.cases.load_suite` before any run
+  starts, resolves the workspace root and runs directory through
+  `klea_eval/workspace.py`, derives each run id through
+  `klea_eval.identity.derive_identity` so an already complete run is skipped
+  before it is prepared, and calls `klea_eval.run_manager.start_run` and
+  `run_case` in suite order, single-threaded (the bounded worker pool stays
+  deferred). It owns no retry policy, metric parsing, `.tmp` handling or
+  transport: those remain in the run manager, the metrics collector and the
+  runner adapters. Turn execution and scoring are injected (`execute_turn`,
+  `score_turn`), so the module is offline and testable; when neither is given
+  the pipeline builds `klea_eval.runners.http.HttpRunner` from `base_url`,
+  `endpoint` and `timeout`, and a missing executor with no base URL raises
+  `PipelineConfigError`. A failing case is isolated: its failure is recorded in
+  its `CaseRun`, its staged `run.json` is discarded with the staging directory
+  so none survives, and no index line is written for it, and the
+  suite continues; only a pre-run fault (an invalid suite, an unusable
+  workspace root, a missing executor) aborts the suite before any run. `run.json`
+  and the single `runs/index.jsonl` line are written by the pipeline through
+  `klea_eval.results.write_metadata` and `append_index_entry` after `run_case`
+  has published the run directory, because the run manager still does not write
+  them. `SuiteResult.exit_code` is `0` when every case passed, `1` when one
+  failed its rubrics and `4` when a rubric-declaring suite's deterministic
+  checks produced no grade (`EXIT_GRADE_MISSING`, surfaced by the
+  `SuiteResult.grade_missing` property; ADR-0061); the CLI maps `CaseValidationError`
+  and `PipelineConfigError` to exit code `2`.  The per-case decision is
+  explicit: `exit_code` returns `1` when `case_run.metrics is not None and
+  case_run.metrics.task_success is False`, and returns `4` only when no case
+  failed and `self.grade_missing` is non-zero, so a grade recorded on a stored
+  run yields `1` and `4` stays reserved for a declared expectation that
+  recorded no grade at all. The `klea-eval run` command forwards
+  the workspace, endpoint, timeout, harness seed, attempt budget and overwrite
+  options, requires a base URL (`--base-url` or `KLEA_EVAL_BASE_URL`) before it
+  calls the pipeline, and prints one `<case_id>: pass|fail` line per run.
+  Suite-level `pass_at_k`, HITL `interrupt` resume,
+   cost derivation, retention and the scheduler are still absent, belonging to
+   P7, P8 and P9.
+- Phase 7 scope caveats: `klea_eval/scoring.py` is the ADR-0060 Aggregate stage
+  as a read-only module. It reads `runs/index.jsonl` through
+  `klea_eval.results.read_index`, groups entries by `case_id` in
+  first-index-occurrence order, dedupes by `run_id`, skips non-completed
+  entries and loads each selected run through `klea_eval.metrics.load_run`, so
+  it never scans run directories and reuses the ADR-0058 per-run envelope
+  rather than redefining it. A per-case score is the mean of the numeric rubric
+  scores recorded on the run's turn records, falling back to `1.0` for a run
+  whose `task_success` is true and `0.0` otherwise; `passed` follows
+  `task_success` alone, so a run of unknown success contributes a score but
+  never a pass. `suite_score` is the mean of the case scores and `pass_at_k` is
+  passed cases over considered cases (`DEFAULT_K = 1`, D10), where only the
+  first `k` attempts of a case are inspected. A case whose metrics are missing
+  or unreadable is listed in `missing_runs`, counts as failed with score `0.0`
+  and never aborts the aggregate; an empty index yields an empty aggregate and
+  `k < 1` raises `ScoringError`, which lives in `klea_eval/scoring.py`
+  following the `WorkspaceError`, `RunManagerError`, `MetricsError` and
+  `ResultsError` precedent. An unsupported index `schema_version` propagates
+  `ResultsSchemaError` unchanged. Scoring writes no file, no run directory and
+  no index line; `SuiteAggregate.to_dict()` is only the in-memory JSON-ready
+  form. Still deferred: deterministic rubric checks over the free-text `criteria`
+  (ADR-0061): whether a run is graded is settled (no rubrics means no grade and
+  a grade is never inferred), and judged scoring is rejected, so only the
+  machine-checkable rubric checks are missing; provider pricing stays out of
+  scope (it varies per inference provider and over time and a cost remains
+  derivable from the recorded token counts), so `cost_estimate` is only relayed
+  and summed, HITL
+  `interrupt` resume, retention (P8), the in-process scheduler (P9), a persisted
+  suite report artefact, the Markdown reporter and any CLI or API exposure of
+  `aggregate_suite` (P8). `pipeline.run_suite` is unchanged and keeps its
+  injected `score_turn` hook.
+- Phase 8 scope caveats: `klea_eval/api.py` is the read/inspect surface of the
+  ADR-0060 Aggregate stage plus the ADR-0059 retention point, and it owns no
+  persistence of its own. `get_run` looks the id up through
+  `klea_eval.results.read_index` before touching disk, treats a listed run
+  without the `COMPLETE` marker (`klea_eval.workspace.is_complete`) as a
+  `RunNotFoundError` rather than a result, and reads the envelope and the
+  metrics summary through `klea_eval.results.load_stored_run`, so a
+  `ResultsSchemaError` propagates unchanged while any other results fault is
+  translated to `ApiError`. `list_runs` reads the index only and never opens a
+  run directory. `suite_summary` is a thin delegation to
+  `klea_eval.scoring.aggregate_suite`, which closes the P7 deferred item (CLI
+  or API exposure of `aggregate_suite`) without redefining a score. Retention
+  (`apply_retention`, D11, `DEFAULT_RETENTION = 20`) keeps the most recent 20
+  completed runs per case, groups in first-index-occurrence order, and by
+  default archives an older completed run: its `workspace/` tree is removed
+  while `run.json`, `metrics.jsonl`, the `COMPLETE` marker and its
+  `runs/index.jsonl` line survive, and an `ARCHIVED` marker is written beside
+  them. With `purge=True` it instead deletes the whole run directory with
+  `shutil.rmtree` and drops its index line; with `dry_run=True` it reports the
+  plan without touching the disk, and a second archive pass is a no-op. It
+  rewrites `runs/index.jsonl` atomically through a fsynced sibling plus
+  `os.replace`, preserving file order; non-completed index lines and leftover
+  `.tmp` directories are neither counted nor deleted, and `keep < 1` or a bool
+  raises `ApiError`. `ApiError` and `RunNotFoundError` live in
+  `klea_eval/api.py`, following the `WorkspaceError`, `RunManagerError`,
+  `MetricsError`, `ResultsError` and `ScoringError` precedent. Retention is
+  lossy, so it is applied only from the explicit `klea-eval prune` command,
+  never automatically from a run, and is not wired into `pipeline.run_suite`.
+  `klea-eval show`, `runs`, `prune` (archive by default, with `--purge` and
+  `--dry-run`) and `summary` were added beside the existing commands, keeping
+  the heavy imports deferred. "SSE integration"
+  here means reading stored runs: no web/ASGI server or served SSE endpoint
+  exists, and `eval_pkg` stays a library plus CLI. An archived run is a
+  legitimate `COMPLETE` directory with its index line, so `klea-eval check`
+  counts it as consistent and never reports it as drift. Still deferred: the
+  re-hydration of an archived run's artifacts, a second purge horizon for
+  archived runs, and an automatic startup index/directory consistency check or
+  rebuild-index command (the explicit `klea-eval check` pass is implemented
+  instead),
+  HITL `interrupt` resume, provider pricing (deliberately out of scope: it
+  varies per inference provider and over time, and a cost stays derivable from
+  the recorded token counts), the bounded worker pool (P9), MLflow export and
+  the Markdown reporter.
+- Phase 9 scope caveats: `klea_eval/scheduler.py` is only the ADR-0060 Schedule
+  stage. It enumerates suites (`discover_suites`: a JSONL file, or a directory's
+  `*.jsonl` files sorted by name), drives each through
+  `klea_eval.pipeline.run_suite` and aggregates each suite's stored runs through
+  `klea_eval.scoring.aggregate_suite`, restricted to that suite's `case_id`s, so
+  no loading, execution, storage or scoring logic is redefined. Execution stays
+  sequential (`DEFAULT_MAX_WORKERS = 1`; the bounded worker pool is deferred). A
+  suite that cannot start is isolated in its `SuiteRun.error` and the remaining
+  suites still run; only an unusable top-level argument raises
+  `SchedulerConfigError`, which lives in `klea_eval/scheduler.py` following the
+  `WorkspaceError`, `RunManagerError`, `MetricsError`, `ResultsError`,
+  `ScoringError` and `ApiError` precedent. `find_incomplete_runs` reports a
+  leftover `runs/<run_id>.tmp/` (or unpublished final) directory as an
+  interrupted run and never treats it as a result. `ScheduleReport.exit_code`
+  maps the ADR-0060 codes `0`, `1`, `2` and `4`: `0` every case passed, `1` a
+  case failed its rubrics, `2` a suite could not start (it outranks everything
+  else because nothing was stored for that suite), and `4` when a
+  rubric-declaring suite's deterministic checks produced no grade (ADR-0061),
+  which propagates through unchanged and matches
+  `scheduler.EXIT_GRADE_MISSING = pipeline.EXIT_GRADE_MISSING`; its own `3`
+  still marks incomplete `.tmp` runs, and a real case failure keeps `1` and
+  takes precedence over a grade-missing `4`. The D7 samples
+  are three minimal ASCII suites under `eval_pkg/samples/` (`smoke.jsonl`,
+  `multi_turn.jsonl`, `multi_case.jsonl`) with no fixtures: enough to exercise
+  the loader, the pipeline and per-case aggregation, not a benchmark corpus. The
+  D8 CI wiring is one `Run eval-marked tests` step in
+  `.github/workflows/ci.yml` running `pytest -q -m eval` inside `eval_pkg`, after
+  the unit tests and before the ruff lint; the `eval` marker itself was already
+  registered in `eval_pkg/pyproject.toml`, so no marker change was needed.
+  Still deferred: the bounded worker pool and any parallel worker count, an
+  external or broker-backed scheduler backend, a `klea-eval schedule` CLI
+  command, automatic repair or redo of leftover `.tmp` runs,
+  HITL `interrupt` resume, provider pricing (deliberately out of
+  scope: it varies per inference provider and over time, and a cost stays
+  derivable from the recorded token counts), MLflow export, a persisted
+  per-suite report artefact and the Markdown reporter.
+
+### Post-P9 refinements
+
+Landed after P9. Where a caveat above and a point below disagree, the point
+below is current.
+
+- Run identity (refines D6): `klea_eval.identity.derive_identity` folds the
+  attempt index, the case revision, the requested per-role model map
+  (`model_overrides`), the resolved model map (`resolved_models`) and the
+  request endpoint into the derived `run_id`, so two runs of a case differ
+  whenever their attempt, revision, requested role models, resolved models or
+  endpoint differ, while identical inputs still give a comparable, resumable
+  id.
+- Publication order: `run.json` is written before the `COMPLETE` marker is set
+  and before the `runs/index.jsonl` line is appended, so a directory that
+  carries the marker always carries its metadata.
+- Re-indexing: a run directory that carries the `COMPLETE` marker but has no
+  `runs/index.jsonl` line is re-indexed from its stored artifacts instead of
+  being re-run.
+- Index membership: `runs/index.jsonl` is written only for a completed run, so
+  the index is exactly one line per `COMPLETE`-marked run directory and a failed
+  run appends no line. A failed run is therefore invisible to `list_runs` and to
+  the index-only Aggregate stage by design; its failure is carried by its
+  `CaseRun` and its `klea_eval.labels.classify_case` label. Readers stay tolerant
+  of a non-completed line (the label, report-counter and retention paths skip
+  one), but the writer never produces it. This is what makes the index
+  consistency check (`klea-eval check`, below) well-defined: the index is a
+  projection of the `COMPLETE` directories, and a failed retry cannot leave a
+  second, `failed` line for the same `run_id` beside the line of the run it did
+  not replace.
+- Index consistency check: `klea-eval check` is the explicit,
+  operator-invoked check-and-repair pass over the same files
+  (`klea_eval.api.detect_drift` and `klea_eval.api.check_consistency`, returning
+  a `ConsistencyResult`). Without `--repair` it only reports; with `--repair` it
+  fixes three drift classes in order: a `COMPLETE` run directory the index omits
+  is re-indexed from its `run.json` through `results.to_index_entry` plus
+  `results.append_index_entry`, and a run whose `run.json` cannot be read is
+  reported as unrepairable and left untouched; duplicate index lines for one
+  `run_id` are dropped by one atomic rewrite that keeps the first; an index line
+  whose run directory is absent (an orphan) is dropped by the same rewrite, so a
+  line never points at a missing file for `get_run`, scoring or reporting. A
+  final directory without the `COMPLETE` marker is only flagged, never deleted,
+  and a leftover `runs/<run_id>.tmp/` staging directory is counted
+  informationally and never repaired or deleted: completion is defined by the
+  atomic rename, so a `.tmp` name proves the run never completed, and
+  `workspace.prepare_run`/`scheduler.find_incomplete_runs` already own it. Every
+  dropped line is logged at WARNING with its `run_id`, so an unrecoverable lost
+  record is never silent. Exit codes: `0` consistent, also after a repair that
+  removed all drift; `1` drift found and left in place (`--no-repair`); `2` a
+  configuration or index fault; `3` drift a repair could not fix. The repair is
+  idempotent, so a second pass finds nothing to do.
+- Overwrite safety: an overwriting run keeps the previous run directory and its
+  index line until the new run has published successfully. The previous
+  directory is held as a superseded copy and restored if the final rename
+  fails, so a failed overwrite leaves the earlier result intact.
+- Stream completion: a `complete` event whose payload is malformed or truncated
+  fails the case; it is not accepted as a clean finish.
+- Run labels: the report and the run listings label every stored run at read
+  time as `passed`, `failed`, `skipped`, `ungraded` or `grade-missing`
+  (`klea_eval.labels.classify_case`).  `ungraded` means a completed run that
+  declared no rubrics and therefore has no grade; a grade is never inferred, so
+  `ungraded` is a terminal, legitimate outcome.  `grade-missing` means a
+  completed run that declared rubrics but recorded no grade: an error state,
+  surfaced as a label, a report counter and the distinct exit code `4`
+  (`EXIT_GRADE_MISSING`) through `SuiteResult.exit_code`, with
+  `SuiteResult.grade_missing` as the predicate.  A real case failure keeps
+  exit code `1` and takes precedence over a grade-missing case.  A failed run
+  is never graded and never `grade-missing`, because run success is a
+  prerequisite for grading.
+- Rubric declaration: `run.json` records whether a case declares rubrics in
+  the `expects_grade` field.  A legacy run without the key defaults to
+  `False`, so an old ungraded run is treated as rubric-less rather than as
+  `grade-missing`.
+- Report counters: `completed`, `failed`, `skipped`, `ungraded` and
+  `grade-missing` are mutually exclusive and sum to `total`, the number of
+  index entries.
+- Score denominators: `ungraded` and `grade-missing` cases are excluded from
+  `case_count`, `suite_score` and `pass_at_k`, so a rubric-less run no longer
+  deflates the aggregate; `SuiteAggregate.ungraded_count` and
+  `grade_missing_count` expose the excluded counts, while the ungraded cases
+  stay in `cases` (and in the token, normalised-unit and cost totals).  An
+  all-ungraded suite
+  therefore reports `case_count == 0`, `suite_score == 0.0` and
+  `pass_at_k == 0.0`, and the stored run status stays `completed`.
+- Per-case cwd: each case's turn carries the run's `workspace/` directory
+  (`<run dir>/workspace/`) as `client_context.cwd`, so the agent works inside
+  the case workspace rather than in the server's working directory; a case's
+  execution-check `command` runs with that same `workspace/` as its working
+  directory.  Declared fixtures are copied into `<run dir>/workspace/fixtures`.
+- Workspace precedence: the workspace root resolves `--workspace`, then
+  `KLEA_EVAL_WORKSPACE`, then `.`, taking the first that is set.
+- `klea-eval report`: added beside `validate`, `run`, `show`, `runs`, `prune`
+  and `summary`; it writes the stored suite results to an output path through
+  the `write_report(results, output)` writer.  It also enumerates every
+  published run directory through `workspace.list_run_dirs` (excluding `.tmp`,
+  `.superseded`, `.overwrite` and hidden names), keeps the ids present in the
+  index in an `indexed` set, and renders each directory whose id is absent via
+  `_unindexed_line` with `index=missing` while incrementing
+  `counters['unindexed']`.  A complete-but-unindexed directory is classified
+  `drift`, a complete-and-archived one `archived`, and any other residue is
+  labelled from its readable `run.json`, falling back to `case=?`,
+  `status=incomplete` and `label=unknown`.  The index stays completed-only: the
+  report adds no line to it, so a failed run still gains no index entry.
+- Execution-based verification: a case may declare a case-level `command` (an
+  argv list) and `command_timeout` (default 300 s).  `klea_eval.expectations`
+  runs it once with the run's `workspace/` as the working directory, with
+  standard streams discarded and no retry, and grades it on exit status alone
+  as the `command_exit` check kind, which records the command and the exit code
+  in `metrics.expectation_checks`.  Because output is discarded, any result to
+  be graded must be written to a file an `expected_outputs` entry can check.  A
+  case that declares only a command expects a grade.  The shipped
+  `samples/hello_world.jsonl` is the minimal example of that pattern: one prompt
+  turn writes `hello world` to `hello.txt` in the workspace, and the case's
+  `python3 -c` command -- run with the run's `workspace/` as its working
+  directory and its streams discarded -- exits 0 only when that file holds
+  exactly that text, so the `command_exit` verdict is decidable from the
+  recorded exit status alone.  `schema_version` stays
+  `1.0` (D5): the harness is unreleased.
+
+---
+
+
+## 6. How to resume
+
+1. Read this note, then read the phase table: every row (P1 to P9) is `done`
+   and no atomic change remains. The deterministic
+   identity module (`klea_eval/identity.py`, commit `535b09d3`), the workspace
+   module (`klea_eval/workspace.py`, commit `06530ad7`), the run manager
+   (`klea_eval/run_manager.py`, commit `28167be8`), the metrics collector
+   (`klea_eval/metrics.py`, commit `c2118f27`), result storage
+   (`klea_eval/results.py`, commit `08a19ec7`), the runner adapters
+   (`klea_eval/runners/http.py` and `klea_eval/runners/sse.py` with
+   `tests/test_http_runner.py` and `tests/fixtures/sse/`, commit `577fff20`),
+   the harness pipeline (`klea_eval/pipeline.py`, `klea_eval/ui/cli.py` and
+   `tests/test_pipeline.py`, commit `95a2d1c5`), scoring and aggregation
+   (`klea_eval/scoring.py` and `tests/test_scoring.py`, commit `067b82e4`), the
+   run API and retention (`klea_eval/api.py`, `klea_eval/ui/cli.py` and
+   `tests/test_api.py`, commit `e137b24a`) and the in-process scheduler, sample
+   suites and CI wiring (`klea_eval/scheduler.py`, `samples/`,
+   `tests/test_scheduler.py` and `.github/workflows/ci.yml`, commits `97aef208`
+   and `c2b9cf03`) are delivered.
+2. Read `devdocs/system/agent-evaluation-harness.md` for the architecture of the
+   phase you are picking up, and the ADR it names for the design intent. The run
+   and validate commands are in `devdocs/system/eval-harness-run-guide.md`.
+3. Check `git log --oneline` and the commit log table above: they should agree.
+   If a phase's commits are missing from the table, append them before starting
+   new work.
+4. Run the phase's verification command before and after the change, so a
+   pre-existing failure is not mistaken for a regression.
+5. Commit per atomic change, never push, and update the Status column and the
+   commit log in the same commit that closes a phase step.

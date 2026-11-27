@@ -53,10 +53,14 @@ Verification in step 2 covers:
 | `agent_pkg/` | `klea_agent` | `klea`, `klea-serve` |
 | `rag_pkg/` | `klea_rag` | `klea-rag`, `klea-rag-serve` |
 | `mcp_pkg/` | `neuroml_mcp` | `nml-mcp` |
+| `eval_pkg/` | `klea-eval` | `klea-eval` |
 
 `klea_agent` is the main application: a general-purpose research agent
 (coding, workflows, analysis, hypothesis generation).  `klea_rag` is
 primarily consumed by `klea_agent` (as a retrieval/RAG service).
+`neuroml_mcp` is the NEURON/NML MCP server (`nml-mcp`).
+`klea_eval` is a Klea-only evaluation harness; its scope exclusions are
+recorded in `devdocs/adr/0062-klea-only-scope-exclusions.md`.
 
 Each has its own `AGENTS.md` with architecture details -- refer to those for
 package-specific commands, node layout, and conventions.
@@ -174,7 +178,8 @@ Internal development notes live in `devdocs/` (see `devdocs/README.md`):
 architecture and component contracts in `devdocs/system/` (Mermaid diagrams
 and data-flow notes, e.g. `system/store-create.md`), Architecture Decision
 Records in `devdocs/adr/` in MADR format numbered as `NNNN-<slug>.md`
-(e.g. `adr/0001-chunk-workers.md` -- see `devdocs/adr-template.md`),
+(e.g. `adr/0001-chunk-workers.md` -- see `devdocs/adr-template.md`; use today's
+date in YYYY-MM-DD format for the `Date:` field in the MADR header),
 plus design research and TODO context.  The consolidated open-work backlog
 is `devdocs/backlog.md` -- add deferred items there (not only in `.agents/`
 session logs) so they survive across sessions.  Keep work-in-progress notes
@@ -206,9 +211,10 @@ Read this before adding or editing a node prompt.
 
 ## Session continuity
 
-`.agents/YYYY-MM-DD-HHMM.md` logs previous work, where HHMM is the time the
-session started (24h) -- separate files per session avoid merge conflicts when
-multiple sessions run the same day (see `.agents/Readme.md` for template).
+`.agents/YYYY-MM-DD-HHMM.md` logs previous work, where YYYY-MM-DD is today's
+date and HHMM is the time the session started (24-hour format) -- separate files
+per session avoid merge conflicts when multiple sessions run the same day (see
+`.agents/Readme.md` for template).
 Read previous logs at session start; write one at session end.
 
 Every log must record the authoring agent **and the model in use** (e.g.
@@ -221,8 +227,8 @@ Git log has the step-by-step edits. Omit routine work.
 ## Versioning
 
 - Version is tracked in each package's ``setup.cfg`` (``version`` field).
-- ``klea_utils`` and ``klea_rag`` are published to PyPI; ``klea_agent`` and
-  ``neuroml_mcp`` are not yet published.
+- ``klea_utils`` and ``klea_rag`` are published to PyPI; ``klea_agent``,
+  ``neuroml_mcp`` and ``klea-eval`` are not yet published.
 - Pre-1.0 (0.x.y) releases: bump minor for new features, patch for bug fixes.
 - When cutting a release:
   1. ``git tag v<version>`` and ``git push --tags``

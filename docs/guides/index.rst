@@ -9,6 +9,7 @@ the recipes for specific tasks.
 
    create-and-use-rag
    huggingface
+   run-an-evaluation
 
 Using the agent *(coming soon)*
 -------------------------------

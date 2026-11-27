@@ -4,7 +4,7 @@ Consolidated open-work backlog, so deferred items are not lost across dated
 session logs (`.agents/`).  Add items here when a session defers something;
 remove them when implemented (git log records the work).
 
-Last updated: 2026-11-03.
+Last updated: 2026-11-18.
 
 ## Cancellation / concurrency
 
@@ -74,6 +74,19 @@ Last updated: 2026-11-03.
   `agent_pkg/klea_agent/nodes/reasoning.py:34`): a downstream consumer branches
   on its typed `conclusion` field, so that schema is not droppable.
 
+## Evaluation harness
+
+- Per-run permission boundary (sandbox): the harness binds a run to its own
+  `workspace/` through the request's `client_context.cwd`, which is the whole
+  isolation it can provide from this repository.  Enforcing what the agent may
+  read or write outside it, and mapping a local run workspace onto a remote
+  backend, need the backend's own permission boundary and are deferred until
+  that boundary is exposed.  See `Starting an evaluation backend` and `The
+  per-run workspace` in `../docs/guides/run-an-evaluation.rst` for the
+  user-facing recipe: start the backend HITL-free so an out-of-root path is a
+  non-halting tool error, and treat the run workspace as the case's assumed
+  working directory.
+
 ## Tools
 
 - `web_search` configuration: the provider pool uses a fixed default order
@@ -108,12 +121,15 @@ Last updated: 2026-11-03.
   forces the backward tail scan to byte 0 and reports the total when the file
   fits within `max_bytes`; a dedicated count mode or cached line count is
   deferred until agents need it often.
-- `run_command` whole-tree kill: the process-group kill (SIGTERM then SIGKILL)
-  now drains the group, but a descendant that detaches (``setsid``/``setpgid``,
-  e.g. `mock`/`systemd-nspawn`) escapes and survives.  Reaching it needs a
-  platform-native mechanism (Linux cgroup v2 / `PR_SET_CHILD_SUBREAPER`,
-  Windows Job Objects) or a cross-platform best-effort recursive walk (adds a
-  `psutil` dependency and is racy).  Deferred; see ADR-0038.
+- `run_command` whole-tree kill: accepted deferred limitation, not planned.
+  The process-group kill (SIGTERM then SIGKILL) drains the group, but a
+  descendant that detaches (``setsid``/``setpgid``, e.g. `mock`/
+  `systemd-nspawn`) escapes and survives.  A portable whole-tree kill is not
+  implemented because reaching a detached descendant would need a
+  platform-specific mechanism (cgroup v2 or `PR_SET_CHILD_SUBREAPER` on Linux,
+  Job Objects on Windows) or a `psutil`-style recursive walk, which adds a
+  dependency and stays racy.  Both callers work without it: a timeout is
+  reported and never halts the run.  See ADR-0038 and ADR-0062.
 
 ## Scientific mode / correctness / evaluation
 
@@ -122,7 +138,64 @@ Last updated: 2026-11-03.
   always `unverified` (ADR-0030/0036).
 - Independent inline-answer verifier for `chat`-route answers (ADR-0029
   phase).
-- `eval_pkg` harness (see `devdocs/system/agent-evaluation-harness.md`).
+
+## Evaluation harness (`eval_pkg`)
+
+The authoritative implementation tracker (agreed decisions, ordered phases,
+commit log and resume instructions) is
+`devdocs/system/eval-harness-implementation.md`; this section keeps only the
+remaining ordered phases and deferred items.
+
+- Scoring-depth follow-ups, **settled**: the expected-output and tool-expectation
+  checks are delivered (ADR-0061) and cost accounting is settled (ADR-0058,
+  Normalised Token Units).  Also open: the design questions of the
+  machine-checkable `criteria` predicate form and the scale-rubric pass
+  threshold.  Any future judge must be opt-in, pin and record its model id,
+  cache verdicts and be strictly non-gating, under its own ADR.
+- Run diagnostics record (settled), **done** in ``caa71c05``.  Known limit: a
+  handled failure still discards the ``.tmp`` tree (``run_manager.py:355``), so
+  the record survives a completed run or a hard crash only.
+
+- Retention granularity, **done**: deferred known current limitations (recorded
+  in the Retention bullet of `devdocs/system/agent-evaluation-harness.md`):
+  re-hydrating an archived run's artifacts, and a second purge horizon for
+  already-archived runs.
+- Carve-out retained: process-group kill for case commands.  The harness shares
+  the accepted deferred whole-tree-kill limitation recorded above for the agent's
+  `run_command`: `subprocess.run`'s timeout kills only the direct child, so a
+  descendant that detaches can survive.  Both callers work without a whole-tree
+  kill, because the timeout is reported (a failed `command_exit` check for the
+  harness, a non-halting error for `run_command`) and never halts the run.  See
+  ADR-0038 and ADR-0062.
+- Carve-out retained: a case command inherits the harness process environment
+  verbatim (there is no `env=`), so a suite author must be trusted and provider
+  credentials must not be exported into the harness environment.
+- Root `AGENTS.md` corrections, **deferred** to a later repo-docs pass (repo
+  documentation, no eval-harness code change): two gaps found during the eval
+  work in the root `AGENTS.md`.  (1) The Versioning bullet lists `klea_utils`
+  and `klea_rag` as published and `klea_agent`/`neuroml_mcp` as not, but says
+  nothing about `klea-eval`, so it needs one sentence stating whether
+  `klea-eval` is published.  (2) The `Packages at a glance` intro sentence
+  names only `klea_agent` (the main application) and `klea_rag` (consumed by
+  it) while the table below lists five packages, so the intro omits `mcp_pkg`
+  and `eval_pkg`.  Both are documentation-only fixes to the root `AGENTS.md`
+  and are not applied in this run.
+- Automatic retry on the `409` awaiting-answer state, **deferred** to a later
+  pass in the main git worktree (agent-side change, not eval-harness code;
+  nothing is changed in this eval worktree).  The observed seed-0 failure
+  mode is a `409 {"detail": "This chat is awaiting your answer."}` response
+  that the operator retries by hand with `ctrl+R`; the agent should retry
+  automatically instead, because the state is either a transient provider
+  error worth a retry or an HITL node pausing for input.
+- Autonomous mode (no HITL, no path checking), **deferred** to the same later
+  pass in the main git worktree (agent-side change, not eval-harness code).
+  The HITL nodes have to be removed and path checking relaxed so a task runs
+  to completion without human intervention.  Step-4 finding: every turn is
+  posted with `client_context.cwd` pinned to
+  `context.run_dir / 'workspace'` (`_build_payload` in
+  `eval_pkg/klea_eval/runners/http.py`), so relaxing the permission root has
+  to follow that cwd -- the harness keeps pinning the run workspace while the
+  agent stops gating paths.
 
 ## Infrastructure / correctness
 
@@ -174,14 +247,11 @@ Last updated: 2026-11-03.
   inspecting every tool output, and a user who approved a sensitive file has
   arguably accepted that the model sees it.  Low priority unless a concrete
   exfiltration case appears.
-- Token-usage tracking / benchmarking: the `usage` stream event and DEBUG log
-  carry per-node counts, but no consumer aggregates them per node (CLI drops
-  `usage`; web UI sums one total; graph state keeps a run-level total).
-  Decide the durable mechanism (consume stream events in a benchmark utility
-  vs persist a per-run per-node summary) and whether to record usage per LLM
-  call so retries/truncations count (today only the final call per node is
-  measured).  `TokenUsage` now carries `reasoning_tokens`/`cached_tokens`/
-  `role`; a stable node key is still needed.
+- Token-usage tracking / benchmarking: still open on the backend: only the
+  first retried step of a batch carries the evaluator retry detail
+  (`agent_pkg/klea_agent/nodes/operational_evaluator.py:535-542`), so a batch
+  that retried several steps under-reports `evaluator_retry_total`; a stable
+  node key for per-node aggregation is also still needed.
 - Prompt-cache A/B on volatile system-prompt content (deferred, unmeasured):
   `_get_system_prompt` (`utils_pkg/klea_utils/nodes/base.py:1228-1253`) keeps
   `context_summary` and the `Model in use:` line inside the one

@@ -1,0 +1,623 @@
+Running an evaluation
+=====================
+
+``klea-eval`` runs a suite of test cases against a live Klea server, scores
+each case, and stores the result so it can be inspected, summarised and
+reported on afterwards.  This page takes you from a running server to a
+stored, readable run.  See :doc:`../cli/klea-eval` for the complete command
+reference.
+
+``klea-eval`` is the Klea-specific evaluation harness: it exists to evaluate
+Klea and is not a general-purpose evaluation harness or benchmarking
+platform.  Every suite, fixture and check targets Klea's own agent or RAG
+server.
+
+Prerequisites
+-------------
+
+* An environment with the package installed from the repository, so the
+  ``klea-eval`` console script is on ``PATH``::
+
+      uv pip install -e eval_pkg
+
+* A running Klea server.  The harness drives the same ``/query/stream`` SSE
+  route the web and TUI clients use, so either server is a valid target:
+
+  - ``klea-serve``, the agent, at ``127.0.0.1:8006``;
+  - ``klea-rag-serve``, the RAG pipeline, at ``127.0.0.1:8005``.
+
+* The base URL of that server.  Pass ``--base-url`` / ``-u`` or export
+  ``KLEA_EVAL_BASE_URL``.  There is no default: ``run`` exits ``2`` with
+  ``error: no base URL configured; ...`` when neither is supplied.  The
+  endpoint path defaults to ``/query/stream``; pass ``--endpoint`` only for a
+  different surface.
+
+* Model overrides for a run, passed with ``--model`` / ``-m ROLE=MODEL``.  A
+  model name carries its provider prefix, for example
+  ``opencode:deepseek-v4.1-flash``.  Override every role the run resolves
+  (``chat``, ``plan`` and ``tool_picker``) so no role is left on a default the
+  target server cannot serve; a role a case's own ``run_config`` pins still
+  wins for that role::
+
+    klea-eval run suites/smoke.jsonl \
+        --base-url http://127.0.0.1:8006 \
+        -m chat=opencode:deepseek-v4.1-flash
+
+  ``-m`` is repeatable, once per role.  A role neither ``-m`` nor the case pins
+  is left on the target server's own model configuration, and the model that
+  served the turn is then recorded only in the run's results
+  (``resolved_models`` in ``run.json``), never in the suite.  Pin the models a
+  case needs in the case file, in ``run_config.model_overrides``
+  (`Per-case model selection`_), so the model choice is part of the case
+  definition and travels with it.
+
+* Credentials for the provider of any ``--model`` override you use, taken
+  from the environment of the harness process using the ``<PROVIDER>_API_KEY``
+  convention: the ``opencode:`` prefix needs ``OPENCODE_API_KEY`` (not
+  ``OPENAI_API_KEY``), while ``OPENAI_API_KEY``, ``ANTHROPIC_API_KEY``,
+  ``MISTRAL_API_KEY`` and ``HF_TOKEN`` cover their own providers and a local
+  ``ollama`` runtime needs none.  A key is pushed only to the run's own user
+  scope and is never printed, echoed in an error, or recorded in the run's
+  artefacts.  A locked role rejects an override with ``403`` and
+  ``The '<role>' model is locked``; the lock is a server-side setting.
+
+* ``--timeout`` above its 60 s default for suites whose turns run long agent
+  paths, and a ``--workspace`` / ``-w`` directory outside the repository so
+  the run artefacts do not pollute the working tree.  The agent works in the
+  run's own ``workspace/`` directory, not the server's working directory, and
+  a case's execution-check ``command`` runs there too.
+
+* A backend started with human-in-the-loop approvals turned off.  Without it a
+  path request outside the run workspace halts an unattended run; see
+  `Starting an evaluation backend`_ for the recipe.
+
+Starting an evaluation backend
+------------------------------
+
+``klea-eval`` drives a live server, so the server's own safety settings decide
+whether a case can finish unattended.  Under the default settings a tool call
+that touches a path outside the run's workspace pauses the run for human
+approval: the harness receives an ``interrupt`` event and the turn ends without
+an answer.  Start the backend with human-in-the-loop approvals turned off
+before running a suite::
+
+    klea-serve --no-hitl
+
+or export the toggle in the server's environment::
+
+    KLEA_AGENT_HITL=off klea-serve
+
+With HITL off, a path outside the permitted root becomes a non-halting tool
+error instead of an interrupt: the run continues, and the denial is counted in
+the run's ``tool_error_count``.
+
+.. note::
+
+   These settings belong to the server process.  The safety flags on ``klea
+   headless`` (``--hitl/--no-hitl``, ``--path-check``, ``--path-check-stance``)
+   only configure a server that command spawns itself, and ``--base-url`` may
+   name an already-running or remote server that keeps its own configuration.
+   Configure that server where it runs; the harness has no per-run override.
+
+The per-run workspace
+---------------------
+
+Every turn is posted with ``client_context.cwd`` pinned to the run's own
+workspace, ``<workspace>/<run_id>/workspace``, so that directory is the
+server's default permission root.  A case is assumed to work inside it, and a
+case's execution-check ``command`` runs there too.
+
+A case that needs files from outside the workspace cannot read them: with HITL
+off the attempt fails as a tool error rather than stalling, so the case is
+recorded as a failure and the missing access shows up in the run's tool-error
+count.
+
+To grant wider access deliberately, relax the path gate on the backend.
+``--path-check-stance allow`` lets a detected path proceed without a prompt
+(the stance is only read when HITL is off), and ``--path-check off`` disables
+client-side path checking entirely::
+
+    klea-serve --no-hitl --path-check-stance allow
+
+Prefer copying the inputs a case needs into its workspace, so the run stays
+self-contained and attributable.
+
+Writing a suite
+---------------
+
+A suite is a JSONL file: one JSON object per line, one case per line.  The
+loader relies on these fields:
+
+``case_id``
+    Required.  Identifies the case in the run index, in the stored artefacts
+    and in the per-case line the CLI prints.
+
+``schema_version``
+    Required.  A string pinning the case layout; the only accepted value is
+    ``"1.0"``.  Any other value, or a non-string, is a validation error.
+
+``turns``
+    Required.  The ordered turns one case sends.  Each turn carries
+    ``turn_number`` (1-based and matching its position in the list), ``role``,
+    and the message text in ``content`` (required, a non-empty string).  The
+    allowed turn keys are ``turn_number``, ``role``, ``content``,
+    ``expected_outputs`` and ``tool_expectations``; any other key is a
+    validation error.  The accepted roles are ``user``, ``plan``,
+    ``execute``, ``eval`` and ``chat``.
+
+``run_config``
+    Optional.  Per-case overrides merged over the harness defaults: the run
+    seed (``harness_seed``) and, for model selection, ``model_overrides``
+    (`Per-case model selection`_).
+
+``rubrics``
+    Optional.  Per-case grading criteria layered on top of task success
+    (ADR-0056, ADR-0061).
+
+Optional per-case ``fixtures`` are resolved relative to the directory of the
+JSONL file that owns the case, so a suite can carry its own fixture tree.  A
+minimal case looks like this:
+
+.. code-block:: json
+
+   {"case_id": "smoke-001", "schema_version": "1.0", "turns": [{"turn_number": 1, "role": "user", "content": "Summarise the NeuroML repository layout."}]}
+
+.. _eval-per-case-models:
+
+Per-case model selection
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+A case can pin the model used for each model-backed role, so the model choice
+is part of the case rather than of the command that runs it.  The map goes in
+the case's ``run_config.model_overrides`` and follows these rules:
+
+* The value is ``<provider>:<model>``, for example
+  ``opencode:deepseek-v4.1-flash``.  The provider decides the credential: an
+  ``opencode:`` model reads ``OPENCODE_API_KEY`` from the harness
+  environment; the key is pushed only to the run's own user scope and is
+  never printed, echoed in an error or recorded in the run's artefacts.
+
+* The roles are whatever the target app exposes in its ``models/active`` map
+  (``chat``, ``plan`` and ``tool_picker`` for the agent).  A role name is not
+  checked at load time, but the merged set is checked once before the first
+  case runs: an unknown role aborts the whole run with exit ``2`` and
+  ``unknown role '<role>' (the backend exposes: ...)``.
+
+* A case's value wins over the ``-m`` flag for the same role.  The merged set
+  is applied once, after the run directory is prepared and before the first
+  turn; a role that neither source pins keeps the target server's own model.
+
+* The requested map enters the derived ``run_id``, so changing a case's models
+  makes it a new run rather than an overwrite of the old one.
+
+.. code-block:: json
+
+   {"case_id": "hello-model", "schema_version": "1.0", "run_config": {"model_overrides": {"chat": "opencode:deepseek-v4.1-flash"}}, "turns": [{"turn_number": 1, "role": "user", "content": "Create a file named hello.txt containing the text hello."}]}
+
+Pin the models a case needs rather than relying on the server's defaults: the
+model choice is then documented in the case file beside the task it applies
+to.  A case left on the server's default records its model only in the run's
+results (``resolved_models`` in ``run.json``), so the suite no longer says
+which model it was evaluated with.
+
+Validate before running
+-----------------------
+
+``validate`` loads the suite without touching the network, so it is the
+cheapest way to catch a bad ``turn_number``, an unknown ``schema_version`` or
+a misplaced key::
+
+    klea-eval validate suites/smoke.jsonl
+
+It prints ``<source>: <n> cases valid``, or the first fault as
+``<source>:<line>: <message>``, and exits ``2``.
+
+Running a suite
+---------------
+
+::
+
+    klea-eval run suites/smoke.jsonl \
+        --base-url http://127.0.0.1:8006 \
+        --workspace runs/smoke \
+        --harness-seed 0 \
+        --max-attempts 3
+
+The options are:
+
+``SUITE``
+    The JSONL suite to run (positional, required).
+
+``--workspace``, ``-w``
+    Directory to write run artefacts into.  Defaults to
+    ``$KLEA_EVAL_WORKSPACE``, else the current directory.
+
+``--base-url``, ``-u``
+    Base URL of the server.  Defaults to ``$KLEA_EVAL_BASE_URL``; required.
+
+``--endpoint``
+    Path appended to the base URL.  Defaults to ``/query/stream``.
+
+``--timeout``
+    Per-request timeout in seconds.  Defaults to ``60.0``; raise it for suites
+    whose turns run long agent paths.
+
+``--harness-seed``, ``-s``
+    Seed for the deterministic harness.  Defaults to ``0``.
+
+``--max-attempts``
+    Attempts per case before it is recorded as failed.  Defaults to ``3``.
+
+``--overwrite``
+    Replace an existing run's ``run_id`` instead of skipping it.  Off by
+    default.
+
+``--model``, ``-m ROLE=MODEL``
+    Override a model role for this run; repeatable.  A malformed pair is a
+    configuration fault and exits ``2``.  The roles are whatever the target
+    app exposes in its ``models/active`` map; an unknown role aborts the whole
+    run before the first case with exit ``2`` and
+    ``unknown role '<role>' (the backend exposes: ...)``.  The check covers the
+    flag's defaults together with every case's ``run_config.model_overrides``,
+    so a case-level typo aborts the run too.  A case's own
+    ``run_config.model_overrides`` still wins over the flag for the same role;
+    see `Per-case model selection`_.
+
+Every command also accepts ``--debug`` (verbose logging) and ``--log-level``
+(defaults to ``$KLEA_LOG_LEVEL``, otherwise ``INFO``).
+
+Each case prints one line, ``<case_id>: pass`` or ``<case_id>: fail``, and the
+command exits with the suite's exit code (see below).
+
+A ``run_id`` is derived from the case's identity and the harness seed, not
+from the wall clock, so rerunning the same suite with the same seed targets
+the same stored record.  Without ``--overwrite`` that is not an error: the
+case is logged as ``already complete, skipping it``, recorded as ``skipped``
+with its stored metrics, and its directory is left untouched.  With
+``--overwrite`` the existing run directory is cleared and the case is
+republished under that ``run_id``.  To keep both runs, change
+``--harness-seed`` or use a fresh ``--workspace``.
+
+Reading the results
+-------------------
+
+::
+
+    klea-eval runs                       # the run index, one line per run
+    klea-eval runs --case-id smoke-001 --status completed
+    klea-eval show <run_id>              # <run_id>: <case_id> <status> pass|fail
+    klea-eval summary --k 1              # suite_score, pass_at_k, input_output_ratio
+    klea-eval report results.json -o report.md
+
+``runs`` prints ``<run_id> <case_id> <status> <timestamp>`` per stored run and
+accepts ``--case-id`` and ``--status`` filters.  ``show`` reads one run back
+through the API.  ``summary`` prints ``suite_score``, ``pass_at_k`` and the output-to-input
+``input_output_ratio``
+for ``--k`` attempts per case (default ``1``), plus the usage and retry lines
+described in :ref:`Reading the run metrics <eval-run-metrics>` below.  ``report`` renders a report from
+already collected results to ``--output`` / ``-o``, where ``-`` means standard
+output.
+
+Artefacts are written under ``--workspace``.  Each case runs in its own
+directory, removed on success and on failure; what survives a successful run
+is the stored result record, which is what the inspection commands read.  A
+failed run leaves no stored record and appends no index line.
+
+``show``, ``runs``, ``summary``, ``prune`` and ``check`` accept ``--workspace``
+/ ``-w`` and fall back to ``$KLEA_EVAL_WORKSPACE``.
+
+.. _eval-run-metrics:
+
+Reading the run metrics
+-----------------------
+
+This section is the canonical reference for every measurement the harness
+records, aggregates and prints.  A measurement keeps one name across the turn,
+run, case and suite levels; the level is marked by a prefix: ``t`` for one
+turn, ``r`` for a run, ``c`` for a case score and ``s`` for a suite aggregate.
+Other documents should refer to this section rather than restate a field, so a
+definition cannot drift.
+
+Field reference
+~~~~~~~~~~~~~~~
+
+Every field the harness derives, with the level it exists at, its definition,
+its unit and how an absent value is reported.  ``t`` = turn, ``r`` = run,
+``c`` = case, ``s`` = suite.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 12 40 14 20
+
+   * - Field
+     - Levels
+     - Definition
+     - Unit
+     - When absent
+   * - ``input_tokens`` (t) / ``total_input_tokens`` (r, c, s)
+     - t, r, c, s
+     - Input tokens recorded for a turn, summed over a run's turns and a
+       suite's cases.
+     - tokens
+     - ``0`` (never null)
+   * - ``output_tokens`` (t) / ``total_output_tokens`` (r, c, s)
+     - t, r, c, s
+     - Output tokens recorded for a turn, summed over a run's turns and a
+       suite's cases.
+     - tokens
+     - ``0`` (never null)
+   * - ``cached_tokens`` (t) / ``total_cached_tokens`` (r, c, s)
+     - t, r, c, s
+     - Cached tokens recorded for a turn, summed over a run's turns and a
+       suite's cases.
+     - tokens
+     - ``0`` (never null)
+   * - ``normalised_units`` (t) / ``total_normalised_units`` (r, c, s)
+     - t, r, c, s
+     - Token counts expressed as weighted token-equivalent units, summed the
+       same way as the raw totals.
+     - weighted units (float)
+     - ``0.0``
+   * - ``latency_ms`` (t) / ``total_latency_ms`` (r)
+     - t, r
+     - Per-turn request latency, summed over a run's turns.
+     - milliseconds
+     - ``None`` when no turn carried one
+   * - ``tool_error_count``
+     - r
+     - Tool calls that ended in an error over a run.
+     - count
+     - ``0``
+   * - ``llm_calls``
+     - t, r, c, s
+     - LLM calls a turn made, summed over a run's turns and a suite's cases.
+     - count
+     - ``0``
+   * - ``per_call_usage``
+     - t, r, c
+     - Per-invocation usage entries of those calls: kept per turn and
+       concatenated in order on a run and a case.  No suite-level field
+       exists, so the suite aggregate stays compact.
+     - sequence of mappings
+     - empty sequence; a non-mapping entry is skipped rather than raising
+   * - ``peak_context_tokens``
+     - t, r, c, s
+     - The largest input-plus-output token count of a single call, taken over
+       a run's turns and then over a suite's cases.
+     - tokens
+     - ``None`` when nothing was recorded, printed ``n/a``
+   * - ``evaluator_retry_count`` (t, c) / ``evaluator_retry_total`` (r, s)
+     - t, r, c, s
+     - Evaluator retries retained on a turn, summed over a run's turns and a
+       suite's cases.
+     - count
+     - ``0``
+   * - ``evaluator_retries``
+     - t
+     - The retained raw retry mappings behind ``evaluator_retry_count``.
+     - sequence of mappings
+     - empty sequence
+   * - ``max_attempt_seen``
+     - t, r
+     - The highest ``attempt`` counter among a turn's retained retries; a run
+       reports the highest across its turns.  Not carried at case or suite
+       level.
+     - attempt counter
+     - ``0`` when the stream sent none
+   * - ``first_try``
+     - t
+     - ``true`` when the turn's work was accepted on its first attempt,
+       ``false`` when an evaluator retry was recorded, and ``null`` when the
+       stream carried neither a retry nor a verdict.
+     - tri-state bool
+     - ``None``
+   * - ``first_try_passes``
+     - r, c, s
+     - Turns whose first attempt was accepted at run level; cases whose first
+       attempt was accepted at case and suite level.
+     - count
+     - ``0``
+   * - ``recovered_after_retry``
+     - r, c, s
+     - Turns that only passed after a retry at run level; cases that only
+       passed after a retry at case and suite level.
+     - count
+     - ``0``
+   * - ``first_try_pass_rate``
+     - r, c, s
+     - At run level, ``first_try_passes`` over graded turns; a case carries
+       that run value; the suite reports the unweighted mean of the per-case
+       rates.
+     - fraction 0-1
+     - ``None`` on a zero denominator, printed ``n/a``
+   * - ``task_success``
+     - r
+     - Whether the run's retained checks all passed.
+     - tri-state bool
+     - ``None`` when ungraded
+   * - ``cost_estimate``
+     - r, c, s
+     - Cost relayed from the run envelope, summed over a suite's cases.  No
+       price table exists, so it is never derived.
+     - currency as reported
+     - ``None`` at run and case; ``0.0`` (never null) at suite
+   * - ``score``
+     - c
+     - Unitless mean of the run's recorded grades.
+     - unitless
+     - n/a
+   * - ``passed``
+     - c
+     - Whether the case met its recorded expectation verdicts.
+     - bool
+     - n/a
+   * - ``suite_score``
+     - s
+     - Unitless mean of the per-case scores.
+     - unitless
+     - ``0.0`` on an empty aggregate
+   * - ``pass_at_k``
+     - s
+     - Passed cases over considered cases, ``k`` being how many of a case's
+       stored attempts are inspected.
+     - fraction 0-1
+     - ``0.0`` on an empty aggregate
+   * - ``case_count``, ``pass_count``
+     - s
+     - Cases in the aggregate and cases that passed.
+     - count
+     - ``0``
+   * - ``ungraded_count``, ``grade_missing_count``
+     - s
+     - Cases with no evaluator verdict, and cases that expected a grade but
+       recorded none.
+     - count
+     - ``0``
+   * - ``missing_runs``
+     - s
+     - Run identifiers whose metrics could not be read; they score ``0.0``
+       without aborting the aggregate.
+     - run-id list
+     - empty list
+   * - ``input_output_ratio``
+     - s
+     - Output tokens per input token over the aggregate totals.
+     - ratio
+     - ``None`` when the total input is ``0``, printed ``n/a``
+
+The serialised form (``to_dict()``) uses these field names one-for-one, so a
+JSON consumer reads the same key as the reference above.  The keys inside a
+``per_call_usage`` entry are owned by the backend stream contract
+(``devdocs/system/streams.md``) rather than the harness.
+
+``klea-eval summary`` output
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The command prints exactly seven lines, in this order.  It prints a subset of
+the fields above: the token, latency and cost totals, ``first_try_passes``,
+``recovered_after_retry``, ``max_attempt_seen`` and ``missing_runs`` are not
+printed.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 38 36
+
+   * - Line
+     - Format
+     - Fallback
+   * - ``suite_score``
+     - ``suite_score: {:.4f}``
+     - always numeric
+   * - ``pass_at_k``
+     - ``pass_at_k: {:.4f}``
+     - always numeric
+   * - ``input_output_ratio``
+     - ``input_output_ratio: {:.4f}``
+     - ``n/a`` when the ratio is ``null``
+   * - ``llm_calls``
+     - ``llm_calls: {int}``
+     - always numeric
+   * - ``peak_context_tokens``
+     - ``peak_context_tokens: {int}``
+     - ``n/a`` when no peak was recorded
+   * - ``evaluator_retry_total``
+     - ``evaluator_retry_total: {int}``
+     - always numeric
+   * - ``first_try_pass_rate``
+     - ``first_try_pass_rate: {:.4f}``
+     - ``n/a`` when no case carried a verdict
+
+Caveats and known limits
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+- ``peak_context_tokens`` is a retry-merged upper bound: it spans every call a
+  turn made, retried calls included, so it is not the context size of a single
+  attempt and must not be read as the size of one prompt.
+- ``evaluator_retry_total`` is a lower bound, not an exact tally: the retry
+  detail is reported on the first retried step of a batch, so a batch that
+  retried several steps is counted once.
+- An older stored run that carries no per-call usage yields an empty
+  ``per_call_usage`` rather than raising, so it still aggregates.
+- ``first_try_pass_rate`` is ``null`` -- printed ``n/a`` -- when no case carried
+  an evaluator verdict, so a missing denominator never reads as ``0.0``, and a
+  turn without a verdict is left out of the rate rather than counted as a
+  clean pass.
+
+Housekeeping
+------------
+
+::
+
+    klea-eval check                      # index vs run directories
+    klea-eval check --repair --json
+    klea-eval prune --keep 20            # archive beyond the window
+    klea-eval prune --keep 20 --purge    # delete instead of archiving
+    klea-eval prune --keep 20 --dry-run  # report the plan, touch nothing
+
+``check`` compares the run index with the run directories and reports missing,
+orphan, duplicate, unmarked and staging entries.  ``--repair`` fixes the drift
+it can (re-indexing a complete run, dropping duplicate or orphan lines);
+``--json`` emits the findings as one JSON document.
+
+``prune`` applies the retention policy, keeping ``--keep`` / ``-k`` completed
+runs per case (default ``20``).  Archiving is the default: a run beyond the
+window loses only its workspace tree, while its ``run.json``,
+``metrics.jsonl`` and index line survive and an archived marker is written
+beside them, so the run stays listed and readable.  Pass ``--purge`` to delete
+the whole run directory and drop its index line, or ``--dry-run`` to report
+what would happen without touching the disk.  Retention only ever runs from
+this explicit command.
+
+Exit codes
+----------
+
+``run`` (and the scheduler) return:
+
+* ``0`` -- every case passed.
+* ``1`` -- a case failed.
+* ``2`` -- a configuration or validation fault, raised before any case ran.
+* ``4`` -- a completed case declared rubrics but recorded no grade
+  (``EXIT_GRADE_MISSING``), which is distinct from the ``1`` of a real case
+  failure.  A real case failure outranks a grade-missing case, so a run with
+  both exits ``1``.
+
+``check`` returns a different set:
+
+* ``0`` -- the index is consistent.
+* ``1`` -- drift was found and not repaired.
+* ``2`` -- a configuration or read fault.
+* ``3`` -- drift a repair cannot fix, such as an unmarked directory or an
+  unreadable ``run.json``.
+
+Troubleshooting
+---------------
+
+* **``error: no base URL configured; ...`` (exit 2).**  Neither ``--base-url``
+  nor ``$KLEA_EVAL_BASE_URL`` was set.
+* **Connection refused / ``endpoint request failed``.**  No server is
+  listening on the base URL; start ``klea-serve`` (8006) or
+  ``klea-rag-serve`` (8005) and check the scheme, host and port.
+* **``endpoint answered 404``.**  The path appended to the base URL does not
+  exist on that server.  Both Klea servers serve ``/query/stream``; drop
+  ``--endpoint`` to get the default.
+* **``stream ended without a complete event`` / ``endpoint reported an
+  error``.**  The server answered but the turn failed inside the graph, or the
+  target is not the Klea SSE contract.  Check the server log.
+* **``endpoint timed out after 60.0s``.**  Raise ``--timeout``; long agent
+  paths exceed the default.
+* **A validation fault from ``validate`` / ``run`` (exit 2).**  The message is
+  ``<source>:<line>: <message>``; common causes are a ``schema_version`` other
+  than ``"1.0"``, a ``turn_number`` that does not match the turn's position,
+  or an unknown turn key.
+* **``unknown role '<role>' (the backend exposes: ...)``.**  A ``--model`` role
+  the target app does not expose; the whole run aborted before the first case
+  and nothing was stored.
+* **``No model configured for role '<role>'``.**  A model-backed turn ran with
+  no model for that role: no ``-m`` covered it and the case did not pin it in
+  ``run_config.model_overrides``, and the target server has no default for the
+  role (a fresh harness chat starts with an empty model map).  Pass ``-m
+  <role>=<provider>:<model>`` or pin the model in the case.  The turn fails
+  before an answer, so the case fails.
+* **A rerun reports ``skipped``.**  The deterministic ``run_id`` matched a
+  complete stored run; pass ``--overwrite``, or change ``--harness-seed`` /
+  ``--workspace`` to keep both runs.
