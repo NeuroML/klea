@@ -440,20 +440,25 @@ async def test_dispatches_and_returns_tool_results():
     assert [r.is_error for r in updates["tool_results"]] == [False, False]
     assert client.calls == [("a", {"x": 1}), ("b", {"y": 2})]
     event_types = [e["type"] for e in events]
-    # A running ``state`` event precedes dispatch; the end ``state`` and the
-    # trailing chat-renderable ``tool`` event follow.
-    assert event_types == ["progress", "state", "inspect", "state", "tool"]
+    # A running ``state`` event precedes the gates and is re-emitted once the
+    # calls are sent; the end ``state`` and the trailing chat-renderable
+    # ``tool`` event follow.
+    assert event_types == ["progress", "state", "state", "inspect", "state", "tool"]
 
     running = events[1]["data"]
     assert running["display"] == "- **a**: running\n- **b**: running"
     assert running["heading"] == "Tool Execution"
+    assert running["details"]["running_calls"] == []
+    sent = events[2]["data"]
+    assert sent["display"] == running["display"]
+    assert [c["tool"] for c in sent["details"]["running_calls"]] == ["a", "b"]
 
-    info = events[2]["data"]
+    info = events[3]["data"]
     assert info["summary"] == "Called 2 tool(s), 2 succeeded"
     assert info["details"]["tool_names"] == ["a", "b"]
     assert info["details"]["failed_calls"] == 0
     assert info["details"]["tool_calls"][0]["tool"] == "a"
-    status = events[3]["data"]
+    status = events[4]["data"]
     assert status["display"] == "- **a**: ok x1\n- **b**: ok x1"
 
 
@@ -815,6 +820,38 @@ async def test_access_level_gate_denies_read_only():
     assert client.calls == [("read", {})]
 
 
+async def test_running_calls_skip_calls_denied_by_a_gate():
+    """A denied call is never reported as still running (#259 review).
+
+    The section emitted before dispatch lists no running calls; the one
+    re-emitted at dispatch lists only the call that reached the server.
+    """
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={
+            "read": ToolInfo(read_only=True),
+            "delete": ToolInfo(destructive=True),
+        },
+    )
+    events: list[dict] = []
+    _record_stream(node, events)
+
+    state = MiniState(
+        access_level="read_only",
+        tool_calls=[ToolCallSchema(tool="read"), ToolCallSchema(tool="delete")],
+    )
+    await node.execute(state)
+
+    running = [
+        e["data"]["details"]["running_calls"]
+        for e in events
+        if e.get("type") == "state"
+        and "running_calls" in (e.get("data") or {}).get("details", {})
+    ]
+    assert running == [[], [{"tool": "read", "title": "read", "call": "read()"}]]
+
+
 async def test_access_level_gate_full_allows():
     client = FakeMCPClient()
     node = _make_node(client=client, tool_infos={"delete": ToolInfo(destructive=True)})
@@ -926,7 +963,12 @@ def test_get_status_none_when_all_names_empty():
 def test_get_running_tools_lists_tools_with_titles():
     """The pre-dispatch section marks each tool ``running`` (status pane)."""
     node = _make_node(tool_infos={"a": ToolInfo(title="Alpha tool")})
-    state = MiniState(tool_calls=[ToolCallSchema(tool="a"), ToolCallSchema(tool="b")])
+    state = MiniState(
+        tool_calls=[
+            ToolCallSchema(tool="a", args={"command": "sleep 40"}),
+            ToolCallSchema(tool="b"),
+        ]
+    )
 
     status = node._get_running_tools(state)
 
@@ -934,6 +976,17 @@ def test_get_running_tools_lists_tools_with_titles():
     assert status.heading == "Tool Execution"
     assert status.summary == "Running 2 tool(s)"
     assert status.display == "- **Alpha tool**: running\n- **b**: running"
+    # Before the gates have passed no call counts as sent to the server.
+    assert status.details["running_calls"] == []
+
+    # Once dispatched, each call is listed so a stopped run can say what was
+    # left running.
+    status = node._get_running_tools(state, dispatched=[0, 1])
+    assert status is not None
+    assert status.details["running_calls"] == [
+        {"tool": "a", "title": "Alpha tool", "call": 'a(command="sleep 40")'},
+        {"tool": "b", "title": "b", "call": "b()"},
+    ]
 
 
 def test_get_running_tools_none_without_tool_calls():

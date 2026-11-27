@@ -201,7 +201,9 @@ One run is in flight at a time and is always attached to the active session
 (ADR-0050, I1/I2).  A query starts the run worker; the worker drives
 `stream_events`, feeds the shared reducer, and posts a message per event so
 widgets refresh on the app loop.  Stop cancels the worker and best-effort
-`POST /query/cancel`.  A failure `resume` re-runs with `resume=True`; a HITL
+`POST /query/cancel`; a tool call still running gets a block saying it may
+still be running (`apply_stopped_tool_round`, the same rows the server
+stores).  A failure `resume` re-runs with `resume=True`; a HITL
 answer/cancel re-runs with `interrupt_response` / `interrupt_cancel` (I6).
 Switching sessions is refused while a run is streaming.
 

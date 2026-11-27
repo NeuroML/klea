@@ -273,6 +273,56 @@ async def test_stop_keys_cancel_the_run(fake_backend, make_app, monkeypatch, sto
     assert cancelled
 
 
+async def test_stop_mid_tool_round_shows_running_calls(
+    fake_backend, make_app, monkeypatch
+):
+    """Stop during a tool round shows a block for each call left running."""
+    from klea_utils.ui.stream_events import STOPPED_TOOL_NOTE
+
+    async def _blocking(query, chat_id, server_url, user_id="", **kwargs):
+        yield {
+            "type": "state",
+            "node": "Running tools",
+            "data": {
+                "heading": "Tool Execution",
+                "key": "Running tools",
+                "display": "- **Run command**: running",
+                "details": {
+                    "running_calls": [
+                        {
+                            "tool": "run_command",
+                            "title": "Run command",
+                            "call": 'run_command(command="sleep 40")',
+                        }
+                    ]
+                },
+            },
+        }
+        await asyncio.Event().wait()  # never completes until cancelled
+
+    async def _cancel(*args, **kwargs):
+        return True
+
+    monkeypatch.setattr("klea_utils.api.sse.stream_events", _blocking)
+    monkeypatch.setattr("klea_utils.api.sse.request_cancel", _cancel)
+
+    app = make_app()
+    async with app.run_test() as pilot:
+        await _submit(pilot, app, "go")
+        await pilot.pause()
+        await pilot.press("ctrl+g")
+        await _settle(pilot, app)
+        blocks = list(app.screen.query(MessageBlock))
+
+    assert _chat()["turn_status"]["kind"] == "stopped"
+    tool = _chat()["messages"][-1]
+    assert tool["role"] == "tool"
+    assert tool["is_error"] is True
+    assert STOPPED_TOOL_NOTE in tool["data"]
+    # The block is on screen too (the user turn plus the tool block).
+    assert len(blocks) == 2
+
+
 async def test_ctrl_c_without_selection_does_not_stop(
     fake_backend, make_app, monkeypatch
 ):

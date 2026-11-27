@@ -60,6 +60,7 @@ from klea_utils.client_context import ClientContext, validate_client_context
 from klea_utils.commands.common import parse_command
 from klea_utils.errors import ClientContextError
 from klea_utils.plogging import mask_sensitive
+from klea_utils.ui.stream_events import TOOL_ROUND_SECTION_KEY, stopped_tool_entries
 
 logger = logging.getLogger(__name__)
 
@@ -575,6 +576,10 @@ async def stream_response(
                     "stamp": datetime.now().astimezone().strftime("%X"),
                 }
             )
+        # The last tool-round status section, and whether the client stopped
+        # the run: a stop mid-round records the calls left running.
+        tool_round: dict[str, Any] | None = None
+        stopped = False
         try:
             raw_events = graph.run_graph_astream_events(
                 graph_input,
@@ -611,6 +616,8 @@ async def stream_response(
                             chat_id,
                         )
                     elif t == "complete":
+                        # The run finished: nothing is left running.
+                        tool_round = None
                         if not ephemeral_command:
                             store.add_message(
                                 user_id,
@@ -654,6 +661,11 @@ async def stream_response(
                                     ),
                                 },
                             )
+                    elif t == "state":
+                        data = event.get("data") or {}
+                        section_key = data.get("key") or event.get("node")
+                        if section_key == TOOL_ROUND_SECTION_KEY:
+                            tool_round = data
                     if t in _HYDRATION_EVENT_TYPES:
                         # Pane event: persisted so the inspector/status panes
                         # survive a reload (flushed in ``finally``).
@@ -674,8 +686,29 @@ async def stream_response(
         except Exception as e:  # noqa: BLE001
             logger.error(f"{e}\n{traceback.format_exc()}")
             yield _error_frame(str(e), type(e).__name__, resumable=True)
+        except (asyncio.CancelledError, GeneratorExit):
+            # Stop or a client disconnect.  Re-raised so the run still ends.
+            stopped = True
+            raise
         finally:
             registry.clear(thread_id)
+            # Stopping the run does not stop a tool already on the MCP server
+            # (#254), so record each call that was still running with a note
+            # to terminate it manually.
+            entries = stopped_tool_entries(tool_round) if stopped else []
+            if entries and not ephemeral_command:
+                logger.info(
+                    "stream_response(user_id=%s chat_id=%s): stopped with %d "
+                    "tool call(s) running",
+                    user_id,
+                    chat_id,
+                    len(entries),
+                )
+                rows = _tool_event_messages({"data": {"tools": entries}})
+                try:
+                    store.add_messages(user_id, chat_id, rows)
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("failed to persist stopped tool calls: %s", e)
             if pane_events:
                 try:
                     store.add_chat_events(user_id, chat_id, pane_events)

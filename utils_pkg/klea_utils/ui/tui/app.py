@@ -1150,6 +1150,7 @@ class KleaTuiApp(App[None]):
         from klea_utils.ui.state import ensure_chat
         from klea_utils.ui.stream_events import (
             TOOL_ROUND_SECTION_KEY,
+            apply_stopped_tool_round,
             apply_stream_event,
         )
 
@@ -1252,8 +1253,13 @@ class KleaTuiApp(App[None]):
                     break
         except asyncio.CancelledError:
             # The user pressed Stop: record the status and let the worker end
-            # cancelled.
+            # cancelled.  Tools still running on the server are not stopped,
+            # so show a block for each (the server stores the same rows).
             chat["turn_status"] = {"kind": "stopped"}
+            before = len(chat["messages"])
+            apply_stopped_tool_round(chat)
+            for message in chat["messages"][before:]:
+                await screen.append_message(message)
             screen.show_stopped()
             logger.debug("run stopped by user: chat=%s", self.ctx.chat_id)
             raise

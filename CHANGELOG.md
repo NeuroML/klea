@@ -39,6 +39,8 @@
 
 ### Fixed
 
+- Stopping a run while a tool is running now leaves a block in the chat for each running call, saying it may still be running and should be terminated manually, and the block is still there after a reload.
+
 - Web UI: opening the same local server via `localhost`, a LAN IP, or a docker bridge IP now shares one `user_id` (and therefore the same chat sessions) instead of minting a new cookie identity per hostname; secondary LAN NICs are found via `ifaddr` (same approach as NiceGUI's welcome URLs) so multi-homed hosts no longer fall back to a cookie for one of their own IPs.
 - Web UI: re-rendering the chat transcript no longer jumps the viewport to the newest message, so expanding an older message keeps its position.
 - Web UI: expanding a message in the chat transcript no longer moves the pane, so the message opens in place.

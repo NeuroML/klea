@@ -439,6 +439,33 @@ async def test_dispatch_read_only_denies_destructive():
     assert "delete" in str(results[1].content)
 
 
+async def test_dispatch_on_dispatch_gets_only_admitted_calls():
+    """``on_dispatch`` names only calls that passed every gate (#259 review)."""
+    client = FakeMCPClient()
+    seen: list[list[int]] = []
+    await dispatch_tool_calls(
+        client,
+        [("search", {}), ("delete", {}), ("nope", {}), ("search", {"q": "x"})],
+        {"search": ToolInfo(read_only=True), "delete": ToolInfo(destructive=True)},
+        access_level="read_only",
+        on_dispatch=seen.append,
+    )
+    assert seen == [[0, 3]]
+    assert [name for name, _ in client.calls] == ["search", "search"]
+
+
+async def test_dispatch_on_dispatch_not_called_when_all_denied():
+    seen: list[list[int]] = []
+    await dispatch_tool_calls(
+        FakeMCPClient(),
+        [("delete", {})],
+        {"delete": ToolInfo(destructive=True)},
+        access_level="read_only",
+        on_dispatch=seen.append,
+    )
+    assert seen == []
+
+
 async def test_dispatch_full_allows_destructive():
     client = FakeMCPClient()
     results = await dispatch_tool_calls(

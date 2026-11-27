@@ -323,6 +323,7 @@ async def dispatch_tool_calls(
     meta: Mapping[str, Any] | None = None,
     step_summaries: Mapping[int, str] | None = None,
     path_check_mode: PathCheckMode = DEFAULT_PATH_CHECK_MODE,
+    on_dispatch: Callable[[list[int]], None] | None = None,
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
@@ -395,6 +396,11 @@ async def dispatch_tool_calls(
         summary.  Used only to label a detected path request with the plan
         step the call serves (display only; never a decision key).  ``None``
         (the default) adds no step context, so the ask renders unchanged.
+    :param on_dispatch: Called once with the input indices of the calls that
+        passed every gate, just before they are sent to the server.  Calls
+        rejected by a gate (or still waiting on a permission ask) are never
+        in it, so a caller can tell which calls really reached the server.
+        Not called when no call passes.
     :returns: One :class:`CallToolResult` per input call, in input order.
     """
     calls = [_as_tool_call(call) for call in tool_calls]
@@ -529,6 +535,10 @@ async def dispatch_tool_calls(
 
     # 3. Dispatch the permitted calls (needs the MCP client).
     if pending:
+        if on_dispatch is not None:
+            dispatched = [idx for idx, _ in pending]
+            logger.debug(f"Dispatching admitted calls\n{dispatched = }")
+            on_dispatch(dispatched)
         # Prefer the per-session pooled client so concurrent chats do not share
         # one MCP session; fall back to the shared client when no session or no
         # pool is given (tests and non-pooled callers).

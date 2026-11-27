@@ -18,7 +18,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from datetime import datetime
 from typing import Any
 
@@ -31,6 +31,13 @@ logger = logging.getLogger(__name__)
 # end-of-round ``ok``/``error`` view), so the pair overwrites one section and a
 # frontend can drop just that section when a turn is interrupted mid-round.
 TOOL_ROUND_SECTION_KEY = "Running tools"
+
+#: Note shown for each tool call that was still running when the run was
+#: stopped.  Stopping the run does not stop a tool on the MCP server yet, so
+#: the user is told to check it themselves.
+STOPPED_TOOL_NOTE = (
+    "Run cancelled but this tool may still be running. Please terminate it manually."
+)
 
 
 def apply_stream_event(chat: ChatData, event: dict[str, Any]) -> str | None:
@@ -223,3 +230,54 @@ def replay_chat_events(chat: ChatData, events: Iterable[dict[str, Any]]) -> None
             )
             continue
         apply_stream_event(chat, event)
+
+
+def stopped_tool_entries(section: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+    """Return ``tool`` event entries for the calls a stopped run left running.
+
+    *section* is the tool-round status section (the ``data`` of the last
+    ``state`` event keyed :data:`TOOL_ROUND_SECTION_KEY`).  While the round
+    runs, its ``details["running_calls"]`` lists the dispatched calls; the
+    end-of-round section has none, so a run stopped after the round finished
+    gets no entries.  Each entry is an error block with the call line and
+    :data:`STOPPED_TOOL_NOTE`.  The server persists them and the frontends
+    show them live on Stop, so both use this one helper.
+
+    :param section: The tool-round section, or ``None`` when there is none.
+    :returns: One entry per running call, else ``[]``.
+    """
+    if not section:
+        return []
+    entries: list[dict[str, Any]] = []
+    for call in (section.get("details") or {}).get("running_calls") or []:
+        data = f"{call.get('call', '')}\n{STOPPED_TOOL_NOTE}"
+        entries.append(
+            {
+                "tool": call.get("tool", ""),
+                "title": call.get("title", ""),
+                "header": call.get("title", ""),
+                "mime": "text/x-shell",
+                "data": data,
+                "meta": {},
+                "display": f"```shell\n{data}\n```",
+                "is_error": True,
+            }
+        )
+    return entries
+
+
+def apply_stopped_tool_round(chat: ChatData) -> int:
+    """Append a block for each tool call still running when a run is stopped.
+
+    Called by the frontends when the user presses Stop, so the chat shows the
+    same rows the server stores for the stopped run (see
+    :func:`stopped_tool_entries`).
+
+    :param chat: Chat session dict (see ``state.ensure_chat``).
+    :returns: The number of messages appended.
+    """
+    section = chat.get("state_sections", {}).get(TOOL_ROUND_SECTION_KEY)
+    entries = stopped_tool_entries(section)
+    if entries:
+        apply_stream_event(chat, {"type": "tool", "data": {"tools": entries}})
+    return len(entries)

@@ -12,7 +12,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from typing import Any, Literal
 
 from fastmcp.client.client import CallToolResult
@@ -330,6 +330,9 @@ class ToolsCallerNode(
             client_context=client_context,
             step_summaries=step_summaries,
             path_check_mode=ctx.path_check_mode,
+            on_dispatch=lambda dispatched: self._stream_dispatched_tools(
+                state, dispatched
+            ),
             **meta_kwargs,
         )
         self.logger.debug(f"{results =}")
@@ -601,12 +604,7 @@ class ToolsCallerNode(
         name = getattr(tc, "tool", "") or ""
         if not name:
             return None
-        args = getattr(tc, "args", None) or {}
-        rendered = ", ".join(
-            f"{key}={ToolsCallerNode._summarise_arg(value)}"
-            for key, value in args.items()
-        )
-        call = f"{name}({rendered})" if args else f"{name}()"
+        call = ToolsCallerNode._call_line(tc)
         text = (
             ""
             if ToolsCallerNode._has_binary_payload(result)
@@ -661,6 +659,21 @@ class ToolsCallerNode(
                 return True
         structured = result.structured_content
         return isinstance(structured, dict) and bool(structured.get("binary"))
+
+    @staticmethod
+    def _call_line(tc: Any) -> str:
+        """Return the one-line ``tool(arg=...)`` rendering of a call.
+
+        Each argument value is shortened with :meth:`_summarise_arg`, so a
+        long argument does not flood the chat.
+        """
+        name = getattr(tc, "tool", "") or ""
+        args = getattr(tc, "args", None) or {}
+        rendered = ", ".join(
+            f"{key}={ToolsCallerNode._summarise_arg(value)}"
+            for key, value in args.items()
+        )
+        return f"{name}({rendered})"
 
     @staticmethod
     def _summarise_arg(value: Any, limit: int = 80) -> str:
@@ -849,7 +862,27 @@ class ToolsCallerNode(
             details={"retry_count": _retry_count(state)},
         )
 
-    def _get_running_tools(self, state: BaseModel) -> NodeStreamData | None:
+    def _stream_dispatched_tools(
+        self, state: BaseModel, dispatched: Collection[int]
+    ) -> None:
+        """Re-emit the running section once the gates have passed.
+
+        Called by :func:`dispatch_tool_calls` just before the admitted calls
+        go to the server, so ``details["running_calls"]`` names only calls
+        that really reached it.  A call denied by a gate, or one waiting on a
+        permission ask, is never reported as still running on Stop.
+        """
+        running = self._get_running_tools(state, dispatched)
+        if running:
+            self.write_custom_stream(
+                NodeStreamEvent(
+                    type="state", node=self.label, data=running
+                ).model_dump()
+            )
+
+    def _get_running_tools(
+        self, state: BaseModel, dispatched: Collection[int] = ()
+    ) -> NodeStreamData | None:
         """Return the status-pane section for a round that is about to run.
 
         Emitted before dispatch so the status pane shows each tool as
@@ -860,16 +893,32 @@ class ToolsCallerNode(
         round ends.  Calls with no usable name are skipped, matching
         :meth:`_get_status`.
 
+        ``details["running_calls"]`` lists each call in *dispatched* (tool,
+        title and the ``tool(arg=...)`` call line), so a run stopped mid-round
+        can still show which calls were in flight (see
+        :func:`klea_utils.ui.stream_events.stopped_tool_entries`).  It is empty
+        until the gates have passed: the section emitted before dispatch has
+        none, and :meth:`_stream_dispatched_tools` re-emits it with the calls
+        that were actually sent.
+
+        :param dispatched: Indices into ``state.tool_calls`` of the calls sent
+            to the server.
         :returns: A status section, or ``None`` when there is nothing to run.
         """
         tool_calls = getattr(state, "tool_calls", []) or []
         lines: list[str] = []
-        for tc in tool_calls:
+        running_calls: list[dict[str, str]] = []
+        sent = set(dispatched)
+        for i, tc in enumerate(tool_calls):
             if not tc.tool.strip():
                 continue
             info = self._tool_infos.get(tc.tool) if self._tool_infos else None
             title = info.title if info and info.title else tc.tool
             lines.append(f"- **{title}**: running")
+            if i in sent:
+                running_calls.append(
+                    {"tool": tc.tool, "title": title, "call": self._call_line(tc)}
+                )
         if not lines:
             return None
         return NodeStreamData(
@@ -877,7 +926,10 @@ class ToolsCallerNode(
             key=self.label,
             summary=f"Running {len(tool_calls)} tool(s)",
             display="\n".join(lines),
-            details={"retry_count": _retry_count(state)},
+            details={
+                "retry_count": _retry_count(state),
+                "running_calls": running_calls,
+            },
         )
 
     def _get_status(
