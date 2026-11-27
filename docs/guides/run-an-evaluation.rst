@@ -179,8 +179,9 @@ Reading the results
 ``runs`` prints ``<run_id> <case_id> <status> <timestamp>`` per stored run and
 accepts ``--case-id`` and ``--status`` filters.  ``show`` reads one run back
 through the API.  ``summary`` prints ``suite_score``, ``pass_at_k`` and the output-to-input
-``input_output_ratio`` for
-``--k`` attempts per case (default ``1``).  ``report`` renders a report from
+``input_output_ratio``
+for ``--k`` attempts per case (default ``1``), plus the usage and retry lines
+described in `Reading the run metrics`_ below.  ``report`` renders a report from
 already collected results to ``--output`` / ``-o``, where ``-`` means standard
 output.
 
@@ -191,6 +192,65 @@ failed run leaves no stored record and appends no index line.
 
 ``show``, ``runs``, ``summary``, ``prune`` and ``check`` accept ``--workspace``
 / ``-w`` and fall back to ``$KLEA_EVAL_WORKSPACE``.
+
+Reading the run metrics
+-----------------------
+
+Each stored turn, run and suite aggregate also carries the usage and retry
+metrics the stream reports.  ``klea-eval summary`` prints the suite-level ones
+after ``input_output_ratio``, and a fetch of a single run exposes the same
+fields per turn and per case::
+
+    llm_calls: 7
+    peak_context_tokens: 41231
+    evaluator_retry_total: 2
+    first_try_pass_rate: 0.6667
+
+``llm_calls``
+    The LLM calls a turn made, summed over a run's turns and over a suite's
+    cases.
+
+``per_call_usage``
+    The per-invocation usage entries of those calls: kept per turn, and
+    concatenated in order on a run.  A record that carries none yields an
+    empty list rather than raising, so an older stored run still aggregates.
+
+``peak_context_tokens``
+    The largest input-plus-output token count of a single call, taken over a
+    run's turns and then over a suite's cases.  A turn without per-call usage
+    reports no peak, which the summary prints as
+    ``peak_context_tokens: n/a``.  The peak spans every call a turn made,
+    retried calls included, so it is a retry-merged upper bound and not the
+    context size of one attempt: do not read it as the size of a single
+    prompt.
+
+``evaluator_retry_count``
+    The evaluator retries retained on one turn; ``evaluator_retry_total`` is
+    their sum over a suite's cases.
+
+``max_attempt_seen``
+    The highest ``attempt`` counter among a turn's retained retries, and ``0``
+    when the stream sent none.
+
+``first_try``
+    ``true`` when the turn's work was accepted on its first attempt, ``false``
+    when an evaluator retry was recorded, and ``null`` when the stream carried
+    neither a retry nor a verdict.
+
+``first_try_passes`` and ``recovered_after_retry``
+    Cases whose first attempt was accepted, and cases that only passed after
+    a retry.
+
+``first_try_pass_rate``
+    The mean of the per-case first-try pass rates.  It is ``null`` -- printed
+    as ``first_try_pass_rate: n/a`` -- when no case carried an evaluator
+    verdict, so a missing denominator stays explicit instead of reading as
+    ``0.0``, and a turn without a verdict is left out of the rate rather than
+    counted as a clean pass.
+
+The retry detail is reported on the first retried step of a batch, so a batch
+that retried several steps is counted once: ``evaluator_retry_total`` is a
+lower bound on the retries actually performed, not an exact tally.
 
 Housekeeping
 ------------

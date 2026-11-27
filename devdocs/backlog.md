@@ -410,14 +410,16 @@ phases are listed below.
   inspecting every tool output, and a user who approved a sensitive file has
   arguably accepted that the model sees it.  Low priority unless a concrete
   exfiltration case appears.
-- Token-usage tracking / benchmarking: the `usage` stream event and DEBUG log
-  carry per-node counts, but no consumer aggregates them per node (CLI drops
-  `usage`; web UI sums one total; graph state keeps a run-level total).
-  Decide the durable mechanism (consume stream events in a benchmark utility
-  vs persist a per-run per-node summary) and whether to record usage per LLM
-  call so retries/truncations count (today only the final call per node is
-  measured).  `TokenUsage` now carries `reasoning_tokens`/`cached_tokens`/
-  `role`; a stable node key is still needed.
+- Token-usage tracking / benchmarking: the eval harness now consumes the
+  per-invocation `llm_usage` entries and the per-step evaluator retries the
+  stream reports, recording `llm_calls`, `per_call_usage`,
+  `peak_context_tokens`, `evaluator_retry_count` and `first_try` per turn and
+  aggregating them per run and suite (`klea-eval summary`).  Still open on the
+  backend: only the first retried step of a batch carries the evaluator retry
+  detail (`agent_pkg/klea_agent/nodes/operational_evaluator.py:535-542`), so a
+  batch that retried several steps under-reports `evaluator_retry_total`; a
+  stable node key for per-node aggregation is also still needed.  `TokenUsage`
+  now carries `reasoning_tokens`/`cached_tokens`/`role`.
 - Prompt-cache A/B on volatile system-prompt content (deferred, unmeasured):
   `_get_system_prompt` (`utils_pkg/klea_utils/nodes/base.py:1228-1253`) keeps
   `context_summary` and the `Model in use:` line inside the one

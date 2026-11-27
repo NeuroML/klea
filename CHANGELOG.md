@@ -24,6 +24,8 @@
 - Per-tool call details (name, arguments, error) are retained in the run metrics, so tool expectations can be graded.
 - Eval metrics now report a provider-independent normalised token unit -- fresh input tokens at weight 1, cached input tokens at weight 0.1 in place of the input tokens they substitute for, and output tokens on their own tunable weight -- so cost stays comparable across providers without a pinned price table.
 - `klea-eval summary` now prints `input_output_ratio`, the suite's output tokens per input token over the aggregate totals, reported as `n/a` when no input tokens were recorded.
+- Eval metrics now report per-call LLM token usage and the peak context size of a single call, carried per turn, per run and per suite, and `klea-eval summary` prints the call count and the peak, reported as `n/a` when no per-call usage was recorded.
+- Eval metrics now report the evaluator retries a run needed and whether a case passed on its first attempt, and `klea-eval summary` prints the retry total and the first-try pass rate, reported as `n/a` when no case carried an evaluator verdict.
 
 - The user-facing `klea-eval` quickstart and CLI reference are now documented.
 - Eval cases can declare their own `command` and a per-case `command_timeout`; the harness runs it once in the run workspace and grades it on its exit status only, recording the command and the exit code.
