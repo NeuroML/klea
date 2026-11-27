@@ -208,13 +208,18 @@ def attach_status_pane(ctx: PageContext) -> None:
                         current_chat.get("token_usage_by_model") or {}
                     )
                     if usage_rows:
+                        # The usage group mirrors the Models collapsible: the
+                        # total line is the header and one row per model sits
+                        # in the body, using the shared list styling.
                         with ui.expansion().classes(
                             "w-full text-xs usage-group"
                         ) as usage_expansion:
                             with usage_expansion.add_slot("header"):
                                 ui.label(total_line).classes("text-xs mb-0")
-                            for model, line in usage_rows:
-                                ui.label(f"{model}: {line}").classes("text-xs")
+                            with ui.element("ul").classes("models-list"):
+                                for model, line in usage_rows:
+                                    with ui.element("li"):
+                                        ui.label(f"{model}: {line}").classes("text-xs")
                         # A state key distinct from the models group, so the
                         # two expansions toggle independently.
                         usage_expansion.bind_value(ctx, "status_usage_expanded")

@@ -1458,7 +1458,7 @@ async def test_status_panel_shows_state_and_usage(fake_backend, make_app):
 
 
 async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
-    """The status panel renders each model's usage beneath the thread total."""
+    """The usage group heads with the thread total and lists each model."""
     from klea_utils.ui.state import format_token_usage
 
     totals = {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 2}
@@ -1480,12 +1480,18 @@ async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
     app = make_app()
     async with app.run_test(size=(100, 30)) as pilot:
         await _settle(pilot, app)
-        panel = app.screen.query_one("#status")
-        rendered = "\n".join(str(static.render()) for static in panel.query(Static))
-        assert format_token_usage(totals) in rendered
-        for model, usage in by_model.items():
-            assert model in rendered
-            assert format_token_usage(usage) in rendered
+        usage = app.screen.query_one("#status-usage", Collapsible)
+        # The total line is the heading and the group starts collapsed.
+        assert usage.collapsed is True
+        assert str(usage.title) == format_token_usage(totals)
+        # Expanding reveals one row per model, rendered like the total line.
+        usage.collapsed = False
+        await pilot.pause()
+        rendered = "\n".join(
+            str(static.render()) for static in usage.query(SelectableStatic)
+        )
+        for model, model_usage in by_model.items():
+            assert f"{model}: {format_token_usage(model_usage)}" in rendered
 
 
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):

@@ -534,17 +534,27 @@ async def test_status_pane_shows_per_model_usage(fake_backend, utils_user):
 
     from nicegui import ui
 
-    # The breakdown lives in a collapsible group; open every expansion so
-    # no row is withheld by a collapsed body.
-    groups = list(utils_user.find(ui.expansion).elements)
-    assert groups, "a usage expansion must render"
-    for group in groups:
-        group.value = True
+    # The breakdown lives in the usage collapsible, distinct from the Models
+    # group: the total line is its heading and it starts collapsed.
+    groups = [
+        group
+        for group in utils_user.find(ui.expansion).elements
+        if "usage-group" in group.classes
+    ]
+    assert len(groups) == 1, "exactly one usage expansion must render"
+    usage_group = groups[0]
+    assert usage_group.value is False
 
     labels = {
         getattr(label, "text", "") for label in utils_user.find(ui.label).elements
     }
     assert format_token_usage(total) in labels
+
+    # Expanding reveals one entry per model, rendered like the total line.
+    usage_group.value = True
+    labels = {
+        getattr(label, "text", "") for label in utils_user.find(ui.label).elements
+    }
     for model, usage in by_model.items():
         assert f"{model}: {format_token_usage(usage)}" in labels
     assert not any("{}" in text for text in labels)

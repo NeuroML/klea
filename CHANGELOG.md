@@ -22,6 +22,7 @@
 - The streamed `usage` event now also carries per-invocation token usage (`llm_usage`) beside the unchanged node totals, so each LLM call's spend can be attributed on its own.
 - Evaluator step retries now report their detail on the `inspect` event (`kind`, `plan_step`, `attempt`, `max_attempts`), so a retried step can be traced.
 - The status panes in the web and terminal clients now show the token usage broken down per model beneath the thread total, taken from the breakdown the context endpoint returns.
+- The status panes now present the token usage as a collapsible: the thread total stays visible and the per-model entries expand from it.
 
 
 ### Changed
