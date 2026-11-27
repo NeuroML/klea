@@ -65,8 +65,9 @@ the two (a 3:1 split), so the status panel stays a narrow sidebar:
   the thread total in the compact abbreviated form (both that title and the
   plain-total fallback route through `_usage_line`), and its expanded body
   keeps the verbose format: it groups one entry per model under its provider
-  -- a provider heading, with the model name and its own
-  `format_token_usage` line indented beneath it.  The entries are seeded from
+  -- a provider heading, with the model name and, one indent level deeper,
+  its input figure (with the cached subset when non-zero) and then its
+  output figure on two separate indented lines.  The entries are seeded from
   `token_usage_by_model`, keyed by the effective model string; a key carrying
   no provider namespace falls back to a provider-less group, so no model entry
   is dropped.  The per-model rows come only from a hydrated chat, so a live

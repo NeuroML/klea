@@ -34,6 +34,7 @@ from klea_utils.ui.model_config import role_label
 from klea_utils.ui.state import (
     format_token_usage_by_model,
     format_token_usage_compact,
+    format_token_usage_lines,
     missing_credentials,
 )
 from klea_utils.ui.status_layout import estimate_section_lines, section_budget_lines
@@ -139,18 +140,21 @@ def _usage_widgets(
     :param collapsed: Whether the group starts collapsed.
     :returns: A one-item list: the usage collapsible, or the total static.
     """
-    rows = format_token_usage_by_model(by_model or {})
+    raw_by_model = by_model or {}
+    rows = format_token_usage_by_model(raw_by_model)
     if not rows:
         return [SelectableStatic(_usage_line(usage), id="status-usage")]
     # One heading per provider with the model and its usage row indented
     # beneath it, mirroring the Models collapsible's plain-text indentation.
     # A model string with no provider prefix groups under its own name, so a
     # bare (or ``unknown``) key still renders.
-    grouped: dict[str, list[tuple[str, str]]] = {}
-    for model, line in rows:
+    grouped: dict[str, list[tuple[str, tuple[str, str]]]] = {}
+    for model, _ in rows:
         parsed = parse_model_name(model)
         provider = parsed.provider or model
-        grouped.setdefault(provider, []).append((parsed.model_name or model, line))
+        grouped.setdefault(provider, []).append(
+            (parsed.model_name or model, format_token_usage_lines(raw_by_model[model]))
+        )
     widgets: list[SelectableStatic] = []
     for provider, entries in grouped.items():
         widgets.append(
@@ -160,7 +164,7 @@ def _usage_widgets(
                 markup=False,
             )
         )
-        for model, line in entries:
+        for model, (in_line, out_line) in entries:
             # The ids carry the provider as well as the short model name: the
             # ledger key is the full model string, so two providers may expose
             # a model with the same short name and their ids must stay unique.
@@ -171,10 +175,19 @@ def _usage_widgets(
                     markup=False,
                 )
             )
+            # Input and output totals render on their own lines, one indent
+            # level deeper than the model label above them.
             widgets.append(
                 SelectableStatic(
-                    f"        {line}",
-                    id=_section_id(f"usage-line-{provider}-{model}"),
+                    f"        {in_line}",
+                    id=_section_id(f"usage-in-{provider}-{model}"),
+                    markup=False,
+                )
+            )
+            widgets.append(
+                SelectableStatic(
+                    f"        {out_line}",
+                    id=_section_id(f"usage-out-{provider}-{model}"),
                     markup=False,
                 )
             )

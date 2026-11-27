@@ -169,7 +169,11 @@ persisted server-side and rehydrated on load:
   by model name, `None` when the ledger is absent; `usage` remains the thread
   total.  The frontends render the usage group as a collapsible whose heading shows
   the thread total as a compact abbreviated figure (for example `3 in/1 out/2 cached`),
-  while the exact counts stay in the expanded rows, whose body lists one entry per model grouped under its provider (a key carrying no provider namespace falls back to a provider-less group, so no model entry is dropped).  The live
+  while the exact counts stay in the expanded rows: the body groups one entry per
+  model under its provider and gives each model its input figure (with the cached
+  subset when non-zero) and its output figure on separate indented lines beneath
+  the model name (a key carrying no provider namespace falls back to a
+  provider-less group, so no model entry is dropped).  The live
   `usage` stream event carries no model identity, so the breakdown is
   hydration-sourced only.
   `cached_tokens` is the cache-read subset of `input_tokens`, not an

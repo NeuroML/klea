@@ -1462,6 +1462,7 @@ async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
     from klea_utils.ui.state import (
         format_token_usage,
         format_token_usage_compact,
+        format_token_usage_lines,
     )
 
     totals = {"input_tokens": 10, "output_tokens": 4, "cached_tokens": 2}
@@ -1504,13 +1505,21 @@ async def test_status_panel_shows_per_model_usage(fake_backend, make_app):
                 f"#{_section_id(f'usage-{provider}-{model_name}')}", SelectableStatic
             )
             assert str(model_widget.render()) == f"    {model_name}"
-            line_widget = usage.query_one(
-                f"#{_section_id(f'usage-line-{provider}-{model_name}')}",
+            # The single verbose line is split into separate input and output
+            # lines, each one indent level deeper than the model label and
+            # together matching the shared verbose format.
+            in_line, out_line = format_token_usage_lines(model_usage)
+            assert f"{in_line} / {out_line}" == format_token_usage(model_usage)
+            in_widget = usage.query_one(
+                f"#{_section_id(f'usage-in-{provider}-{model_name}')}",
                 SelectableStatic,
             )
-            assert str(line_widget.render()) == (
-                f"        {format_token_usage(model_usage)}"
+            assert str(in_widget.render()) == f"        {in_line}"
+            out_widget = usage.query_one(
+                f"#{_section_id(f'usage-out-{provider}-{model_name}')}",
+                SelectableStatic,
             )
+            assert str(out_widget.render()) == f"        {out_line}"
 
 
 async def test_app_chrome_and_dialog_text_is_selectable(fake_backend, make_app):
