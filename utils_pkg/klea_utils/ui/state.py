@@ -154,6 +154,23 @@ def format_token_usage(usage: Mapping[str, Any]) -> str:
     return f"{input_tokens:,} in{cached} / {output_tokens:,} out"
 
 
+def format_token_usage_lines(usage: Mapping[str, Any]) -> tuple[str, str]:
+    """Format accumulated token usage as separate in/out lines.
+
+    The per-model pane rows show the input and output totals on their own
+    lines, so the shared verbose line of :func:`format_token_usage` is split
+    at its ``" / "`` separator.  The count formatting is therefore identical,
+    including thousands separators and the cached-read note (a subset of
+    ``input_tokens``, appended only when non-zero).
+
+    :param usage: The chat's (or a model's) usage mapping.
+    :returns: ``("<in> in (<cached> cached)", "<out> out")``, or
+        ``("<in> in", "<out> out")`` when no tokens were cached.
+    """
+    input_line, _, output_line = format_token_usage(usage).partition(" / ")
+    return input_line, output_line
+
+
 def _abbreviate_count(count: int) -> str:
     """Abbreviate a token count for the compact usage heading.
 

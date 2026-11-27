@@ -29,6 +29,7 @@ from klea_utils.ui.state import (
     chats,
     format_token_usage_by_model,
     format_token_usage_compact,
+    format_token_usage_lines,
     missing_credentials,
 )
 from klea_utils.ui.status_layout import section_budget_lines
@@ -204,9 +205,8 @@ def attach_status_pane(ctx: PageContext) -> None:
                 token_usage = current_chat.get("token_usage", {})
                 if any(token_usage.values()):
                     total_line = format_token_usage_compact(token_usage)
-                    usage_rows = format_token_usage_by_model(
-                        current_chat.get("token_usage_by_model") or {}
-                    )
+                    by_model = current_chat.get("token_usage_by_model") or {}
+                    usage_rows = format_token_usage_by_model(by_model)
                     if usage_rows:
                         # The usage group mirrors the Models collapsible: the
                         # total line is the header and, in the body, one item
@@ -214,12 +214,17 @@ def attach_status_pane(ctx: PageContext) -> None:
                         # beneath it, using the shared list styling.  A model
                         # string with no provider prefix groups under its own
                         # name, so a bare (or ``unknown``) key still renders.
-                        grouped: dict[str, list[tuple[str, str]]] = {}
-                        for model, line in usage_rows:
+                        # Each model's input and output totals render on their
+                        # own lines, one indent level deeper than the model.
+                        grouped: dict[str, list[tuple[str, tuple[str, str]]]] = {}
+                        for model, _ in usage_rows:
                             parsed = parse_model_name(model)
                             provider = parsed.provider or model
                             grouped.setdefault(provider, []).append(
-                                (parsed.model_name or model, line)
+                                (
+                                    parsed.model_name or model,
+                                    format_token_usage_lines(by_model[model]),
+                                )
                             )
                         with ui.expansion().classes(
                             "w-full text-xs usage-group"
@@ -231,12 +236,13 @@ def attach_status_pane(ctx: PageContext) -> None:
                                     with ui.element("li"):
                                         ui.label(provider).classes("text-xs")
                                         with ui.element("ul"):
-                                            for model, line in entries:
+                                            for model, (in_line, out_line) in entries:
                                                 with ui.element("li"):
                                                     ui.label(model).classes(
                                                         "text-xs pl-4"
                                                     )
-                                                    ui.label(line).classes("pl-4")
+                                                    ui.label(in_line).classes("pl-8")
+                                                    ui.label(out_line).classes("pl-8")
                         # A state key distinct from the models group, so the
                         # two expansions toggle independently.
                         usage_expansion.bind_value(ctx, "status_usage_expanded")
