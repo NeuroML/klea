@@ -1,13 +1,14 @@
 CLI Reference
 =============
 
-Vector store management
------------------------
+Agent  (WIP: coming soon)
+-------------------------
 
 .. toctree::
    :maxdepth: 1
 
-   klea-stores-create
+   klea-serve
+   klea
 
 RAG
 ---
@@ -18,6 +19,14 @@ RAG
    klea-rag-serve
    klea-rag
 
+Vector store management
+-----------------------
+
+.. toctree::
+   :maxdepth: 1
+
+   klea-stores-create
+
 MCP
 ---
 
@@ -25,12 +34,3 @@ MCP
    :maxdepth: 1
 
    nml-mcp
-
-Agent  (WIP: coming soon)
--------------------------
-
-.. toctree::
-   :maxdepth: 1
-
-   klea
-   klea-serve
