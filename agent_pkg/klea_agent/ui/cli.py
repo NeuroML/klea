@@ -433,14 +433,29 @@ def list_sessions(
         if not sessions:
             typer.echo(f"No chat sessions found for user {resolved_user_id}.")
             return 0
+        # One block per session: a ``* id | updated | title`` header (the title
+        # field is dropped when the chat has none) and, unless suppressed, the
+        # preview quoted with ``> `` and closed by a lone ``>``.  Blocks are
+        # joined with a blank line so there is none before the first block or
+        # after the last.
+        blocks = []
         for session in sessions:
             chat_id = session.get("chat_id", "")
             title = session.get("title", "")
             timestamp = _format_epoch(session.get("updated_at"))
-            typer.echo(f"{chat_id}  {timestamp}  {title}".rstrip())
+            if title:
+                block = [f"* {chat_id} | {timestamp} | {title}"]
+            else:
+                block = [f"* {chat_id} | {timestamp}"]
             preview = session.get("preview")
             if preview and not no_preview:
-                typer.echo(f"    {preview}")
+                # Split on newlines so a multi-line prompt stays quoted; the
+                # server already caps the text (CHAT_PREVIEW_MAX_CHARS).
+                for line in str(preview).splitlines() or [""]:
+                    block.append(f"> {line}")
+                block.append(">")
+            blocks.append("\n".join(block))
+        typer.echo("\n\n".join(blocks))
         return 0
 
     try:

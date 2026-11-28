@@ -276,10 +276,18 @@ enforcement point for each:
   which message persistence, a rename or a model-override change all advance
   -- and `--resume <chat_id>` loads one.
 * `klea list-sessions` is a fourth backend client: it prints the server's
-  chats -- each chat id, its last-used time, its title and the stored
-  first-query preview (already truncated to `CHAT_PREVIEW_MAX_CHARS`) -- and
-  takes `--limit`/`-n`, `--json` and `--no-preview`.  The printed chat id is
-  what `--resume` takes, and the newest entry is the `--continue` target.
+  chats -- newest first -- one block per session, and takes `--limit`/`-n`,
+  `--json` and `--no-preview`.  A block's header is
+  `* <chat_id> | <last used> | <title>` (the title field and its `|` are
+  dropped when the chat has no title), followed by the stored first-query
+  preview (already truncated to `CHAT_PREVIEW_MAX_CHARS`, so it is never
+  re-truncated) quoted verbatim on `> ` lines and closed by a lone `>`; a
+  chat with no preview yet, or a `--no-preview` run, prints the header line
+  only.  Consecutive blocks are separated by a single blank line, with none
+  before the first or after the last.  `--json` still prints one array of
+  `chat_id` / `title` / `updated_at` / `preview` objects.  The printed chat
+  id is what `--resume` takes, and the newest entry is the `--continue`
+  target.
 * `user_id` resolves through one seam (`klea_utils/ui/identity.py`):
   `--user-id` > `KLEA_USER_ID` > a persisted host-local UUID, the last only for
   a loopback server (I5).  The identity key is the server app

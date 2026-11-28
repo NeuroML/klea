@@ -81,12 +81,39 @@ def test_lists_sessions_newest_first(no_spawn, chats):
 
     output = result.output
     lines = output.splitlines()
-    assert "olivine-caracal" in lines[0]
-    assert "Olivine Caracal" in lines[0]
-    assert lines[1] == "    How do I run the tests?"
-    assert "basalt-lynx" in lines[2]
-    assert "Basalt Lynx" in lines[2]
-    assert lines[3] == "    Summarise the paper."
+
+    # Each block is a ``* id | updated | title`` header, the preview quoted
+    # with ``> `` and a lone ``>`` closing the quote.
+    header = lines[0]
+    assert header.startswith("* olivine-caracal | ")
+    fields = header.split(" | ")
+    assert len(fields) == 3
+    assert fields[0] == "* olivine-caracal"
+    assert fields[1]  # a rendered date-time, not left empty
+    assert fields[2] == "Olivine Caracal"
+    assert lines[1] == "> How do I run the tests?"
+    assert lines[2] == ">"
+
+    # Exactly one blank line separates consecutive blocks.
+    assert lines[3] == ""
+    assert "basalt-lynx" not in lines[3]
+
+    header = lines[4]
+    assert header.startswith("* basalt-lynx | ")
+    fields = header.split(" | ")
+    assert len(fields) == 3
+    assert fields[0] == "* basalt-lynx"
+    assert fields[1]  # a rendered date-time, not left empty
+    assert fields[2] == "Basalt Lynx"
+    assert lines[5] == "> Summarise the paper."
+    assert lines[6] == ">"
+
+    # No blank line before the first block or after the last one.
+    assert len(lines) == 7
+    assert lines.count("") == 1
+    assert output.startswith("* ")
+    assert not output.endswith("\n\n")
+
     # The server orders ``updated_at DESC`` and the command keeps that order.
     assert output.index("olivine-caracal") < output.index("basalt-lynx")
     logger.debug("populated listing rendered in server order")

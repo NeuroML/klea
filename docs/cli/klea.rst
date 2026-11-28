@@ -32,13 +32,28 @@ Listing sessions
 ----------------
 
 ``klea list-sessions`` prints the chat sessions the ``tui``, ``web`` and
-``headless`` clients share, newest first: each entry shows the chat id, when
-the chat was last used and its title, with a preview of its first query
-indented beneath it.  It is a client in the same way as ``headless``,
-honouring ``-s/--server`` and spawning a local server when none is running.
+``headless`` clients share, newest first.  Each session is one block: a header
+line with the chat id, when the chat was last used and its title, then the
+preview of its first query quoted beneath it::
+
+    * olivine-caracal | 2026-01-12 14:35 | Olivine Caracal
+    > How do I run the tests?
+    >
+
+    * basalt-lynx | 2025-12-02 09:08 | Basalt Lynx
+    > Summarise the paper.
+    >
+
+The ``> `` lines carry the server's preview text verbatim and the lone ``>``
+closes the quote; a chat with no preview yet prints the header line only.
+Blocks are separated by a single blank line, and a header omits the title
+field (and its ``|``) when the chat has no title.  It is a client in the same
+way as ``headless``, honouring ``-s/--server`` and spawning a local server
+when none is running.
 
 ``-n/--limit`` caps how many are printed (default 20; ``0`` prints all),
-``--no-preview`` drops the preview and ``--json`` prints one array of
+``--no-preview`` drops the quoted preview block (header line only) and
+``--json`` prints one array of
 ``chat_id`` / ``title`` / ``updated_at`` / ``preview`` objects for scripting.
 The printed chat id is what ``--resume`` takes, so a session can be found in
 the listing and opened with ``klea tui --resume <chat_id>`` or ``klea web

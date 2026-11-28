@@ -191,11 +191,16 @@ Planned client commands (not registered yet): `/upload`.
 Notes:
 
 * Like `klea headless`, `klea list-sessions` is a non-interactive client
-  rather than a `/` command: it prints each chat's id, last-used time, title
-  and the server's stored first-query preview (already truncated to
-  `CHAT_PREVIEW_MAX_CHARS`), and takes `--limit`/`-n`, `--json` and
-  `--no-preview`.  The printed chat id is what `--resume` takes, and the
-  newest entry is the `--continue` target.
+  rather than a `/` command: it prints the server's chats, newest first, one
+  block per session, and takes `--limit`/`-n`, `--json` and `--no-preview`.
+  Each block is a `* <chat_id> | <last used> | <title>` header (the title
+  field and its `|` dropped when empty) with the server's stored first-query
+  preview (already truncated to `CHAT_PREVIEW_MAX_CHARS`) quoted on `> `
+  lines and closed by a lone `>`; an absent preview or `--no-preview` prints
+  the header line only, blocks are separated by one blank line, and `--json`
+  still prints the `chat_id` / `title` / `updated_at` / `preview` array.  The
+  printed chat id is what `--resume` takes, and the newest entry is the
+  `--continue` target.
 * `/file` reads a **backend** path; `/upload` brings a **client** file to
   the backend; `/webfetch` fetches a URL server-side.  All three feed
   session discovery.  `/file` works directly in the common local

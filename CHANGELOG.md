@@ -19,7 +19,7 @@
 - New `/pathcheck`, `/pathcheck-stance` and `/hitl` session commands, offered in both the terminal and web clients.
 - New `klea-serve` flags for path checking and HITL.
 - A new `klea headless` subcommand for non-interactive runs.
-- A new `klea list-sessions` subcommand that lists the shared chat sessions newest first, with each session's title and a preview of its first query, so the chat id to pass to `--resume` can be found from the terminal.
+- A new `klea list-sessions` subcommand that prints the shared chat sessions newest first, one readable block per session giving its chat id, last-used time, title and a preview of its first query, so the chat id to pass to `--resume` can be found from the terminal.
 - A new `--unattended` switch for `klea headless`, which sets the safety options a prompt-free run needs.
 - The streamed `usage` event now also carries per-invocation token usage (`llm_usage`) beside the unchanged node totals, so each LLM call's spend can be attributed on its own.
 - Evaluator step retries now report their detail on the `inspect` event (`kind`, `plan_step`, `attempt`, `max_attempts`), so a retried step can be traced.
