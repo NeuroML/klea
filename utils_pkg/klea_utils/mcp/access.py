@@ -17,6 +17,7 @@ Author: Ankur Sinha <sanjay DOT ankur AT gmail DOT com>
 """
 
 import logging
+from collections.abc import Collection
 from typing import Any, Literal, cast
 
 from pydantic import BaseModel
@@ -94,17 +95,23 @@ def tool_permits(
 def filter_tools_info(
     tools_info: dict[str, dict[str, ToolInfo]],
     access_level: AccessLevel,
+    disabled_servers: Collection[str] = (),
 ) -> dict[str, dict[str, ToolInfo]]:
-    """Return *tools_info* with tools disallowed by *access_level* removed.
+    """Return *tools_info* with the tools this session may not use removed.
 
-    Domains are preserved as keys even when all their tools are filtered out.
-    ``full`` returns the input unchanged; otherwise a new mapping is built.
+    A tool is removed when *access_level* does not permit it, or when its MCP
+    server is in *disabled_servers* (``/mcp disable``).  Domains are preserved
+    as keys even when all their tools are filtered out.  ``full`` with no
+    disabled server returns the input unchanged; otherwise a new mapping is
+    built.
 
     :param tools_info: Per-domain ``{name: ToolInfo}`` mapping.
     :param access_level: The active access level.
+    :param disabled_servers: MCP servers switched off for this session.
     :returns: A filtered mapping (the input is not mutated).
     """
-    if access_level == "full":
+    disabled = set(disabled_servers)
+    if access_level == "full" and not disabled:
         return tools_info
     filtered: dict[str, dict[str, ToolInfo]] = {}
     for domain, tools in tools_info.items():
@@ -112,12 +119,36 @@ def filter_tools_info(
             name: info
             for name, info in tools.items()
             if tool_permits(info.read_only, info.destructive, access_level)
+            and info.server not in disabled
         }
     total = sum(len(tools) for tools in tools_info.values())
     allowed = sum(len(tools) for tools in filtered.values())
     dropped = total - allowed
-    logger.debug(f"{access_level = }\n{total = }\n{allowed = }\n{dropped = }")
+    logger.debug(
+        f"{access_level = }\n{disabled = }\n{total = }\n{allowed = }\n{dropped = }"
+    )
     return filtered
+
+
+def check_server_enabled(
+    tool: str, server: str | None, disabled_servers: Collection[str]
+) -> str | None:
+    """Return a denial message when *tool*'s MCP server is disabled, else ``None``.
+
+    The dispatch-side companion of the ``disabled_servers`` filter in
+    :func:`filter_tools_info`, for a call that names a hidden tool anyway.
+
+    :param tool: Tool name, used in the message.
+    :param server: The tool's MCP server, or ``None`` when unknown.
+    :param disabled_servers: MCP servers switched off for this session.
+    :returns: A denial message, or ``None`` when the server is enabled.
+    """
+    if server is None or server not in disabled_servers:
+        return None
+    return (
+        f"Tool '{tool}' is not available: its MCP server '{server}' is disabled "
+        f"in this chat. Enable it with /mcp enable {server}."
+    )
 
 
 def check_tool_access(

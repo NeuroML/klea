@@ -179,6 +179,34 @@ def test_retry_count_prefers_plan_current_step():
     assert status.details["retry_count"] == 1
 
 
+async def test_disabled_server_call_is_refused_and_not_dispatched():
+    """The caller passes the chat's disabled servers to dispatch (#226)."""
+
+    class DisabledState(MiniState):
+        disabled_mcp_servers: list[str] = Field(default_factory=lambda: ["nml"])
+
+    client = FakeMCPClient()
+    node = _make_node(
+        client=client,
+        tool_infos={
+            "bundled_read": ToolInfo(server="bundled"),
+            "nml_list": ToolInfo(server="nml"),
+        },
+    )
+    _record_stream(node, [])
+    state = DisabledState(
+        tool_calls=[
+            ToolCallSchema(tool="bundled_read"),
+            ToolCallSchema(tool="nml_list"),
+        ]
+    )
+
+    updates = await node.execute(state)
+
+    assert [r.is_error for r in updates["tool_results"]] == [False, True]
+    assert client.calls == [("bundled_read", {})]
+
+
 async def test_skips_when_no_tool_calls_or_client():
     """No calls (or no client): the node is skipped entirely, no events."""
     node = _make_node()

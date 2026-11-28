@@ -140,7 +140,7 @@ class TestCatalogue:
         assert mcp.klass == "session-state"
         assert mcp.persists == "checkpoint"
         assert mcp.implemented is True
-        assert [sub.name for sub in mcp.subcommands] == ["list"]
+        assert [sub.name for sub in mcp.subcommands] == ["list", "enable", "disable"]
         assert "mcp" in handlers
 
 
@@ -243,6 +243,15 @@ class TestMcpHelpers:
     def test_format_empty(self):
         assert format_mcp_servers([], {}) == "No MCP servers configured."
 
+    def test_format_marks_disabled_servers(self):
+        message = format_mcp_servers(
+            ["bundled", "nml"],
+            {"bundled": ["bundled_read"], "nml": ["nml_list"]},
+            ["nml"],
+        )
+        assert "\n`bundled`:\n" in message
+        assert "\n`nml` (disabled):\n" in message
+
     def test_format_with_tools_and_empty_server(self):
         message = format_mcp_servers(
             ["bundled", "empty"],
@@ -311,9 +320,83 @@ class TestMcpHandler:
 
     async def test_unknown_verb(self):
         node = _agent_node([])
-        updates = await node.execute(_state("/mcp enable"))
+        updates = await node.execute(_state("/mcp bogus"))
         assert "Unknown subcommand" in updates["message_for_user"]
         assert "list" in updates["message_for_user"]
+
+
+class TestMcpEnableDisable:
+    """``/mcp enable|disable <server>`` toggles a server for the chat (#226)."""
+
+    @staticmethod
+    def _node(events: list | None = None) -> CommandNode:
+        return _agent_node(
+            events if events is not None else [],
+            mcp_servers=["bundled", "NeuroML"],
+            mcp_tools=["bundled_read_file", "NeuroML_list_models"],
+        )
+
+    @staticmethod
+    def _state_with(query: str, disabled: list[str]) -> KleaAgentState:
+        state = _state(query)
+        state.disabled_mcp_servers = disabled
+        return state
+
+    async def test_disable_writes_the_server(self):
+        events: list = []
+        updates = await self._node(events).execute(_state("/mcp disable NeuroML"))
+        assert updates["disabled_mcp_servers"] == ["NeuroML"]
+        assert "'NeuroML' disabled for this chat" in updates["message_for_user"]
+        # Ephemeral: the command turn is dropped from the message history.
+        assert updates["messages"] == []
+        assert any(e.get("type") == "inspect" for e in events)
+
+    async def test_server_name_is_case_insensitive(self):
+        updates = await self._node().execute(_state("/mcp disable neuroml"))
+        assert updates["disabled_mcp_servers"] == ["NeuroML"]
+
+    async def test_disable_keeps_configured_order(self):
+        updates = await self._node().execute(
+            self._state_with("/mcp disable bundled", ["NeuroML"])
+        )
+        assert updates["disabled_mcp_servers"] == ["bundled", "NeuroML"]
+        assert "No MCP servers are enabled" in updates["message_for_user"]
+
+    async def test_enable_removes_the_server(self):
+        updates = await self._node().execute(
+            self._state_with("/mcp enable NeuroML", ["NeuroML"])
+        )
+        assert updates["disabled_mcp_servers"] == []
+        assert "'NeuroML' enabled for this chat" in updates["message_for_user"]
+
+    async def test_already_disabled_changes_nothing(self):
+        updates = await self._node().execute(
+            self._state_with("/mcp disable NeuroML", ["NeuroML"])
+        )
+        assert "disabled_mcp_servers" not in updates
+        assert "already disabled" in updates["message_for_user"]
+
+    async def test_already_enabled_changes_nothing(self):
+        updates = await self._node().execute(_state("/mcp enable NeuroML"))
+        assert "disabled_mcp_servers" not in updates
+        assert "already enabled" in updates["message_for_user"]
+
+    async def test_unknown_server(self):
+        updates = await self._node().execute(_state("/mcp disable nope"))
+        assert "disabled_mcp_servers" not in updates
+        message = updates["message_for_user"]
+        assert "Unknown MCP server: nope" in message
+        assert "bundled, NeuroML" in message
+
+    async def test_missing_server_name(self):
+        updates = await self._node().execute(_state("/mcp disable"))
+        assert "disabled_mcp_servers" not in updates
+        assert updates["message_for_user"] == "Usage: /mcp disable <server>"
+
+    async def test_list_marks_disabled(self):
+        updates = await self._node().execute(self._state_with("/mcp list", ["NeuroML"]))
+        assert "\n`NeuroML` (disabled):\n" in updates["message_for_user"]
+        assert "\n`bundled`:\n" in updates["message_for_user"]
 
 
 class TestCwdHandler:

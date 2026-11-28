@@ -44,6 +44,10 @@ class ToolInfo(BaseModel):
     checkpaths: list[str] | None = None
     # Additional application-specific metadata.
     meta: dict[str, Any] | None = None
+    # The configured MCP server (``mcpServers`` key) that exposes the tool,
+    # set client-side when the tool list is built.  Lets a session switch a
+    # whole server off (``/mcp disable``).
+    server: str | None = None
     # Standard MCP ToolAnnotations hints (see the docstring link above).
     # Each is only set when declared (None = server does not express it).
     read_only: bool | None = None

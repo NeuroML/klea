@@ -64,6 +64,11 @@ class BaseGraphSchema(BaseModel):
     )
     #: Tool invocation access level (ADR-0037); apps may override the default.
     access_level: AccessLevel = "full"
+    #: MCP servers switched off for this session with ``/mcp disable``: their
+    #: tools are hidden from the planner and picker and refused at dispatch.
+    #: Session-scoped (kept in the thread checkpoint), so app init nodes must
+    #: not reset it.
+    disabled_mcp_servers: list[str] = Field(default_factory=list)
     #: Directories the user approved for this session ("allow for session") in
     #: addition to ``project_root`` (ADR-0007 update 2026-10-08).  Session-scoped:
     #: kept in the thread checkpoint across turns, so app init nodes must not

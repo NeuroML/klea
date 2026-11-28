@@ -330,6 +330,7 @@ class ToolsCallerNode(
             client_context=client_context,
             step_summaries=step_summaries,
             path_check_mode=ctx.path_check_mode,
+            disabled_servers=list(getattr(state, "disabled_mcp_servers", []) or []),
             **meta_kwargs,
         )
         self.logger.debug(f"{results =}")

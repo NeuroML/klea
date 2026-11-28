@@ -13,6 +13,7 @@ import logging
 from klea_utils.mcp.access import (
     DEFAULT_ACCESS_LEVEL,
     ToolAccessOverride,
+    check_server_enabled,
     check_tool_access,
     filter_tools_info,
     resolve_access_level,
@@ -77,6 +78,46 @@ class TestFilterToolsInfo:
         assert filtered == {"a": {}}
         # the input mapping is not mutated
         assert "delete" in info["a"]
+
+
+class TestDisabledServers:
+    """A server disabled with ``/mcp disable`` hides its tools (issue 226)."""
+
+    @staticmethod
+    def _tools_info():
+        return {
+            "code": {
+                "bundled_read": ToolInfo(read_only=True, server="bundled"),
+                "bundled_write": ToolInfo(destructive=True, server="bundled"),
+                "nml_list": ToolInfo(read_only=True, server="nml"),
+                "unknown": ToolInfo(read_only=True),
+            }
+        }
+
+    def test_full_drops_tools_of_disabled_server(self):
+        info = self._tools_info()
+        filtered = filter_tools_info(info, "full", ["nml"])
+        assert set(filtered["code"]) == {"bundled_read", "bundled_write", "unknown"}
+        # the input mapping is not mutated
+        assert "nml_list" in info["code"]
+
+    def test_combines_with_read_only(self):
+        filtered = filter_tools_info(self._tools_info(), "read_only", ["nml"])
+        assert set(filtered["code"]) == {"bundled_read", "unknown"}
+
+    def test_no_disabled_server_keeps_full_unchanged(self):
+        info = self._tools_info()
+        assert filter_tools_info(info, "full", []) is info
+
+    def test_check_server_enabled(self):
+        assert check_server_enabled("nml_list", "nml", []) is None
+        assert check_server_enabled("bundled_read", "bundled", ["nml"]) is None
+        # A tool with no known server is never blocked by this check.
+        assert check_server_enabled("unknown", None, ["nml"]) is None
+        message = check_server_enabled("nml_list", "nml", ["nml"])
+        assert message is not None
+        assert "nml_list" in message
+        assert "/mcp enable nml" in message
 
 
 class TestCheckToolAccess:

@@ -12,7 +12,7 @@ import asyncio
 import logging
 import math
 import os
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from typing import Any, cast
 
 from fastmcp.client.client import CallToolResult
@@ -24,6 +24,7 @@ from klea_utils.mcp.access import (
     DEFAULT_PATH_CHECK_MODE,
     AccessLevel,
     PathCheckMode,
+    check_server_enabled,
     check_tool_access,
 )
 from klea_utils.mcp.path_detect import (
@@ -323,6 +324,7 @@ async def dispatch_tool_calls(
     meta: Mapping[str, Any] | None = None,
     step_summaries: Mapping[int, str] | None = None,
     path_check_mode: PathCheckMode = DEFAULT_PATH_CHECK_MODE,
+    disabled_servers: Collection[str] = (),
 ) -> list[CallToolResult]:
     """Gate and dispatch tool calls against an MCP server.
 
@@ -340,7 +342,10 @@ async def dispatch_tool_calls(
       any request left unapproved blocks the call; and
     * the tool access level (ADR-0037): a tool the level does not permit
       (``read_only`` permits only explicitly read-only, non-destructive tools)
-      is rejected by :func:`check_tool_access`.
+      is rejected by :func:`check_tool_access`; and
+    * a disabled MCP server (``/mcp disable``): a tool whose server is in
+      *disabled_servers* is rejected by :func:`check_server_enabled`, also
+      when path checking is off.
 
     Allowed calls are dispatched in parallel, and the returned list stays
     aligned with the input *tool_calls* order.
@@ -395,6 +400,10 @@ async def dispatch_tool_calls(
         summary.  Used only to label a detected path request with the plan
         step the call serves (display only; never a decision key).  ``None``
         (the default) adds no step context, so the ask renders unchanged.
+    :param path_check_mode: Session path-check mode; ``off`` skips the path
+        and access-level gates.
+    :param disabled_servers: MCP servers switched off for this session.  A
+        call to one of their tools is refused before dispatch.
     :returns: One :class:`CallToolResult` per input call, in input order.
     """
     calls = [_as_tool_call(call) for call in tool_calls]
@@ -430,6 +439,15 @@ async def dispatch_tool_calls(
             )
             results[i] = _unknown_tool_error(call.tool)
             continue
+        if tool_infos is not None and disabled_servers:
+            info = tool_infos.get(call.tool)
+            denial = check_server_enabled(
+                call.tool, info.server if info else None, disabled_servers
+            )
+            if denial:
+                logger.warning(f"Denied tool call to a disabled server\n{call.tool = }")
+                results[i] = _denied_result([denial])
+                continue
         if tool_infos is not None and path_check_mode != "off":
             info = tool_infos.get(call.tool)
             denial = check_tool_access(

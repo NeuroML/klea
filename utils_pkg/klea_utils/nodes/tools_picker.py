@@ -142,15 +142,20 @@ class ToolsPicker(BaseLLMNode[BaseModel, ToolCallsSchema]):
     def _disclosed_tools(self, state: BaseModel) -> dict[str, ToolInfo]:
         """Return the tools disclosed to the model for *state*.
 
-        Access-level filtered (ADR-0037); a RAG state additionally filters to
-        its ``query_domains``.  Shared by the description text and the dynamic
+        Access-level filtered (ADR-0037), minus the tools of any MCP server
+        disabled for the session (``/mcp disable``); a RAG state additionally
+        filters to its ``query_domains``.  Shared by the description text and the dynamic
         call schema so both always cover the same tool set.
 
         :param state: Current graph state.
         :returns: ``{tool_name: ToolInfo}`` for the disclosed tools.
         """
         access_level = getattr(state, "access_level", DEFAULT_ACCESS_LEVEL)
-        tools_info = filter_tools_info(self._tools_info, access_level)
+        tools_info = filter_tools_info(
+            self._tools_info,
+            access_level,
+            getattr(state, "disabled_mcp_servers", []) or [],
+        )
         self.logger.debug(
             f"{access_level = }\n"
             f"disclosed_tools = "

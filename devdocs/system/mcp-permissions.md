@@ -275,6 +275,17 @@ annotation fails closed.  Enforcement mirrors the path gate:
   same synthetic `is_error` result used for a `checkpaths` denial, before
   it reaches the server.
 
+A chat can also switch a whole MCP server off with `/mcp disable <server>`
+(issue 226).  The list lives on the thread-scoped
+`BaseGraphSchema.disabled_mcp_servers`, and each tool's server is recorded on
+`ToolInfo.server` when `_build_tools_info` builds the catalogue (the
+`{server}_` name prefix with several servers, else the only server).  It is
+enforced like the access level: `filter_tools_info` drops the disabled
+servers' tools from the Planner and picker disclosure, and
+`dispatch_tool_calls` refuses a call to one of them
+(`check_server_enabled`), also when the path-check mode is `off`.  This is a
+per-chat convenience, not a security boundary: the server process still runs.
+
 A deployment can override a tool's classification through the per-tool
 `general.tool_access` map (`ToolAccessOverride`: `read_only` /
 `destructive`), for tools whose server does not annotate.  Precedence is
