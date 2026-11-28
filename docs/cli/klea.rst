@@ -28,6 +28,22 @@ directory or the config directory; ``--profile template`` scaffolds a
 new config.  A profile only applies to a server the client spawns
 itself -- a server that is already running keeps its own config.
 
+Listing sessions
+----------------
+
+``klea list-sessions`` prints the chat sessions the ``tui``, ``web`` and
+``headless`` clients share, newest first: each entry shows the chat id, when
+the chat was last used and its title, with a preview of its first query
+indented beneath it.  It is a client in the same way as ``headless``,
+honouring ``-s/--server`` and spawning a local server when none is running.
+
+``-n/--limit`` caps how many are printed (default 20; ``0`` prints all),
+``--no-preview`` drops the preview and ``--json`` prints one array of
+``chat_id`` / ``title`` / ``updated_at`` / ``preview`` objects for scripting.
+The printed chat id is what ``--resume`` takes, so a session can be found in
+the listing and opened with ``klea tui --resume <chat_id>`` or ``klea web
+--resume <chat_id>``.
+
 Headless runs
 -------------
 

@@ -277,3 +277,183 @@ def headless(
         # 409 when the chat is awaiting an answer).
         typer.echo(f"Request failed: {exc}", err=True)
         raise typer.Exit(code=1) from None
+
+
+#: Default number of sessions ``list-sessions`` prints (``0`` means all).
+LIST_SESSIONS_DEFAULT_LIMIT = 20
+
+
+def _format_epoch(value: float | str | None) -> str:
+    """Render a server ``updated_at`` epoch as a local date-time label.
+
+    :param value: The epoch seconds a chat record carries, or ``None``.
+    :returns: A ``YYYY-MM-DD HH:MM`` label, or ``-`` when it cannot be read.
+    """
+    if value is None:
+        return "-"
+    # Lazy: the datetime module is only needed once a listing is printed.
+    from datetime import datetime
+
+    try:
+        return datetime.fromtimestamp(float(value)).strftime("%Y-%m-%d %H:%M")
+    except (TypeError, ValueError, OSError, OverflowError):
+        return "-"
+
+
+@agent_app.command("list-sessions")
+def list_sessions(
+    server_url: str = typer.Option(
+        DEFAULT_SERVER_URL,
+        "--server",
+        "-s",
+        help="KLEA Agent server (URL:port)",
+        callback=_validate_server_url,
+    ),
+    user_id: str = typer.Option(
+        "",
+        "--user-id",
+        help="Opaque user id. Defaults to KLEA_USER_ID, else a persisted "
+        "local UUID (sent only to a loopback server).",
+    ),
+    limit: int = typer.Option(
+        LIST_SESSIONS_DEFAULT_LIMIT,
+        "--limit",
+        "-n",
+        help="Maximum number of sessions to print, newest first (0 = all).",
+    ),
+    as_json: bool = typer.Option(
+        False,
+        "--json",
+        help="Print one JSON array instead of the human-readable listing.",
+    ),
+    no_preview: bool = typer.Option(
+        False,
+        "--no-preview",
+        help="Omit each session's preview of its first query.",
+    ),
+    profile: str | None = typer.Option(
+        None,
+        "--profile",
+        "-p",
+        help="Config profile for a server this command spawns: loads "
+        "<name>.json from the current directory or the config dir. Use "
+        "'template' to scaffold a new config and exit.",
+    ),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug logging"),
+):
+    """List the user's chat sessions, newest first.
+
+    The listing comes from the shared ``GET /chat/{user_id}`` client call
+    (:func:`klea_utils.ui.client.fetch_chats`), so it shows exactly the
+    sessions the ``tui``, ``web`` and ``headless`` clients share.  It is a
+    client in the same way: a local server is spawned when none is running
+    (and stopped again on exit), otherwise the given one is used as-is.
+
+    The human-readable form prints one block per session, newest first, capped
+    at ``--limit``: the chat id, the server's ``updated_at`` rendered as a
+    local date-time, and the title on the first line, then the preview of the
+    chat's first query indented beneath it.  The preview is the one the server
+    already truncates (``CHAT_PREVIEW_MAX_CHARS``), so this command never
+    re-truncates it and fetches nothing else; a chat with no user message yet
+    has no preview line.  ``--no-preview`` drops the preview, and ``--json``
+    prints one array of ``chat_id`` / ``title`` / ``updated_at`` / ``preview``
+    objects (``preview`` omitted with ``--no-preview``) for scripting.  Output
+    is plain ASCII.
+
+    With no sessions (or when the server cannot be reached) the human-readable
+    form says so and exits 0; ``--json`` prints ``[]`` and exits 0.
+
+    :raises typer.BadParameter: When ``--limit`` is negative.
+    """
+    # Lazy: the logging helpers live in klea_utils.plogging; importing them
+    # here keeps ``list-sessions --help`` light (AGENTS.md CLI conventions).
+    from klea_utils.plogging import resolve_log_level, setup_root_logger
+
+    if limit < 0:
+        raise typer.BadParameter(
+            "--limit must be 0 or greater (0 prints every session)",
+            param_hint="--limit",
+        )
+
+    setup_root_logger("klea-agent", stderr_level=resolve_log_level(debug))
+
+    # Lazy: stdlib logging only backs this command's debug trace, so it is
+    # imported here rather than at module import time.
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Lazy: the SSE client, the identity seam, the shared spawn helper and the
+    # async runner are heavy and only needed once the command actually runs,
+    # not for ``list-sessions --help``.
+    import asyncio
+
+    import httpx
+    from klea_utils.ui.cli import _maybe_spawn_server
+    from klea_utils.ui.client import fetch_chats
+    from klea_utils.ui.identity import resolve_user_id
+
+    if debug:
+        # Make debug visible to the spawned server subprocess.
+        from klea_utils.plogging import enable_debug_logging
+
+        enable_debug_logging()
+
+    resolved_user_id = resolve_user_id(
+        explicit=user_id,
+        server_url=server_url,
+        app_name=IDENTITY_APP_NAME,
+    )
+
+    async def _run() -> int:
+        sessions = await fetch_chats(server_url, resolved_user_id)
+        logger.debug(
+            "list-sessions(%s): %d session(s), limit=%d, json=%s, preview=%s",
+            resolved_user_id,
+            len(sessions),
+            limit,
+            as_json,
+            not no_preview,
+        )
+        if limit:
+            sessions = sessions[:limit]
+        if as_json:
+            payload = []
+            for session in sessions:
+                item = {
+                    "chat_id": session.get("chat_id", ""),
+                    "title": session.get("title", ""),
+                    "updated_at": session.get("updated_at"),
+                }
+                if not no_preview:
+                    item["preview"] = session.get("preview")
+                payload.append(item)
+            typer.echo(json.dumps(payload, indent=2, default=str))
+            return 0
+        if not sessions:
+            typer.echo(f"No chat sessions found for user {resolved_user_id}.")
+            return 0
+        for session in sessions:
+            chat_id = session.get("chat_id", "")
+            title = session.get("title", "")
+            timestamp = _format_epoch(session.get("updated_at"))
+            typer.echo(f"{chat_id}  {timestamp}  {title}".rstrip())
+            preview = session.get("preview")
+            if preview and not no_preview:
+                typer.echo(f"    {preview}")
+        return 0
+
+    try:
+        with _maybe_spawn_server(
+            server_url,
+            SERVER_APP_MODULE,
+            profile=profile,
+            config_env_var=CONFIG_ENV_VAR,
+            config_dir=CONFIG_DIR,
+            template_writer=write_config_template,
+        ):
+            raise typer.Exit(code=asyncio.run(_run()))
+    except httpx.HTTPError as exc:
+        # A rejected request (for example HTTP 422 on a malformed user id).
+        typer.echo(f"Request failed: {exc}", err=True)
+        raise typer.Exit(code=1) from None
