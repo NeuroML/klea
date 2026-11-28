@@ -62,6 +62,7 @@
 - Internal evaluation-only stream fields are no longer shown in the terminal or web status panes.
 - An empty JSON block no longer appears in the plan and tool-execution inspection entries.
 - TUI: a plain message composed while a run is streaming is no longer lost: the composer refuses the submit before clearing the field, keeps the composed text and warns, while a real slash command still dispatches mid-run.
+- `--continue` in the terminal and web clients now resumes the most recently used chat instead of the most recently created one, because persisting a message now advances the chat's last-activity time.
 
 ## v0.6.0 (2026-11-08)  ---  `klea_utils` / `klea_rag`
 

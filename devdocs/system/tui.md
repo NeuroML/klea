@@ -272,7 +272,9 @@ enforcement point for each:
   against a chat that has vanished fails loudly.  The web UI dispatches the
   PATCH in one background task (its `/rename` hook is synchronous), and the TUI
   refreshes the chat header and picker only on success.  `--continue` resumes
-  the most recently updated session and `--resume <chat_id>` loads one.
+  the most recently used session -- the chat with the newest `updated_at`,
+  which message persistence, a rename or a model-override change all advance
+  -- and `--resume <chat_id>` loads one.
 * `user_id` resolves through one seam (`klea_utils/ui/identity.py`):
   `--user-id` > `KLEA_USER_ID` > a persisted host-local UUID, the last only for
   a loopback server (I5).  The identity key is the server app

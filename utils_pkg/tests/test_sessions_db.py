@@ -355,3 +355,30 @@ def test_list_chats_preview_is_truncated(store):
     preview = store.list_chats("u1")[0]["preview"]
 
     assert len(preview) == CHAT_PREVIEW_MAX_CHARS
+
+
+def test_add_message_bumps_updated_at_so_continue_picks_the_last_used_chat(store):
+    """Persisting a message advances ``updated_at``, so ``--continue`` picks it.
+
+    ``list_chats`` orders by ``updated_at`` (``--continue`` resumes the first
+    row), so a chat that just received a message must outrank a later-created
+    chat that has stayed unused.
+    """
+    store.create_chat("u1", "older-used", "Older but used")
+    store.create_chat("u1", "newer-unused", "Newer but unused")
+
+    store.add_message("u1", "older-used", "user", "still working on this")
+
+    chats = store.list_chats("u1")
+
+    assert chats[0]["chat_id"] == "older-used"
+    assert chats[1]["chat_id"] == "newer-unused"
+
+
+def test_updated_at_stays_at_creation_time_until_a_message_is_persisted(store):
+    """An untouched chat keeps ``updated_at == created_at``."""
+    store.create_chat("u1", "c1")
+
+    chat = store.get_chat("u1", "c1")
+
+    assert chat["updated_at"] == chat["created_at"]

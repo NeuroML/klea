@@ -91,8 +91,10 @@ Concrete decisions:
   parity (2026-10-22); bare `klea` / `klea-rag` now launches the TUI.
 * **Session model**: one **active** session rendered in the main loop.  A
   summonable picker (`Ctrl+S` / `/sessions`) switches, resumes, renames and
-  deletes sessions; `--continue` resumes the most recently updated session and
-  `--resume <chat_id>` loads a specific one.
+  deletes sessions; `--continue` resumes the most recently used session (the
+  chat with the newest `updated_at`, which message persistence, a rename or a
+  model-override change all advance) and `--resume <chat_id>` loads a specific
+  one.
 * **Run model**: at most **one** in-flight run, always attached to the active
   session.  Stop cancels it (local task cancel plus `/query/cancel`).
   Switching sessions is **blocked while streaming** (the user stops first),

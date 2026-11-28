@@ -746,6 +746,11 @@ class SessionStore:
                 "VALUES (?, ?, ?, ?, ?, ?)",
                 (user_id, chat_id, role, content, meta_raw, now),
             )
+            self._conn.execute(
+                "UPDATE chat_sessions SET updated_at = ? "
+                "WHERE user_id = ? AND chat_id = ?",
+                (now, user_id, chat_id),
+            )
             self._conn.commit()
         logger.debug(
             "add_message(%s, %s, role=%s, content_len=%d)",
@@ -780,6 +785,11 @@ class SessionStore:
                 "INSERT INTO messages (user_id, chat_id, role, content, metadata, created_at) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
                 batch,
+            )
+            self._conn.execute(
+                "UPDATE chat_sessions SET updated_at = ? "
+                "WHERE user_id = ? AND chat_id = ?",
+                (now, user_id, chat_id),
             )
             self._conn.commit()
         logger.debug(
